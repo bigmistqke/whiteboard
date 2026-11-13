@@ -21,6 +21,29 @@ One line per field, `type: name | label | extra`:
 
 Any other line is help text (inline markdown).
 
+**Options with explanations.** When the options of a choice need saying
+what they mean, put each on its own line under the field, as
+`- label | what choosing it means` (inline markdown). Each shows as a row to
+pick, its explanation beside it; `*` marks the writer's recommendation,
+which starts selected and is tagged as such. Use this for decisions instead
+of explaining the options elsewhere on the page.
+
+````markdown
+```form storage
+radio: where | Where answers are kept
+- *One log per project | Simple, and the agent waits on one file.
+- One log per page | Pages can be moved with their answers.
+submit: Send
+```
+````
+
+```form storage
+radio: where | Where answers are kept
+- *One log per project | Simple, and the agent waits on one file.
+- One log per page | Pages can be moved with their answers.
+submit: Send
+```
+
 ````markdown
 ```form deploy-review
 Ship **v2.3** to production?

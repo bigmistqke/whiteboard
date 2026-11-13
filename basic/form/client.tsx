@@ -51,6 +51,28 @@ function Form(props: FormProps) {
                 <span innerHTML={f.label} />
               </label>
             </Match>
+            <Match when={(f.type === 'radio' || f.type === 'checkbox' || f.type === 'select') && f.options.some(o => o.description)}>
+              {/* options with explanations: each one a row to choose, its meaning right beside it */}
+              <fieldset class="wb-form-field">
+                <legend class="wb-form-label" innerHTML={f.label} />
+                <div class="wb-form-choices">
+                  <For each={f.options}>
+                    {o => (
+                      <label class="wb-form-choice">
+                        <input type={f.type === 'checkbox' ? 'checkbox' : 'radio'} name={f.name} value={o.value} checked={isChecked(initial, f, o)} />
+                        <span class="wb-form-choice-text">
+                          <span class="wb-form-choice-title">
+                            {o.value}
+                            <Show when={o.checked}><span class="wb-form-recommended">recommended</span></Show>
+                          </span>
+                          <Show when={o.description}><span class="wb-form-choice-description" innerHTML={o.description} /></Show>
+                        </span>
+                      </label>
+                    )}
+                  </For>
+                </div>
+              </fieldset>
+            </Match>
             <Match when={f.type === 'radio' || f.type === 'checkbox'}>
               <fieldset class="wb-form-field">
                 <legend class="wb-form-label" innerHTML={f.label} />

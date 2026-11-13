@@ -47,7 +47,10 @@ Write for a reader who comes back later:
 - Update your page rather than starting a new one for the same topic; changed
   blocks are highlighted for the user, unchanged ones stay quiet.
 - Put the things you need from the user in forms, one form per decision, each
-  with a distinct name.
+  with a distinct name. When the options need explaining, explain them in
+  the form, each option with its meaning (`- label | what it means`, see the
+  form template's docs), not in a section above it: the user decides where
+  they read. Keep `:::details` for real depth, not for the options.
 - Don't number headings yourself (`### 1. Naming`): the basic renderer
   numbers section headings already, so yours would show twice. Refer to a
   section by its name.
