@@ -16,7 +16,7 @@ const DIST = path.join(ENGINE_DIR, 'dist')
 
 const OWN = {
   '@bigmistqke/whiteboard/config': 'define.js',
-  '@bigmistqke/whiteboard/template': 'define.js',
+  '@bigmistqke/whiteboard/template': 'basic/types.js',
   '@bigmistqke/whiteboard/basic': 'basic/index.js',
   '@bigmistqke/whiteboard/solid': 'solid/index.js',
 }

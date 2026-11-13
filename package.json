@@ -31,11 +31,11 @@
       "default": "./dist/define.js"
     },
     "./template": {
-      "types": "./src/define.ts",
-      "default": "./dist/define.js"
+      "types": "./basic/types.ts",
+      "default": "./dist/basic/types.js"
     },
     "./client": {
-      "types": "./src/client/api.ts"
+      "types": "./src/define.ts"
     },
     "./basic": {
       "types": "./basic/index.ts",

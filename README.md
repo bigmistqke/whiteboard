@@ -90,7 +90,7 @@ whiteboard keeps is there; nothing is written outside the project.
 
 ```
 .whiteboard/
-  config.ts       templates and options
+  config.ts       renderers and options
   pages/          the pages: pages/plan.md is served at /plan
   style.css       optional, extra styles for the pages
   events.ndjson   every form submit, one JSON object per line
@@ -104,6 +104,10 @@ Pages, the event log and the server files are gitignored by default.
 - **One server per project.** `whiteboard show` starts the project's server
   when it isn't running. It takes the port it had last time, else 4777 (or
   `$WHITEBOARD_PORT`), else the next free one.
+- **Stored as markdown, shown by a renderer.** The core keeps pages as text
+  and hands them to a renderer, which decides what they become. `basic()`,
+  which ships with the package, renders markdown with templates; another
+  renderer could make slides or a canvas of the same files.
 - **Live pages.** Every save of a page updates the open tab in place. Blocks
   that changed get a marker until you've seen them, and buttons jump to the
   next unseen block.
@@ -112,7 +116,7 @@ Pages, the event log and the server files are gitignored by default.
   Relative links between documents work the way they do in the repository.
 - **Markdown never breaks a page.** An unknown template renders its content
   as plain markdown, and a template that throws shows an error in place of
-  that block only.
+  that block only. A page no renderer takes shows as its raw text.
 
 ## Forms and answers
 
@@ -153,11 +157,10 @@ upward with `.whiteboard/config.ts`.
 | `whiteboard new <name>` | create a page under a name no other page has (`name`, else `name-2`, …), print its path |
 | `whiteboard show <page\|file>` | start the server if needed, print the page's URL |
 | `whiteboard url <page\|file>` | the same |
-| `whiteboard docs [template…]` | print the syntax of the project's templates |
-| `whiteboard templates` | list the project's templates |
-| `whiteboard events [filters]` | print recorded submits |
-| `whiteboard wait [filters]` | print the next matching submit not handed out before, waiting for it if needed |
-| `whiteboard watch [filters]` | print matching submits as they arrive |
+| `whiteboard docs` | print how to write pages in this project (for basic: its templates' syntax) |
+| `whiteboard events [filters]` | print recorded events |
+| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed |
+| `whiteboard watch [filters]` | print matching events as they arrive |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 
@@ -173,11 +176,13 @@ import { defineConfig } from '@bigmistqke/whiteboard/config'
 import basic from '@bigmistqke/whiteboard/basic'
 
 export default defineConfig({
-  name: 'my-project',   // shown in titles (default: the folder name)
-  templates: [basic()], // later entries replace earlier ones with the same name
-  files: true,          // serve and watch the rest of the project at /-/ (default: true)
+  name: 'my-project',    // shown in titles (default: the folder name)
+  renderers: [basic()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
+  files: true,           // serve and watch the rest of the project at /-/ (default: true)
 })
 ```
+
+A page without a renderer shows as its raw text, live.
 
 Set `files: false` for a project whose folder is not a repository, such as
 your home folder. Then only `.whiteboard/` is served and watched.
@@ -203,10 +208,13 @@ The full syntax, with live examples, is at `/_/docs` on the running server
 and printed by `whiteboard docs`. The agent reads it from there, so it
 always matches the templates the project actually has.
 
-`basic()` takes options for the code highlighter:
+`basic()` takes your own templates, and options for the code highlighter:
 
 ```ts
-basic({ code: { themes: { light: 'github-light', dark: 'github-dark' } } })
+basic({
+  templates: [timeline],   // one with the name of a built-in replaces it
+  code: { themes: { light: 'github-light', dark: 'github-dark' } },
+})
 ```
 
 ### Writing a template
@@ -227,11 +235,11 @@ export default {
 } satisfies Template
 ```
 
-Add it to `templates` in the config. Browser code can be written in any
+Pass it to `basic({ templates: [timeline] })` in the config. Browser code can be written in any
 framework; `@bigmistqke/whiteboard/solid` turns a Solid component into a
 client. A template with `code: true` also renders every code block no other
 template claims. See [DESIGN.md](https://github.com/bigmistqke/whiteboard/blob/main/DESIGN.md#templates)
-for the full contract.
+for the full contract, and for writing a renderer of your own.
 
 The config and a template's server side can be TypeScript: Node runs it as
 it is. The browser gets the `client` file as it is too, so a client written

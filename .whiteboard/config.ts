@@ -3,7 +3,7 @@ import basic from '@bigmistqke/whiteboard/basic'
 
 export default defineConfig({
   name: 'whiteboard',
-  templates: [
+  renderers: [
     basic(),
   ],
 })

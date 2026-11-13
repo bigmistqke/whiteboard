@@ -1,10 +1,14 @@
-// The basic template set. In a whiteboard config:
+// The basic renderer: pages are markdown, extended by templates. In a whiteboard config:
 //
 //   import basic from '@bigmistqke/whiteboard/basic'
-//   export default defineConfig({ templates: [basic()] })
+//   export default defineConfig({ renderers: [basic()] })
 //
-// or pick single templates: `import { grid, form } from '@bigmistqke/whiteboard/basic'`.
-// `code` (syntax highlighting for code blocks) takes options, so it is a function: `code({ themes })`.
+// Its own templates are always there; add more, or replace one by giving yours the same name:
+// `basic({ templates: [timeline] })`. Single templates can be imported too:
+// `import { grid, form } from '@bigmistqke/whiteboard/basic'`. `code` (syntax highlighting for code
+// blocks) takes options, so it is a function: `code({ themes })`, or `basic({ code: { themes } })`.
+import type { Renderer } from '../src/define.ts'
+import type { TemplateEntry } from './types.ts'
 import callout from './callout/index.ts'
 import code, { type Options as CodeOptions } from './code/index.ts'
 import details from './details/index.ts'
@@ -12,15 +16,29 @@ import form from './form/index.ts'
 import gallery from './gallery/index.ts'
 import grid from './grid/index.ts'
 import mermaid from './mermaid/index.ts'
+import { resolveTemplates } from './templates.js'
+import { createDocs, createRender } from './render.js'
 
 export { callout, code, details, form, gallery, grid, mermaid }
 export type { CodeOptions }
 
 export interface Options {
+  /** more templates; one with the name of a built-in replaces it */
+  templates?: TemplateEntry[]
   /** options for the code-block highlighter */
   code?: CodeOptions
 }
 
-export default function basic(options: Options = {}) {
-  return [callout, code(options.code), details, form, gallery, grid, mermaid]
+export default function basic(options: Options = {}): Renderer {
+  let resolved: ReturnType<typeof resolveTemplates> | undefined
+  const templates = () => (resolved ??= resolveTemplates([
+    { entries: [callout, code(options.code), details, form, gallery, grid, mermaid], source: 'basic' },
+    { entries: options.templates ?? [], source: 'basic({ templates })' },
+  ]))
+  return {
+    name: 'basic',
+    render: createRender(templates),
+    docs: createDocs(templates),
+    client: new URL('./client/main.js', import.meta.url),
+  }
 }

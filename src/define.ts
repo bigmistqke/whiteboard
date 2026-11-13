@@ -1,21 +1,22 @@
-// The public contract between the engine, configs and templates.
+// The contract between the core, a project's config and its renderers.
 //
-//   import { defineConfig } from '@bigmistqke/whiteboard/config'
-//   import { defineTemplate } from '@bigmistqke/whiteboard/template'
+//   import { defineConfig, defineRenderer } from '@bigmistqke/whiteboard/config'
 //
-// Both functions only return their argument; they exist for types. A published template package
-// does not need the engine at runtime: it can export plain objects that match `Template`.
+// The core stores pages, keeps the event log and runs the live channel between them and a browser.
+// How a page looks and behaves is a renderer's: the core hands it the page as stored, and the
+// renderer turns it into whatever it likes. Both functions only return their argument; they exist
+// for types, so a renderer package needs nothing from the core at runtime.
 
 // ---- config ------------------------------------------------------------------------------------
-
-/** Templates may be nested in arrays (a set returns several); falsy entries are skipped. */
-export type TemplateEntry = Template | null | false | undefined | readonly TemplateEntry[]
 
 export interface Config {
   /** shown in page titles and the overview (default: the folder name) */
   name?: string
-  /** later entries replace earlier ones with the same name */
-  templates?: TemplateEntry[]
+  /**
+   * The renderers this project can use. The first is the default; a page picks another by name in
+   * its frontmatter (`renderer: slides`). Without any, pages show as their raw text.
+   */
+  renderers?: Renderer[]
   /**
    * Serve the project's other files at /-/<path> and watch them for changes (default: true).
    * Set it to false for a project whose folder is not a repository, such as your home folder:
@@ -26,115 +27,109 @@ export interface Config {
 
 export const defineConfig = (config: Config): Config => config
 
-// ---- templates ---------------------------------------------------------------------------------
+// ---- renderers ---------------------------------------------------------------------------------
 
 /**
- * A template handles the directive or fence with its `name`: `:::name`, `::name`, `:name` and
- * ```` ```name ````. Server functions run while the page renders; `client` runs in the browser.
- *
- * File references are URLs relative to the template module, so they work wherever it is installed:
- *   client: new URL('./client.js', import.meta.url)
+ * Turns stored pages into what the reader sees. `render` runs on the server, `client` in the
+ * browser; a renderer can have either or both. The core calls `render` for the first paint and
+ * again whenever the browser side asks for it (`page.render()`), and tells the client when its page
+ * changed; what then changes on screen is up to the renderer.
  */
-export interface Template<Props = unknown> {
+export interface Renderer {
   name: string
-  /**
-   * Also render every fence that no template claims by name, and the code view of repository
-   * files: the template for code blocks in general, such as a syntax highlighter. When several
-   * templates set it, the last one in config order wins.
-   */
-  code?: boolean
-  /** props for the client; JSON-serialisable. Without it a client gets the defaults (see DirectiveProps / FenceProps). */
-  props?(ctx: ServerContext): Props | Promise<Props>
-  /** HTML for the block. Without `client` this is the whole output; with it, what shows until it mounts. */
-  html?(ctx: ServerContext): string | null | Promise<string | null>
-  /** a browser module whose default export is a `Mount` */
+  /** server: the page's HTML, shown in the page's root before the client mounts (optional) */
+  render?(page: StoredPage, ctx: RenderContext): Rendered | Promise<Rendered>
+  /** browser: a module whose default export is a `RendererMount` (optional) */
   client?: URL | string
-  /** a stylesheet linked on every page that uses the template */
-  style?: URL | string
-  /** markdown documentation: syntax and examples, rendered live at /_/docs */
-  readme?: URL | string
+  /** markdown documentation for whoever writes pages for this renderer: `whiteboard docs` */
+  docs?(ctx: RenderContext): string | Promise<string>
 }
 
-export const defineTemplate = <Props = unknown>(template: Template<Props>): Template<Props> => template
+export const defineRenderer = (renderer: Renderer): Renderer => renderer
 
-/** Default export of a template's `client` module. Return a cleanup, or nothing. */
-export type Mount<Props = unknown> = (
-  element: HTMLElement,
-  props: Props,
-  api: ClientApi,
-) => void | (() => void) | Promise<void | (() => void)>
-
-// ---- server context ----------------------------------------------------------------------------
-
-export interface Section {
-  /** heading content as HTML (no <h*> wrapper), null when the block has no headings */
-  title: string | null
-  /** heading as plain text */
-  text: string | null
+export interface Rendered {
   html: string
+  title?: string
+  /** extra markup for <head>: stylesheets, meta */
+  head?: string
+  /** JSON handed to the client with the HTML, e.g. what to mount where */
+  data?: unknown
 }
 
-interface BaseContext {
-  /** page id, e.g. "plan", or "-/docs/guide.md" for a repository file */
-  page: string
-  /** absolute path of the markdown file, and its folder (resolve files next to the page with it) */
+/** A page as the core stores it: what is in the file, read as is. */
+export type StoredPage = PageSource | FileSource | FolderSource | PagesSource
+
+interface StoredBase {
+  /** "plan", "task/plan", "-/docs/guide.md" for a repository file, "" for the overview */
+  id: string
+  /** absolute path on disk */
   file: string
-  dir: string
-  name: string
-  attrs: Record<string, string>
-  esc(s: unknown): string
-  parseAttrs(s: string): Record<string, string>
-  /** render mdast nodes to HTML; nested directives and fences go through their templates */
-  toHtml(nodes: unknown[]): Promise<string>
-  toString(node: unknown): string
-  /** render a markdown string to HTML (templates included) */
-  markdown(src: string): Promise<string>
-  /** like markdown(), without the wrapping <p> for a single paragraph */
-  inline(src: string): Promise<string>
-  /** what a client gets when the template has no props() */
-  defaults(): Promise<Record<string, unknown>>
+  /** last modified, ms */
+  mtime: number | null
 }
 
-/** `:::name[label]{attrs}` … `:::`, `::name[label]{attrs}`, `:name[label]{attrs}` */
-export interface DirectiveContext extends BaseContext {
-  kind: 'containerDirective' | 'leafDirective' | 'textDirective'
-  /** label as HTML / plain text, null without one */
-  label: string | null
-  labelText: string | null
-  /** the block's content as mdast nodes */
-  children: unknown[]
-  /** split the content at its shallowest headings, or at blank lines when it has none */
-  sections(): Promise<{ intro: string; sections: Section[] }>
+/** A page: a markdown file in .whiteboard/pages/, or one in the repository. */
+export interface PageSource extends StoredBase {
+  kind: 'page'
+  source: string
+  /** the frontmatter's fields, when the file starts with one (`source` keeps it) */
+  frontmatter: Record<string, string>
 }
 
-/** ```name attrs */
-export interface FenceContext extends BaseContext {
-  kind: 'fence'
-  text: string
-  /** the fence's language (its first word); for a fence claimed by name it equals `name`, null when there is none */
-  lang: string | null
+/** Any other text file in the repository. */
+export interface FileSource extends StoredBase {
+  kind: 'file'
+  source: string
 }
 
-export type ServerContext = DirectiveContext | FenceContext
-
-/** Default props of a directive without props(). */
-export interface DirectiveProps {
-  name: string
-  attrs: Record<string, string>
-  label: string | null
-  html: string
-  intro: string
-  sections: Section[]
+/** A folder in the repository. */
+export interface FolderSource extends StoredBase {
+  kind: 'folder'
+  entries: { name: string; dir: boolean }[]
+  /** its README, when it has one */
+  readme: PageSource | null
 }
 
-/** Default props of a fence without props(). */
-export interface FenceProps {
-  name: string
-  attrs: Record<string, string>
-  text: string
+/** The overview, or a folder of pages without an index.md. */
+export interface PagesSource extends StoredBase {
+  kind: 'pages'
+  pages: { id: string; file: string; mtime: number; lastEvent: string | null }[]
 }
 
-// ---- client api --------------------------------------------------------------------------------
+/** What the core offers a renderer on the server. */
+export interface RenderContext {
+  project: { name: string; dir: string; files: boolean }
+  /**
+   * The URL the browser loads a file from: a client module, a stylesheet, an image next to a
+   * template. Files are served only once a renderer asked for them, and are watched from then on:
+   * a stylesheet reloads in place, a browser module reloads the page.
+   */
+  asset(file: string | URL): string
+  /**
+   * The URL that shows a file or folder on disk (also `file.md` for `file`), or null when it does
+   * not exist or nothing serves it. For relative links: resolve them from the page's folder first.
+   */
+  urlFor(file: string): string | null
+}
+
+/** Default export of a renderer's `client` module. Return a cleanup, or nothing. */
+export type RendererMount = (root: HTMLElement, page: PageHandle, api: Api) => void | (() => void) | Promise<void | (() => void)>
+
+/** The page, in the browser. */
+export interface PageHandle {
+  id: string
+  kind: StoredPage['kind']
+  /** what the server render returned with the HTML now in the root */
+  data: unknown
+  /** called when the stored page changed; returns an unsubscribe */
+  onChange(fn: () => void): () => void
+  /** the server render, afresh */
+  render(): Promise<Rendered>
+  /** the page as stored, afresh */
+  stored(): Promise<StoredPage>
+}
+
+// ---- events ------------------------------------------------------------------------------------
 
 export interface WbEvent {
   id: string
@@ -147,13 +142,11 @@ export interface WbEvent {
   data: Record<string, unknown>
 }
 
-export type Theme = 'light' | 'dark'
-
-/** Passed to every Mount. Framework-free: read with the getters, follow with the subscriptions. */
-export interface ClientApi {
+/** What the core gives every renderer in the browser. Framework-free: getters and subscriptions. */
+export interface Api {
   /** this page's id */
   page: string
-  /** every event recorded for this page, oldest first: form submits and whatever templates append */
+  /** every event recorded for this page, oldest first */
   events(): WbEvent[]
   /** called with the new list whenever it changes; returns an unsubscribe */
   onEvents(fn: (events: WbEvent[]) => void): () => void
@@ -161,7 +154,4 @@ export interface ClientApi {
   last(type: string): WbEvent | undefined
   /** record an event for this page: it lands in the log, where the agent reads it */
   append(type: string, data?: Record<string, unknown>, action?: string | null): Promise<WbEvent>
-  /** the theme in effect (the reader's choice, else the system's) */
-  theme(): Theme
-  onTheme(fn: (theme: Theme) => void): () => void
 }

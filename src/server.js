@@ -2,164 +2,123 @@
 //
 //   /                the overview: the project's pages
 //   /<page>          a page from .whiteboard/pages/<page>.md
-//   /-/<path>        a file of the project, shown from the repository (unless the config sets files: false)
-//   /_/docs          the syntax of the project's templates
-//   /api/…           events, templates, live reload
+//   /-/<path>        a file of the project, from the repository (unless the config sets files: false)
+//   /_/docs          the documentation of the project's renderers
+//   /_/file/<path>   a file a renderer asked to serve (its client, a stylesheet)
+//   /api/…           the stored page, its render, events, live changes
 //
-// It records its port in .whiteboard/server.json so the command line finds it.
+// The core reads pages as they are stored and hands them to a renderer, which decides what they
+// become. It draws nothing itself, except for a page no renderer takes: that shows as its raw
+// text. It records its port in .whiteboard/server.json so the command line finds it.
 import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
 import { appendEvent, readEvents, matches } from './events.js'
-import { createTemplateLoader } from './templates.js'
-import { renderMarkdown, esc } from './markdown.js'
+import { createConfigLoader, toPath } from './renderers.js'
 
 const PROJECT = projectAt(findProjectDir())
 if (!PROJECT) throw new Error(`not inside a whiteboard project: no .whiteboard/config.ts in ${process.cwd()} or above it`)
 
 const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const CLIENT_DIR = path.join(ENGINE_DIR, 'src', 'client')
-// the page runtime, built by build.js
-const RUNTIME_DIR = path.join(ENGINE_DIR, 'dist', 'client')
+// the browser runtime, built by build.js
+const RUNTIME = path.join(ENGINE_DIR, 'dist', 'client', 'runtime.js')
 const MIME = {
-  '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
+  '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
-  '.svg': 'image/svg+xml', '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm',
-  '.txt': 'text/plain; charset=utf-8', '.csv': 'text/csv; charset=utf-8', '.html': 'text/html; charset=utf-8',
+  '.svg': 'image/svg+xml', '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.woff': 'font/woff',
+  '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.md': 'text/markdown; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8', '.html': 'text/html; charset=utf-8',
 }
 // files in .whiteboard/ that are the server's own bookkeeping, not content
 const OWN_FILES = new Set(['events.ndjson', 'delivered.json', 'server.json', 'server.log'])
+const SKIP_DIRS = new Set(['node_modules', '.git'])
 
-const httpServer = http.createServer()
+const esc = s =>
+  String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
-const templates = createTemplateLoader(PROJECT.configFile)
-
-// A template's client, style and readme are served from the folders they are in, at
-// /_/file/<absolute path>, and only from those folders. The folders are watched as pages use them.
-const allowed = new Set()
-const folderWatchers = []
-
-function allow(dir) {
-  if (allowed.has(dir)) return
-  allowed.add(dir)
-  // .whiteboard/ itself is watched already (setFiles)
-  if (dir === PROJECT.wb || dir.startsWith(PROJECT.wb + path.sep)) return
-  try {
-    folderWatchers.push(fs.watch(dir, (_evt, name) => { if (name) onSourceChange(path.join(dir, name)) }))
-  } catch { /* a folder that went away is not served either */ }
-}
-
-function isAllowed(file) {
-  return [...allowed].some(dir => path.dirname(file) === dir)
-}
-
-/** Let the server hand out a template's client, style and readme files. */
-function allowTemplate(t) {
-  if (t) for (const f of [t.client, t.style, t.readme]) if (f) allow(path.dirname(f))
-}
-
-/** The URL the browser loads a template file from. */
-const fileUrl = file => `/_/file${file.split(path.sep).map(encodeURIComponent).join('/')}`
-
-/** Islands as the browser gets them: the client module as a URL. */
-const publicIslands = islands =>
-  Object.fromEntries(Object.entries(islands).map(([id, island]) => [id, { ...island, client: fileUrl(island.client) }]))
+const loader = createConfigLoader(PROJECT.configFile)
 
 /** The loaded config. Also applies its `files` setting to what is served and watched. */
 async function config() {
-  const c = await templates.config()
+  const c = await loader.config()
   setFiles(c.files)
   return c
 }
 
-// ---- locating pages ----------------------------------------------------------------------------
+// ---- assets: files a renderer asks to serve ----------------------------------------------------
+// Served at /_/file/<absolute path>, only once asked for, and only files in the folders of files
+// asked for (a client module may import its neighbours). Those folders are watched from then on.
+
+const assets = new Set()
+const assetDirs = new Set()
+
+function asset(ref) {
+  const file = toPath(ref)
+  if (!assets.has(file)) {
+    assets.add(file)
+    const dir = path.dirname(file)
+    if (!assetDirs.has(dir)) {
+      assetDirs.add(dir)
+      // .whiteboard/ itself is watched already (setFiles), and so is the engine's own build
+      if (!within(dir, PROJECT.wb) && !within(dir, ENGINE_BUILD)) {
+        try { fs.watch(dir, (_evt, name) => { if (name) onSourceChange(path.join(dir, name)) }) } catch { /* gone */ }
+      }
+    }
+  }
+  return `/_/file${file.split(path.sep).map(encodeURIComponent).join('/')}`
+}
+
+const within = (file, dir) => file === dir || file.startsWith(dir + path.sep)
+
+// ---- stored pages ------------------------------------------------------------------------------
 
 /** Resolve a path inside a base folder, refusing anything that escapes it. */
 function inside(base, rel) {
   const p = path.resolve(base, '.' + path.posix.normalize('/' + rel))
-  return p === base || p.startsWith(base + path.sep) ? p : null
+  return within(p, base) ? p : null
 }
 
 const isRepoId = id => id === '-' || id.startsWith('-/')
 
-/** A page id → where it lives: "-/<path>" in the project folder, anything else in the pages folder. */
-function locate(id) {
-  if (isRepoId(id)) return { repo: true, base: PROJECT.dir, rel: id.slice(2), prefix: '-' }
-  return { repo: false, base: PROJECT.pagesDir, rel: id, prefix: '' }
+function frontmatter(source) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(source)
+  const out = {}
+  if (m) for (const line of m[1].split(/\r?\n/)) {
+    const kv = /^([\w-]+)\s*:\s*(.*)$/.exec(line)
+    if (kv) out[kv[1]] = kv[2].trim().replace(/^["']|["']$/g, '')
+  }
+  return out
 }
 
-function listPages(base, prefix) {
+function pageSource(id, file) {
+  const source = fs.readFileSync(file, 'utf8')
+  return { kind: 'page', id, file, mtime: fs.statSync(file).mtimeMs, source, frontmatter: frontmatter(source) }
+}
+
+/** The pages in a folder of the pages folder, newest first, with when each was last answered. */
+function pagesIn(dir) {
+  const last = new Map()
+  for (const e of readEvents(PROJECT.eventsFile)) last.set(e.page, e.ts)
   const out = []
-  if (!fs.existsSync(base)) return out
   const walk = d => {
+    if (!fs.existsSync(d)) return
     for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
       if (ent.name.startsWith('.') || ent.name === 'node_modules') continue
       const full = path.join(d, ent.name)
       if (ent.isDirectory()) walk(full)
       else if (ent.name.endsWith('.md')) {
-        const rel = path.relative(base, full).replace(/\\/g, '/').replace(/\.md$/, '')
-        const h1 = /^#\s+(.+)$/m.exec(fs.readFileSync(full, 'utf8'))
-        out.push({ id: prefix ? `${prefix}/${rel}` : rel, title: h1 ? h1[1].replace(/[*_`]/g, '') : path.basename(rel), mtime: fs.statSync(full).mtimeMs })
+        const id = path.relative(PROJECT.pagesDir, full).split(path.sep).join('/').replace(/\.md$/, '')
+        out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: last.get(id) ?? null })
       }
     }
   }
-  walk(base)
+  walk(dir)
   return out.sort((a, b) => b.mtime - a.mtime)
 }
 
-function pageList(pages) {
-  const last = new Map()
-  for (const e of readEvents(PROJECT.eventsFile)) last.set(e.page, e)
-  return `<ul class="wb-index">${pages.map(p => {
-    const ev = last.get(p.id)
-    return `<li><a href="/${esc(p.id)}">${esc(p.title)}</a> <span class="wb-meta"><code>${esc(p.id)}</code> · edited <time data-ts="${p.mtime}"></time>${
-      ev ? ` · last submit <time data-ts="${Date.parse(ev.ts)}"></time>` : ''}</span></li>`
-  }).join('')}</ul>`
-}
-
-/** The overview at "/": the project's pages. */
-function homeHtml() {
-  const pages = listPages(PROJECT.pagesDir, '')
-  const links = [FILES && '<a href="/-/">files</a>', '<a href="/_/docs">templates</a>'].filter(Boolean).join(' · ')
-  return `<h1>${esc(PROJECT.name)}</h1>${pages.length ? pageList(pages) : '<p class="wb-meta">No pages yet.</p>'}<p class="wb-meta"><code>${esc(PROJECT.dir)}</code> · ${links}</p>`
-}
-
-function folderHtml(loc) {
-  const pages = listPages(path.join(loc.base, loc.rel), loc.rel)
-  return `<h1>${esc(loc.rel)}</h1>${pages.length ? pageList(pages) : '<p class="wb-meta">No pages yet.</p>'}<p class="wb-meta">${esc(path.join(loc.base, loc.rel))}</p>`
-}
-
-const SKIP_DIRS = new Set(['node_modules', '.git'])
-
-/** The URL that serves a file or folder on disk, or null when nothing here serves it. */
-function urlFor(abs) {
-  const within = dir => abs === dir || abs.startsWith(dir + path.sep)
-  const rel = dir => path.relative(dir, abs).split(path.sep).map(encodeURIComponent).join('/')
-  if (within(PROJECT.pagesDir)) return `/${rel(PROJECT.pagesDir).replace(/\.md$/, '')}`
-  if (FILES && within(PROJECT.dir)) {
-    if (rel(PROJECT.dir).split('/').some(part => SKIP_DIRS.has(part))) return null
-    return `/-/${rel(PROJECT.dir)}`
-  }
-  return null
-}
-
-/** For relative links: the target if it exists (also with .md added), mapped to its URL. */
-function linkFor(abs) {
-  for (const candidate of [abs, abs + '.md']) {
-    if (fs.existsSync(candidate)) {
-      const url = urlFor(candidate)
-      if (url) return url + (fs.statSync(candidate).isDirectory() && !url.endsWith('/') ? '/' : '')
-    }
-  }
-  return null
-}
-
-const CODE_LANG = { js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'tsx', jsx: 'jsx', json: 'json', css: 'css', html: 'html', sh: 'bash', zsh: 'bash', py: 'python', rs: 'rust', go: 'go', toml: 'toml', yml: 'yaml', yaml: 'yaml' }
-const RAW = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.svg', '.pdf', '.mp4', '.webm', '.ico', '.woff', '.woff2'])
-
-/** Text files are shown as code; anything with a NUL byte near the start is binary. */
+/** Text files show as files; anything with a NUL byte near the start is binary. */
 function isText(file) {
   const fd = fs.openSync(file, 'r')
   const buf = Buffer.alloc(8192)
@@ -168,123 +127,131 @@ function isText(file) {
   return !buf.subarray(0, n).includes(0)
 }
 
-function repoDirHtml(loc, dir) {
-  const id = [loc.prefix, loc.rel].filter(Boolean).join('/')
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
-    .filter(e => !SKIP_DIRS.has(e.name) && e.name !== '.DS_Store')
-    .sort((a, b) => (b.isDirectory() - a.isDirectory()) || a.name.localeCompare(b.name))
-  const up = loc.rel ? `<li><a href="../">../</a></li>` : ''
-  const rows = entries.map(e => {
-    const name = e.name + (e.isDirectory() ? '/' : '')
-    return `<li><a href="${esc(encodeURIComponent(e.name) + (e.isDirectory() ? '/' : ''))}">${esc(name)}</a></li>`
-  }).join('')
-  return `<h1>${esc(loc.rel || PROJECT.name)}</h1><ul class="wb-files">${up}${rows}</ul><p class="wb-meta">${esc(dir)} · <code>${esc(id)}</code></p>`
-}
-
-/** A repository path: markdown renders as a page, folders list their files (and README), other text shows as code. */
-async function renderRepo(id, loc) {
-  const target = inside(loc.base, loc.rel)
-  if (!target || !fs.existsSync(target) || target.split(path.sep).includes('.git')) return null
-  const stat = fs.statSync(target)
-  if (stat.isDirectory()) {
-    const listing = repoDirHtml(loc, target)
-    const readme = ['README.md', 'readme.md', 'Readme.md'].map(n => path.join(target, n)).find(f => fs.existsSync(f))
-    if (!readme) return { id, title: loc.rel || PROJECT.name, isDir: true, html: listing, islands: {}, styles: [] }
-    const r = await renderFile(readme, id)
-    return { id, ...r, html: `${r.html}<hr>${listing}`, mtime: fs.statSync(readme).mtimeMs }
+/**
+ * A page id → the stored page, or one of: { redirect } (a folder asked for without its slash),
+ * { raw: file } (serve the bytes), null (nothing there).
+ */
+function stored(id) {
+  if (!id) return { kind: 'pages', id: '', file: PROJECT.pagesDir, mtime: null, pages: pagesIn(PROJECT.pagesDir) }
+  if (isRepoId(id)) {
+    const rel = id.slice(2)
+    const target = inside(PROJECT.dir, rel)
+    if (!target || path.relative(PROJECT.dir, target).split(path.sep).includes('.git') || !fs.existsSync(target)) return null
+    const stat = fs.statSync(target)
+    if (stat.isDirectory()) {
+      const entries = fs.readdirSync(target, { withFileTypes: true })
+        .filter(e => !SKIP_DIRS.has(e.name) && e.name !== '.DS_Store')
+        .map(e => ({ name: e.name, dir: e.isDirectory() }))
+        .sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name))
+      const readme = ['README.md', 'readme.md', 'Readme.md'].map(n => path.join(target, n)).find(f => fs.existsSync(f))
+      return { kind: 'folder', id, file: target, mtime: stat.mtimeMs, entries, readme: readme ? pageSource(id, readme) : null }
+    }
+    if (/\.(md|markdown)$/i.test(target)) return pageSource(id, target)
+    if (stat.size > 1e6 || !isText(target)) return { raw: target }
+    return { kind: 'file', id, file: target, mtime: stat.mtimeMs, source: fs.readFileSync(target, 'utf8') }
   }
-  if (/\.(md|markdown)$/i.test(target)) return { id, ...(await renderFile(target, id)), mtime: stat.mtimeMs }
-  if (stat.size > 1e6 || !isText(target)) return null
-  const ext = path.extname(target).slice(1).toLowerCase()
-  const value = fs.readFileSync(target, 'utf8')
-  // the file as one code block, rendered by the config's code template (or as plain code); no template claims it by name
-  const { code, errors } = await config()
-  allowTemplate(code)
-  const tree = { type: 'root', children: [{ type: 'code', lang: CODE_LANG[ext] ?? (ext || null), meta: null, value }] }
-  const out = await renderMarkdown(tree, { page: id, file: target, resolve: () => null, code, linkFor })
-  const notice = errors.map(e => `<pre class="wb-error">config: ${esc(e.message)}</pre>`).join('')
-  const html = `${notice}<h1 class="wb-code-title wb-wide">${esc(loc.rel)}</h1><div class="wb-code wb-wide">${out.html}</div>`
-  return { id, title: path.basename(target), html, islands: out.islands, styles: out.styles, mtime: stat.mtimeMs }
-}
-
-async function renderFile(file, page) {
-  const { templates: set, code, errors } = await config()
-  for (const t of set.values()) allowTemplate(t)
-  const rendered = await renderMarkdown(fs.readFileSync(file, 'utf8'), { page, file, resolve: name => set.get(name) ?? null, code, linkFor })
-  const notice = errors.map(e => `<pre class="wb-error">config: ${esc(e.message)}</pre>`).join('')
-  return { ...rendered, html: notice + rendered.html }
-}
-
-/** @returns page data, or null when nothing exists at `id` */
-async function renderPage(id) {
-  if (!id) {
-    await config()
-    return { id, title: PROJECT.name, isDir: true, html: homeHtml(), islands: {}, styles: [] }
-  }
-  const loc = locate(id)
-  const target = inside(loc.base, loc.rel)
+  const target = inside(PROJECT.pagesDir, id)
   if (!target) return null
+  if (path.extname(id) && fs.existsSync(target) && fs.statSync(target).isFile()) return { raw: target }
   if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
     const index = path.join(target, 'index.md')
-    if (fs.existsSync(index)) return { id, ...(await renderFile(index, id)), mtime: fs.statSync(index).mtimeMs }
-    return { id, title: id, isDir: true, html: folderHtml(loc), islands: {}, styles: [] }
+    if (fs.existsSync(index)) return pageSource(id, index)
+    return { kind: 'pages', id, file: target, mtime: null, pages: pagesIn(target) }
   }
-  const file = inside(loc.base, loc.rel + '.md')
-  if (!file || !fs.existsSync(file)) return null
-  return { id, ...(await renderFile(file, id)), mtime: fs.statSync(file).mtimeMs }
+  const file = target + '.md'
+  return fs.existsSync(file) ? pageSource(id, file) : null
 }
 
-async function templateInfo() {
-  const { templates: set, errors } = await config()
-  return {
-    errors: errors.map(e => e.message),
-    templates: [...set.values()].sort((a, b) => a.name.localeCompare(b.name)).map(t => ({
-      name: t.name, source: t.source, code: t.code, client: !!t.client, html: !!t.html, props: !!t.props,
-      readme: t.readme ? fs.readFileSync(t.readme, 'utf8') : null,
-    })),
+/** The URL that serves a file or folder on disk, or null when nothing here serves it. */
+function urlOf(abs) {
+  const rel = dir => path.relative(dir, abs).split(path.sep).map(encodeURIComponent).join('/')
+  if (within(abs, PROJECT.pagesDir)) return `/${rel(PROJECT.pagesDir).replace(/\.md$/, '')}`
+  if (FILES && within(abs, PROJECT.dir)) {
+    if (rel(PROJECT.dir).split('/').some(part => SKIP_DIRS.has(part))) return null
+    return `/-/${rel(PROJECT.dir)}`
   }
+  return null
 }
 
-async function renderDocs() {
-  const { templates: list, errors } = await templateInfo()
-  const parts = list.map(t => {
-    const where = `<p class="wb-meta">from <code>${esc(t.source)}</code>${t.code ? ' · code blocks' : ''}${t.client ? ' · client' : ''}${t.html ? ' · html' : ''}${t.props ? ' · props' : ''}</p>`
-    const readme = t.readme ?? `# ${t.name}\n\n_No readme._\n`
-    return readme.replace(/^(#\s.*)$/m, `$1\n\n${where}\n`)
-  })
-  const intro = list.length
-    ? `# Templates\n\nAvailable in **${PROJECT.name}**: ${list.map(t => `[${t.name}](#${t.name})`).join(' · ')}\n\n`
-    : `# Templates\n\nNo templates yet. Add them to the \`templates\` array in \`${PROJECT.configFile}\`.\n`
-  // docs are not a file; this path only serves as the render's location for relative references
-  const file = path.join(PROJECT.pagesDir, '_docs.md')
-  const { templates: set, code } = await config()
-  const out = await renderMarkdown(intro + parts.join('\n\n---\n\n'), { page: '_/docs', file, resolve: name => set.get(name) ?? null, code, linkFor })
-  const notice = errors.map(e => `<pre class="wb-error">config: ${esc(e)}</pre>`).join('')
-  return { id: '_/docs', ...out, html: notice + out.html, title: 'Templates' }
+/** For links: the target if it exists (also with .md added), mapped to its URL. */
+function urlFor(abs) {
+  for (const candidate of [abs, abs + '.md']) {
+    if (fs.existsSync(candidate)) {
+      const url = urlOf(candidate)
+      if (url) return url + (fs.statSync(candidate).isDirectory() && !url.endsWith('/') ? '/' : '')
+    }
+  }
+  return null
 }
 
-function crumbs(id) {
-  let acc = ''
-  return `<a href="/">${esc(PROJECT.name)}</a>` + (id ? id.split('/') : []).map(p => { acc += '/' + p; return ` / <a href="${esc(acc)}">${esc(p)}</a>` }).join('')
+// ---- rendering ---------------------------------------------------------------------------------
+
+/** The renderer for a page: the one its frontmatter names, else the config's first. */
+function pick(page, renderers, notices) {
+  const wanted = page.kind === 'page' ? page.frontmatter.renderer : undefined
+  if (wanted) {
+    const r = renderers.find(x => x.name === wanted)
+    if (r) return r
+    notices.push(`this page asks for the renderer "${wanted}", which the config does not list`)
+  }
+  return renderers[0] ?? null
+}
+
+/** No renderer: the page as stored, as text. */
+function rawRender(page) {
+  const list = items => `<ul>${items.map(([href, text]) => `<li><a href="${esc(href)}">${esc(text)}</a></li>`).join('')}</ul>`
+  if (page.kind === 'pages') return { html: list(page.pages.map(p => [`/${p.id}`, p.id])) }
+  if (page.kind === 'folder') {
+    const entries = list(page.entries.map(e => [encodeURIComponent(e.name) + (e.dir ? '/' : ''), e.name + (e.dir ? '/' : '')]))
+    return { html: entries + (page.readme ? `<pre>${esc(page.readme.source)}</pre>` : '') }
+  }
+  return { html: `<pre>${esc(page.source)}</pre>` }
+}
+
+const context = () => ({ project: { name: PROJECT.name, dir: PROJECT.dir, files: FILES }, asset, urlFor })
+
+/** Render a stored page: its renderer, its render, and anything the reader should be told. */
+async function render(page) {
+  const { renderers, errors } = await config()
+  const notices = errors.map(e => `config: ${e.message}`)
+  const renderer = pick(page, renderers, notices)
+  let out
+  try {
+    out = renderer?.render ? await renderer.render(page, context()) : renderer ? { html: '' } : rawRender(page)
+  } catch (err) {
+    console.error(`renderer ${renderer.name}:`, err)
+    notices.push(`renderer "${renderer.name}" failed: ${err.message}`)
+    out = rawRender(page)
+  }
+  return { renderer, out, notices }
+}
+
+/** The documentation of every renderer, as markdown. */
+async function docs() {
+  const { renderers, errors } = await config()
+  const list = []
+  for (const r of renderers) list.push({ name: r.name, docs: r.docs ? await r.docs(context()) : null })
+  return { errors: errors.map(e => e.message), renderers: list }
 }
 
 const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
 
-function shell(page) {
-  const styles = page.styles.map(s => `<link rel="stylesheet" href="${esc(fileUrl(s))}" data-wb-style>`).join('')
+function shell(page, { renderer, out, notices }) {
   const projectCss = fs.existsSync(PROJECT.styleFile) ? '<link rel="stylesheet" href="/_/project.css" data-wb-style>' : ''
+  const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null }
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(page.title || page.id || PROJECT.name)}</title>
-<script>try{const t=localStorage.getItem('wb-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch{}</script>
-<link rel="stylesheet" href="/_/base.css" data-wb-style>${projectCss}${styles}</head>
-<body data-page="${esc(page.id)}"${page.isDir ? ' data-dir' : ''}>
-<nav class="wb-nav"><span>${crumbs(page.id)}</span>${page.mtime ? `<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>` : ''}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark">auto</button><span class="wb-live" title="live reload"></span></nav>
-<main id="wb-main">${page.html}</main>
-<script type="application/json" id="wb-islands">${json(publicIslands(page.islands))}</script>
-<script type="module" src="/_/main.js"></script></body></html>`
+<title>${esc(out.title || page.id || PROJECT.name)}</title>
+${out.head ?? ''}${projectCss}</head>
+<body data-page="${esc(page.id)}" data-kind="${esc(page.kind)}">
+${notices.map(n => `<pre class="wb-error" role="alert">${esc(n)}</pre>`).join('')}
+<div id="wb-root">${out.html}</div>
+<script type="application/json" id="wb-page">${json(handoff)}</script>
+<script type="module" src="/_/runtime.js"></script></body></html>`
 }
 
-// ---- live reload -------------------------------------------------------------------------------
+// ---- live changes ------------------------------------------------------------------------------
+// The browser listens at /api/watch. `change`: its page changed; `events`: the log grew; `style`: a
+// stylesheet changed; `reload`: browser code changed.
 
 const clients = new Set()
 function notify(client, kind) {
@@ -301,7 +268,7 @@ function pageChanged(id) {
   for (const c of clients) {
     if (c.isDir ? (!c.page || id.startsWith(c.page + '/')) : (c.page === id || c.page + '/index' === id)) notify(c, 'change')
   }
-  // folder listings and the overview show every page
+  // the overview lists every page
   for (const c of clients) if (c.isDir && !c.page) notify(c, 'change')
 }
 
@@ -317,7 +284,7 @@ function fileChanged(f) {
       return
     }
     if (OWN_FILES.has(inner)) return
-    // the config, or a template kept in .whiteboard/
+    // the config, or something it imports
     return onSourceChange(path.join(PROJECT.dir, f))
   }
   if (!FILES) return
@@ -342,27 +309,31 @@ function setFiles(files) {
   })
 }
 
-// What a template or the config is made of changed. A style reloads in place; a template's browser
-// code (or the page runtime) reloads the pages, which keeps what the reader typed (drafts); anything
-// else changes the server render: load the config afresh and re-render open pages.
+// What a renderer or the config is made of changed. A stylesheet reloads in place; a browser module
+// reloads the pages; anything else loads the config afresh and re-renders open pages.
 let reloadTimer = null
 async function onSourceChange(file) {
-  if (file.startsWith(PROJECT.pagesDir + path.sep)) return
+  if (within(file, PROJECT.pagesDir)) return
   if (path.dirname(file) === PROJECT.wb && OWN_FILES.has(path.basename(file))) return
   if (file.endsWith('.css')) return notifyAll('style')
-  // a readme is read afresh for every render of the docs
   if (file.endsWith('.md')) return notifyAll('change')
-  const { templates: set } = await templates.config()
-  if (path.dirname(file) === RUNTIME_DIR || [...set.values()].some(t => t.client === file)) return notifyAll('reload')
+  if (file === RUNTIME || assets.has(file)) return notifyAll('reload')
   // a build writes several files at once: load the config once they are all there
   clearTimeout(reloadTimer)
   reloadTimer = setTimeout(() => {
-    templates.invalidate()
+    loader.invalidate()
     config().then(() => notifyAll('change'))
   }, 80)
 }
-// the page runtime, so that rebuilding it (node build.js --watch) reloads open pages
-try { fs.watch(RUNTIME_DIR, (_evt, name) => { if (name?.endsWith('.js')) notifyAll('reload') }) } catch { /* not built */ }
+
+// The engine's own build, when it is not an installed package: rebuilding it (npm run dev) reloads
+// what it is made of, like a project's own files.
+const ENGINE_BUILD = path.join(ENGINE_DIR, 'dist')
+if (!ENGINE_DIR.split(path.sep).includes('node_modules')) {
+  try {
+    fs.watch(ENGINE_BUILD, { recursive: true }, (_evt, name) => { if (name) onSourceChange(path.join(ENGINE_BUILD, name)) })
+  } catch { /* not built */ }
+}
 
 // ---- http --------------------------------------------------------------------------------------
 
@@ -371,6 +342,7 @@ function send(res, status, body, type = 'text/html; charset=utf-8') {
   res.end(body)
 }
 const sendJson = (res, status, data) => send(res, status, JSON.stringify(data), 'application/json')
+const sendFile = (res, file) => send(res, 200, fs.readFileSync(file), MIME[path.extname(file).toLowerCase()] || 'application/octet-stream')
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -382,23 +354,40 @@ function readBody(req) {
   })
 }
 
-const notFound = (res, id, html) => send(res, 404, shell({ id, title: 'Not found', islands: {}, styles: [], html }))
+/** What a page id resolves to, or why it does not: the response to send instead. */
+async function resolve(id, requested) {
+  await config()
+  if (isRepoId(id) && !FILES) return { notFound: 'This project does not serve its files: its config sets files: false.' }
+  if (id === '_/docs') {
+    const { renderers } = await docs()
+    const source = renderers.length
+      ? renderers.map(r => r.docs ?? `# ${r.name}\n\n_No documentation._\n`).join('\n\n---\n\n')
+      : `# Renderers\n\nThis project has none: add them to \`renderers\` in \`${PROJECT.configFile}\`. Pages show as their raw text until then.\n`
+    return { page: { kind: 'page', id, file: path.join(PROJECT.pagesDir, '_docs.md'), mtime: null, source, frontmatter: {} } }
+  }
+  const found = stored(id)
+  if (!found) return { notFound: `${isRepoId(id) ? id.slice(2) : id} does not exist${isRepoId(id) ? '' : ' yet. This page loads as soon as it does'}.` }
+  if (found.raw) return found
+  // a folder is served at /dir/, so relative links resolve inside it
+  if ((found.kind === 'folder' || (found.kind === 'pages' && id)) && !requested.endsWith('/')) return { redirect: `/${id}/` }
+  return { page: found }
+}
 
-httpServer.on('request', async (req, res) => {
+httpServer().on('request', async (req, res) => {
   try {
     // a path like //x would otherwise read as a host
     const url = new URL(req.url.replace(/^\/+/, '/'), 'http://localhost')
     const p = decodeURIComponent(url.pathname)
     const q = Object.fromEntries(url.searchParams)
 
-    if (p === '/_/main.js') return send(res, 200, fs.readFileSync(path.join(RUNTIME_DIR, 'main.js')), 'text/javascript')
+    if (p === '/favicon.ico') { res.writeHead(204); return res.end() }
+    if (p === '/_/runtime.js') return sendFile(res, RUNTIME)
+    if (p === '/_/project.css') return send(res, 200, fs.existsSync(PROJECT.styleFile) ? fs.readFileSync(PROJECT.styleFile) : '', 'text/css')
     if (p.startsWith('/_/file/')) {
       const file = path.resolve(p.slice('/_/file'.length))
-      if (!isAllowed(file) || !fs.existsSync(file)) return send(res, 404, 'not found', 'text/plain')
-      return send(res, 200, fs.readFileSync(file), MIME[path.extname(file)] || 'application/octet-stream')
+      if (!assetDirs.has(path.dirname(file)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
+      return sendFile(res, file)
     }
-
-    if (p === '/favicon.ico') { res.writeHead(204); return res.end() }
     if (p === '/api/health') return sendJson(res, 200, { ok: true, dir: PROJECT.dir, pid: process.pid })
     if (p === '/api/events' && req.method === 'POST') {
       const body = JSON.parse(await readBody(req))
@@ -406,7 +395,14 @@ httpServer.on('request', async (req, res) => {
       return sendJson(res, 200, appendEvent(PROJECT.eventsFile, body))
     }
     if (p === '/api/events') return sendJson(res, 200, readEvents(PROJECT.eventsFile).filter(e => matches(e, q)))
-    if (p === '/api/templates') return sendJson(res, 200, await templateInfo())
+    if (p === '/api/docs') return sendJson(res, 200, await docs())
+    if (p === '/api/page' || p === '/api/render') {
+      const r = await resolve(q.page ?? '', '/')
+      if (!r.page) return sendJson(res, 404, { error: r.notFound ?? 'not a page' })
+      if (p === '/api/page') return sendJson(res, 200, r.page)
+      const { out, notices } = await render(r.page)
+      return sendJson(res, 200, { ...out, notices, mtime: r.page.mtime })
+    }
     if (p === '/api/watch') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
       res.write(': connected\n\n')
@@ -416,59 +412,18 @@ httpServer.on('request', async (req, res) => {
       req.on('close', () => { clearInterval(ping); clients.delete(client) })
       return
     }
-    if (p === '/_/base.css') return send(res, 200, fs.readFileSync(path.join(CLIENT_DIR, 'base.css')), 'text/css')
-    if (p === '/_/project.css') return send(res, 200, fs.existsSync(PROJECT.styleFile) ? fs.readFileSync(PROJECT.styleFile) : '', 'text/css')
 
-    let page
-    const id = p.replace(/^\/+/, '').replace(/\/+$/, '')
-    if (p === '/_/docs') page = await renderDocs()
-    else if (isRepoId(id)) {
-      await config()
-      if (!FILES) return notFound(res, id, `<h1>Not found</h1><p>This project does not serve its files: its config sets <code>files: false</code>.</p>`)
-      const loc = locate(id)
-      const target = inside(loc.base, loc.rel)
-      // repository internals are never served
-      if (!target || path.relative(loc.base, target).split(path.sep).includes('.git')) return send(res, 404, 'not found', 'text/plain')
-      if (fs.existsSync(target) && fs.statSync(target).isDirectory() && !p.endsWith('/')) {
-        res.writeHead(302, { location: `/${id}/${url.search}` })
-        return res.end()
-      }
-      const ext = path.extname(target ?? '').toLowerCase()
-      if (target && fs.existsSync(target) && fs.statSync(target).isFile() && (RAW.has(ext) || 'raw' in q)) {
-        return send(res, 200, fs.readFileSync(target), MIME[ext] || 'application/octet-stream')
-      }
-      page = await renderRepo(id, loc)
-      if (!page) {
-        if (target && fs.existsSync(target) && fs.statSync(target).isFile()) return send(res, 200, fs.readFileSync(target), MIME[ext] || 'application/octet-stream')
-        return notFound(res, id, `<h1>Not found</h1><p><code>${esc(target ?? id)}</code> does not exist.</p>`)
-      }
+    const path_ = p.replace(/^\/+/, '').replace(/\/+$/, '')
+    // a page is named without .md; a repository path is the file's own
+    const id = isRepoId(path_) ? path_ : path_.replace(/\.md$/, '')
+    const r = await resolve(id, p)
+    if (r.redirect) { res.writeHead(302, { location: r.redirect + url.search }); return res.end() }
+    if (r.raw) return sendFile(res, r.raw)
+    if (r.notFound) {
+      const page = { kind: 'page', id, file: '', mtime: null, source: r.notFound, frontmatter: {} }
+      return send(res, 404, shell(page, { renderer: null, out: { title: 'Not found', html: `<h1>Not found</h1><p>${esc(r.notFound)}</p>` }, notices: [] }))
     }
-    else {
-      const pageIdOf = id.replace(/\.md$/, '')
-      const loc = locate(pageIdOf)
-      const ext = path.extname(pageIdOf)
-      if (ext) {
-        const f = inside(loc.base, loc.rel)
-        if (f && fs.existsSync(f) && fs.statSync(f).isFile()) return send(res, 200, fs.readFileSync(f), MIME[ext.toLowerCase()] || 'application/octet-stream')
-        return send(res, 404, 'not found', 'text/plain')
-      }
-      // a folder (with an index.md, or a listing): serve at /dir/ so relative links resolve inside it
-      const dir = inside(loc.base, loc.rel)
-      if (pageIdOf && !p.endsWith('/') && dir && fs.existsSync(dir) && fs.statSync(dir).isDirectory()) {
-        res.writeHead(302, { location: `/${pageIdOf}/${url.search}` })
-        return res.end()
-      }
-      page = await renderPage(pageIdOf)
-      if (!page) {
-        const where = inside(loc.base, loc.rel + '.md') ?? pageIdOf
-        return notFound(res, pageIdOf, `<h1>Not found</h1><p><code>${esc(where)}</code> does not exist yet. This page loads as soon as it does.</p>`)
-      }
-    }
-    if ('fragment' in q) {
-      const { html, title, islands, styles, mtime } = page
-      return sendJson(res, 200, { html, title, islands: publicIslands(islands), styles: styles.map(fileUrl), mtime: mtime ?? null })
-    }
-    return send(res, 200, shell(page))
+    return send(res, 200, shell(r.page, await render(r.page)))
   } catch (err) {
     console.error(err)
     send(res, 500, String(err?.stack || err), 'text/plain')
@@ -477,6 +432,11 @@ httpServer.on('request', async (req, res) => {
 
 // ---- start -------------------------------------------------------------------------------------
 
+function httpServer() {
+  httpServer.instance ??= http.createServer()
+  return httpServer.instance
+}
+
 /** The port the last server of this project used, so open tabs reconnect after a restart. */
 function previousPort() {
   try { return Number(JSON.parse(fs.readFileSync(PROJECT.serverFile, 'utf8')).port) || null } catch { return null }
@@ -484,16 +444,17 @@ function previousPort() {
 
 /** Listen on the previous port, else the default, else the next free one; then record it in server.json. */
 export async function start() {
+  const server = httpServer()
   fs.mkdirSync(PROJECT.pagesDir, { recursive: true })
   await config()
   const candidates = [...new Set([previousPort(), DEFAULT_PORT, ...Array.from({ length: 50 }, (_, i) => DEFAULT_PORT + 1 + i)].filter(Boolean))]
   for (const port of candidates) {
     const ok = await new Promise((resolve, reject) => {
-      const onError = err => { httpServer.off('listening', onListening); err.code === 'EADDRINUSE' ? resolve(false) : reject(err) }
-      const onListening = () => { httpServer.off('error', onError); resolve(true) }
-      httpServer.once('error', onError)
-      httpServer.once('listening', onListening)
-      httpServer.listen(port, '127.0.0.1')
+      const onError = err => { server.off('listening', onListening); err.code === 'EADDRINUSE' ? resolve(false) : reject(err) }
+      const onListening = () => { server.off('error', onError); resolve(true) }
+      server.once('error', onError)
+      server.once('listening', onListening)
+      server.listen(port, '127.0.0.1')
     })
     if (!ok) continue
     fs.writeFileSync(PROJECT.serverFile, JSON.stringify({ port, pid: process.pid }, null, 2) + '\n')

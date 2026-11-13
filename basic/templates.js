@@ -1,9 +1,8 @@
-// Templates come from the project's `.whiteboard/config.ts`. Node loads it (see load.js), so it can
-// be TypeScript and import template packages from the project's own node_modules.
+// basic's templates: its own and those passed to basic({ templates }), checked and resolved into
+// what the markdown renderer uses.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { importFresh } from './load.js'
 
 const NAME = /^[\w-]+$/
 
@@ -46,35 +45,17 @@ function normalize(t, source) {
 }
 
 /**
- * The project's config, loaded by Node (cached until invalidate(), which loads it afresh). Errors are returned, not
- * thrown. `code` is the template for code blocks no template claims by name: the last one with
- * `code: true`. `files` is false when the config turns the repository view off.
- * @param {string} configFile
+ * Resolve groups of template entries ({ entries, source }), source naming where they came from. Later entries replace earlier ones with the same name. `code` is the
+ * template for code blocks no template claims by name: the last one with `code: true`.
+ * @returns {{ templates: Map<string, object>, code: object | null }}
  */
-export function createTemplateLoader(configFile) {
-  let cached = null
-
-  async function load() {
-    const mod = await importFresh(configFile)
-    let config = mod.default
-    if (typeof config === 'function') config = await config()
-    const templates = new Map()
-    for (const t of flatten(config?.templates)) {
-      const n = normalize(t, configFile)
+export function resolveTemplates(groups) {
+  const templates = new Map()
+  for (const { entries, source } of groups) {
+    for (const t of flatten(entries)) {
+      const n = normalize(t, source)
       templates.set(n.name, n)
     }
-    const code = [...templates.values()].findLast(t => t.code) ?? null
-    return { templates, code, files: config?.files !== false }
   }
-
-  /** @returns {Promise<{ templates: Map<string, object>, code: object | null, files: boolean, errors: Error[] }>} */
-  function config() {
-    cached ??= load().then(
-      value => ({ ...value, errors: [] }),
-      error => ({ templates: new Map(), code: null, files: false, errors: [error] }),
-    )
-    return cached
-  }
-
-  return { config, invalidate: () => { cached = null } }
+  return { templates, code: [...templates.values()].findLast(t => t.code) ?? null }
 }

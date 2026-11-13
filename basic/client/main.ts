@@ -1,15 +1,19 @@
-// Page runtime: mounts template islands, records named form submits, live-reloads.
-// Framework-free: an island's client module exports mount(element, props, api) (see define.ts).
+// basic in the browser: mounts template islands, records named form submits, and patches the page
+// in place when it changes. Framework-free: an island's client module exports
+// mount(element, props, api) (see types.ts).
 import morphdom from 'morphdom'
-import { api, page, loadEvents, append, setThemePreference, themePreference, type ThemePreference } from './api'
+import type { Api, PageHandle, RendererMount } from '../../src/define'
+import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
-import type { Mount } from '../define'
+import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 
 interface Island { template: string; client: string; props: unknown }
+interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }
 
-const main = document.getElementById('wb-main')!
-const isDir = 'dir' in document.body.dataset
-let islands: Record<string, Island> = JSON.parse(document.getElementById('wb-islands')?.textContent || '{}')
+let main: HTMLElement
+let page = ''
+let api: ClientApi
+let islands: Record<string, Island> = {}
 const disposers = new Map<Element, () => void>()
 
 // ---- islands -----------------------------------------------------------------------------------
@@ -33,7 +37,7 @@ async function mountOne(el: HTMLElement) {
 }
 
 /** Mount islands outermost first; nested islands show up once their parent has rendered. */
-async function mountIslands(root: ParentNode = main) {
+async function mountIslands(root: ParentNode = main): Promise<void> {
   for (;;) {
     const pending = [...root.querySelectorAll<HTMLElement>('[data-wb-island]:not([data-wb-mounted])')]
       .filter(el => !el.parentElement?.closest('[data-wb-island]:not([data-wb-mounted])'))
@@ -48,17 +52,13 @@ function disposeWithin(node: Node) {
   }
 }
 
-// islands rendered later (after async loading inside a component) still get mounted
-new MutationObserver(() => {
-  if (main.querySelector('[data-wb-island]:not([data-wb-mounted])')) mountIslands()
-}).observe(main, { childList: true, subtree: true })
 
 // ---- forms -------------------------------------------------------------------------------------
 
-type Data = Record<string, unknown>
+type FormData = Record<string, unknown>
 
-function readForm(form: HTMLFormElement): Data {
-  const data: Data = {}
+function readForm(form: HTMLFormElement): FormData {
+  const data: FormData = {}
   const elements = [...form.elements] as HTMLInputElement[]
   const boxes: Record<string, number> = {}
   for (const el of elements) if (el.name && el.type === 'checkbox') boxes[el.name] = (boxes[el.name] ?? 0) + 1
@@ -76,7 +76,7 @@ function readForm(form: HTMLFormElement): Data {
   return data
 }
 
-function writeForm(form: HTMLFormElement, data: Data) {
+function writeForm(form: HTMLFormElement, data: FormData) {
   for (const el of [...form.elements] as HTMLInputElement[]) {
     if (!el.name || !(el.name in data) || ['submit', 'button', 'hidden', 'file'].includes(el.type)) continue
     const v = data[el.name]
@@ -100,14 +100,12 @@ function saveDraft(e: Event) {
   if (!form || !managed(form)) return
   try { localStorage.setItem(draftKey(form), JSON.stringify(readForm(form))) } catch { /* storage unavailable */ }
 }
-document.addEventListener('input', saveDraft)
-document.addEventListener('change', saveDraft)
 
 /** Put unsent drafts back into their forms; a form being typed in is left alone. */
 function restoreDrafts() {
   for (const form of main.querySelectorAll('form')) {
     if (!managed(form) || form.contains(document.activeElement)) continue
-    let draft: Data | null = null
+    let draft: FormData | null = null
     try { draft = JSON.parse(localStorage.getItem(draftKey(form)) ?? 'null') } catch { /* storage unavailable */ }
     if (draft) writeForm(form, draft)
   }
@@ -126,7 +124,7 @@ function restorePlainForms(prefill: boolean) {
   }
 }
 
-document.addEventListener('submit', async e => {
+async function onSubmit(e: SubmitEvent) {
   const form = e.target as HTMLFormElement
   if (!managed(form)) return
   e.preventDefault()
@@ -134,7 +132,7 @@ document.addEventListener('submit', async e => {
   const action = button ? button.value || button.textContent?.trim() || null : null
   form.dataset.wbState = 'sending'
   try {
-    await append(form.getAttribute('name')!, readForm(form), action)
+    await api.append(form.getAttribute('name')!, readForm(form), action)
     dropDraft(form)
     form.dataset.wbState = 'sent'
     form.dataset.wbSent = action ?? ''
@@ -142,17 +140,18 @@ document.addEventListener('submit', async e => {
     form.dataset.wbState = 'failed'
     console.error(err)
   }
-})
+}
 
 // ---- theme -------------------------------------------------------------------------------------
 
-const themeButton = document.querySelector<HTMLButtonElement>('.wb-theme')
 const NEXT: Record<ThemePreference, ThemePreference> = { auto: 'light', light: 'dark', dark: 'auto' }
-if (themeButton) {
-  themeButton.textContent = themePreference()
-  themeButton.addEventListener('click', () => {
+function themeToggle(root: HTMLElement) {
+  const button = root.querySelector<HTMLButtonElement>('.wb-theme')
+  if (!button) return
+  button.textContent = themePreference()
+  button.addEventListener('click', () => {
     setThemePreference(NEXT[themePreference()])
-    themeButton.textContent = themePreference()
+    button.textContent = themePreference()
   })
 }
 
@@ -173,7 +172,6 @@ function tickTimes() {
     t.title = new Date(ts).toLocaleString()
   }
 }
-setInterval(tickTimes, 15000)
 
 // ---- live reload -------------------------------------------------------------------------------
 
@@ -272,21 +270,22 @@ function keepPlace(place: ReturnType<typeof placeOf>, sigs: string[]) {
   if (el) window.scrollBy(0, el.getBoundingClientRect().top - place.top)
 }
 
+/** The new render of the page, patched in. */
 async function refresh() {
-  const res = await fetch(`${location.pathname}?fragment`)
-  if (!res.ok) return
-  const next = await res.json()
-  islands = next.islands
-  for (const href of next.styles as string[]) {
-    if (![...document.querySelectorAll<HTMLLinkElement>('link[data-wb-style]')].some(l => new URL(l.href).pathname === href))
-      document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${href}" data-wb-style>`)
+  const next = await currentPage.render()
+  const data = next.data as Data
+  islands = data.islands
+  for (const href of data.styles) {
+    if (![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(l => new URL(l.href).pathname === new URL(href, location.href).pathname))
+      document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${href}">`)
   }
-  const nextSigs = signaturesOf(next.html)
+  const html = new DOMParser().parseFromString(next.html, 'text/html').getElementById('wb-main')?.innerHTML ?? ''
+  const nextSigs = signaturesOf(html)
   const place = placeOf(nextSigs)
-  morph(next.html)
+  morph(html)
   keepPlace(place, nextSigs)
   const updated = document.getElementById('wb-updated')
-  if (updated && next.mtime) updated.dataset.ts = String(next.mtime)
+  if (updated && data.mtime) updated.dataset.ts = String(data.mtime)
   trackUpdate(main, blockSigs, nextSigs, next.title || document.title)
   blockSigs = nextSigs
   await mountIslands()
@@ -297,33 +296,36 @@ async function refresh() {
   tickTimes()
 }
 
-function connect() {
-  const live = document.querySelector('.wb-live')
-  const es = new EventSource(`/api/watch?page=${encodeURIComponent(page)}${isDir ? '&dir' : ''}`)
-  es.onopen = () => live?.classList.add('on')
-  es.onerror = () => live?.classList.remove('on')
-  es.addEventListener('change', () => refresh())
-  // a template's browser code changed: what the reader typed survives as a draft
-  es.addEventListener('reload', () => location.reload())
-  es.addEventListener('style', () => {
-    for (const link of document.querySelectorAll<HTMLLinkElement>('link[data-wb-style]')) {
-      const url = new URL(link.href)
-      url.searchParams.set('t', String(Date.now()))
-      link.href = url.pathname + url.search
-    }
-  })
-  es.addEventListener('events', async () => {
-    if (isDir) return refresh()
-    await loadEvents()
-    restorePlainForms(false)
-  })
+let currentPage: PageHandle
+
+const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, core: Api) => {
+  currentPage = handle
+  page = handle.id
+  main = root.querySelector<HTMLElement>('#wb-main')!
+  islands = (handle.data as Data).islands
+  api = { ...core, theme: currentTheme, onTheme }
+  const isDir = handle.kind === 'pages' || handle.kind === 'folder'
+
+  themeToggle(root)
+  document.addEventListener('input', saveDraft)
+  document.addEventListener('change', saveDraft)
+  document.addEventListener('submit', onSubmit)
+  setInterval(tickTimes, 15000)
+  // islands rendered later (after async loading inside a component) still get mounted
+  new MutationObserver(() => {
+    if (main.querySelector('[data-wb-island]:not([data-wb-mounted])')) mountIslands()
+  }).observe(main, { childList: true, subtree: true })
+
+  handle.onChange(() => refresh())
+  // the overview shows when pages were last answered; a page shows its forms' last answers
+  core.onEvents(() => (isDir ? refresh() : restorePlainForms(false)))
+
+  blockSigs = [...main.children].map(signature)
+  if (!isDir) trackInitial(main, page)
+  await mountIslands()
+  restorePlainForms(true)
+  restoreDrafts()
+  tickTimes()
 }
 
-blockSigs = [...main.children].map(signature)
-if (!isDir) trackInitial(main, page)
-if (!isDir) await loadEvents()
-await mountIslands()
-restorePlainForms(true)
-restoreDrafts()
-tickTimes()
-connect()
+export default mount

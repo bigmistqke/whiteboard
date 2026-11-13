@@ -148,7 +148,7 @@ details[open] > :last-child { margin-bottom: 2em; }
 .wb-nav a { color: var(--muted); text-decoration: none; }
 .wb-nav a:hover { color: var(--text); }
 .wb-live { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; opacity: .4; }
-.wb-live.on { background: var(--ok); opacity: 1; }
+[data-wb-live] .wb-live { background: var(--ok); opacity: 1; }
 .wb-theme {
   font: inherit; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 99px;
   padding: 2px 10px; cursor: pointer;

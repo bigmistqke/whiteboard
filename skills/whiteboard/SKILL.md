@@ -17,8 +17,9 @@ PATH, the project has it installed locally: run them as `npx whiteboard …`.
 
 ## Writing a page
 
-1. Run `whiteboard docs` once per session and read it: it is the current
-   syntax of every template this project can use. Do not rely on memory for
+1. Run `whiteboard docs` once per session and read it: it is how pages are
+   written in this project (with the basic renderer: the current syntax of
+   every template it can use). Do not rely on memory for
    template syntax; the set differs per project. If it says there is no
    project, ask the user before running `whiteboard init`: it adds a folder
    to their repository.

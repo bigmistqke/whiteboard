@@ -23,8 +23,7 @@ const HELP = `whiteboard — markdown pages in the browser, form submits and oth
   whiteboard new <name>           create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
-  whiteboard docs [template…]      print template syntax (readmes) — read before writing a page
-  whiteboard templates             list the templates this project's pages can use
+  whiteboard docs                  how to write pages here (for basic: its templates) — read before writing one
   whiteboard events [filters]      print recorded events as ndjson
   whiteboard wait [filters]        block until the next matching event, print it, exit
   whiteboard watch [filters]       print matching events as they arrive (never exits)
@@ -149,7 +148,7 @@ function init(name) {
 import basic from '@bigmistqke/whiteboard/basic'
 
 export default defineConfig({
-${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  templates: [
+${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  renderers: [
     basic(),
   ],
 })
@@ -217,25 +216,16 @@ switch (cmd) {
     console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
     break
   }
-  case 'templates': {
-    const info = await api('/api/templates')
-    for (const e of info.errors) console.error(`config error: ${e}`)
-    for (const t of info.templates)
-      console.log(`${t.name.padEnd(14)} ${[t.html && 'html', t.props && 'props', t.client && 'client', t.code && 'code'].filter(Boolean).join('+').padEnd(18)} ${t.source}`)
-    if (!info.templates.length) console.log('no templates; add them to the templates array of .whiteboard/config.ts')
-    break
-  }
   case 'docs': {
-    const info = await api('/api/templates')
+    // what each renderer says about writing pages for it: for basic, the syntax of its templates
+    const info = await api('/api/docs')
     for (const e of info.errors) console.error(`config error: ${e}`)
-    const chosen = positionals.length ? info.templates.filter(t => positionals.includes(t.name)) : info.templates
-    if (!chosen.length) console.log(positionals.length ? `no template named ${positionals.join(', ')}` : 'no templates configured for this project')
-    for (const t of chosen) {
-      console.log(`<!-- template: ${t.name} -->`)
-      console.log(t.readme ? t.readme.trim() : `# ${t.name}\n\n(no readme)`)
+    if (!info.renderers.length) console.log('This project has no renderers: pages show as their raw text. Add them to `renderers` in .whiteboard/config.ts.')
+    for (const r of info.renderers) {
+      console.log(`<!-- renderer: ${r.name} -->`)
+      console.log(r.docs ? r.docs.trim() : `# ${r.name}\n\n(no documentation)`)
       console.log()
     }
-    console.log('Also: plain markdown, GFM tables, <details>, and raw HTML <form name="…"> work without templates.')
     break
   }
   case 'events': {

@@ -1,36 +1,36 @@
 # whiteboard — design
 
 A whiteboard for a person and an agent: when something is too much for text
-in a terminal, the agent writes a markdown page and the person reads it live
-in a browser. Pages can hold forms; submitting one appends a line to an
-ndjson log that the agent waits on, so both sides write on the board. The
-terminal stays for conversation; the page holds overview, detail and
-decisions.
+in a terminal, the agent writes a page and the person reads it live in a
+browser. Pages can hold forms; submitting one appends an event to a log the
+agent waits on, so both sides write on the board. The terminal stays for
+conversation; the page holds overview, detail and decisions.
 
 ## Principles
 
-- **The engine knows no templates.** Galleries, cards, forms-from-shorthand,
-  diagrams: all of it is templates that a config imports. The engine ships
-  with none and loads none by default.
-- **Templates are modules.** A template is an object (usually returned by a
-  factory taking options) that a config file imports from a package or a
-  local file, the way bundler plugins work. Packages can be built and published
-  like any other npm package.
-- **Framework-agnostic.** A template's browser code exports
-  `mount(element, props, api)`; the engine never imports a UI framework into
-  the page. Solid is supported through the `@bigmistqke/whiteboard/solid` adapter.
-- **No agent concepts in the engine.** There are no tasks, statuses or
-  approvals. The engine has one interaction primitive: appending an event to
-  the page's log. A submitted named HTML form is one; a template can append
-  others. Everything else is a template, or a convention between an agent
-  and its pages.
-- **Agent-written markdown must never break a page.** An unknown directive
-  renders its content as plain markdown; an unknown fence renders as a code
-  block; a template that throws renders an error box in place of that block
-  only; a broken config shows its error above the page.
-- **Templates document themselves.** Each template's readme is its syntax
-  reference, served at `/_/docs` and printed by `whiteboard docs`, so agents
-  read the current syntax instead of remembering it.
+- **Stored, not shown.** A page is stored as text, usually markdown. How it
+  is shown is a renderer's choice, not the core's: the core reads pages as
+  they are and hands them over. `basic()` (markdown with templates) is one
+  renderer; slides, a canvas or a React app could be others. A page no
+  renderer takes shows as its raw text.
+- **A light core.** The core keeps pages, the event log and the live
+  channel between them and a browser. It draws nothing, compiles nothing and
+  depends on no UI framework.
+- **No agent concepts in the core.** There are no tasks, statuses or
+  approvals. The one interaction primitive is appending an event to a page's
+  log: a submitted form is one, a renderer can append others. Everything
+  else is a renderer, a template, or a convention between an agent and its
+  pages.
+- **Extensions are modules.** Renderers and templates are objects (usually
+  returned by a factory taking options) that a config imports from a
+  package or a local file, the way bundler plugins work.
+- **Agent-written pages must never break.** basic renders an unknown
+  directive as its content, an unknown fence as a code block, a template
+  that throws as an error box in place of that block only. A broken config
+  or a failing renderer shows its error above the raw text.
+- **Self-documenting.** Each renderer documents how to write for it, served
+  at `/_/docs` and printed by `whiteboard docs`, so agents read the current
+  syntax instead of remembering it.
 
 ## Projects
 
@@ -40,7 +40,7 @@ outside the project:
 
 ```
 <repo>/.whiteboard/
-  config.ts     defineConfig({ name, templates: [...], files })
+  config.ts     defineConfig({ name, renderers: [...], files })
   pages/        the project's pages, served at /<page>
   style.css     optional, applied to the project's pages
   events.ndjson the project's form submits
@@ -102,27 +102,101 @@ file's own folder on disk and rewritten to the URL that serves the target
 documents work the way they do in the repository. A link that points nowhere
 is left as written.
 
-## Engine (`src/`)
+## Core (`src/`)
+
+The core reads a stored page, picks its renderer and hands the page over,
+on the server and in the browser.
+
+### Stored pages
+
+What a renderer gets is the page as stored (`StoredPage` in `src/define.ts`):
+
+| kind | what | served at |
+| --- | --- | --- |
+| `page` | a markdown file: `source`, and its `frontmatter` fields | `/<page>`, `/-/<path>.md` |
+| `file` | any other text file of the repository: `source` | `/-/<path>` |
+| `folder` | a repository folder: its `entries`, and its README as a `page` | `/-/<path>/` |
+| `pages` | the overview, or a folder of pages without an `index.md`: the `pages` in it, with when each was last answered | `/`, `/<folder>/` |
+
+Images and other binary files are served as they are.
+
+### Renderers
+
+```ts
+interface Renderer {
+  name: string
+  render?(page: StoredPage, ctx: RenderContext): { html, title?, head?, data? }   // server
+  client?: URL                         // browser: default export mount(root, page, api)
+  docs?(ctx): string                   // markdown: how to write pages for it
+}
+```
+
+- **Which one.** The config lists the renderers; the first is the default.
+  A page picks another in its frontmatter (`renderer: slides`). With none,
+  or when the one a page names is missing, the page shows as its raw text,
+  with a note saying why.
+- **Server.** `render` returns the page's first HTML, put into
+  `<div id="wb-root">`, its `<head>` additions and `data` for the client.
+  `ctx.asset(file)` gives the URL a file is served at (a client module, a
+  stylesheet); only files asked for this way are served, from `/_/file/…`.
+  `ctx.urlFor(file)` gives the URL that shows a file or folder on disk, for
+  links.
+- **Browser.** The core's runtime (`src/client/runtime.ts`) imports the
+  renderer's `client` and calls `mount(root, page, api)`. `page` has the
+  page's id, kind and `data`, `onChange(fn)`, `render()` (the server render,
+  afresh) and `stored()` (the stored page, afresh). `api` has the page's
+  events, `onEvents`, `last(type)` and `append(type, data, action)`.
+- **Changes.** The core only signals that a page changed; the renderer
+  fetches what it needs. That keeps how an update looks the renderer's
+  choice: basic morphs it in place.
+
+### Events
+
+The core appends `{ id, ts, page, type, action, data }` to
+`.whiteboard/events.ndjson` when the browser calls `api.append`. A form's
+submit is one: its `type` is the form's name, `action` the button that sent
+it. Lines written before events had a type say `form` instead; they are read
+as `type`. `whiteboard wait` and `watch` filter by page and type.
+
+### Loading and reloading
+
+The config is loaded by Node itself, which runs its TypeScript
+(`src/load.js`). Two resolve hooks help it: `@bigmistqke/whiteboard/*`
+always means the engine's own build, so a project needs no `node_modules`;
+and the config and the local files it imports get a version in their URL,
+so a change loads them afresh. Nothing compiles browser code: a renderer's
+or template's browser module is served as the file it is, so packages ship
+JavaScript.
+
+The browser listens at `/api/watch`: `change` (its page changed), `events`
+(the log grew), `style` (a stylesheet changed: reloaded in place) and
+`reload` (browser code changed: the page reloads). The config, `.whiteboard/`
+and the folders of served files are watched; any other change in them loads
+the config afresh and re-renders open pages.
+
+## basic (`basic/`)
+
+The renderer that ships with whiteboard: pages are markdown, extended by
+templates.
 
 1. Turns markdown into HTML: remark (GFM + `remark-directive`), then rehype.
    Raw HTML passes through, so `<details>` and hand-written forms work.
-   Code blocks that no template handles render as plain `<pre><code>`, unless
-   the config has a code template (below).
+   Frontmatter is skipped. Code blocks that no template handles render as
+   plain `<pre><code>`, unless there is a code template (below).
 2. Resolves extension points to templates:
    - `:::name[label]{attrs}` … `:::` container directives, `::name[label]{attrs}`
      leaf directives, `:name[label]{attrs}` text directives
    - ```` ```name attrs ```` fences
-3. Loads the config with Node itself, which runs its TypeScript
-   (`src/load.js`). Two resolve hooks help it: `@bigmistqke/whiteboard/*`
-   always means the engine's own build, so a project needs no `node_modules`;
-   and the config and the local files it imports get a version in their
-   URL, so a change loads them afresh. Nothing compiles browser code: a
-   template's `client` is served as the file it is, so templates ship it as
-   JavaScript. There is no bundler in the engine.
-4. Live-reloads a page when its markdown file changes, patching it in place
-   with morphdom: focus, caret, typed values, open `<details>` and mounted
-   islands whose props did not change all survive (islands carry a
-   `data-wb-key` hashed from template + props).
+3. Draws the frame: breadcrumbs, when the page was updated, the theme
+   toggle (light, dark or the system's) and the live indicator; the overview,
+   folder listings with their README on top, and repository files as code.
+4. Patches the page in place when it changes, with morphdom: focus, caret,
+   typed values, open `<details>` (found by their heading and summary, so a
+   block added above one keeps it open), the reader's place on the page,
+   and mounted islands whose props did not change all survive (islands
+   carry a `data-wb-key` hashed from template + props). What the reader
+   types into a form is kept as a draft until it is sent, so it also
+   survives a reload.
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab
@@ -133,36 +207,32 @@ is left as written.
      it is effectively a new page, and marking all of it says nothing.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons jump to the
      nearest unseen block; the tab title gets a `(n)` prefix.
-5. Appends `{ id, ts, page, type, action, data }` to the page's
-   `events.ndjson` when a `<form name="…">` without an `action` attribute is
-   submitted: its `type` is the form's name, `action` the value of the
-   button that submitted it. A template appends events of its own types
-   with `api.append(type, data)`, so the log is the page's event stream,
-   not only its answers. Lines written before events had a type say `form`
-   instead; they are read as `type`. The log
-   is the project's own `.whiteboard/events.ndjson`.
+5. Appends an event for every `<form name="…">` without an `action`
+   attribute that is submitted: its name as `type`, the button as `action`,
+   the fields as `data`.
 
-Nested containers may all use `:::`. The engine pairs the fences and lengthens
+Nested containers may all use `:::`. basic pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence
 to be longer than the ones inside it.
 
-## Templates
+### Templates
 
 ```ts
 // <repo>/.whiteboard/config.ts
 import { defineConfig } from '@bigmistqke/whiteboard/config'
 import basic from '@bigmistqke/whiteboard/basic'
 import chart from 'whiteboard-chart'   // a template package of someone else's
-import timeline from './templates/timeline'
+import timeline from './templates/timeline.ts'
 
 export default defineConfig({
   name: 'radio-garden',
-  templates: [basic(), chart({ palette: 'cool' }), timeline],
+  renderers: [basic({ templates: [chart({ palette: 'cool' }), timeline] })],
 })
 ```
 
 A template handles the directive and fence with its `name`
-(`:::name`, `::name`, `:name`, ```` ```name ````):
+(`:::name`, `::name`, `:name`, ```` ```name ````). basic's own templates are
+always there; one passed with the same name replaces it.
 
 ```ts
 export default {
@@ -176,9 +246,8 @@ export default {
 ```
 
 - Types come from `@bigmistqke/whiteboard/template` (`Template`, `Mount`,
-  `ClientApi`, the server context types). `defineConfig`/`defineTemplate`
-  only return their argument; a published package needs no runtime import
-  from the engine.
+  `ClientApi`, the server context types). `defineTemplate` only returns its
+  argument; a published package needs no runtime import from whiteboard.
 - Files are referenced by URL relative to the module, so they resolve
   wherever the package is installed.
 - The server context has `attrs`, `label`, `children` (mdast),
@@ -193,50 +262,51 @@ export default {
   gets every fence no template claims by name, and the code view of
   repository files, with the fence's language in `ctx.lang`. Highlighting is
   a template for the same reason a diagram is: themes and colours are a
-  choice, and the engine makes none. The last `code` template in config
-  order wins. Without one, code renders plain, which is still a valid page.
+  choice. The last `code` template wins. Without one, code renders plain, which is still a valid page.
 - Layout classes a template can put on its outermost element: `.wb-figure`
   runs up to `--figure` (920px) wide, like a standalone image or a diagram;
   `.wb-wide` runs up to `--wide` (1040px), like a grid of cards. Both centre
   on the text column and stay within the screen.
 - A client's island is wrapped in `<div class="wb-island" data-template="name">`.
-  The engine never adds `wb-<name>` classes, so a template owns its class names.
-- `api` (a `ClientApi`) gives the page id, the page's events and the theme,
-  each with a subscription, `last(type)` for the latest event of a type, and
-  `append(type, data)` to add one. `@bigmistqke/whiteboard/solid` wraps it:
+  basic never adds `wb-<name>` classes, so a template owns its class names.
+- `api` (a `ClientApi`) is the core's `Api` (the page id, its events with a
+  subscription, `last(type)`, `append(type, data)`) plus basic's theme, with
+  a subscription too. `@bigmistqke/whiteboard/solid` wraps it:
   `export default solid(Component)` and `useWhiteboard()` for signals.
 - A client is one module the browser loads as it is, so a package bundles
   what its client needs, UI framework included. `basic()`'s Solid clients
   each carry their own copy of Solid; the cost is some bytes over a local
   connection, and in return a client needs nothing from the page.
 
-### Which templates apply
 
-The project's config is the only one. Within it, later entries replace
-earlier ones with the same name.
-
-Configs and template files are watched: a changed client reloads the open
-pages (what the reader typed survives as a draft), a changed style reloads
-stylesheets in place, anything else (config, server functions, readmes) loads
-the config afresh and re-renders open pages.
+Template files are watched like any served file: a changed client reloads
+the open pages (drafts keep what was typed), a changed style reloads in
+place, anything else (server functions, readmes) loads the config afresh
+and re-renders.
 
 ## Layout
 
 ```
-src/              the engine; ./config, ./template and ./client of the package
+src/              the core; ./config (and the types of ./client)
+src/client/       the core in the browser
 bin/whiteboard.js the `whiteboard` command
-build.js          builds dist/: the page runtime, basic(), the Solid adapter (`npm run dev` watches)
-basic/            ./basic: grid, gallery, details, callout, form, mermaid, code: basic()
+basic/            ./basic: the basic renderer and its templates; ./template: their contract
+basic/client/     basic in the browser: morphing, islands, forms, new-content marks, theme
 solid/            ./solid: write template clients as Solid 2 components
+build.js          builds dist/: what the package ships as JavaScript (`npm run dev` watches)
 skills/whiteboard the agent skill: where to write pages, how to wait for input
 .whiteboard/      this repository as a whiteboard project (dogfooding)
 ```
 
-It is one package, `@bigmistqke/whiteboard`, with a subpath export per part.
-The engine still imports no templates; a config does. The server resolves the
-package's own exports itself, so a project needs no `node_modules` to use
-them: a config in a repository without npm can import
+It is one package, `@bigmistqke/whiteboard`, with a subpath export per part;
+it splits into packages once a second renderer exists. The core never
+imports basic; a config does. The server resolves the package's own exports
+itself, so a config in a repository without npm can import
 `@bigmistqke/whiteboard/basic`.
+
+Node runs TypeScript, but not inside `node_modules`, where an installed
+package lives; so what a project imports from this one ships built in
+`dist/`. The engine's own server code is plain JavaScript and runs as it is.
 
 ## Files
 

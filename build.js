@@ -1,8 +1,10 @@
 // Builds what the package ships as JavaScript, into dist/:
 //
-//   dist/client/main.js        the page runtime, one browser module (morphdom included)
-//   dist/define.js             ./config and ./template: defineConfig, defineTemplate
-//   dist/basic/…               ./basic, module for module, with each template's style and readme
+//   dist/client/runtime.js     the core in the browser: events, live channel, hand-over to a renderer
+//   dist/define.js             ./config: defineConfig, defineRenderer
+//   dist/basic/…               ./basic (the renderer) and ./template, module for module, with
+//                              each template's style and readme
+//   dist/basic/client/main.js  basic in the browser, one module (morphdom included)
 //   dist/basic/<t>/client.js   a template's browser code: one module with Solid included
 //   dist/solid/index.js        ./solid, for template packages that bundle it themselves
 //
@@ -33,24 +35,33 @@ const solidJsx = () => ({
 
 const bare = id => !id.startsWith('.') && !path.isAbsolute(id)
 
-const clients = fs.readdirSync(at('basic'), { withFileTypes: true })
-  .filter(e => e.isDirectory() && fs.existsSync(at('basic', e.name, 'client.tsx')))
+const templateDirs = fs.readdirSync(at('basic'), { withFileTypes: true })
+  .filter(e => e.isDirectory() && fs.existsSync(at('basic', e.name, 'index.ts')))
   .map(e => e.name)
+const clients = templateDirs.filter(name => fs.existsSync(at('basic', name, 'client.tsx')))
 
 const builds = [
-  // the page runtime
+  // the core in the browser
   {
-    input: at('src/client/main.ts'),
+    input: at('src/client/runtime.ts'),
     platform: 'browser',
-    output: { file: path.join(DIST, 'client/main.js'), format: 'esm' },
+    output: { file: path.join(DIST, 'client/runtime.js'), format: 'esm' },
+  },
+  // basic in the browser
+  {
+    input: at('basic/client/main.ts'),
+    platform: 'browser',
+    output: { file: path.join(DIST, 'basic/client/main.js'), format: 'esm' },
   },
   // what configs and template packages import on the server, module for module so that
   // new URL('./style.css', import.meta.url) still points next to the module
   {
-    input: { define: at('src/define.ts'), 'basic/index': at('basic/index.ts'), ...Object.fromEntries(
-      fs.readdirSync(at('basic'), { withFileTypes: true }).filter(e => e.isDirectory())
-        .map(e => [`basic/${e.name}/index`, at('basic', e.name, 'index.ts')]),
-    ) },
+    input: {
+      define: at('src/define.ts'),
+      'basic/index': at('basic/index.ts'),
+      'basic/types': at('basic/types.ts'),
+      ...Object.fromEntries(templateDirs.map(name => [`basic/${name}/index`, at('basic', name, 'index.ts')])),
+    },
     platform: 'node',
     external: id => bare(id) || id.startsWith('node:'),
     output: { dir: DIST, format: 'esm', preserveModules: true, preserveModulesRoot: ROOT, entryFileNames: '[name].js' },
@@ -77,7 +88,7 @@ const builds = [
 /** Styles and readmes sit next to the template modules that point at them. */
 function copyAssets() {
   for (const e of fs.readdirSync(at('basic'), { withFileTypes: true })) {
-    if (!e.isDirectory()) continue
+    if (!e.isDirectory()) continue  // client/ holds base.css
     for (const f of fs.readdirSync(at('basic', e.name))) {
       if (!/\.(css|md)$/.test(f)) continue
       fs.mkdirSync(path.join(DIST, 'basic', e.name), { recursive: true })
