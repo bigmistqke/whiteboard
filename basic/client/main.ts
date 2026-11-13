@@ -6,6 +6,7 @@ import type { Api, PageHandle, RendererMount } from '../../src/define'
 import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
+import { applyWaiting, trackWaiting } from './waiting'
 
 interface Island { template: string; client: string; props: unknown }
 interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }
@@ -229,7 +230,7 @@ function morph(html: string) {
       }
       // <details> open state was set on the new tree by detailsKeys(), matched by identity, not position
       if (from instanceof HTMLFormElement) {
-        for (const k of ['wbSent', 'wbState']) if (from.dataset[k] != null) to.dataset[k] = from.dataset[k]
+        for (const k of ['wbSent', 'wbState', 'wbWaiting', 'wbUnheard']) if (from.dataset[k] != null) to.dataset[k] = from.dataset[k]
       }
       for (const c of KEEP_CLASSES) if (from.classList.contains(c)) to.classList.add(c)
       return true
@@ -293,6 +294,7 @@ async function refresh() {
   keepPlace(place, nextSigs)
   restorePlainForms(false)
   restoreDrafts()
+  applyWaiting()
   tickTimes()
 }
 
@@ -319,12 +321,15 @@ const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, core:
   handle.onChange(() => refresh())
   // the overview shows when pages were last answered; a page shows its forms' last answers
   core.onEvents(() => (isDir ? refresh() : restorePlainForms(false)))
+  // the overview shows which pages an agent is waiting on
+  if (isDir) core.onListeners(() => refresh())
 
   blockSigs = [...main.children].map(signature)
   if (!isDir) trackInitial(main, page)
   await mountIslands()
   restorePlainForms(true)
   restoreDrafts()
+  if (!isDir) trackWaiting(main, api)
   tickTimes()
 }
 

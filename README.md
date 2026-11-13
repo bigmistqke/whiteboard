@@ -160,7 +160,7 @@ upward with `.whiteboard/config.ts`.
 | `whiteboard docs` | print how to write pages in this project (for basic: its templates' syntax) |
 | `whiteboard events [filters]` | print recorded events |
 | `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed |
-| `whiteboard watch [filters]` | print matching events as they arrive |
+| `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 

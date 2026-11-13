@@ -88,13 +88,13 @@ each other's answers. A person can still write a page file directly. A name
 that has submits in the log stays taken after its page is deleted, so a new
 page never inherits the answers of an old one.
 
-`whiteboard wait` hands out each submit once, without the agent keeping
-track: `delivered.json` records, per filter (page and form), the last submit
-it handed out. A wait first returns matching submits after that one, also
-those made before it started, then follows the log. The backlog and the
-following split the log at one byte offset, so no submit falls between
-them. Different filters are different listeners: a wait on a whole page
-does not count what a wait on one of its forms handed out.
+`whiteboard wait` and `watch` hand out each event once, without the agent keeping
+track: `delivered.json` records, per filter (page and type), the last event
+it handed out. Each command first returns matching events after that one,
+also those from before it started, then follows the log. The backlog and the
+following split the log at one byte offset, so no event falls between
+them. Different filters count separately: a wait on a whole page does not
+count what a wait on one of its forms handed out.
 
 Relative links and images in any rendered markdown are resolved from that
 file's own folder on disk and rewritten to the URL that serves the target
@@ -156,7 +156,19 @@ The core appends `{ id, ts, page, type, action, data }` to
 `.whiteboard/events.ndjson` when the browser calls `api.append`. A form's
 submit is one: its `type` is the form's name, `action` the button that sent
 it. Lines written before events had a type say `form` instead; they are read
-as `type`. `whiteboard wait` and `watch` filter by page and type.
+as `type`. `whiteboard wait` and `watch` filter by page and type, and hand out each
+event once per filter (see Projects): `watch` is `wait` that never exits.
+
+### Listeners
+
+While `whiteboard wait` or `watch` runs, it holds a connection to the
+server's `/api/listen` with its filter: that connection is a listener, and
+it is gone when the command is (it reconnects when the server restarts). The
+server tells pages when listeners come and go (`listeners` on the live
+channel), and `api.listeners()` gives the ones covering the page. So what an
+agent waits for is a fact the command line knows, not something the agent
+has to mark; renderers show it as they like. Reading the log never depends
+on the connection, so no answer is missed while the server is away.
 
 ### Loading and reloading
 
@@ -214,6 +226,13 @@ templates.
 5. Appends an event for every `<form name="…">` without an `action`
    attribute that is submitted: its name as `type`, the button as `action`,
    the fields as `data`.
+6. Shows what an agent is waiting for. A form is marked "waiting for you"
+   when a listener asks for it by name (also when it was answered before:
+   the agent wants a new answer), or when a listener takes any answer on
+   the page and the form has none yet. A button jumps from one waiting form
+   to the next, the tab title gets a `(!n)` prefix, and the overview marks
+   pages an agent waits on. An unanswered form nobody listens for says so,
+   so the reader knows an answer would go unheard for now.
 
 Nested containers may all use `:::`. basic pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence

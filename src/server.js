@@ -110,7 +110,7 @@ function pagesIn(dir) {
       if (ent.isDirectory()) walk(full)
       else if (ent.name.endsWith('.md')) {
         const id = path.relative(PROJECT.pagesDir, full).split(path.sep).join('/').replace(/\.md$/, '')
-        out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: last.get(id) ?? null })
+        out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: last.get(id) ?? null, listeners: listenersFor(id).length })
       }
     }
   }
@@ -249,9 +249,22 @@ ${notices.map(n => `<pre class="wb-error" role="alert">${esc(n)}</pre>`).join(''
 <script type="module" src="/_/runtime.js"></script></body></html>`
 }
 
+// ---- listeners ---------------------------------------------------------------------------------
+// An agent waiting for answers (`whiteboard wait` or `watch`) holds a connection to /api/listen for
+// as long as it runs: that connection is the listener, gone when the command is. Pages show what an
+// agent is waiting for from these, so nothing depends on the agent marking it.
+
+const listeners = new Set()
+
+/** Does a listener's page filter cover `page`? An empty filter covers every page. */
+const covers = (l, page) => !l.page || page === l.page || page.startsWith(l.page + '/')
+
+const listenersFor = page => [...listeners].filter(l => page == null || covers(l, page)).map(({ page, type, command }) => ({ page, type, command }))
+
 // ---- live changes ------------------------------------------------------------------------------
-// The browser listens at /api/watch. `change`: its page changed; `events`: the log grew; `style`: a
-// stylesheet changed; `reload`: browser code changed.
+// The browser listens at /api/watch. `change`: its page changed; `events`: the log grew;
+// `listeners`: an agent started or stopped waiting; `style`: a stylesheet changed; `reload`:
+// browser code changed.
 
 const clients = new Set()
 function notify(client, kind) {
@@ -396,6 +409,17 @@ httpServer().on('request', async (req, res) => {
     }
     if (p === '/api/events') return sendJson(res, 200, readEvents(PROJECT.eventsFile).filter(e => matches(e, q)))
     if (p === '/api/docs') return sendJson(res, 200, await docs())
+    if (p === '/api/listeners') return sendJson(res, 200, listenersFor(q.page ?? null))
+    if (p === '/api/listen') {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
+      res.write(': listening\n\n')
+      const l = { page: q.page || '', type: q.type || null, command: q.command === 'wait' ? 'wait' : 'watch' }
+      listeners.add(l)
+      notifyAll('listeners')
+      const ping = setInterval(() => res.write(': ping\n\n'), 25000)
+      req.on('close', () => { clearInterval(ping); listeners.delete(l); notifyAll('listeners') })
+      return
+    }
     if (p === '/api/page' || p === '/api/render') {
       const r = await resolve(q.page ?? '', '/')
       if (!r.page) return sendJson(res, 404, { error: r.notFound ?? 'not a page' })

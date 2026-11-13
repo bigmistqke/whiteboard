@@ -100,13 +100,27 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   answers it has not handed out before, also ones given before you started
   waiting, so you never miss one and never get one twice. Run it in the
   background and keep working; you are notified when it exits.
-- `whiteboard watch --page <file>` streams every submit on a page (for a
-  monitor that stays open). Use this for a page with several forms: the user
+- `whiteboard watch --page <file>` is `wait` that never exits: it prints
+  every answer on the page once, also those given while no watch ran (for a
+  monitor that stays open, and one you restart). Use this for a page with
+  several forms: the user
   answers them one at a time, and each answer deserves a reply. Do not use
   `wait --count <n>` for that: it returns only after all n answers, so the
   first ones go unread until the last arrives.
 - `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer.
+
+While `wait` or `watch` runs, the page shows the user what you are waiting
+for: the forms it covers are marked "waiting for you", a button jumps from
+one to the next, and the tab title counts them. Forms nobody waits for say
+that no agent is listening. So:
+
+- Keep a `wait` or `watch` running for as long as you want answers, and only
+  then. Don't poll `whiteboard events` in a loop instead: the user can't see
+  that you are waiting.
+- When you need the user to read something before you go on, put a form with
+  just a button under it (`submit: Read it`) and wait for it. Then
+  everything you wait for is a form the page can point to.
 
 After acting on an answer, update the page to say what you did with it.

@@ -105,8 +105,20 @@ function markNew(el: Element) {
 
 // ---- navigator ---------------------------------------------------------------------------------
 
+/** The floating buttons at the bottom right: what waits for the reader, then what is new. */
+export const dock = document.createElement('div')
+dock.className = 'wb-dock'
+
+let titlePrefix = ''
+/** A prefix for the tab title, in front of the new-content count: what waits for the reader. */
+export function setTitlePrefix(prefix: string) {
+  titlePrefix = prefix
+  update()
+}
+
 const nav = document.createElement('div')
 nav.className = 'wb-fresh'
+dock.append(nav)
 nav.innerHTML = '<button type="button" data-dir="up"></button><button type="button" data-dir="down"></button>'
 const [upBtn, downBtn] = nav.querySelectorAll('button')
 
@@ -134,7 +146,7 @@ function update() {
     upBtn.textContent = `↑ new (${above.length})`
     downBtn.textContent = `↓ new (${below.length})`
     nav.hidden = !above.length && !below.length
-    document.title = unseen.size ? `(${unseen.size}) ${baseTitle}` : baseTitle
+    document.title = `${titlePrefix}${unseen.size ? `(${unseen.size}) ` : ''}${baseTitle}`
   })
 }
 
@@ -161,7 +173,7 @@ export function trackInitial(main: HTMLElement, page: string) {
   mainEl = main
   storeKey = `wb-seen:${page}`
   baseTitle = document.title
-  document.body.append(nav)
+  document.body.append(dock)
   const blocks = [...main.children]
   const sigs = blocks.map(signature)
   blocks.forEach((el, i) => sigOf.set(el, sigs[i]))

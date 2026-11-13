@@ -93,7 +93,8 @@ export interface FolderSource extends StoredBase {
 /** The overview, or a folder of pages without an index.md. */
 export interface PagesSource extends StoredBase {
   kind: 'pages'
-  pages: { id: string; file: string; mtime: number; lastEvent: string | null }[]
+  /** `listeners`: how many agents are waiting for answers on the page right now */
+  pages: { id: string; file: string; mtime: number; lastEvent: string | null; listeners: number }[]
 }
 
 /** What the core offers a renderer on the server. */
@@ -142,6 +143,17 @@ export interface WbEvent {
   data: Record<string, unknown>
 }
 
+/**
+ * An agent waiting for answers right now: a running `whiteboard wait` or `watch`. `page` is its
+ * page filter ("" for every page; a page also covers the pages below it), `type` the event type it
+ * waits for, null for any.
+ */
+export interface Listener {
+  page: string
+  type: string | null
+  command: 'wait' | 'watch'
+}
+
 /** What the core gives every renderer in the browser. Framework-free: getters and subscriptions. */
 export interface Api {
   /** this page's id */
@@ -154,4 +166,7 @@ export interface Api {
   last(type: string): WbEvent | undefined
   /** record an event for this page: it lands in the log, where the agent reads it */
   append(type: string, data?: Record<string, unknown>, action?: string | null): Promise<WbEvent>
+  /** the agents waiting for answers on this page right now */
+  listeners(): Listener[]
+  onListeners(fn: (listeners: Listener[]) => void): () => void
 }

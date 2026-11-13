@@ -30,7 +30,8 @@ const time = ts => `<time data-ts="${ts}"></time>`
 function pageList(pages) {
   return `<ul class="wb-index">${pages.map(p =>
     `<li><a href="/${esc(p.id)}">${esc(titleOf(p.file, path.basename(p.id)))}</a> <span class="wb-meta"><code>${esc(p.id)}</code> · edited ${time(p.mtime)}${
-      p.lastEvent ? ` · last submit ${time(Date.parse(p.lastEvent))}` : ''}</span></li>`).join('')}</ul>`
+      p.lastEvent ? ` · last submit ${time(Date.parse(p.lastEvent))}` : ''}${
+      p.listeners ? ` · <span class="wb-waiting">agent waiting</span>` : ''}</span></li>`).join('')}</ul>`
 }
 
 /**

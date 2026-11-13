@@ -188,7 +188,16 @@ form[data-wb-state=failed]:not(.wb-form)::after { content: "failed to send"; col
 }
 .wb-wide.wb-new::after { left: -10px; }
 .wb-new.wb-new-seen::after { opacity: 0; transition-delay: 1s; }
-.wb-fresh { position: fixed; right: 16px; bottom: 16px; z-index: 10; display: flex; flex-direction: column; gap: 6px; }
+.wb-dock { position: fixed; right: 16px; bottom: 16px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.wb-fresh { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.wb-waiting-next { background: var(--accent); color: var(--accent-text); border-color: var(--accent); border-radius: 99px; font-size: .8rem; }
+.wb-waiting-next[hidden] { display: none; }
+
+/* what an agent is waiting for: a running `whiteboard wait` or `watch` covers the form */
+form[data-wb-waiting] { outline: 2px solid var(--accent); outline-offset: 10px; border-radius: 2px; }
+form[data-wb-waiting]::before { content: "waiting for you"; display: block; margin-bottom: 8px; color: var(--accent); font: 600 .75rem/1.4 var(--sans); letter-spacing: .04em; text-transform: uppercase; }
+form[data-wb-unheard]::before { content: "no agent is listening for this right now"; display: block; margin-bottom: 8px; color: var(--muted); font: .75rem/1.4 var(--sans); }
+.wb-index .wb-waiting { color: var(--accent); font-weight: 600; }
 .wb-fresh[hidden], .wb-fresh button[hidden] { display: none; }
 .wb-fresh button { background: var(--bad); color: #fff; border-color: var(--bad); border-radius: 99px; font-size: .8rem; }
 

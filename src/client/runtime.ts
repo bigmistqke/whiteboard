@@ -1,7 +1,7 @@
 // The core in the browser: the page's events, the live channel, and handing the page to its
 // renderer. Framework-free, and it draws nothing: the renderer's client gets the root element and
 // does the rest. A page without a renderer client shows the server's HTML, replaced when it changes.
-import type { Api, PageHandle, Rendered, RendererMount, StoredPage, WbEvent } from '../define'
+import type { Api, Listener, PageHandle, Rendered, RendererMount, StoredPage, WbEvent } from '../define'
 
 interface Handoff { id: string; kind: StoredPage['kind']; renderer: string | null; client: string | null; data: unknown }
 
@@ -37,12 +37,22 @@ async function append(type: string, data: Record<string, unknown> = {}, action: 
   return saved
 }
 
+let listeners: Listener[] = []
+const listenerListeners = new Set<(listeners: Listener[]) => void>()
+
+async function loadListeners() {
+  listeners = await (await fetch(`/api/listeners?page=${encodeURIComponent(page)}`)).json()
+  for (const fn of listenerListeners) fn(listeners)
+}
+
 const api: Api = {
   page,
   events: () => events,
   onEvents(fn) { eventListeners.add(fn); return () => eventListeners.delete(fn) },
   last: type => events.findLast(e => e.type === type),
   append,
+  listeners: () => listeners,
+  onListeners(fn) { listenerListeners.add(fn); return () => listenerListeners.delete(fn) },
 }
 
 // ---- the page ----------------------------------------------------------------------------------
@@ -71,10 +81,16 @@ if (!handoff.client) handle.onChange(async () => { root.innerHTML = (await handl
 
 function connect() {
   const es = new EventSource(`/api/watch?page=${encodeURIComponent(page)}${isDir ? '&dir' : ''}`)
-  es.onopen = () => document.documentElement.dataset.wbLive = ''
+  es.onopen = () => {
+    document.documentElement.dataset.wbLive = ''
+    // after a server restart: who is listening now, and what was answered meanwhile
+    loadListeners()
+    loadEvents()
+  }
   es.onerror = () => { delete document.documentElement.dataset.wbLive }
   es.addEventListener('change', () => { for (const fn of changeListeners) fn() })
   es.addEventListener('events', () => loadEvents())
+  es.addEventListener('listeners', () => loadListeners())
   // browser code changed; renderers keep what matters across a reload themselves
   es.addEventListener('reload', () => location.reload())
   es.addEventListener('style', () => {
@@ -87,7 +103,7 @@ function connect() {
   })
 }
 
-await loadEvents()
+await Promise.all([loadEvents(), loadListeners()])
 if (handoff.client) {
   try {
     const mount: RendererMount = (await import(handoff.client)).default

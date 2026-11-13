@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
@@ -26,7 +27,7 @@ const HELP = `whiteboard — markdown pages in the browser, form submits and oth
   whiteboard docs                  how to write pages here (for basic: its templates) — read before writing one
   whiteboard events [filters]      print recorded events as ndjson
   whiteboard wait [filters]        block until the next matching event, print it, exit
-  whiteboard watch [filters]       print matching events as they arrive (never exits)
+  whiteboard watch [filters]       like wait, but never exits: print each matching event once
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
@@ -96,6 +97,29 @@ async function api(route) {
   const body = await res.json()
   if (!res.ok) throw new Error(body.error ?? res.statusText)
   return body
+}
+
+/**
+ * Tell the project's server that an agent is waiting, for as long as this command runs: pages show
+ * what is waited for. Holds one connection open, the listener; reconnects when the server restarts.
+ * Reading the log does not depend on it, so answers are never missed when the server is away.
+ */
+function listen(f, command) {
+  const connect = async () => {
+    let base
+    try { base = await ensureServer() } catch { return setTimeout(connect, 2000).unref() }
+    const q = new URLSearchParams({ command, ...(f.page ? { page: f.page } : {}), ...(f.type ? { type: f.type } : {}) })
+    let again = false
+    const retry = ms => { if (!again) { again = true; setTimeout(connect, ms).unref() } }
+    const req = http.get(`${base}/api/listen?${q}`, res => {
+      res.resume()
+      res.on('close', () => retry(1000))
+    })
+    req.on('error', () => retry(2000))
+    // the connection alone does not keep the command running
+    req.on('socket', socket => socket.unref())
+  }
+  connect()
 }
 
 const logSize = log => (fs.existsSync(log) ? fs.statSync(log).size : 0)
@@ -239,24 +263,28 @@ switch (cmd) {
     for (const e of list) console.log(JSON.stringify(e))
     break
   }
-  case 'wait': {
-    // Submits this filter has not handed out yet come first, also those made before the wait
+  case 'wait':
+  case 'watch': {
+    // Events this filter has not handed out yet come first, also those from before the command
     // started; then new ones. What was handed out is kept per filter in delivered.json, so an
-    // answer is neither lost between two waits nor handed out twice.
+    // answer is neither lost between two commands (a wait after a wait, a watch restarted) nor
+    // handed out twice. `wait` stops after --count events (default 1); `watch` never does.
     const proj = needProject()
     const f = filter()
     const key = `${f.page ?? ''}\0${f.type ?? ''}`
     let delivered = {}
     try { delivered = JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8')) } catch {}
-    const want = Number(opts.count ?? 1)
+    const want = cmd === 'wait' ? Number(opts.count ?? 1) : Infinity
     let got = 0
     const hand = e => {
       console.log(JSON.stringify(e))
+      // another command may have handed out others meanwhile: merge, don't overwrite
+      try { delivered = JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8')) } catch {}
       delivered[key] = { id: e.id, ts: e.ts }
       fs.writeFileSync(proj.deliveredFile, JSON.stringify(delivered, null, 2) + '\n')
       if (++got >= want) process.exit(0)
     }
-    // the backlog and the follow split the log at one offset, so no submit falls between them
+    // the backlog and the follow split the log at one offset, so no event falls between them
     const offset = logSize(proj.eventsFile)
     const matching = readEventsUpTo(proj.eventsFile, offset).filter(e => matches(e, f))
     const last = delivered[key]
@@ -264,12 +292,10 @@ switch (cmd) {
     const backlog = !last ? matching : at >= 0 ? matching.slice(at + 1) : matching.filter(e => e.ts > last.ts)
     for (const e of backlog) hand(e)
     follow(hand, offset)
-    if (opts.timeout) setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
+    listen(f, cmd)
+    if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
     break
   }
-  case 'watch':
-    follow(e => console.log(JSON.stringify(e)))
-    break
   case 'skill': {
     // the agent skill ships in this package; link it into whatever folder an agent reads skills from
     const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'whiteboard')
