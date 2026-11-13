@@ -14,10 +14,12 @@ import type { ClientApi, Mount, Theme, WbEvent } from '@bigmistqke/whiteboard/te
 export interface Whiteboard {
   /** this page's id */
   page: string
-  /** every form submission recorded for this page. Reactive. */
+  /** every event recorded for this page. Reactive. */
   events(): WbEvent[]
-  /** the latest submission of a named form. Reactive. */
-  lastSubmit(form: string): WbEvent | undefined
+  /** the latest event of a type, e.g. the last submit of a form. Reactive. */
+  last(type: string): WbEvent | undefined
+  /** record an event for this page */
+  append: ClientApi['append']
   /** the theme in effect. Reactive. */
   theme(): Theme
 }
@@ -41,7 +43,8 @@ export function solid<Props extends object>(Component: Component<Props>): Mount<
       const value: Whiteboard = {
         page: api.page,
         events,
-        lastSubmit: form => events().findLast(e => e.form === form),
+        last: type => events().findLast(e => e.type === type),
+        append: api.append,
         theme,
       }
       return (

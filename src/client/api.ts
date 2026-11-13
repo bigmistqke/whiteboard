@@ -23,12 +23,12 @@ export async function loadEvents(): Promise<void> {
   setEvents(all.filter(e => e.page === page))
 }
 
-/** Record a submission. The engine calls this for every named <form>. */
-export async function submit(form: string, action: string | null, data: Record<string, unknown>): Promise<WbEvent> {
+/** Record an event for this page. The engine calls this for every named <form>, with the form's name as type. */
+export async function append(type: string, data: Record<string, unknown> = {}, action: string | null = null): Promise<WbEvent> {
   const res = await fetch('/api/events', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ page, form, action, data }),
+    body: JSON.stringify({ page, type, action, data }),
   })
   if (!res.ok) throw new Error(await res.text())
   const saved: WbEvent = await res.json()
@@ -68,7 +68,8 @@ export const api: ClientApi = {
   page,
   events: () => events,
   onEvents(fn) { eventListeners.add(fn); return () => eventListeners.delete(fn) },
-  lastSubmit: form => events.findLast(e => e.form === form),
+  last: type => events.findLast(e => e.type === type),
+  append,
   theme: () => theme,
   onTheme(fn) { themeListeners.add(fn); return () => themeListeners.delete(fn) },
 }

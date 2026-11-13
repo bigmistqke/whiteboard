@@ -80,13 +80,13 @@ Each submit of a named form appends one line to the project's
 `.whiteboard/events.ndjson`:
 
 ```json
-{"id":"…","ts":"2026-…","page":"plan","form":"deploy-review","action":"Approve","data":{"notes":"…"}}
+{"id":"…","ts":"2026-…","page":"plan","type":"deploy-review","action":"Approve","data":{"notes":"…"}}
 ```
 
 Pass your page's file path as `--page`, so you only hear about your own
 page (`--page plan` also works, and includes the pages below `plan/`).
 
-- `whiteboard wait --page <file> --form <name>` prints the next answer to that
+- `whiteboard wait --page <file> --type <name>` prints the next answer to that
   form and exits (`--timeout <s>` exits 2 on timeout). It first hands out
   answers it has not handed out before, also ones given before you started
   waiting, so you never miss one and never get one twice. Run it in the
@@ -96,7 +96,7 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   answers them one at a time, and each answer deserves a reply. Do not use
   `wait --count <n>` for that: it returns only after all n answers, so the
   first ones go unread until the last arrives.
-- `whiteboard events --page <file> [--form <name>] [--last 1]` lists what was
+- `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer.
 

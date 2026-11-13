@@ -20,8 +20,9 @@ decisions.
   `mount(element, props, api)`; the engine never imports a UI framework into
   the page. Solid is supported through the `@bigmistqke/whiteboard/solid` adapter.
 - **No agent concepts in the engine.** There are no tasks, statuses or
-  approvals. The engine has one interaction primitive: submitting a named
-  HTML form. Everything else is a template, or a convention between an agent
+  approvals. The engine has one interaction primitive: appending an event to
+  the page's log. A submitted named HTML form is one; a template can append
+  others. Everything else is a template, or a convention between an agent
   and its pages.
 - **Agent-written markdown must never break a page.** An unknown directive
   renders its content as plain markdown; an unknown fence renders as a code
@@ -132,9 +133,13 @@ is left as written.
      it is effectively a new page, and marking all of it says nothing.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons jump to the
      nearest unseen block; the tab title gets a `(n)` prefix.
-5. Appends `{ id, ts, page, form, action, data }` to the page's
+5. Appends `{ id, ts, page, type, action, data }` to the page's
    `events.ndjson` when a `<form name="…">` without an `action` attribute is
-   submitted. `action` is the value of the button that submitted it. The log
+   submitted: its `type` is the form's name, `action` the value of the
+   button that submitted it. A template appends events of its own types
+   with `api.append(type, data)`, so the log is the page's event stream,
+   not only its answers. Lines written before events had a type say `form`
+   instead; they are read as `type`. The log
    is the project's own `.whiteboard/events.ndjson`.
 
 Nested containers may all use `:::`. The engine pairs the fences and lengthens
@@ -196,8 +201,9 @@ export default {
   on the text column and stay within the screen.
 - A client's island is wrapped in `<div class="wb-island" data-template="name">`.
   The engine never adds `wb-<name>` classes, so a template owns its class names.
-- `api` (a `ClientApi`) gives the page id, the page's form submissions and the
-  theme, each with a subscription. `@bigmistqke/whiteboard/solid` wraps it:
+- `api` (a `ClientApi`) gives the page id, the page's events and the theme,
+  each with a subscription, `last(type)` for the latest event of a type, and
+  `append(type, data)` to add one. `@bigmistqke/whiteboard/solid` wraps it:
   `export default solid(Component)` and `useWhiteboard()` for signals.
 - A client is one module the browser loads as it is, so a package bundles
   what its client needs, UI framework included. `basic()`'s Solid clients

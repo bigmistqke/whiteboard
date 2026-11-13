@@ -140,8 +140,9 @@ export interface WbEvent {
   id: string
   ts: string
   page: string
-  form: string
-  /** value of the button that submitted the form */
+  /** what kind of event: for a submitted form, the form's name */
+  type: string
+  /** the button that submitted a form; null for other events */
   action: string | null
   data: Record<string, unknown>
 }
@@ -152,12 +153,14 @@ export type Theme = 'light' | 'dark'
 export interface ClientApi {
   /** this page's id */
   page: string
-  /** every form submission recorded for this page, oldest first */
+  /** every event recorded for this page, oldest first: form submits and whatever templates append */
   events(): WbEvent[]
   /** called with the new list whenever it changes; returns an unsubscribe */
   onEvents(fn: (events: WbEvent[]) => void): () => void
-  /** the latest submission of a named form */
-  lastSubmit(form: string): WbEvent | undefined
+  /** the latest event of a type, e.g. the last submit of a form */
+  last(type: string): WbEvent | undefined
+  /** record an event for this page: it lands in the log, where the agent reads it */
+  append(type: string, data?: Record<string, unknown>, action?: string | null): Promise<WbEvent>
   /** the theme in effect (the reader's choice, else the system's) */
   theme(): Theme
   onTheme(fn: (theme: Theme) => void): () => void

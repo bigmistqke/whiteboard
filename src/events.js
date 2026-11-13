@@ -1,14 +1,15 @@
-// Form submits, one JSON object per line, in the project's `.whiteboard/events.ndjson`.
+// The project's events, one JSON object per line, in `.whiteboard/events.ndjson`. An event has a
+// `type`: a submitted form's type is the form's name; a template can append events of its own.
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 
-/** One submitted form. The only kind of event there is. */
+/** Append one event; `action` is the button that submitted a form, null for anything else. */
 export function appendEvent(file, input) {
   const event = {
     id: `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
     ts: new Date().toISOString(),
     page: String(input.page ?? ''),
-    form: String(input.form ?? ''),
+    type: String(input.type ?? ''),
     action: input.action ?? null,
     data: input.data ?? {},
   }
@@ -20,7 +21,14 @@ export function parseLines(text) {
   const out = []
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
-    try { out.push(JSON.parse(line)) } catch { /* a partial or corrupt line */ }
+    let event
+    try { event = JSON.parse(line) } catch { continue /* a partial or corrupt line */ }
+    // logs written before events had a type named it `form`
+    if (event && event.type === undefined && 'form' in event) {
+      const { id, ts, page, form, ...rest } = event
+      event = { id, ts, page, type: form, ...rest }
+    }
+    out.push(event)
   }
   return out
 }
@@ -30,8 +38,8 @@ export function readEvents(file) {
 }
 
 /** `page` matches the page itself and every page below it. */
-export function matches(event, { page, form } = {}) {
+export function matches(event, { page, type } = {}) {
   if (page && event.page !== page && !event.page.startsWith(page + '/')) return false
-  if (form && event.form !== form) return false
+  if (type && event.type !== type) return false
   return true
 }

@@ -1,7 +1,7 @@
 // Page runtime: mounts template islands, records named form submits, live-reloads.
 // Framework-free: an island's client module exports mount(element, props, api) (see define.ts).
 import morphdom from 'morphdom'
-import { api, page, loadEvents, submit, setThemePreference, themePreference, type ThemePreference } from './api'
+import { api, page, loadEvents, append, setThemePreference, themePreference, type ThemePreference } from './api'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import type { Mount } from '../define'
 
@@ -11,7 +11,6 @@ const main = document.getElementById('wb-main')!
 const isDir = 'dir' in document.body.dataset
 let islands: Record<string, Island> = JSON.parse(document.getElementById('wb-islands')?.textContent || '{}')
 const disposers = new Map<Element, () => void>()
-const lastSubmit = api.lastSubmit
 
 // ---- islands -----------------------------------------------------------------------------------
 
@@ -120,7 +119,7 @@ const dropDraft = (form: HTMLFormElement) => { try { localStorage.removeItem(dra
 function restorePlainForms(prefill: boolean) {
   for (const form of main.querySelectorAll('form')) {
     if (!managed(form) || form.closest('[data-wb-island]')) continue
-    const last = lastSubmit(form.getAttribute('name')!)
+    const last = api.last(form.getAttribute('name')!)
     if (!last) continue
     form.dataset.wbSent = last.action ?? ''
     if (prefill) writeForm(form, last.data)
@@ -135,7 +134,7 @@ document.addEventListener('submit', async e => {
   const action = button ? button.value || button.textContent?.trim() || null : null
   form.dataset.wbState = 'sending'
   try {
-    await submit(form.getAttribute('name')!, action, readForm(form))
+    await append(form.getAttribute('name')!, readForm(form), action)
     dropDraft(form)
     form.dataset.wbState = 'sent'
     form.dataset.wbSent = action ?? ''

@@ -402,7 +402,7 @@ httpServer.on('request', async (req, res) => {
     if (p === '/api/health') return sendJson(res, 200, { ok: true, dir: PROJECT.dir, pid: process.pid })
     if (p === '/api/events' && req.method === 'POST') {
       const body = JSON.parse(await readBody(req))
-      if (!body.form) return sendJson(res, 400, { error: 'form name required' })
+      if (!body.type) return sendJson(res, 400, { error: 'event type required' })
       return sendJson(res, 200, appendEvent(PROJECT.eventsFile, body))
     }
     if (p === '/api/events') return sendJson(res, 200, readEvents(PROJECT.eventsFile).filter(e => matches(e, q)))

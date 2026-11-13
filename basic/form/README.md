@@ -1,7 +1,7 @@
 # form
 
 Shorthand for a named form. Submitting it appends
-`{ id, ts, page, form, action, data }` to the events log, where `form` is the
+`{ id, ts, page, type, action, data }` to the events log, where `type` is the
 name after `form` on the fence line, `action` is the button that was pressed
 and `data` holds the fields. The form shows the last submission and starts
 from its values.

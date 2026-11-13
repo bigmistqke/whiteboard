@@ -15,7 +15,7 @@ function isChecked(data: Data, field: Field, option?: Option) {
 
 function Form(props: FormProps) {
   const wb = useWhiteboard()
-  const last = createMemo(() => wb.lastSubmit(props.name))
+  const last = createMemo(() => wb.last(props.name))
   // fields start from the last submission; later submits never overwrite what is being typed
   const initial = untrack((): Data => last()?.data ?? {})
   const text = (f: Field) => (f.name in initial ? String(initial[f.name] ?? '') : '')

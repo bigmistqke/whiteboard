@@ -71,8 +71,8 @@ npx whiteboard show plan           # starts the server, prints http://localhost:
 Open the URL, then wait for the answer in another terminal:
 
 ```sh
-npx whiteboard wait --page plan --form ship
-# {"id":"…","ts":"…","page":"plan","form":"ship","action":"Decide","data":{"when":"this week"}}
+npx whiteboard wait --page plan --type ship
+# {"id":"…","ts":"…","page":"plan","type":"ship","action":"Decide","data":{"when":"this week"}}
 ```
 
 That round trip is the whole idea. In practice the agent writes the page and
@@ -119,17 +119,19 @@ Pages, the event log and the server files are gitignored by default.
 A form with a `name` and no `action` attribute is recorded when submitted:
 
 ```json
-{"id":"…","ts":"2026-…","page":"plan","form":"ship","action":"Decide","data":{"when":"this week"}}
+{"id":"…","ts":"2026-…","page":"plan","type":"ship","action":"Decide","data":{"when":"this week"}}
 ```
 
-`action` is the button that was pressed and `data` holds the fields. The
+`type` is the form's name, `action` is the button that was pressed and
+`data` holds the fields. The log is an event stream: a template can append
+events of other types too, through `api.append(type, data)`. The
 `form` template (in `basic()`) writes forms from a short syntax; a
 hand-written `<form name="…">` works without it.
 
 Reading answers:
 
 ```sh
-whiteboard wait --page plan --form ship     # the next answer to that form
+whiteboard wait --page plan --type ship     # the next answer to that form
 whiteboard watch --page plan                # streams submits, never exits
 whiteboard events --page plan --last 1      # what was already submitted
 ```
@@ -159,7 +161,7 @@ upward with `.whiteboard/config.ts`.
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 
-Filters: `--page <page|file>` (includes pages below it), `--form <name>`.
+Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form's type is its name).
 `wait` also takes `--timeout <seconds>` (exits 2 on timeout) and `--count <n>`;
 `events` takes `--since <time or event id>` and `--last <n>`.
 

@@ -16,7 +16,7 @@ const fail = err => {
 process.on('uncaughtException', fail)
 process.on('unhandledRejection', fail)
 
-const HELP = `whiteboard — markdown pages in the browser, form submits in an ndjson log
+const HELP = `whiteboard — markdown pages in the browser, form submits and other events in an ndjson log
 
   whiteboard init [name]           make this folder a project: .whiteboard/{config.ts,pages/}
   whiteboard root                  print where pages go (this project's .whiteboard/pages)
@@ -25,27 +25,29 @@ const HELP = `whiteboard — markdown pages in the browser, form submits in an n
   whiteboard url <page|file>       the same: print the page URL
   whiteboard docs [template…]      print template syntax (readmes) — read before writing a page
   whiteboard templates             list the templates this project's pages can use
-  whiteboard events [filters]      print recorded submits as ndjson
-  whiteboard wait [filters]        block until the next matching submit, print it, exit
-  whiteboard watch [filters]       print matching submits as they arrive (never exits)
+  whiteboard events [filters]      print recorded events as ndjson
+  whiteboard wait [filters]        block until the next matching event, print it, exit
+  whiteboard watch [filters]       print matching events as they arrive (never exits)
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
-filters: --page <page|file> (includes pages below it)  --form <name>
+filters: --page <page|file> (includes pages below it)  --type <type>  (a form's type is its name)
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
 events:  --since <iso time or event id>  --last <n>
 
 Every command works on the project of the current folder: the nearest folder upward with
 .whiteboard/config.ts. Each project runs its own server; its port is in .whiteboard/server.json.
-Submitting a <form name="…"> on a page appends {id, ts, page, form, action, data} to
-.whiteboard/events.ndjson.`
+Submitting a <form name="…"> on a page appends {id, ts, page, type, action, data} to
+.whiteboard/events.ndjson, with the form's name as its type.`
 
 const [cmd, ...rest] = process.argv.slice(2)
+if (rest.some(a => a === '--form' || a.startsWith('--form=')))
+  throw new Error('--form is now --type: a form\'s events have its name as their type (--type <name>)')
 const { values: opts, positionals } = parseArgs({
   args: rest,
   allowPositionals: true,
   options: {
-    page: { type: 'string' }, form: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
+    page: { type: 'string' }, type: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
     since: { type: 'string' }, last: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   },
 })
@@ -60,7 +62,7 @@ Run \`whiteboard init\` in the folder that should become one.`)
   process.exit(1)
 }
 
-const filter = () => ({ page: opts.page ? pageId(needProject(), opts.page) : undefined, form: opts.form })
+const filter = () => ({ page: opts.page ? pageId(needProject(), opts.page) : undefined, type: opts.type })
 
 /** The running server of this project: its base URL, or null. */
 async function running(proj) {
@@ -253,7 +255,7 @@ switch (cmd) {
     // answer is neither lost between two waits nor handed out twice.
     const proj = needProject()
     const f = filter()
-    const key = `${f.page ?? ''}\0${f.form ?? ''}`
+    const key = `${f.page ?? ''}\0${f.type ?? ''}`
     let delivered = {}
     try { delivered = JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8')) } catch {}
     const want = Number(opts.count ?? 1)
