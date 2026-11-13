@@ -102,7 +102,10 @@ is left as written.
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab
      visible, then the bar fades. What was seen is kept per page in
-     localStorage, so reopening a page later also shows what changed.
+     localStorage, so reopening a page later also shows what changed. A
+     page opened for the first time marks nothing, and neither does one
+     where fewer than a quarter of the blocks are left from the last visit:
+     it is effectively a new page, and marking all of it says nothing.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons jump to the
      nearest unseen block; the tab title gets a `(n)` prefix.
 5. Appends `{ id, ts, page, form, action, data }` to the page's

@@ -143,7 +143,14 @@ addEventListener('resize', update)
 
 // ---- entry points ------------------------------------------------------------------------------
 
-/** First render: blocks the reader has not seen on a previous visit are new. */
+/** Below this share of blocks recognised from the last visit, the page counts as new to the reader. */
+const RECOGNISED_MIN = 0.25
+
+/**
+ * First render: blocks the reader has not seen on a previous visit are new. On a first visit, or
+ * when so little is recognised that the page is effectively a different one (a rewrite, say),
+ * nothing is marked: marking every block tells the reader nothing.
+ */
 export function trackInitial(main: HTMLElement, page: string) {
   mainEl = main
   storeKey = `wb-seen:${page}`
@@ -153,7 +160,9 @@ export function trackInitial(main: HTMLElement, page: string) {
   const sigs = blocks.map(signature)
   blocks.forEach((el, i) => sigOf.set(el, sigs[i]))
   const seen = loadSeen()
-  if (seen) blocks.forEach((el, i) => { if (!seen.has(sigs[i])) markNew(el) })
+  const recognised = seen ? sigs.filter(s => seen.has(s)).length : 0
+  if (seen && recognised >= blocks.length * RECOGNISED_MIN)
+    blocks.forEach((el, i) => { if (!seen.has(sigs[i])) markNew(el) })
   saveSeen(main)
   update()
 }
