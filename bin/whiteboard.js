@@ -20,6 +20,7 @@ const HELP = `whiteboard — markdown pages in the browser, form submits in an n
   whiteboard wait [filters]        block until the next matching submit, print it, exit
   whiteboard watch [filters]       print matching submits as they arrive (never exits)
   whiteboard serve                 run this project's server in the foreground
+  whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
 filters: --page <page|file> (includes pages below it)  --form <name>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
@@ -213,6 +214,26 @@ switch (cmd) {
   case 'watch':
     follow(e => console.log(JSON.stringify(e)))
     break
+  case 'skill': {
+    // the agent skill ships in this package; link it into whatever folder an agent reads skills from
+    const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'whiteboard')
+    if (!positionals[0]) { console.log(source); break }
+    const target = path.join(path.resolve(positionals[0].replace(/^~(?=$|\/)/, os.homedir())), 'whiteboard')
+    let existing = null
+    try { existing = fs.lstatSync(target) } catch {}
+    if (existing) {
+      if (existing.isSymbolicLink() && path.resolve(path.dirname(target), fs.readlinkSync(target)) === source) {
+        console.log(`already linked: ${target} -> ${source}`)
+        break
+      }
+      console.error(`whiteboard: ${target} already exists; remove it first to link the skill there`)
+      process.exit(1)
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.symlinkSync(source, target)
+    console.log(`linked: ${target} -> ${source}`)
+    break
+  }
   default:
     console.log(HELP)
     if (cmd && cmd !== 'help' && !opts.help) process.exit(1)

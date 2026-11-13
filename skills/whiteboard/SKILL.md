@@ -12,6 +12,9 @@ of the file updates the open page in place, and the blocks that changed are
 marked until the user has seen them. Forms on a page write the user's answers
 to an ndjson log you can wait on.
 
+The commands below are written as `whiteboard …`. When that is not on the
+PATH, the project has it installed locally: run them as `npx whiteboard …`.
+
 ## Writing a page
 
 1. Run `whiteboard root` in the repository. It prints the folder to write pages
