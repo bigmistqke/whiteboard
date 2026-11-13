@@ -198,6 +198,13 @@ form[data-wb-waiting] { outline: 2px solid var(--accent); outline-offset: 10px; 
 form[data-wb-waiting]::before { content: "waiting for you"; display: block; margin-bottom: 8px; color: var(--accent); font: 600 .75rem/1.4 var(--sans); letter-spacing: .04em; text-transform: uppercase; }
 form[data-wb-unheard]::before { content: "no agent is listening for this right now"; display: block; margin-bottom: 8px; color: var(--muted); font: .75rem/1.4 var(--sans); }
 .wb-index .wb-waiting { color: var(--accent); font-weight: 600; }
+.wb-summary { max-width: calc(var(--measure) + var(--indent, 34px) + 32px); margin: 0 auto; padding: 96px 16px 0; box-sizing: border-box; color: var(--muted); font: .8rem/1.5 var(--sans); }
+/* the summary takes the space above the title that the page would otherwise start with */
+.wb-summary:not([hidden]) + main { padding-top: 20px; }
+.wb-summary[hidden] { display: none; }
+.wb-summary button { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+.wb-summary button:hover { color: var(--text); }
+.wb-summary button[data-state=waiting] { color: var(--accent); font-weight: 600; }
 .wb-fresh[hidden], .wb-fresh button[hidden] { display: none; }
 .wb-fresh button { background: var(--bad); color: #fff; border-color: var(--bad); border-radius: 99px; font-size: .8rem; }
 
