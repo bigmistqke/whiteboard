@@ -8,7 +8,6 @@ const FADE_MS = 2500
 
 const sigOf = new WeakMap<Element, string>()
 const unseen = new Set<Element>()
-const visible = new Set<Element>()
 const timers = new WeakMap<Element, number>()
 let storeKey = ''
 let baseTitle = document.title
@@ -48,41 +47,54 @@ function saveSeen(main: HTMLElement) {
 }
 
 // ---- seen detection ----------------------------------------------------------------------------
+// Measured directly on scroll, resize and tab switches (and every half second while anything is
+// unseen, since layout also moves without scrolling). An IntersectionObserver only reports at fixed
+// fractions of a block's own height, which a block taller than twice the screen never reaches.
 
 let mainEl: HTMLElement
 
-const observer = new IntersectionObserver(entries => {
-  for (const e of entries) {
-    // half the block, or half the viewport for blocks taller than it
-    const enough = e.intersectionRatio >= 0.5 || e.intersectionRect.height >= innerHeight * 0.5
-    if (e.isIntersecting && enough) visible.add(e.target)
-    else visible.delete(e.target)
-    schedule(e.target)
-  }
-}, { threshold: [0, 0.25, 0.5, 0.75, 1] })
-
-function schedule(el: Element) {
-  clearTimeout(timers.get(el))
-  if (!unseen.has(el) || !visible.has(el) || document.visibilityState !== 'visible') return
-  timers.set(el, window.setTimeout(() => markSeen(el), DWELL_MS))
+/** In view enough to count as read: half the block, or half the screen for blocks taller than that. */
+function inView(el: Element) {
+  const r = el.getBoundingClientRect()
+  const overlap = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)
+  return overlap > 0 && overlap >= Math.min(r.height, innerHeight) * 0.5
 }
+
+/** Start the dwell timer of unseen blocks in view; stop it for blocks that left the view. */
+function check() {
+  const active = document.visibilityState === 'visible'
+  for (const el of unseen) {
+    if (!el.isConnected) { unseen.delete(el); continue }
+    const pending = timers.has(el)
+    if (active && inView(el)) {
+      if (!pending) timers.set(el, window.setTimeout(() => { timers.delete(el); markSeen(el) }, DWELL_MS))
+    } else if (pending) {
+      clearTimeout(timers.get(el))
+      timers.delete(el)
+    }
+  }
+}
+
+let checkFrame = 0
+const scheduleCheck = () => { cancelAnimationFrame(checkFrame); checkFrame = requestAnimationFrame(check) }
+addEventListener('scroll', scheduleCheck, { passive: true })
+addEventListener('resize', scheduleCheck)
+document.addEventListener('visibilitychange', scheduleCheck)
+setInterval(() => { if (unseen.size) check() }, 500)
 
 function markSeen(el: Element) {
   if (!unseen.delete(el)) return
-  observer.unobserve(el)
   el.classList.add('vz-new-seen')
   setTimeout(() => el.classList.remove('vz-new', 'vz-new-seen'), FADE_MS)
   saveSeen(mainEl)
   update()
 }
 
-document.addEventListener('visibilitychange', () => { for (const el of unseen) schedule(el) })
-
 function markNew(el: Element) {
   el.classList.remove('vz-new-seen')
   el.classList.add('vz-new')
   unseen.add(el)
-  observer.observe(el)
+  scheduleCheck()
 }
 
 // ---- navigator ---------------------------------------------------------------------------------
