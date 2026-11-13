@@ -16,10 +16,11 @@ import form from './form/index.ts'
 import gallery from './gallery/index.ts'
 import grid from './grid/index.ts'
 import mermaid from './mermaid/index.ts'
+import quiet from './quiet/index.ts'
 import { resolveTemplates } from './templates.js'
 import { createDocs, createRender } from './render.js'
 
-export { callout, code, details, form, gallery, grid, mermaid }
+export { callout, code, details, form, gallery, grid, mermaid, quiet }
 export type { CodeOptions }
 
 export interface Options {
@@ -32,7 +33,7 @@ export interface Options {
 export default function basic(options: Options = {}): Renderer {
   let resolved: ReturnType<typeof resolveTemplates> | undefined
   const templates = () => (resolved ??= resolveTemplates([
-    { entries: [callout, code(options.code), details, form, gallery, grid, mermaid], source: 'basic' },
+    { entries: [callout, code(options.code), details, form, gallery, grid, mermaid, quiet], source: 'basic' },
     { entries: options.templates ?? [], source: 'basic({ templates })' },
   ]))
   return {

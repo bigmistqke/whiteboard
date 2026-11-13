@@ -205,6 +205,10 @@ templates.
      page opened for the first time marks nothing, and neither does one
      where fewer than a quarter of the blocks are left from the last visit:
      it is effectively a new page, and marking all of it says nothing.
+     Content inside a `[data-wb-quiet]` element (the `quiet` template
+     writes one) does not count: it can appear, change or go without
+     marking its block, and a block that is quiet as a whole is never
+     marked. It is for what changes without being news to the reader.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons jump to the
      nearest unseen block; the tab title gets a `(n)` prefix.
 5. Appends an event for every `<form name="…">` without an `action`

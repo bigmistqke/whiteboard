@@ -12,9 +12,13 @@ const timers = new WeakMap<Element, number>()
 let storeKey = ''
 let baseTitle = document.title
 
-/** FNV-1a over the block's HTML, ignoring per-render attributes. */
+/**
+ * FNV-1a over the block's HTML, ignoring per-render attributes and anything quiet: content inside
+ * [data-wb-quiet] can appear, change or go without the block counting as changed.
+ */
 export function signature(el: Element): string {
   const clone = el.cloneNode(true) as Element
+  for (const q of clone.querySelectorAll('[data-wb-quiet]')) q.remove()
   for (const n of [clone, ...clone.querySelectorAll('[data-wb-island],[data-wb-mounted]')]) {
     n.removeAttribute('data-wb-island')
     n.removeAttribute('data-wb-mounted')
@@ -91,6 +95,8 @@ function markSeen(el: Element) {
 }
 
 function markNew(el: Element) {
+  // a block that is quiet as a whole is never news
+  if (el.matches('[data-wb-quiet]')) return
   el.classList.remove('wb-new-seen')
   el.classList.add('wb-new')
   unseen.add(el)

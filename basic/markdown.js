@@ -29,6 +29,8 @@ export function parseAttrs(s) {
 }
 
 const DIRECTIVES = new Set(['containerDirective', 'leafDirective', 'textDirective'])
+const PHRASING = new Set(['text', 'emphasis', 'strong', 'delete', 'inlineCode', 'break', 'link', 'linkReference',
+  'image', 'imageReference', 'footnoteReference', 'textDirective'])
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i
 
@@ -116,7 +118,15 @@ export async function renderMarkdown(source, { page, file, resolve, code = null,
   const keyCount = {}
   const used = new Map()
 
-  const stringify = nodes => toHast.stringify(toHast.runSync({ type: 'root', children: nodes }))
+  const stringify = nodes => {
+    // inline content (a label, say) is one line: as children of the root, each node would be a block
+    // of its own, separated by newlines, which show as spaces
+    if (nodes.length && nodes.every(n => PHRASING.has(n.type))) {
+      const html = toHast.stringify(toHast.runSync({ type: 'root', children: [{ type: 'paragraph', children: nodes }] }))
+      return html.replace(/^<p>([\s\S]*)<\/p>$/, '$1')
+    }
+    return toHast.stringify(toHast.runSync({ type: 'root', children: nodes }))
+  }
   /** Render mdast nodes to HTML. Transforms nested directives first; safe to call twice on the same nodes. */
   const toHtml = async nodes => { await transform({ children: nodes }); return stringify(nodes) }
 

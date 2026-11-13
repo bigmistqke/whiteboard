@@ -48,6 +48,14 @@ Write for a reader who comes back later:
   blocks are highlighted for the user, unchanged ones stay quiet.
 - Put the things you need from the user in forms, one form per decision, each
   with a distinct name.
+- Don't number headings yourself (`### 1. Naming`): the basic renderer
+  numbers section headings already, so yours would show twice. Refer to a
+  section by its name.
+- When you only repeat back what the user answered, or update a status line
+  or timestamp, put it in `:::quiet` (if the project's docs list it): changed
+  blocks are marked for the user, and an echo of their own answer is not
+  news. Anything they need to read (a question back, a different reading of
+  their answer, a new explanation) stays outside it.
 
 Anything that is not a template (plain markdown, GFM tables, `<details>`, a raw
 `<form name="…">`) works without one. An unknown `:::name` block still renders

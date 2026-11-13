@@ -203,6 +203,7 @@ container `:::name`, a line `::name`, inline `:name`, or a fenced block
 | `form` | forms from a short syntax |
 | `mermaid` | Mermaid diagrams, rendered on the server |
 | `code` | syntax highlighting for code blocks (Shiki) |
+| `quiet` | content that is never marked as new: echoes, status lines, timestamps |
 
 The full syntax, with live examples, is at `/_/docs` on the running server
 and printed by `whiteboard docs`. The agent reads it from there, so it
