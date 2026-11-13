@@ -90,6 +90,32 @@ function writeForm(form: HTMLFormElement, data: Data) {
 /** Forms this runtime looks after: named, no action attribute (those submit normally). */
 const managed = (form: HTMLFormElement) => !!form.getAttribute('name') && !form.hasAttribute('action')
 
+// ---- drafts ------------------------------------------------------------------------------------
+// What the reader typed and has not sent yet survives a reload of the page and a re-render of the
+// form: it is kept per page and form in localStorage until the form is sent.
+
+const draftKey = (form: HTMLFormElement) => `wb-draft:${page}:${form.getAttribute('name')}`
+
+function saveDraft(e: Event) {
+  const form = (e.target as Element | null)?.closest?.('form')
+  if (!form || !managed(form)) return
+  try { localStorage.setItem(draftKey(form), JSON.stringify(readForm(form))) } catch { /* storage unavailable */ }
+}
+document.addEventListener('input', saveDraft)
+document.addEventListener('change', saveDraft)
+
+/** Put unsent drafts back into their forms; a form being typed in is left alone. */
+function restoreDrafts() {
+  for (const form of main.querySelectorAll('form')) {
+    if (!managed(form) || form.contains(document.activeElement)) continue
+    let draft: Data | null = null
+    try { draft = JSON.parse(localStorage.getItem(draftKey(form)) ?? 'null') } catch { /* storage unavailable */ }
+    if (draft) writeForm(form, draft)
+  }
+}
+
+const dropDraft = (form: HTMLFormElement) => { try { localStorage.removeItem(draftKey(form)) } catch { /* storage unavailable */ } }
+
 /** Plain HTML forms get their last submission back; template forms handle this themselves. */
 function restorePlainForms(prefill: boolean) {
   for (const form of main.querySelectorAll('form')) {
@@ -110,6 +136,7 @@ document.addEventListener('submit', async e => {
   form.dataset.wbState = 'sending'
   try {
     await submit(form.getAttribute('name')!, action, readForm(form))
+    dropDraft(form)
     form.dataset.wbState = 'sent'
     form.dataset.wbSent = action ?? ''
   } catch (err) {
@@ -217,6 +244,35 @@ function morph(html: string) {
   })
 }
 
+// The page keeps the reader's place itself: the browser's own scroll anchoring loses its anchor
+// when an update replaces elements, so it is turned off to keep the two from both correcting.
+document.documentElement.style.overflowAnchor = 'none'
+
+/**
+ * The reader's place before an update: the first block in view that the update keeps (by
+ * signature, and which of the blocks with that signature it is), and where it is on screen.
+ */
+function placeOf(nextSigs: string[]) {
+  const keep = new Set(nextSigs)
+  const blocks = [...main.children]
+  for (let i = 0; i < blocks.length; i++) {
+    const sig = blockSigs[i]
+    if (!keep.has(sig) || blocks[i].getBoundingClientRect().bottom <= 0) continue
+    const nth = blockSigs.slice(0, i).filter(s => s === sig).length
+    return { sig, nth, top: blocks[i].getBoundingClientRect().top }
+  }
+  return null
+}
+
+/** Scroll so the block of `place` is where it was on screen. */
+function keepPlace(place: ReturnType<typeof placeOf>, sigs: string[]) {
+  if (!place) return
+  let seen = 0
+  const i = sigs.findIndex(s => s === place.sig && seen++ === place.nth)
+  const el = main.children[i]
+  if (el) window.scrollBy(0, el.getBoundingClientRect().top - place.top)
+}
+
 async function refresh() {
   const res = await fetch(`${location.pathname}?fragment`)
   if (!res.ok) return
@@ -227,13 +283,18 @@ async function refresh() {
       document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${href}" data-wb-style>`)
   }
   const nextSigs = signaturesOf(next.html)
+  const place = placeOf(nextSigs)
   morph(next.html)
+  keepPlace(place, nextSigs)
   const updated = document.getElementById('wb-updated')
   if (updated && next.mtime) updated.dataset.ts = String(next.mtime)
   trackUpdate(main, blockSigs, nextSigs, next.title || document.title)
   blockSigs = nextSigs
   await mountIslands()
+  // islands that mounted just now can change the height of what is above the reader
+  keepPlace(place, nextSigs)
   restorePlainForms(false)
+  restoreDrafts()
   tickTimes()
 }
 
@@ -262,5 +323,6 @@ if (!isDir) trackInitial(main, page)
 if (!isDir) await loadEvents()
 await mountIslands()
 restorePlainForms(true)
+restoreDrafts()
 tickTimes()
 connect()
