@@ -39,6 +39,28 @@ Anything that is not a template (plain markdown, GFM tables, `<details>`, a raw
 `<form name="…">`) works without one. An unknown `:::name` block still renders
 its content, so a typo never breaks the page.
 
+## Showing the page beside the conversation
+
+When you run inside herdr (`HERDR_ENV=1`, and `HERDR_PANE_ID` names your pane)
+and `terminal-browser` is on the PATH, open the page in a pane next to yours
+instead of only printing the URL. The user then reads the page and talks to you
+side by side. Do this the first time you show a page in a session, or when the
+user asks to see one.
+
+```sh
+herdr pane split --current --direction right --cwd "$PWD"   # prints JSON; the new id is result.pane.pane_id
+herdr pane run <new-pane-id> terminal-browser <url>
+```
+
+- Open the pane once and remember its id. Later edits to the page show up in
+  it by themselves; for a different page, close that pane
+  (`herdr pane close <id>`) and open a new one the same way.
+- `terminal-browser` may be blocked inside your own sandbox but runs fine in
+  the herdr pane, which herdr starts outside it.
+- `herdr pane read` returns no text for terminal-browser, since it draws with
+  graphics. To check it started, look for it in
+  `herdr pane process-info --pane <id>`.
+
 ## Getting answers
 
 Each submit of a named form appends one line to `~/.visualize/events.ndjson`:
