@@ -1,23 +1,9 @@
-// Form submits, one JSON object per line. Each project keeps its own log in
-// `<project>/.visualize/events.ndjson`, so reading answers needs no access outside the repository;
-// pages outside any project log to `<root>/events.ndjson`.
+// Form submits, one JSON object per line, in the project's `.visualize/events.ndjson`.
 import fs from 'node:fs'
-import path from 'node:path'
 import crypto from 'node:crypto'
-import { ROOT, projectByName } from './config.js'
-
-/** The log of a project (`{ dir }`), or of the shared folder when `project` is null. */
-export function eventsFile(project) {
-  return path.join(project ? path.join(project.dir, '.visualize') : ROOT, 'events.ndjson')
-}
-
-/** The log a page's submits go to: its project's, else the shared folder's. */
-export function eventsFileFor(pageId) {
-  return eventsFile(projectByName(String(pageId ?? '').split('/')[0]))
-}
 
 /** One submitted form. The only kind of event there is. */
-export function appendEvent(input) {
+export function appendEvent(file, input) {
   const event = {
     id: `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
     ts: new Date().toISOString(),
@@ -26,7 +12,7 @@ export function appendEvent(input) {
     action: input.action ?? null,
     data: input.data ?? {},
   }
-  fs.appendFileSync(eventsFileFor(event.page), JSON.stringify(event) + '\n')
+  fs.appendFileSync(file, JSON.stringify(event) + '\n')
   return event
 }
 

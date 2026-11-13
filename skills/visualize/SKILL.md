@@ -6,17 +6,17 @@ description: Show the user a live HTML page written in markdown, and get answers
 # visualize
 
 Pages are markdown files. In a repository set up for visualize they live in
-`.visualize/pages/` and are served at `/<project>/…`. The user keeps them open
-in a browser; every save of the file updates the open page in place, and the
-blocks that changed are marked until the user has seen them. Forms on a page
-write the user's answers to an ndjson log you can wait on.
+`.visualize/pages/` and are served by the project's own server, at a port
+`visualize show` prints. The user keeps them open in a browser; every save
+of the file updates the open page in place, and the blocks that changed are
+marked until the user has seen them. Forms on a page write the user's answers
+to an ndjson log you can wait on.
 
 ## Writing a page
 
 1. Run `visualize root` in the repository. It prints the folder to write pages
-   into: the project's `.visualize/pages/` when the repository has a
-   `.visualize/config.ts`, else the shared folder `~/.visualize`. If the
-   repository has no `.visualize/` yet, ask the user before running
+   into: the project's `.visualize/pages/` (the nearest `.visualize/config.ts`
+   upward). If it says there is no project, ask the user before running
    `visualize init`: it adds a folder to their repository.
 2. Run `visualize docs` once per session and read it: it is the current
    syntax of every template this project can use. Do not rely on memory for
@@ -28,7 +28,8 @@ write the user's answers to an ndjson log you can wait on.
 
 Files that already exist in the repository render too: `visualize show
 README.md` (any path in the project) gives a URL that renders that file, and
-relative links in it lead to the other files they name. Link to existing
+relative links in it lead to the other files they name (unless the config
+sets `files: false`, as a project in the home folder does). Link to existing
 documents and code from your pages with relative paths instead of copying
 them.
 
@@ -70,14 +71,13 @@ herdr pane run <new-pane-id> terminal-browser <url>
 ## Getting answers
 
 Each submit of a named form appends one line to the project's
-`.visualize/events.ndjson` (for pages outside a project:
-`~/.visualize/events.ndjson`):
+`.visualize/events.ndjson`:
 
 ```json
-{"id":"…","ts":"2026-…","page":"proj/plan","form":"deploy-review","action":"Approve","data":{"notes":"…"}}
+{"id":"…","ts":"2026-…","page":"plan","form":"deploy-review","action":"Approve","data":{"notes":"…"}}
 ```
 
-Inside a project, `--page plan` means that project's page `plan`; a file path
+`--page plan` means the project's page `plan`; a file path
 works too.
 
 - `visualize wait --page <file> --form <name>` blocks until the next submit of

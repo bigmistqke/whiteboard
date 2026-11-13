@@ -12,10 +12,16 @@
 export type TemplateEntry = Template | null | false | undefined | readonly TemplateEntry[]
 
 export interface Config {
-  /** project name: pages are served at /<name>/… (default: the folder name) */
+  /** shown in page titles and the overview (default: the folder name) */
   name?: string
-  /** later entries replace earlier ones with the same name; a project's replace the global config's */
+  /** later entries replace earlier ones with the same name */
   templates?: TemplateEntry[]
+  /**
+   * Serve the project's other files at /-/<path> and watch them for changes (default: true).
+   * Set it to false for a project whose folder is not a repository, such as your home folder:
+   * then only `.visualize/` is served and watched.
+   */
+  files?: boolean
 }
 
 export const defineConfig = (config: Config): Config => config
@@ -34,7 +40,7 @@ export interface Template<Props = unknown> {
   /**
    * Also render every fence that no template claims by name, and the code view of repository
    * files: the template for code blocks in general, such as a syntax highlighter. When several
-   * templates set it, the last one in config order wins (a project's after the global config's).
+   * templates set it, the last one in config order wins.
    */
   code?: boolean
   /** props for the client; JSON-serialisable. Without it a client gets the defaults (see DirectiveProps / FenceProps). */
@@ -69,7 +75,7 @@ export interface Section {
 }
 
 interface BaseContext {
-  /** page id, e.g. "project/plan" */
+  /** page id, e.g. "plan", or "-/docs/guide.md" for a repository file */
   page: string
   /** absolute path of the markdown file, and its folder (resolve files next to the page with it) */
   file: string

@@ -31,33 +31,53 @@ decisions.
 
 ## Projects
 
-A project is a folder (usually a repository) with a `.visualize/` folder:
+A project is a folder (usually a repository) with a `.visualize/config.ts`.
+Everything visualize keeps is in that `.visualize/` folder; nothing lives
+outside the project:
 
 ```
 <repo>/.visualize/
-  config.ts     defineConfig({ name, templates: [...] })
-  pages/        the project's pages, served at /<name>/…  (gitignored by default)
+  config.ts     defineConfig({ name, templates: [...], files })
+  pages/        the project's pages, served at /<page>
   style.css     optional, applied to the project's pages
-  events.ndjson the project's form submits (gitignored by default)
-  .gitignore    "pages/" and "events.ndjson": remove a line to keep it in git
+  events.ndjson the project's form submits
+  server.json   the port and process of the project's running server
+  server.log    that server's output
+  .gitignore    everything but config.ts and style.css: remove a line to keep it in git
 ```
 
+`visualize init` creates it. Every command works on the project of the
+current folder: the nearest folder upward with `.visualize/config.ts`. Outside
+a project the commands stop and point to `visualize init`. An agent working
+in the repository can start the server, write pages and read answers without
+access outside it.
+
+Each project runs its own server. `visualize show` starts it in the
+background when it is not running: it takes the port it had last time, else
+4777 (`$VISUALIZE_PORT`), else the next free one, and records it in
+`server.json`. The command line checks that the server on that port is this
+project's before using it. Two projects open at once are two servers on two
+ports; nothing coordinates them, and `/` lists only this project's pages.
+
 Any other file in the project folder is served from the repository at
-`/<name>/-/<path>`: markdown renders like a page (templates, live reload,
-forms), folders list their files with their README on top, other text files
-show as code, and images are served as they are. `.git` is never served.
+`/-/<path>`: markdown renders like a page (templates, live reload, forms),
+folders list their files with their README on top, other text files show as
+code, and images are served as they are. `.git` is never served. The whole
+project folder is watched so these views stay live.
+
+`files: false` in the config turns that off: only `.visualize/` is served and
+watched. It is for a project whose folder is not a repository, such as the
+home folder, where serving every file would expose it and watching every file
+would be slow. `visualize init` sets it when run in the home folder; a
+project at `~` is also how to have pages for folders that have no project of
+their own, since commands find the nearest project upward. A config that
+fails to load serves no files either.
 
 Relative links and images in any rendered markdown are resolved from that
 file's own folder on disk and rewritten to the URL that serves the target
-(a page, a repository file, or a file in the shared folder; `name` also
-finds `name.md`), so links between documents work the way they do in the
-repository. A link that points nowhere is left as written.
-
-`visualize init` creates it. Agents working in the repository write pages
-there, so they need no access outside the repository. One server serves every
-project: `<root>/projects.json` maps names to folders, and every CLI command
-run inside a project refreshes its entry, so a cloned or moved repository
-registers itself. `/` lists every project's pages.
+(a page or a repository file; `name` also finds `name.md`), so links between
+documents work the way they do in the repository. A link that points nowhere
+is left as written.
 
 ## Engine (`packages/engine`)
 
@@ -85,10 +105,8 @@ registers itself. `/` lists every project's pages.
      nearest unseen block; the tab title gets a `(n)` prefix.
 5. Appends `{ id, ts, page, form, action, data }` to the page's
    `events.ndjson` when a `<form name="…">` without an `action` attribute is
-   submitted. `action` is the value of the button that submitted it. Each
-   project keeps its own log in `.visualize/`, so an agent can read answers
-   without access outside the repository; pages outside any project log to
-   the shared folder.
+   submitted. `action` is the value of the button that submitted it. The log
+   is the project's own `.visualize/events.ndjson`.
 
 Nested containers may all use `:::`. The engine pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence
@@ -158,9 +176,8 @@ export default {
 
 ### Which templates apply
 
-The global config (`<root>/config.ts`, optional) applies to every page; a
-project's config adds to it, replacing templates with the same name. Within a
-config, later entries replace earlier ones.
+The project's config is the only one. Within it, later entries replace
+earlier ones with the same name.
 
 Configs and template sources are watched: editing a client hot-reloads it,
 editing a style reloads stylesheets in place, editing anything else (config,
@@ -178,12 +195,5 @@ skills/visualize          the agent skill: where to write pages, how to wait for
 
 ## Files
 
-- `<repo>/.visualize/`: a project (see Projects).
-- `$VISUALIZE_DIR` (default `~/.visualize`): the shared folder.
-  - `projects.json`: project name → folder.
-  - `events.ndjson`: form submits of the pages here, outside any project.
-  - `config.ts`: optional global config.
-  - `style.css`: optional, overrides the base page style everywhere.
-  - Markdown files here are served too (`foo/bar.md` at `/foo/bar`), for
-    pages outside any project.
-- `$VISUALIZE_PORT` (default 4777).
+- `<repo>/.visualize/`: a project (see Projects). There are no other files.
+- `$VISUALIZE_PORT` (default 4777): the port a project's server tries first.

@@ -5,7 +5,7 @@ import type { ClientApi, Theme, VzEvent } from '../define'
 export type { ClientApi, Theme, VzEvent }
 export type ThemePreference = Theme | 'auto'
 
-/** This page's id, e.g. "project/plan". */
+/** This page's id, e.g. "plan". */
 export const page: string = document.body.dataset.page ?? ''
 
 // ---- events ------------------------------------------------------------------------------------

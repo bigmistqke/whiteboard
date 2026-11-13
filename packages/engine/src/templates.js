@@ -1,10 +1,8 @@
-// Templates come from config files: the optional global `<root>/config.ts` and each project's
-// `.visualize/config.ts`. Configs are loaded through Vite, so they can be TypeScript and import
-// template packages from the project's own node_modules.
+// Templates come from the project's `.visualize/config.ts`. It is loaded through Vite, so it can
+// be TypeScript and import template packages from the project's own node_modules.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { globalConfigFile } from './config.js'
 
 const NAME = /^[\w-]+$/
 
@@ -47,52 +45,36 @@ function normalize(t, source) {
 }
 
 /**
+ * The project's config, loaded through Vite (cached until invalidate()). Errors are returned, not
+ * thrown. `code` is the template for code blocks no template claims by name: the last one with
+ * `code: true`. `files` is false when the config turns the repository view off.
  * @param {import('vite').ViteDevServer} vite
+ * @param {string} configFile
  */
-export function createTemplateLoader(vite) {
-  const cache = new Map()
+export function createTemplateLoader(vite, configFile) {
+  let cached = null
 
-  async function load(file) {
-    const mod = await vite.ssrLoadModule(file)
+  async function load() {
+    const mod = await vite.ssrLoadModule(configFile)
     let config = mod.default
     if (typeof config === 'function') config = await config()
     const templates = new Map()
     for (const t of flatten(config?.templates)) {
-      const n = normalize(t, file)
+      const n = normalize(t, configFile)
       templates.set(n.name, n)
     }
-    return { name: config?.name ?? null, templates }
+    const code = [...templates.values()].findLast(t => t.code) ?? null
+    return { templates, code, files: config?.files !== false }
   }
 
-  /** Load a config file (cached until invalidate()). Errors are returned, not thrown. */
-  function config(file) {
-    if (!cache.has(file)) {
-      cache.set(file, load(file).then(
-        value => ({ ...value, error: null }),
-        error => ({ name: null, templates: new Map(), error }),
-      ))
-    }
-    return cache.get(file)
+  /** @returns {Promise<{ templates: Map<string, object>, code: object | null, files: boolean, errors: Error[] }>} */
+  function config() {
+    cached ??= load().then(
+      value => ({ ...value, errors: [] }),
+      error => ({ templates: new Map(), code: null, files: false, errors: [error] }),
+    )
+    return cached
   }
 
-  /**
-   * Templates that apply to a project's pages (or, with no project, to the root's pages):
-   * the global config's, replaced by name with the project's. `code` is the template for code
-   * blocks no template claims by name: the last one with `code: true` that was not replaced.
-   * @returns {Promise<{ templates: Map<string, object>, code: object | null, errors: Error[] }>}
-   */
-  async function forProject(project) {
-    const files = [globalConfigFile(), project?.configFile].filter(Boolean)
-    const loaded = await Promise.all(files.map(config))
-    const templates = new Map()
-    let code = null
-    for (const c of loaded) for (const [name, t] of c.templates) {
-      templates.set(name, t)
-      if (t.code) code = t
-    }
-    if (code && templates.get(code.name) !== code) code = [...templates.values()].findLast(t => t.code) ?? null
-    return { templates, code, errors: loaded.map(c => c.error).filter(Boolean) }
-  }
-
-  return { forProject, invalidate: () => cache.clear() }
+  return { config, invalidate: () => { cached = null } }
 }

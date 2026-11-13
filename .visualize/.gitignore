@@ -1,4 +1,6 @@
 # pages are working documents; remove this line to keep them in git
 pages/
-# form submits from the pages
+# form submits from the pages, and the running server's port and output
 events.ndjson
+server.json
+server.log

@@ -1,34 +1,35 @@
 #!/usr/bin/env node
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
-import { ROOT, BASE_URL, pageId, findProjectDir, projectName, register, configFileIn } from '../src/config.js'
-import { parseLines, readEvents, matches, eventsFile, eventsFileFor } from '../src/events.js'
+import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
+import { parseLines, readEvents, matches } from '../src/events.js'
 
 const HELP = `visualize — markdown pages in the browser, form submits in an ndjson log
 
   visualize init [name]           make this folder a project: .visualize/{config.ts,pages/}
-  visualize root                  print where pages go (this project's pages folder, else ${ROOT})
-  visualize show <page|file>      start the server if needed, print the page URL
-  visualize url <page|file>       print the page URL
+  visualize root                  print where pages go (this project's .visualize/pages)
+  visualize show <page|file>      start this project's server if needed, print the page URL
+  visualize url <page|file>       the same: print the page URL
   visualize docs [template…]      print template syntax (readmes) — read before writing a page
   visualize templates             list the templates this project's pages can use
   visualize events [filters]      print recorded submits as ndjson
   visualize wait [filters]        block until the next matching submit, print it, exit
   visualize watch [filters]       print matching submits as they arrive (never exits)
-  visualize serve                 run the server in the foreground
+  visualize serve                 run this project's server in the foreground
 
 filters: --page <page|file> (includes pages below it)  --form <name>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
 events:  --since <iso time or event id>  --last <n>
 
-Inside a project, a bare page name means a page of that project: \`visualize show plan\` → /<project>/plan.
-Submitting a <form name="…"> on a page appends {id, ts, page, form, action, data} to the page's log:
-<project>/.visualize/events.ndjson, or ${path.join(ROOT, 'events.ndjson')} for pages outside a project.
-events, wait and watch read the log of --page's project, else of the project you are in.`
+Every command works on the project of the current folder: the nearest folder upward with
+.visualize/config.ts. Each project runs its own server; its port is in .visualize/server.json.
+Submitting a <form name="…"> on a page appends {id, ts, page, form, action, data} to
+.visualize/events.ndjson.`
 
 const [cmd, ...rest] = process.argv.slice(2)
 const { values: opts, positionals } = parseArgs({
@@ -40,36 +41,48 @@ const { values: opts, positionals } = parseArgs({
   },
 })
 
-// keep the registry pointing at this project, so a cloned or moved repo just works
-const projectDir = findProjectDir()
-const project = projectDir ? { dir: projectDir, name: projectName(projectDir) } : null
-if (project && cmd !== 'init') register(project.name, project.dir)
+const project = projectAt(findProjectDir())
 
-const filter = { page: opts.page ? pageId(opts.page) : undefined, form: opts.form }
-// the log to read: --page's project's (this project's without the registry), else this project's, else the shared one
-const inProject = id => project && (id === project.name || id.startsWith(project.name + '/'))
-const LOG = filter.page ? (inProject(filter.page) ? eventsFile(project) : eventsFileFor(filter.page)) : eventsFile(project)
-const urlFor = target => `${BASE_URL}/${pageId(target)}`
-
-async function healthy() {
-  try { return (await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(800) })).ok } catch { return false }
+/** The current project, or exit with how to make one. */
+function needProject() {
+  if (project) return project
+  console.error(`visualize: not inside a project (no .visualize/config.ts in ${process.cwd()} or above it).
+Run \`visualize init\` in the folder that should become one.`)
+  process.exit(1)
 }
 
+const filter = () => ({ page: opts.page ? pageId(needProject(), opts.page) : undefined, form: opts.form })
+
+/** The running server of this project: its base URL, or null. */
+async function running(proj) {
+  let port
+  try { port = JSON.parse(fs.readFileSync(proj.serverFile, 'utf8')).port } catch { return null }
+  const base = `http://localhost:${port}`
+  try {
+    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(800) })
+    // the port may since have been taken by another project's server
+    return res.ok && (await res.json()).dir === proj.dir ? base : null
+  } catch { return null }
+}
+
+/** This project's server, started in the background when it is not running. @returns its base URL */
 async function ensureServer() {
-  if (await healthy()) return
-  const log = fs.openSync(path.join(ROOT, 'server.log'), 'a')
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { detached: true, stdio: ['ignore', log, log], env: process.env })
+  const proj = needProject()
+  const base = await running(proj)
+  if (base) return base
+  const log = fs.openSync(proj.logFile, 'a')
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { cwd: proj.dir, detached: true, stdio: ['ignore', log, log], env: process.env })
   child.unref()
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 75; i++) {
     await new Promise(r => setTimeout(r, 200))
-    if (await healthy()) return
+    const base = await running(proj)
+    if (base) return base
   }
-  throw new Error(`server did not start; see ${path.join(ROOT, 'server.log')}`)
+  throw new Error(`server did not start; see ${proj.logFile}`)
 }
 
 async function api(route) {
-  await ensureServer()
-  const res = await fetch(`${BASE_URL}${route}`)
+  const res = await fetch(`${await ensureServer()}${route}`)
   const body = await res.json()
   if (!res.ok) throw new Error(body.error ?? res.statusText)
   return body
@@ -77,14 +90,16 @@ async function api(route) {
 
 /** Follow the event log from its current end, calling `onEvent` for each matching new line. */
 function follow(onEvent) {
-  let offset = fs.existsSync(LOG) ? fs.statSync(LOG).size : 0
+  const log = needProject().eventsFile
+  const f = filter()
+  let offset = fs.existsSync(log) ? fs.statSync(log).size : 0
   let partial = ''
   const poll = () => {
-    if (!fs.existsSync(LOG)) return
-    const size = fs.statSync(LOG).size
+    if (!fs.existsSync(log)) return
+    const size = fs.statSync(log).size
     if (size < offset) offset = 0 // truncated
     if (size === offset) return
-    const fd = fs.openSync(LOG, 'r')
+    const fd = fs.openSync(log, 'r')
     const buf = Buffer.alloc(size - offset)
     fs.readSync(fd, buf, 0, buf.length, offset)
     fs.closeSync(fd)
@@ -92,7 +107,7 @@ function follow(onEvent) {
     const text = partial + buf.toString('utf8')
     const cut = text.lastIndexOf('\n')
     partial = text.slice(cut + 1)
-    for (const e of parseLines(text.slice(0, cut + 1))) if (matches(e, filter)) onEvent(e)
+    for (const e of parseLines(text.slice(0, cut + 1))) if (matches(e, f)) onEvent(e)
   }
   return setInterval(poll, 200)
 }
@@ -102,10 +117,10 @@ function init(name) {
   const vz = path.join(dir, '.visualize')
   if (configFileIn(vz)) {
     console.log(`already a project: ${configFileIn(vz)}`)
-    register(projectName(dir), dir)
     return
   }
-  name ||= path.basename(dir).toLowerCase().replace(/[^\w.-]+/g, '-')
+  // the home folder is no repository: serving and watching all of it would be slow and expose everything
+  const home = dir === os.homedir()
   // offer the basic set when this project can import it
   let basic = false
   try { createRequire(path.join(dir, 'package.json')).resolve('@visualize/templates-basic'); basic = true } catch {}
@@ -114,46 +129,51 @@ function init(name) {
 ${basic ? '' : '// '}import basic from '@visualize/templates-basic'
 
 export default defineConfig({
-  name: '${name}',
-  templates: [
+${name ? `  name: '${name}',\n` : ''}${home ? '  // only .visualize/ is served: this folder is not a repository\n  files: false,\n' : ''}  templates: [
     ${basic ? '' : '// '}basic(),
   ],
 })
 `)
-  fs.writeFileSync(path.join(vz, '.gitignore'), '# pages are working documents; remove this line to keep them in git\npages/\n# form submits from the pages\nevents.ndjson\n')
-  register(name, dir)
-  console.log(`project "${name}": ${vz}
-  pages:     ${path.join(vz, 'pages')} (gitignored)  →  ${BASE_URL}/${name}/
+  fs.writeFileSync(path.join(vz, '.gitignore'), `# pages are working documents; remove this line to keep them in git
+pages/
+# form submits from the pages, and the running server's port and output
+events.ndjson
+server.json
+server.log
+`)
+  console.log(`project: ${vz}
+  pages:     ${path.join(vz, 'pages')} (gitignored); \`visualize show <page>\` starts the server
   config:    ${path.join(vz, 'config.ts')}${basic ? '' : `
   templates: none yet. Install a set (npm i -D @visualize/templates-basic) and uncomment it in config.ts`}`)
 }
 
 switch (cmd) {
   case 'serve': {
+    const proj = needProject()
+    const base = await running(proj)
+    if (base) { console.error(`visualize: ${proj.name} is already served at ${base}`); process.exit(1) }
     const { start } = await import('../src/server.js')
-    start()
+    await start()
     break
   }
   case 'init':
     init(positionals[0])
     break
   case 'root': {
-    const dir = project ? path.join(project.dir, '.visualize', 'pages') : ROOT
+    const dir = needProject().pagesDir
     fs.mkdirSync(dir, { recursive: true })
     console.log(dir)
     break
   }
-  case 'show': {
-    if (!positionals[0]) throw new Error('usage: visualize show <page|file>')
-    await ensureServer()
-    console.log(urlFor(positionals[0]))
+  case 'show':
+  case 'url': {
+    if (cmd === 'show' && !positionals[0]) throw new Error('usage: visualize show <page|file>')
+    const base = await ensureServer()
+    console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
     break
   }
-  case 'url':
-    console.log(urlFor(positionals[0] ?? ''))
-    break
   case 'templates': {
-    const info = await api(`/api/templates${project ? `?project=${encodeURIComponent(project.name)}` : ''}`)
+    const info = await api('/api/templates')
     for (const e of info.errors) console.error(`config error: ${e}`)
     for (const t of info.templates)
       console.log(`${t.name.padEnd(14)} ${[t.html && 'html', t.props && 'props', t.client && 'client', t.code && 'code'].filter(Boolean).join('+').padEnd(18)} ${t.source}`)
@@ -161,7 +181,7 @@ switch (cmd) {
     break
   }
   case 'docs': {
-    const info = await api(`/api/templates${project ? `?project=${encodeURIComponent(project.name)}` : ''}`)
+    const info = await api('/api/templates')
     for (const e of info.errors) console.error(`config error: ${e}`)
     const chosen = positionals.length ? info.templates.filter(t => positionals.includes(t.name)) : info.templates
     if (!chosen.length) console.log(positionals.length ? `no template named ${positionals.join(', ')}` : 'no templates configured for this project')
@@ -174,7 +194,8 @@ switch (cmd) {
     break
   }
   case 'events': {
-    let list = readEvents(LOG).filter(e => matches(e, filter))
+    const f = filter()
+    let list = readEvents(needProject().eventsFile).filter(e => matches(e, f))
     if (opts.since) {
       const i = list.findIndex(e => e.id === opts.since)
       list = i >= 0 ? list.slice(i + 1) : list.filter(e => e.ts > opts.since)
