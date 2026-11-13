@@ -1,7 +1,9 @@
-# visualize — design
+# whiteboard — design
 
-Markdown pages that agents write and people read in a browser. Pages can hold
-forms; submitting one appends a line to an ndjson log that agents watch. The
+A whiteboard for a person and an agent: when something is too much for text
+in a terminal, the agent writes a markdown page and the person reads it live
+in a browser. Pages can hold forms; submitting one appends a line to an
+ndjson log that the agent waits on, so both sides write on the board. The
 terminal stays for conversation; the page holds overview, detail and
 decisions.
 
@@ -16,7 +18,7 @@ decisions.
   like any other npm package.
 - **Framework-agnostic.** A template's browser code exports
   `mount(element, props, api)`; the engine never imports a UI framework into
-  the page. Solid is supported through the `@visualize/solid` adapter.
+  the page. Solid is supported through the `@bigmistqke/whiteboard/solid` adapter.
 - **No agent concepts in the engine.** There are no tasks, statuses or
   approvals. The engine has one interaction primitive: submitting a named
   HTML form. Everything else is a template, or a convention between an agent
@@ -26,17 +28,17 @@ decisions.
   block; a template that throws renders an error box in place of that block
   only; a broken config shows its error above the page.
 - **Templates document themselves.** Each template's readme is its syntax
-  reference, served at `/_/docs` and printed by `visualize docs`, so agents
+  reference, served at `/_/docs` and printed by `whiteboard docs`, so agents
   read the current syntax instead of remembering it.
 
 ## Projects
 
-A project is a folder (usually a repository) with a `.visualize/config.ts`.
-Everything visualize keeps is in that `.visualize/` folder; nothing lives
+A project is a folder (usually a repository) with a `.whiteboard/config.ts`.
+Everything whiteboard keeps is in that `.whiteboard/` folder; nothing lives
 outside the project:
 
 ```
-<repo>/.visualize/
+<repo>/.whiteboard/
   config.ts     defineConfig({ name, templates: [...], files })
   pages/        the project's pages, served at /<page>
   style.css     optional, applied to the project's pages
@@ -46,15 +48,15 @@ outside the project:
   .gitignore    everything but config.ts and style.css: remove a line to keep it in git
 ```
 
-`visualize init` creates it. Every command works on the project of the
-current folder: the nearest folder upward with `.visualize/config.ts`. Outside
-a project the commands stop and point to `visualize init`. An agent working
+`whiteboard init` creates it. Every command works on the project of the
+current folder: the nearest folder upward with `.whiteboard/config.ts`. Outside
+a project the commands stop and point to `whiteboard init`. An agent working
 in the repository can start the server, write pages and read answers without
 access outside it.
 
-Each project runs its own server. `visualize show` starts it in the
+Each project runs its own server. `whiteboard show` starts it in the
 background when it is not running: it takes the port it had last time, else
-4777 (`$VISUALIZE_PORT`), else the next free one, and records it in
+4777 (`$WHITEBOARD_PORT`), else the next free one, and records it in
 `server.json`. The command line checks that the server on that port is this
 project's before using it. Two projects open at once are two servers on two
 ports; nothing coordinates them, and `/` lists only this project's pages.
@@ -65,10 +67,10 @@ folders list their files with their README on top, other text files show as
 code, and images are served as they are. `.git` is never served. The whole
 project folder is watched so these views stay live.
 
-`files: false` in the config turns that off: only `.visualize/` is served and
+`files: false` in the config turns that off: only `.whiteboard/` is served and
 watched. It is for a project whose folder is not a repository, such as the
 home folder, where serving every file would expose it and watching every file
-would be slow. `visualize init` sets it when run in the home folder; a
+would be slow. `whiteboard init` sets it when run in the home folder; a
 project at `~` is also how to have pages for folders that have no project of
 their own, since commands find the nearest project upward. A config that
 fails to load serves no files either.
@@ -79,7 +81,7 @@ file's own folder on disk and rewritten to the URL that serves the target
 documents work the way they do in the repository. A link that points nowhere
 is left as written.
 
-## Engine (`packages/engine`)
+## Engine (`src/`)
 
 1. Turns markdown into HTML: remark (GFM + `remark-directive`), then rehype.
    Raw HTML passes through, so `<details>` and hand-written forms work.
@@ -95,7 +97,7 @@ is left as written.
 4. Live-reloads a page when its markdown file changes, patching it in place
    with morphdom: focus, caret, typed values, open `<details>` and mounted
    islands whose props did not change all survive (islands carry a
-   `data-vz-key` hashed from template + props).
+   `data-wb-key` hashed from template + props).
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab
@@ -106,7 +108,7 @@ is left as written.
 5. Appends `{ id, ts, page, form, action, data }` to the page's
    `events.ndjson` when a `<form name="…">` without an `action` attribute is
    submitted. `action` is the value of the button that submitted it. The log
-   is the project's own `.visualize/events.ndjson`.
+   is the project's own `.whiteboard/events.ndjson`.
 
 Nested containers may all use `:::`. The engine pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence
@@ -115,10 +117,10 @@ to be longer than the ones inside it.
 ## Templates
 
 ```ts
-// <repo>/.visualize/config.ts
-import { defineConfig } from '@visualize/engine/config'
-import basic from '@visualize/templates-basic'
-import chart from 'visualize-chart'
+// <repo>/.whiteboard/config.ts
+import { defineConfig } from '@bigmistqke/whiteboard/config'
+import basic from '@bigmistqke/whiteboard/basic'
+import chart from 'whiteboard-chart'   // a template package of someone else's
 import timeline from './templates/timeline'
 
 export default defineConfig({
@@ -141,7 +143,7 @@ export default {
 } satisfies Template
 ```
 
-- Types come from `@visualize/engine/template` (`Template`, `Mount`,
+- Types come from `@bigmistqke/whiteboard/template` (`Template`, `Mount`,
   `ClientApi`, the server context types). `defineConfig`/`defineTemplate`
   only return their argument; a published package needs no runtime import
   from the engine.
@@ -161,15 +163,15 @@ export default {
   a template for the same reason a diagram is: themes and colours are a
   choice, and the engine makes none. The last `code` template in config
   order wins. Without one, code renders plain, which is still a valid page.
-- Layout classes a template can put on its outermost element: `.vz-figure`
+- Layout classes a template can put on its outermost element: `.wb-figure`
   runs up to `--figure` (920px) wide, like a standalone image or a diagram;
-  `.vz-wide` runs up to `--wide` (1040px), like a grid of cards. Both centre
+  `.wb-wide` runs up to `--wide` (1040px), like a grid of cards. Both centre
   on the text column and stay within the screen.
-- A client's island is wrapped in `<div class="vz-island" data-template="name">`.
-  The engine never adds `vz-<name>` classes, so a template owns its class names.
+- A client's island is wrapped in `<div class="wb-island" data-template="name">`.
+  The engine never adds `wb-<name>` classes, so a template owns its class names.
 - `api` (a `ClientApi`) gives the page id, the page's form submissions and the
-  theme, each with a subscription. `@visualize/solid` wraps it:
-  `export default solid(Component)` and `useVisualize()` for signals.
+  theme, each with a subscription. `@bigmistqke/whiteboard/solid` wraps it:
+  `export default solid(Component)` and `useWhiteboard()` for signals.
 - Packages keep their UI framework as a peer dependency; the engine's Vite
   dedupes `solid-js` and `@solidjs/web` so all Solid templates on a page share
   one copy.
@@ -186,14 +188,21 @@ server functions, readmes) re-renders open pages.
 ## Layout
 
 ```
-packages/engine           the engine and the `visualize` CLI
-packages/solid            @visualize/solid: write template clients as Solid 2 components
-packages/templates-basic  grid, gallery, details, callout, form, mermaid, code: basic()
-skills/visualize          the agent skill: where to write pages, how to wait for input
-.visualize/               this repository as a visualize project (dogfooding)
+src/              the engine; ./config, ./template and ./client of the package
+bin/whiteboard.js the `whiteboard` command
+basic/            ./basic: grid, gallery, details, callout, form, mermaid, code: basic()
+solid/            ./solid: write template clients as Solid 2 components
+skills/whiteboard the agent skill: where to write pages, how to wait for input
+.whiteboard/      this repository as a whiteboard project (dogfooding)
 ```
+
+It is one package, `@bigmistqke/whiteboard`, with a subpath export per part.
+The engine still imports no templates; a config does. The server resolves the
+package's own exports itself, so a project needs no `node_modules` to use
+them: a config in a repository without npm can import
+`@bigmistqke/whiteboard/basic`.
 
 ## Files
 
-- `<repo>/.visualize/`: a project (see Projects). There are no other files.
-- `$VISUALIZE_PORT` (default 4777): the port a project's server tries first.
+- `<repo>/.whiteboard/`: a project (see Projects). There are no other files.
+- `$WHITEBOARD_PORT` (default 4777): the port a project's server tries first.

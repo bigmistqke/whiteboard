@@ -1,3 +1,0 @@
-/* the base <details> style does the work; the body wrapper only needs spacing */
-.vz-details > .vz-details-body > :first-child { margin-top: .2em; }
-.vz-details > .vz-details-body > :last-child { margin-bottom: 0; }

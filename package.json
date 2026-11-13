@@ -1,9 +1,39 @@
 {
-  "name": "visualize-monorepo",
-  "private": true,
+  "name": "@bigmistqke/whiteboard",
+  "version": "0.1.0",
+  "description": "A whiteboard for you and your agent: it writes markdown pages you read live in the browser, you answer through forms it waits on",
   "type": "module",
-  "workspaces": ["packages/*"],
+  "bin": {
+    "whiteboard": "bin/whiteboard.js"
+  },
+  "exports": {
+    "./config": "./src/define.ts",
+    "./template": "./src/define.ts",
+    "./client": "./src/client/api.ts",
+    "./basic": "./basic/index.ts",
+    "./solid": "./solid/index.tsx"
+  },
+  "files": ["bin", "src", "basic", "solid", "skills"],
   "scripts": {
-    "start": "node packages/engine/bin/visualize.js serve"
+    "start": "node bin/whiteboard.js serve"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@solidjs/vite-plugin": "^3.0.0-next.57",
+    "@solidjs/web": "^2.0.0-rc.21",
+    "mdast-util-to-string": "^4.0.0",
+    "morphdom": "^2.7.7",
+    "pele": "^1.13.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-directive": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "shiki": "^4.6.0",
+    "solid-js": "^2.0.0-rc.21",
+    "unified": "^11.0.5",
+    "vite": "^8.3.8"
   }
 }

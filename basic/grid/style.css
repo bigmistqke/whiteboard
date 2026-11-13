@@ -1,0 +1,25 @@
+.wb-grid {
+  display: grid; gap: 22px; margin: 4em 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--wide, 1040px) / var(--wb-grid-cols, 3) - 16px)), 1fr));
+}
+.wb-grid:not(.wb-wide) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+.wb-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px 20px; min-width: 0;
+}
+.wb-card > header { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; margin-bottom: .55em; }
+.wb-card h3 { margin: 0; font-size: 1.02rem; }
+.wb-card-body { font-size: .9rem; line-height: 1.6; }
+.wb-card-body > :first-child { margin-top: 0; }
+.wb-card-body > :last-child { margin-bottom: 0; }
+
+/* badge: a coloured dot and a word, not a pill */
+.wb-badge {
+  --c: var(--muted); flex: none; display: inline-flex; align-items: center; gap: 6px;
+  font: 500 .74rem/1 var(--sans); color: var(--muted); white-space: nowrap;
+}
+.wb-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.wb-badge:is([data-badge=done], [data-badge=ok], [data-badge=yes], [data-badge=good]) { --c: var(--ok); }
+.wb-badge:is([data-badge=active], [data-badge=new], [data-badge=info]) { --c: var(--info); }
+.wb-badge:is([data-badge=open], [data-badge=todo], [data-badge=maybe], [data-badge=warning]) { --c: var(--warn); }
+.wb-badge:is([data-badge=blocked], [data-badge=no], [data-badge=bad], [data-badge=error]) { --c: var(--bad); }

@@ -1,0 +1,27 @@
+.wb-gallery {
+  display: grid; gap: 40px 24px; margin: 4em 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--wb-gallery-min, 240px)), 1fr));
+}
+.wb-gallery-item {
+  margin: 0; overflow: hidden; display: flex; flex-direction: column; min-width: 0;
+}
+.wb-gallery-thumb { padding: 0; border: 0; border-radius: var(--radius); overflow: hidden; background: var(--code-bg); cursor: zoom-in; display: block; }
+.wb-gallery-thumb img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 0; }
+.wb-gallery-item figcaption { padding: 14px 2px 0; font: .88rem/1.5 var(--serif); color: var(--text); }
+.wb-gallery-item figcaption h3 { margin: 0 0 .25em; font-size: 1rem; }
+.wb-gallery-item figcaption > div > :first-child { margin-top: 0; }
+.wb-gallery-item figcaption > div > :last-child { margin-bottom: 0; }
+
+.wb-lightbox {
+  position: fixed; inset: 0; z-index: 50; background: rgb(0 0 0 / .86);
+  display: grid; place-items: center; grid-template-rows: 1fr auto; padding: 24px 16px;
+}
+.wb-lightbox img { max-width: 100%; max-height: calc(100vh - 110px); object-fit: contain; border-radius: 4px; }
+.wb-lightbox-caption { color: #eee; text-align: center; padding-top: 10px; }
+.wb-lightbox button {
+  position: absolute; background: rgb(255 255 255 / .12); color: #fff; border: 0; font-size: 1.6rem; line-height: 1;
+  width: 44px; height: 44px; border-radius: 50%; padding: 0;
+}
+.wb-lightbox-prev { left: 12px; top: 50%; }
+.wb-lightbox-next { right: 12px; top: 50%; }
+.wb-lightbox-close { right: 12px; top: 12px; }
