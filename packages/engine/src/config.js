@@ -9,7 +9,6 @@ import fs from 'node:fs'
 
 export const ROOT = path.resolve(process.env.VISUALIZE_DIR || path.join(os.homedir(), '.visualize'))
 export const PORT = Number(process.env.VISUALIZE_PORT || 4777)
-export const EVENTS_FILE = path.join(ROOT, 'events.ndjson')
 export const REGISTRY_FILE = path.join(ROOT, 'projects.json')
 export const BASE_URL = `http://localhost:${PORT}`
 export const CONFIG_NAMES = ['config.ts', 'config.mts', 'config.js', 'config.mjs']

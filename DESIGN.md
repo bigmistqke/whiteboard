@@ -38,7 +38,8 @@ A project is a folder (usually a repository) with a `.visualize/` folder:
   config.ts     defineConfig({ name, templates: [...] })
   pages/        the project's pages, served at /<name>/…  (gitignored by default)
   style.css     optional, applied to the project's pages
-  .gitignore    "pages/": remove the line to keep pages in git
+  events.ndjson the project's form submits (gitignored by default)
+  .gitignore    "pages/" and "events.ndjson": remove a line to keep it in git
 ```
 
 Any other file in the project folder is served from the repository at
@@ -82,9 +83,12 @@ registers itself. `/` lists every project's pages.
      localStorage, so reopening a page later also shows what changed.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons jump to the
      nearest unseen block; the tab title gets a `(n)` prefix.
-5. Appends `{ id, ts, page, form, action, data }` to `events.ndjson` when a
-   `<form name="…">` without an `action` attribute is submitted. `action` is
-   the value of the button that submitted it.
+5. Appends `{ id, ts, page, form, action, data }` to the page's
+   `events.ndjson` when a `<form name="…">` without an `action` attribute is
+   submitted. `action` is the value of the button that submitted it. Each
+   project keeps its own log in `.visualize/`, so an agent can read answers
+   without access outside the repository; pages outside any project log to
+   the shared folder.
 
 Nested containers may all use `:::`. The engine pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence
@@ -177,7 +181,7 @@ skills/visualize          the agent skill: where to write pages, how to wait for
 - `<repo>/.visualize/`: a project (see Projects).
 - `$VISUALIZE_DIR` (default `~/.visualize`): the shared folder.
   - `projects.json`: project name → folder.
-  - `events.ndjson`: one JSON event per line, append-only, for every project.
+  - `events.ndjson`: form submits of the pages here, outside any project.
   - `config.ts`: optional global config.
   - `style.css`: optional, overrides the base page style everywhere.
   - Markdown files here are served too (`foo/bar.md` at `/foo/bar`), for

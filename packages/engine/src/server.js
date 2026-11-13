@@ -4,8 +4,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer as createVite } from 'vite'
 import solid from '@solidjs/vite-plugin'
-import { ROOT, PORT, EVENTS_FILE, REGISTRY_FILE, globalConfigFile, projects, projectByName } from './config.js'
-import { appendEvent, readEvents, matches } from './events.js'
+import { ROOT, PORT, REGISTRY_FILE, globalConfigFile, projects, projectByName } from './config.js'
+import { appendEvent, readEvents, matches, eventsFile, eventsFileFor } from './events.js'
 import { createTemplateLoader } from './templates.js'
 import { renderMarkdown, esc } from './markdown.js'
 
@@ -100,7 +100,7 @@ function listPages(base, prefix) {
 
 function pageList(pages) {
   const last = new Map()
-  for (const e of readEvents()) last.set(e.page, e)
+  for (const file of new Set(pages.map(p => eventsFileFor(p.id)))) for (const e of readEvents(file)) last.set(e.page, e)
   return `<ul class="vz-index">${pages.map(p => {
     const ev = last.get(p.id)
     return `<li><a href="/${esc(p.id)}">${esc(p.title)}</a> <span class="vz-meta"><code>${esc(p.id)}</code> · edited <time data-ts="${p.mtime}"></time>${
@@ -315,11 +315,11 @@ function pageChanged(id) {
   for (const c of clients) if (c.isDir && !c.page) notify(c, 'change')
 }
 
-// root folder: loose pages, the event log, the registry, the global config
+// root folder: loose pages, their event log, the registry, the global config
 fs.watch(ROOT, { recursive: true }, (_evt, filename) => {
   if (!filename) return
   const f = filename.replace(/\\/g, '/')
-  if (f === path.basename(EVENTS_FILE)) return notifyAll('events')
+  if (f === 'events.ndjson') return notifyAll('events')
   if (f === path.basename(REGISTRY_FILE)) return notifyAll('change')
   if (f === 'style.css') return notifyAll('style')
   if (/^config\.[mc]?[jt]s$/.test(f)) { templates.invalidate(); return notifyAll('change') }
@@ -336,6 +336,7 @@ function watchProject(project) {
     if (!filename) return
     const f = filename.replace(/\\/g, '/')
     if (f.split('/').some(part => SKIP_DIRS.has(part))) return
+    if (f === '.visualize/events.ndjson') return notifyAll('events')
     if (f.startsWith('.visualize/pages/')) {
       if (f.endsWith('.md')) pageChanged(`${project.name}/${f.slice('.visualize/pages/'.length).replace(/\.md$/, '')}`)
       return
@@ -353,6 +354,7 @@ for (const p of projects()) watchProject(p)
 // is made of changes the server render: reload configs and re-render open pages.
 function onSourceChange(file) {
   if (file.includes(`${path.sep}.visualize${path.sep}pages${path.sep}`)) return
+  if (path.basename(file) === 'events.ndjson') return
   if (/\.[mc]?[jt]sx$/.test(file)) return
   if (file.endsWith('.css')) return notifyAll('style')
   templates.invalidate()
@@ -400,7 +402,12 @@ httpServer.on('request', async (req, res) => {
       if (!body.form) return sendJson(res, 400, { error: 'form name required' })
       return sendJson(res, 200, appendEvent(body))
     }
-    if (p === '/api/events') return sendJson(res, 200, readEvents().filter(e => matches(e, q)))
+    if (p === '/api/events') {
+      // one page's log, or every log when no page is named
+      const files = q.page ? [eventsFileFor(q.page)] : [...projects().map(eventsFile), eventsFile(null)]
+      const list = files.flatMap(readEvents).filter(e => matches(e, q)).sort((a, b) => a.ts.localeCompare(b.ts))
+      return sendJson(res, 200, list)
+    }
     if (p === '/api/templates') {
       const project = q.project ? projectByName(q.project) : null
       if (q.project && !project) return sendJson(res, 404, { error: `no project named ${q.project}` })

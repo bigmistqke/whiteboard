@@ -5,8 +5,8 @@ import { spawn } from 'node:child_process'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
-import { ROOT, BASE_URL, EVENTS_FILE, pageId, findProjectDir, projectName, register, configFileIn } from '../src/config.js'
-import { parseLines, readEvents, matches } from '../src/events.js'
+import { ROOT, BASE_URL, pageId, findProjectDir, projectName, register, configFileIn } from '../src/config.js'
+import { parseLines, readEvents, matches, eventsFile, eventsFileFor } from '../src/events.js'
 
 const HELP = `visualize — markdown pages in the browser, form submits in an ndjson log
 
@@ -26,7 +26,9 @@ wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
 events:  --since <iso time or event id>  --last <n>
 
 Inside a project, a bare page name means a page of that project: \`visualize show plan\` → /<project>/plan.
-Submitting a <form name="…"> on a page appends {id, ts, page, form, action, data} to ${EVENTS_FILE}.`
+Submitting a <form name="…"> on a page appends {id, ts, page, form, action, data} to the page's log:
+<project>/.visualize/events.ndjson, or ${path.join(ROOT, 'events.ndjson')} for pages outside a project.
+events, wait and watch read the log of --page's project, else of the project you are in.`
 
 const [cmd, ...rest] = process.argv.slice(2)
 const { values: opts, positionals } = parseArgs({
@@ -44,6 +46,9 @@ const project = projectDir ? { dir: projectDir, name: projectName(projectDir) } 
 if (project && cmd !== 'init') register(project.name, project.dir)
 
 const filter = { page: opts.page ? pageId(opts.page) : undefined, form: opts.form }
+// the log to read: --page's project's (this project's without the registry), else this project's, else the shared one
+const inProject = id => project && (id === project.name || id.startsWith(project.name + '/'))
+const LOG = filter.page ? (inProject(filter.page) ? eventsFile(project) : eventsFileFor(filter.page)) : eventsFile(project)
 const urlFor = target => `${BASE_URL}/${pageId(target)}`
 
 async function healthy() {
@@ -70,16 +75,16 @@ async function api(route) {
   return body
 }
 
-/** Follow events.ndjson from its current end, calling `onEvent` for each matching new line. */
+/** Follow the event log from its current end, calling `onEvent` for each matching new line. */
 function follow(onEvent) {
-  let offset = fs.existsSync(EVENTS_FILE) ? fs.statSync(EVENTS_FILE).size : 0
+  let offset = fs.existsSync(LOG) ? fs.statSync(LOG).size : 0
   let partial = ''
   const poll = () => {
-    if (!fs.existsSync(EVENTS_FILE)) return
-    const size = fs.statSync(EVENTS_FILE).size
+    if (!fs.existsSync(LOG)) return
+    const size = fs.statSync(LOG).size
     if (size < offset) offset = 0 // truncated
     if (size === offset) return
-    const fd = fs.openSync(EVENTS_FILE, 'r')
+    const fd = fs.openSync(LOG, 'r')
     const buf = Buffer.alloc(size - offset)
     fs.readSync(fd, buf, 0, buf.length, offset)
     fs.closeSync(fd)
@@ -115,7 +120,7 @@ export default defineConfig({
   ],
 })
 `)
-  fs.writeFileSync(path.join(vz, '.gitignore'), '# pages are working documents; remove this line to keep them in git\npages/\n')
+  fs.writeFileSync(path.join(vz, '.gitignore'), '# pages are working documents; remove this line to keep them in git\npages/\n# form submits from the pages\nevents.ndjson\n')
   register(name, dir)
   console.log(`project "${name}": ${vz}
   pages:     ${path.join(vz, 'pages')} (gitignored)  →  ${BASE_URL}/${name}/
@@ -169,7 +174,7 @@ switch (cmd) {
     break
   }
   case 'events': {
-    let list = readEvents().filter(e => matches(e, filter))
+    let list = readEvents(LOG).filter(e => matches(e, filter))
     if (opts.since) {
       const i = list.findIndex(e => e.id === opts.since)
       list = i >= 0 ? list.slice(i + 1) : list.filter(e => e.ts > opts.since)

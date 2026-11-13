@@ -69,7 +69,9 @@ herdr pane run <new-pane-id> terminal-browser <url>
 
 ## Getting answers
 
-Each submit of a named form appends one line to `~/.visualize/events.ndjson`:
+Each submit of a named form appends one line to the project's
+`.visualize/events.ndjson` (for pages outside a project:
+`~/.visualize/events.ndjson`):
 
 ```json
 {"id":"…","ts":"2026-…","page":"proj/plan","form":"deploy-review","action":"Approve","data":{"notes":"…"}}
