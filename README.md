@@ -78,6 +78,11 @@ npx whiteboard wait --page plan --form ship
 That round trip is the whole idea. In practice the agent writes the page and
 runs `wait`; you read and answer.
 
+Agents claim their pages with `whiteboard new <name>`, which creates the file
+under a name no other page has: `plan`, else `plan-2`, and so on. Several
+agents can work in one project without writing into each other's pages or
+waking on each other's answers.
+
 ## How it works
 
 A project is a folder with a `.whiteboard/` folder in it. Everything
@@ -89,6 +94,7 @@ whiteboard keeps is there; nothing is written outside the project.
   pages/          the pages: pages/plan.md is served at /plan
   style.css       optional, extra styles for the pages
   events.ndjson   every form submit, one JSON object per line
+  delivered.json  which submits `whiteboard wait` already handed out
   server.json     the port and process of the running server
   server.log      that server's output
 ```
@@ -123,10 +129,15 @@ hand-written `<form name="…">` works without it.
 Reading answers:
 
 ```sh
-whiteboard wait --page plan --form ship     # blocks until the next submit, prints it
+whiteboard wait --page plan --form ship     # the next answer to that form
 whiteboard watch --page plan                # streams submits, never exits
 whiteboard events --page plan --last 1      # what was already submitted
 ```
+
+`wait` never misses an answer and never hands one out twice. It remembers
+per filter what it handed out (in `.whiteboard/delivered.json`), and when it
+starts it first returns answers it hasn't handed out yet, including ones
+given before it started. So an agent can ask, do other work, and wait later.
 
 ## Commands
 
@@ -137,12 +148,13 @@ upward with `.whiteboard/config.ts`.
 | --- | --- |
 | `whiteboard init [name]` | make this folder a project |
 | `whiteboard root` | print the folder pages go into |
+| `whiteboard new <name>` | create a page under a name no other page has (`name`, else `name-2`, …), print its path |
 | `whiteboard show <page\|file>` | start the server if needed, print the page's URL |
 | `whiteboard url <page\|file>` | the same |
 | `whiteboard docs [template…]` | print the syntax of the project's templates |
 | `whiteboard templates` | list the project's templates |
 | `whiteboard events [filters]` | print recorded submits |
-| `whiteboard wait [filters]` | block until the next matching submit, print it |
+| `whiteboard wait [filters]` | print the next matching submit not handed out before, waiting for it if needed |
 | `whiteboard watch [filters]` | print matching submits as they arrive |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |

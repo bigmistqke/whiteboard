@@ -8,10 +8,19 @@ import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
 import { parseLines, readEvents, matches } from '../src/events.js'
 
+// a failing command prints its message, not a stack trace
+const fail = err => {
+  console.error(`whiteboard: ${err?.message ?? err}`)
+  process.exit(1)
+}
+process.on('uncaughtException', fail)
+process.on('unhandledRejection', fail)
+
 const HELP = `whiteboard — markdown pages in the browser, form submits in an ndjson log
 
   whiteboard init [name]           make this folder a project: .whiteboard/{config.ts,pages/}
   whiteboard root                  print where pages go (this project's .whiteboard/pages)
+  whiteboard new <name>           create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
   whiteboard docs [template…]      print template syntax (readmes) — read before writing a page
@@ -88,11 +97,22 @@ async function api(route) {
   return body
 }
 
-/** Follow the event log from its current end, calling `onEvent` for each matching new line. */
-function follow(onEvent) {
+const logSize = log => (fs.existsSync(log) ? fs.statSync(log).size : 0)
+
+/** The events in the first `bytes` bytes of the log. */
+function readEventsUpTo(log, bytes) {
+  if (!bytes) return []
+  const fd = fs.openSync(log, 'r')
+  const buf = Buffer.alloc(bytes)
+  fs.readSync(fd, buf, 0, bytes, 0)
+  fs.closeSync(fd)
+  return parseLines(buf.toString('utf8'))
+}
+
+/** Follow the event log from byte `offset` (default: its current end), calling `onEvent` for each matching new line. */
+function follow(onEvent, offset = logSize(needProject().eventsFile)) {
   const log = needProject().eventsFile
   const f = filter()
-  let offset = fs.existsSync(log) ? fs.statSync(log).size : 0
   let partial = ''
   const poll = () => {
     if (!fs.existsSync(log)) return
@@ -134,8 +154,9 @@ ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served:
 `)
   fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git
 pages/
-# form submits from the pages, and the running server's port and output
+# form submits from the pages, which ones \`whiteboard wait\` handed out, and the running server's port and output
 events.ndjson
+delivered.json
 server.json
 server.log
 `)
@@ -160,6 +181,31 @@ switch (cmd) {
     const dir = needProject().pagesDir
     fs.mkdirSync(dir, { recursive: true })
     console.log(dir)
+    break
+  }
+  case 'new': {
+    // claim a page: the exclusive create fails when the file exists, so two agents asking at once
+    // never get the same page; the second gets name-2
+    const name = (positionals[0] ?? '').replace(/\\/g, '/').replace(/\.md$/, '').replace(/^\/+|\/+$/g, '')
+    if (!name || name.split('/').some(part => !part || part === '.' || part === '..' || part === '-' || part === '_'))
+      throw new Error('usage: whiteboard new <name>   (a page name like plan or task/plan)')
+    const proj = needProject()
+    // a name with submits in the log stays taken after its page is deleted, so a new page never
+    // receives the answers of an old one
+    const answered = new Set(readEvents(proj.eventsFile).map(e => e.page))
+    for (let n = 1; ; n++) {
+      const id = n === 1 ? name : `${name}-${n}`
+      if (answered.has(id)) continue
+      const file = path.join(proj.pagesDir, `${id}.md`)
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      try {
+        fs.writeFileSync(file, '', { flag: 'wx' })
+        console.log(file)
+        break
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw err
+      }
+    }
     break
   }
   case 'show':
@@ -202,12 +248,30 @@ switch (cmd) {
     break
   }
   case 'wait': {
+    // Submits this filter has not handed out yet come first, also those made before the wait
+    // started; then new ones. What was handed out is kept per filter in delivered.json, so an
+    // answer is neither lost between two waits nor handed out twice.
+    const proj = needProject()
+    const f = filter()
+    const key = `${f.page ?? ''}\0${f.form ?? ''}`
+    let delivered = {}
+    try { delivered = JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8')) } catch {}
     const want = Number(opts.count ?? 1)
     let got = 0
-    follow(e => {
+    const hand = e => {
       console.log(JSON.stringify(e))
+      delivered[key] = { id: e.id, ts: e.ts }
+      fs.writeFileSync(proj.deliveredFile, JSON.stringify(delivered, null, 2) + '\n')
       if (++got >= want) process.exit(0)
-    })
+    }
+    // the backlog and the follow split the log at one offset, so no submit falls between them
+    const offset = logSize(proj.eventsFile)
+    const matching = readEventsUpTo(proj.eventsFile, offset).filter(e => matches(e, f))
+    const last = delivered[key]
+    const at = last ? matching.findIndex(e => e.id === last.id) : -1
+    const backlog = !last ? matching : at >= 0 ? matching.slice(at + 1) : matching.filter(e => e.ts > last.ts)
+    for (const e of backlog) hand(e)
+    follow(hand, offset)
     if (opts.timeout) setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
     break
   }

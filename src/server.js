@@ -31,7 +31,7 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8', '.csv': 'text/csv; charset=utf-8', '.html': 'text/html; charset=utf-8',
 }
 // files in .whiteboard/ that are the server's own bookkeeping, not content
-const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log'])
+const OWN_FILES = new Set(['events.ndjson', 'delivered.json', 'server.json', 'server.log'])
 
 const httpServer = http.createServer()
 

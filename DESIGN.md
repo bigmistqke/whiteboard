@@ -43,6 +43,7 @@ outside the project:
   pages/        the project's pages, served at /<page>
   style.css     optional, applied to the project's pages
   events.ndjson the project's form submits
+  delivered.json per wait filter, the last submit `whiteboard wait` handed out
   server.json   the port and process of the project's running server
   server.log    that server's output
   .gitignore    everything but config.ts and style.css: remove a line to keep it in git
@@ -74,6 +75,25 @@ would be slow. `whiteboard init` sets it when run in the home folder; a
 project at `~` is also how to have pages for folders that have no project of
 their own, since commands find the nearest project upward. A config that
 fails to load serves no files either.
+
+Several agents can work in one project at once, and a page and its forms
+are addressed by name only. So an agent claims a page with `whiteboard new
+<name>` instead of picking a file: it creates `pages/<name>.md`, or
+`<name>-2.md`, `<name>-3.md` and so on when that exists, with an exclusive
+create, so two agents asking at the same moment never get the same page.
+The skill tells agents to write only pages they claimed and to wait with
+their page's path, so they never write into each other's pages or wake on
+each other's answers. A person can still write a page file directly. A name
+that has submits in the log stays taken after its page is deleted, so a new
+page never inherits the answers of an old one.
+
+`whiteboard wait` hands out each submit once, without the agent keeping
+track: `delivered.json` records, per filter (page and form), the last submit
+it handed out. A wait first returns matching submits after that one, also
+those made before it started, then follows the log. The backlog and the
+following split the log at one byte offset, so no submit falls between
+them. Different filters are different listeners: a wait on a whole page
+does not count what a wait on one of its forms handed out.
 
 Relative links and images in any rendered markdown are resolved from that
 file's own folder on disk and rewritten to the URL that serves the target

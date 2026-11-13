@@ -17,15 +17,18 @@ PATH, the project has it installed locally: run them as `npx whiteboard …`.
 
 ## Writing a page
 
-1. Run `whiteboard root` in the repository. It prints the folder to write pages
-   into: the project's `.whiteboard/pages/` (the nearest `.whiteboard/config.ts`
-   upward). If it says there is no project, ask the user before running
-   `whiteboard init`: it adds a folder to their repository.
-2. Run `whiteboard docs` once per session and read it: it is the current
+1. Run `whiteboard docs` once per session and read it: it is the current
    syntax of every template this project can use. Do not rely on memory for
-   template syntax; the set differs per project.
-3. Write `<root>/<topic>.md` (subfolders are fine).
-4. Run `whiteboard show <topic>`: it starts the server if needed and prints the
+   template syntax; the set differs per project. If it says there is no
+   project, ask the user before running `whiteboard init`: it adds a folder
+   to their repository.
+2. Run `whiteboard new <topic>` (subfolders are fine: `task/plan`). It
+   creates an empty page with a name no other page has, `<topic>` or else
+   `<topic>-2` and so on, and prints its path. That file is yours: other
+   agents may be writing pages in the same project, so never write a page you
+   did not get from `whiteboard new`, and never pick a page name yourself.
+3. Write the page into that file.
+4. Run `whiteboard show <file>`: it starts the server if needed and prints the
    URL. Give the user the URL the first time; after that, just keep editing
    the file — the open page follows.
 
@@ -40,7 +43,7 @@ Write for a reader who comes back later:
 
 - Lead with the state of things; put depth in `:::details[…]` blocks so the
   page stays scannable.
-- Update a page rather than starting a new one for the same topic; changed
+- Update your page rather than starting a new one for the same topic; changed
   blocks are highlighted for the user, unchanged ones stay quiet.
 - Put the things you need from the user in forms, one form per decision, each
   with a distinct name.
@@ -80,16 +83,18 @@ Each submit of a named form appends one line to the project's
 {"id":"…","ts":"2026-…","page":"plan","form":"deploy-review","action":"Approve","data":{"notes":"…"}}
 ```
 
-`--page plan` means the project's page `plan`; a file path
-works too.
+Pass your page's file path as `--page`, so you only hear about your own
+page (`--page plan` also works, and includes the pages below `plan/`).
 
-- `whiteboard wait --page <file> --form <name>` blocks until the next submit of
-  that form and prints it (`--timeout <s>` exits 2 on timeout). Run it in the
+- `whiteboard wait --page <file> --form <name>` prints the next answer to that
+  form and exits (`--timeout <s>` exits 2 on timeout). It first hands out
+  answers it has not handed out before, also ones given before you started
+  waiting, so you never miss one and never get one twice. Run it in the
   background and keep working; you are notified when it exits.
 - `whiteboard watch --page <file>` streams every submit on a page (for a
   monitor that stays open).
-- `whiteboard events --page <file> [--form <name>] [--last 1]` reads what was
-  already submitted — check this before asking again; the user may have
-  answered while you were busy.
+- `whiteboard events --page <file> [--form <name>] [--last 1]` lists what was
+  submitted so far, for when you need the history rather than the next
+  answer.
 
 After acting on an answer, update the page to say what you did with it.

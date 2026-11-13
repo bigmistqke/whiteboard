@@ -1,6 +1,7 @@
 # pages are working documents; remove this line to keep them in git
 pages/
-# form submits from the pages, and the running server's port and output
+# form submits from the pages, which ones `whiteboard wait` handed out, and the running server's port and output
 events.ndjson
+delivered.json
 server.json
 server.log

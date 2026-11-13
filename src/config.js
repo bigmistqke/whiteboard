@@ -5,6 +5,7 @@
 //   config.ts      templates and options
 //   pages/         the pages, served at /<page>
 //   events.ndjson  form submits
+//   delivered.json which submits `whiteboard wait` already handed out
 //   server.json    the port and process of this project's running server
 //   server.log     that server's output
 // Each project runs its own server; nothing is shared between projects.
@@ -47,6 +48,8 @@ export function project(dir) {
     wb,
     pagesDir: path.join(wb, 'pages'),
     eventsFile: path.join(wb, 'events.ndjson'),
+    /** per wait filter, the last submit `whiteboard wait` handed out */
+    deliveredFile: path.join(wb, 'delivered.json'),
     serverFile: path.join(wb, 'server.json'),
     logFile: path.join(wb, 'server.log'),
     styleFile: path.join(wb, 'style.css'),
