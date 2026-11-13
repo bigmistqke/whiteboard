@@ -11,8 +11,6 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createServer as createVite } from 'vite'
-import solid from '@solidjs/vite-plugin'
 import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
 import { appendEvent, readEvents, matches } from './events.js'
 import { createTemplateLoader } from './templates.js'
@@ -23,7 +21,8 @@ if (!PROJECT) throw new Error(`not inside a whiteboard project: no .whiteboard/c
 
 const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CLIENT_DIR = path.join(ENGINE_DIR, 'src', 'client')
-const DEFINE = path.join(ENGINE_DIR, 'src', 'define.ts')
+// the page runtime, built by build.js
+const RUNTIME_DIR = path.join(ENGINE_DIR, 'dist', 'client')
 const MIME = {
   '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
@@ -35,47 +34,38 @@ const OWN_FILES = new Set(['events.ndjson', 'delivered.json', 'server.json', 'se
 
 const httpServer = http.createServer()
 
-// Vite compiles template client modules (and loads the config). The Solid plugin is the default
-// toolchain for local .tsx templates; pre-built template packages need no compiler at all.
-const vite = await createVite({
-  configFile: false,
-  root: CLIENT_DIR,
-  appType: 'custom',
-  plugins: [solid()],
-  resolve: {
-    // templates and configs live anywhere on disk; give them the engine's single copies, and this
-    // package's own exports, so a project needs no node_modules to use them (ezno is Rust, say)
-    dedupe: ['solid-js', '@solidjs/web'],
-    alias: {
-      '@bigmistqke/whiteboard/config': DEFINE,
-      '@bigmistqke/whiteboard/template': DEFINE,
-      '@bigmistqke/whiteboard/client': path.join(CLIENT_DIR, 'api.ts'),
-      '@bigmistqke/whiteboard/basic': path.join(ENGINE_DIR, 'basic', 'index.ts'),
-      '@bigmistqke/whiteboard/solid': path.join(ENGINE_DIR, 'solid', 'index.tsx'),
-    },
-  },
-  optimizeDeps: { include: ['morphdom'] },
-  server: {
-    middlewareMode: true,
-    hmr: { server: httpServer },
-    fs: { strict: true, allow: [ENGINE_DIR, PROJECT.wb] },
-  },
-})
-const templates = createTemplateLoader(vite, PROJECT.configFile)
+const templates = createTemplateLoader(PROJECT.configFile)
 
-/** Vite serves only allowed folders; template folders are allowed and watched as pages use them. */
+// A template's client, style and readme are served from the folders they are in, at
+// /_/file/<absolute path>, and only from those folders. The folders are watched as pages use them.
+const allowed = new Set()
+const folderWatchers = []
+
 function allow(dir) {
-  const list = vite.config.server.fs.allow
-  if (!list.some(a => dir === a || dir.startsWith(a + path.sep))) {
-    list.push(dir)
-    vite.watcher.add(dir)
-  }
+  if (allowed.has(dir)) return
+  allowed.add(dir)
+  // .whiteboard/ itself is watched already (setFiles)
+  if (dir === PROJECT.wb || dir.startsWith(PROJECT.wb + path.sep)) return
+  try {
+    folderWatchers.push(fs.watch(dir, (_evt, name) => { if (name) onSourceChange(path.join(dir, name)) }))
+  } catch { /* a folder that went away is not served either */ }
+}
+
+function isAllowed(file) {
+  return [...allowed].some(dir => path.dirname(file) === dir)
 }
 
 /** Let the server hand out a template's client, style and readme files. */
 function allowTemplate(t) {
   if (t) for (const f of [t.client, t.style, t.readme]) if (f) allow(path.dirname(f))
 }
+
+/** The URL the browser loads a template file from. */
+const fileUrl = file => `/_/file${file.split(path.sep).map(encodeURIComponent).join('/')}`
+
+/** Islands as the browser gets them: the client module as a URL. */
+const publicIslands = islands =>
+  Object.fromEntries(Object.entries(islands).map(([id, island]) => [id, { ...island, client: fileUrl(island.client) }]))
 
 /** The loaded config. Also applies its `files` setting to what is served and watched. */
 async function config() {
@@ -281,18 +271,17 @@ function crumbs(id) {
 const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
 
 function shell(page) {
-  const styles = page.styles.map(s => `<link rel="stylesheet" href="/@fs${esc(s)}" data-wb-style>`).join('')
+  const styles = page.styles.map(s => `<link rel="stylesheet" href="${esc(fileUrl(s))}" data-wb-style>`).join('')
   const projectCss = fs.existsSync(PROJECT.styleFile) ? '<link rel="stylesheet" href="/_/project.css" data-wb-style>' : ''
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(page.title || page.id || PROJECT.name)}</title>
 <script>try{const t=localStorage.getItem('wb-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch{}</script>
-<link rel="stylesheet" href="/_/base.css" data-wb-style>${projectCss}${styles}
-<script type="module" src="/@vite/client"></script></head>
+<link rel="stylesheet" href="/_/base.css" data-wb-style>${projectCss}${styles}</head>
 <body data-page="${esc(page.id)}"${page.isDir ? ' data-dir' : ''}>
 <nav class="wb-nav"><span>${crumbs(page.id)}</span>${page.mtime ? `<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>` : ''}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark">auto</button><span class="wb-live" title="live reload"></span></nav>
 <main id="wb-main">${page.html}</main>
-<script type="application/json" id="wb-islands">${json(page.islands)}</script>
-<script type="module" src="/main.ts"></script></body></html>`
+<script type="application/json" id="wb-islands">${json(publicIslands(page.islands))}</script>
+<script type="module" src="/_/main.js"></script></body></html>`
 }
 
 // ---- live reload -------------------------------------------------------------------------------
@@ -328,7 +317,8 @@ function fileChanged(f) {
       return
     }
     if (OWN_FILES.has(inner)) return
-    // the config and local templates reload through Vite (onSourceChange)
+    // the config, or a template kept in .whiteboard/
+    return onSourceChange(path.join(PROJECT.dir, f))
   }
   if (!FILES) return
   // a repository file; its folder's listing shows it too
@@ -352,21 +342,27 @@ function setFiles(files) {
   })
 }
 
-// Components hot-reload through Vite. Styles reload in place. Anything else a template or config
-// is made of changes the server render: reload the config and re-render open pages.
-function onSourceChange(file) {
+// What a template or the config is made of changed. A style reloads in place; a template's browser
+// code (or the page runtime) reloads the pages, which keeps what the reader typed (drafts); anything
+// else changes the server render: load the config afresh and re-render open pages.
+let reloadTimer = null
+async function onSourceChange(file) {
   if (file.startsWith(PROJECT.pagesDir + path.sep)) return
   if (path.dirname(file) === PROJECT.wb && OWN_FILES.has(path.basename(file))) return
-  if (/\.[mc]?[jt]sx$/.test(file)) return
   if (file.endsWith('.css')) return notifyAll('style')
-  templates.invalidate()
-  vite.moduleGraph.invalidateAll()
-  notifyAll('change')
-  config()
+  // a readme is read afresh for every render of the docs
+  if (file.endsWith('.md')) return notifyAll('change')
+  const { templates: set } = await templates.config()
+  if (path.dirname(file) === RUNTIME_DIR || [...set.values()].some(t => t.client === file)) return notifyAll('reload')
+  // a build writes several files at once: load the config once they are all there
+  clearTimeout(reloadTimer)
+  reloadTimer = setTimeout(() => {
+    templates.invalidate()
+    config().then(() => notifyAll('change'))
+  }, 80)
 }
-vite.watcher.on('change', onSourceChange)
-vite.watcher.on('add', onSourceChange)
-vite.watcher.on('unlink', onSourceChange)
+// the page runtime, so that rebuilding it (node build.js --watch) reloads open pages
+try { fs.watch(RUNTIME_DIR, (_evt, name) => { if (name?.endsWith('.js')) notifyAll('reload') }) } catch { /* not built */ }
 
 // ---- http --------------------------------------------------------------------------------------
 
@@ -386,10 +382,6 @@ function readBody(req) {
   })
 }
 
-const isViteRequest = p =>
-  p.startsWith('/@') || p.startsWith('/__') || p.startsWith('/node_modules/') ||
-  (/\.(tsx?|jsx?|css|map)$/.test(p) && fs.existsSync(path.join(CLIENT_DIR, p)))
-
 const notFound = (res, id, html) => send(res, 404, shell({ id, title: 'Not found', islands: {}, styles: [], html }))
 
 httpServer.on('request', async (req, res) => {
@@ -399,7 +391,12 @@ httpServer.on('request', async (req, res) => {
     const p = decodeURIComponent(url.pathname)
     const q = Object.fromEntries(url.searchParams)
 
-    if (isViteRequest(p)) return vite.middlewares(req, res, () => send(res, 404, 'not found', 'text/plain'))
+    if (p === '/_/main.js') return send(res, 200, fs.readFileSync(path.join(RUNTIME_DIR, 'main.js')), 'text/javascript')
+    if (p.startsWith('/_/file/')) {
+      const file = path.resolve(p.slice('/_/file'.length))
+      if (!isAllowed(file) || !fs.existsSync(file)) return send(res, 404, 'not found', 'text/plain')
+      return send(res, 200, fs.readFileSync(file), MIME[path.extname(file)] || 'application/octet-stream')
+    }
 
     if (p === '/favicon.ico') { res.writeHead(204); return res.end() }
     if (p === '/api/health') return sendJson(res, 200, { ok: true, dir: PROJECT.dir, pid: process.pid })
@@ -469,7 +466,7 @@ httpServer.on('request', async (req, res) => {
     }
     if ('fragment' in q) {
       const { html, title, islands, styles, mtime } = page
-      return sendJson(res, 200, { html, title, islands, styles: styles.map(s => `/@fs${s}`), mtime: mtime ?? null })
+      return sendJson(res, 200, { html, title, islands: publicIslands(islands), styles: styles.map(fileUrl), mtime: mtime ?? null })
     }
     return send(res, 200, shell(page))
   } catch (err) {

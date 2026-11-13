@@ -52,7 +52,7 @@ export async function props(ctx: DirectiveContext) {
 export default {
   name: 'gallery',
   props,
-  client: new URL('./client.tsx', import.meta.url),
+  client: new URL('./client.js', import.meta.url),
   style: new URL('./style.css', import.meta.url),
   readme: new URL('./README.md', import.meta.url),
 } satisfies Template

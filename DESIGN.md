@@ -14,7 +14,7 @@ decisions.
   with none and loads none by default.
 - **Templates are modules.** A template is an object (usually returned by a
   factory taking options) that a config file imports from a package or a
-  local file, the way Vite plugins work. Packages can be built and published
+  local file, the way bundler plugins work. Packages can be built and published
   like any other npm package.
 - **Framework-agnostic.** A template's browser code exports
   `mount(element, props, api)`; the engine never imports a UI framework into
@@ -111,9 +111,13 @@ is left as written.
    - `:::name[label]{attrs}` … `:::` container directives, `::name[label]{attrs}`
      leaf directives, `:name[label]{attrs}` text directives
    - ```` ```name attrs ```` fences
-3. Loads config files and compiles template client modules with Vite
-   (middleware mode), with HMR. The Solid compiler is included so local
-   `.tsx` templates need no build step; pre-built packages need none at all.
+3. Loads the config with Node itself, which runs its TypeScript
+   (`src/load.js`). Two resolve hooks help it: `@bigmistqke/whiteboard/*`
+   always means the engine's own build, so a project needs no `node_modules`;
+   and the config and the local files it imports get a version in their
+   URL, so a change loads them afresh. Nothing compiles browser code: a
+   template's `client` is served as the file it is, so templates ship it as
+   JavaScript. There is no bundler in the engine.
 4. Live-reloads a page when its markdown file changes, patching it in place
    with morphdom: focus, caret, typed values, open `<details>` and mounted
    islands whose props did not change all survive (islands carry a
@@ -195,24 +199,27 @@ export default {
 - `api` (a `ClientApi`) gives the page id, the page's form submissions and the
   theme, each with a subscription. `@bigmistqke/whiteboard/solid` wraps it:
   `export default solid(Component)` and `useWhiteboard()` for signals.
-- Packages keep their UI framework as a peer dependency; the engine's Vite
-  dedupes `solid-js` and `@solidjs/web` so all Solid templates on a page share
-  one copy.
+- A client is one module the browser loads as it is, so a package bundles
+  what its client needs, UI framework included. `basic()`'s Solid clients
+  each carry their own copy of Solid; the cost is some bytes over a local
+  connection, and in return a client needs nothing from the page.
 
 ### Which templates apply
 
 The project's config is the only one. Within it, later entries replace
 earlier ones with the same name.
 
-Configs and template sources are watched: editing a client hot-reloads it,
-editing a style reloads stylesheets in place, editing anything else (config,
-server functions, readmes) re-renders open pages.
+Configs and template files are watched: a changed client reloads the open
+pages (what the reader typed survives as a draft), a changed style reloads
+stylesheets in place, anything else (config, server functions, readmes) loads
+the config afresh and re-renders open pages.
 
 ## Layout
 
 ```
 src/              the engine; ./config, ./template and ./client of the package
 bin/whiteboard.js the `whiteboard` command
+build.js          builds dist/: the page runtime, basic(), the Solid adapter (`npm run dev` watches)
 basic/            ./basic: grid, gallery, details, callout, form, mermaid, code: basic()
 solid/            ./solid: write template clients as Solid 2 components
 skills/whiteboard the agent skill: where to write pages, how to wait for input

@@ -20,7 +20,7 @@ async function mountOne(el: HTMLElement) {
   el.dataset.wbMounted = ''
   if (!island) return
   try {
-    const mod = await import(/* @vite-ignore */ `/@fs${island.client}`)
+    const mod = await import(island.client)
     if (!el.isConnected) return
     const mount: Mount = mod.default
     if (typeof mount !== 'function') throw new Error('the client module must export a mount(element, props, api) function as default')
@@ -304,6 +304,8 @@ function connect() {
   es.onopen = () => live?.classList.add('on')
   es.onerror = () => live?.classList.remove('on')
   es.addEventListener('change', () => refresh())
+  // a template's browser code changed: what the reader typed survives as a draft
+  es.addEventListener('reload', () => location.reload())
   es.addEventListener('style', () => {
     for (const link of document.querySelectorAll<HTMLLinkElement>('link[data-wb-style]')) {
       const url = new URL(link.href)

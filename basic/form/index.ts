@@ -58,7 +58,7 @@ export default {
   name: 'form',
   props,
   html,
-  client: new URL('./client.tsx', import.meta.url),
+  client: new URL('./client.js', import.meta.url),
   style: new URL('./style.css', import.meta.url),
   readme: new URL('./README.md', import.meta.url),
 } satisfies Template

@@ -1,8 +1,9 @@
-// Templates come from the project's `.whiteboard/config.ts`. It is loaded through Vite, so it can
+// Templates come from the project's `.whiteboard/config.ts`. Node loads it (see load.js), so it can
 // be TypeScript and import template packages from the project's own node_modules.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { importFresh } from './load.js'
 
 const NAME = /^[\w-]+$/
 
@@ -45,17 +46,16 @@ function normalize(t, source) {
 }
 
 /**
- * The project's config, loaded through Vite (cached until invalidate()). Errors are returned, not
+ * The project's config, loaded by Node (cached until invalidate(), which loads it afresh). Errors are returned, not
  * thrown. `code` is the template for code blocks no template claims by name: the last one with
  * `code: true`. `files` is false when the config turns the repository view off.
- * @param {import('vite').ViteDevServer} vite
  * @param {string} configFile
  */
-export function createTemplateLoader(vite, configFile) {
+export function createTemplateLoader(configFile) {
   let cached = null
 
   async function load() {
-    const mod = await vite.ssrLoadModule(configFile)
+    const mod = await importFresh(configFile)
     let config = mod.default
     if (typeof config === 'function') config = await config()
     const templates = new Map()

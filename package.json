@@ -26,30 +26,45 @@
     "whiteboard": "bin/whiteboard.js"
   },
   "exports": {
-    "./config": "./src/define.ts",
-    "./template": "./src/define.ts",
-    "./client": "./src/client/api.ts",
-    "./basic": "./basic/index.ts",
-    "./solid": "./solid/index.tsx"
+    "./config": {
+      "types": "./src/define.ts",
+      "default": "./dist/define.js"
+    },
+    "./template": {
+      "types": "./src/define.ts",
+      "default": "./dist/define.js"
+    },
+    "./client": {
+      "types": "./src/client/api.ts"
+    },
+    "./basic": {
+      "types": "./basic/index.ts",
+      "default": "./dist/basic/index.js"
+    },
+    "./solid": {
+      "types": "./solid/index.tsx",
+      "default": "./dist/solid/index.js"
+    }
   },
   "files": [
     "bin",
     "src",
+    "dist",
     "basic",
     "solid",
     "skills"
   ],
   "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch",
+    "prepare": "node build.js",
     "start": "node bin/whiteboard.js serve"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "dependencies": {
-    "@solidjs/vite-plugin": "^3.0.0-next.57",
-    "@solidjs/web": "^2.0.0-rc.21",
     "mdast-util-to-string": "^4.0.0",
-    "morphdom": "^2.7.7",
     "pele": "^1.13.0",
     "rehype-stringify": "^10.0.1",
     "remark-directive": "^4.0.0",
@@ -57,8 +72,25 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
     "shiki": "^4.6.0",
+    "unified": "^11.0.5"
+  },
+  "peerDependencies": {
     "solid-js": "^2.0.0-rc.21",
-    "unified": "^11.0.5",
-    "vite": "^8.3.8"
+    "@solidjs/web": "^2.0.0-rc.21"
+  },
+  "peerDependenciesMeta": {
+    "solid-js": {
+      "optional": true
+    },
+    "@solidjs/web": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@solidjs/compiler": "^2.0.0-rc.21",
+    "@solidjs/web": "^2.0.0-rc.21",
+    "morphdom": "^2.7.7",
+    "rolldown": "^1.2.19",
+    "solid-js": "^2.0.0-rc.21"
   }
 }

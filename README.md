@@ -25,7 +25,7 @@ npx whiteboard init                # creates .whiteboard/ with a config and a pa
 Then give your agent the skill that tells it how to use the whiteboard
 ([below](#the-agent-skill)).
 
-Requires Node 22 or later.
+Requires Node 22.18 or later (it runs the TypeScript config itself).
 
 <details>
 <summary>Without npm in the repository, or for every project at once</summary>
@@ -219,7 +219,7 @@ import type { Template } from '@bigmistqke/whiteboard/template'
 export default {
   name: 'timeline',
   html: ctx => `<ol class="timeline">…</ol>`,             // server: the block's HTML
-  client: new URL('./timeline.tsx', import.meta.url),     // browser: default export mount(el, props, api)
+  client: new URL('./timeline.js', import.meta.url),      // browser: default export mount(el, props, api)
   style: new URL('./timeline.css', import.meta.url),      // linked on pages that use it
   readme: new URL('./timeline.md', import.meta.url),      // its syntax, shown by `whiteboard docs`
 } satisfies Template
@@ -231,9 +231,11 @@ client. A template with `code: true` also renders every code block no other
 template claims. See [DESIGN.md](https://github.com/bigmistqke/whiteboard/blob/main/DESIGN.md#templates)
 for the full contract.
 
-The package ships TypeScript sources. They run through whiteboard's own Vite,
-so there's no build step for you, but they aren't meant to be imported
-outside a whiteboard config.
+The config and a template's server side can be TypeScript: Node runs it as
+it is. The browser gets the `client` file as it is too, so a client written
+in TypeScript or JSX needs building to JavaScript first, with whatever tool
+you like; the server reloads the open pages when that file changes. The
+templates in `basic()` ship built.
 
 ## The agent skill
 
