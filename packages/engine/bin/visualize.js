@@ -151,7 +151,7 @@ switch (cmd) {
     const info = await api(`/api/templates${project ? `?project=${encodeURIComponent(project.name)}` : ''}`)
     for (const e of info.errors) console.error(`config error: ${e}`)
     for (const t of info.templates)
-      console.log(`${t.name.padEnd(14)} ${[t.html && 'html', t.props && 'props', t.client && 'client'].filter(Boolean).join('+').padEnd(18)} ${t.source}`)
+      console.log(`${t.name.padEnd(14)} ${[t.html && 'html', t.props && 'props', t.client && 'client', t.code && 'code'].filter(Boolean).join('+').padEnd(18)} ${t.source}`)
     if (!info.templates.length) console.log('no templates; add them to the templates array of .visualize/config.ts')
     break
   }

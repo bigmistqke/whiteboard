@@ -62,9 +62,8 @@ registers itself. `/` lists every project's pages.
 
 1. Turns markdown into HTML: remark (GFM + `remark-directive`), then rehype.
    Raw HTML passes through, so `<details>` and hand-written forms work.
-   Code blocks that no template handles are highlighted on the server with
-   Shiki; each token carries a light and a dark colour as CSS variables, so
-   highlighting follows the theme without scripts.
+   Code blocks that no template handles render as plain `<pre><code>`, unless
+   the config has a code template (below).
 2. Resolves extension points to templates:
    - `:::name[label]{attrs}` … `:::` container directives, `::name[label]{attrs}`
      leaf directives, `:name[label]{attrs}` text directives
@@ -134,6 +133,12 @@ export default {
   (`sections` splits the content at its shallowest headings, or at blank
   lines when there are none); a fence client gets `{ name, attrs, text }`.
 - A template with only `html` is static: no JavaScript on the page.
+- `code: true` makes a template the one for code blocks in general: it also
+  gets every fence no template claims by name, and the code view of
+  repository files, with the fence's language in `ctx.lang`. Highlighting is
+  a template for the same reason a diagram is: themes and colours are a
+  choice, and the engine makes none. The last `code` template in config
+  order wins. Without one, code renders plain, which is still a valid page.
 - Layout classes a template can put on its outermost element: `.vz-figure`
   runs up to `--figure` (920px) wide, like a standalone image or a diagram;
   `.vz-wide` runs up to `--wide` (1040px), like a grid of cards. Both centre
@@ -162,7 +167,7 @@ server functions, readmes) re-renders open pages.
 ```
 packages/engine           the engine and the `visualize` CLI
 packages/solid            @visualize/solid: write template clients as Solid 2 components
-packages/templates-basic  grid, gallery, details, callout, form, mermaid: basic()
+packages/templates-basic  grid, gallery, details, callout, form, mermaid, code: basic()
 skills/visualize          the agent skill: where to write pages, how to wait for input
 .visualize/               this repository as a visualize project (dogfooding)
 ```

@@ -8,7 +8,6 @@ import { ROOT, PORT, EVENTS_FILE, REGISTRY_FILE, globalConfigFile, projects, pro
 import { appendEvent, readEvents, matches } from './events.js'
 import { createTemplateLoader } from './templates.js'
 import { renderMarkdown, esc } from './markdown.js'
-import { highlight } from './highlight.js'
 
 const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CLIENT_DIR = path.join(ENGINE_DIR, 'src', 'client')
@@ -201,15 +200,26 @@ async function renderRepo(id, loc) {
   if (/\.(md|markdown)$/i.test(target)) return { id, ...(await renderFile(target, id, loc.project)), mtime: stat.mtimeMs }
   if (stat.size > 1e6 || !isText(target)) return null
   const ext = path.extname(target).slice(1).toLowerCase()
-  const code = fs.readFileSync(target, 'utf8')
-  const html = `<h1 class="vz-code-title vz-wide">${esc(loc.rel)}</h1><div class="vz-code vz-wide">${await highlight(code, CODE_LANG[ext] ?? ext)}</div>`
-  return { id, title: path.basename(target), html, islands: {}, styles: [], mtime: stat.mtimeMs }
+  const value = fs.readFileSync(target, 'utf8')
+  // the file as one code block, rendered by the config's code template (or as plain code); no template claims it by name
+  const { code, errors } = await templates.forProject(loc.project)
+  allowTemplate(code)
+  const tree = { type: 'root', children: [{ type: 'code', lang: CODE_LANG[ext] ?? (ext || null), meta: null, value }] }
+  const out = await renderMarkdown(tree, { page: id, file: target, resolve: () => null, code, linkFor })
+  const notice = errors.map(e => `<pre class="vz-error">config: ${esc(e.message)}</pre>`).join('')
+  const html = `${notice}<h1 class="vz-code-title vz-wide">${esc(loc.rel)}</h1><div class="vz-code vz-wide">${out.html}</div>`
+  return { id, title: path.basename(target), html, islands: out.islands, styles: out.styles, mtime: stat.mtimeMs }
+}
+
+/** Let the server hand out a template's client, style and readme files. */
+function allowTemplate(t) {
+  if (t) for (const f of [t.client, t.style, t.readme]) if (f) allow(path.dirname(f))
 }
 
 async function renderFile(file, page, project) {
-  const { templates: set, errors } = await templates.forProject(project)
-  for (const t of set.values()) for (const f of [t.client, t.style, t.readme]) if (f) allow(path.dirname(f))
-  const rendered = await renderMarkdown(fs.readFileSync(file, 'utf8'), { page, file, resolve: name => set.get(name) ?? null, linkFor })
+  const { templates: set, code, errors } = await templates.forProject(project)
+  for (const t of set.values()) allowTemplate(t)
+  const rendered = await renderMarkdown(fs.readFileSync(file, 'utf8'), { page, file, resolve: name => set.get(name) ?? null, code, linkFor })
   const notice = errors.map(e => `<pre class="vz-error">config: ${esc(e.message)}</pre>`).join('')
   return { ...rendered, html: notice + rendered.html }
 }
@@ -235,7 +245,7 @@ async function templateInfo(project) {
   return {
     errors: errors.map(e => e.message),
     templates: [...set.values()].sort((a, b) => a.name.localeCompare(b.name)).map(t => ({
-      name: t.name, source: t.source, client: !!t.client, html: !!t.html, props: !!t.props,
+      name: t.name, source: t.source, code: t.code, client: !!t.client, html: !!t.html, props: !!t.props,
       readme: t.readme ? fs.readFileSync(t.readme, 'utf8') : null,
     })),
   }
@@ -245,7 +255,7 @@ async function renderDocs(projectName) {
   const project = projectName ? projectByName(projectName) : null
   const { templates: list, errors } = await templateInfo(project)
   const parts = list.map(t => {
-    const where = `<p class="vz-meta">from <code>${esc(t.source)}</code>${t.client ? ' · client' : ''}${t.html ? ' · html' : ''}${t.props ? ' · props' : ''}</p>`
+    const where = `<p class="vz-meta">from <code>${esc(t.source)}</code>${t.code ? ' · code blocks' : ''}${t.client ? ' · client' : ''}${t.html ? ' · html' : ''}${t.props ? ' · props' : ''}</p>`
     const readme = t.readme ?? `# ${t.name}\n\n_No readme._\n`
     return readme.replace(/^(#\s.*)$/m, `$1\n\n${where}\n`)
   })
@@ -255,8 +265,8 @@ async function renderDocs(projectName) {
     : `# Templates\n\nNo templates ${scope}. Add them to the \`templates\` array in ${project ? `\`${project.configFile}\`` : `\`${ROOT}/config.ts\``}.\n`
   // docs are not a file; this path only serves as the render's location for relative references
   const file = project ? path.join(project.pagesDir, '_docs.md') : path.join(ROOT, '_docs.md')
-  const { templates: set } = await templates.forProject(project)
-  const out = await renderMarkdown(intro + parts.join('\n\n---\n\n'), { page: '_/docs', file, resolve: name => set.get(name) ?? null, linkFor })
+  const { templates: set, code } = await templates.forProject(project)
+  const out = await renderMarkdown(intro + parts.join('\n\n---\n\n'), { page: '_/docs', file, resolve: name => set.get(name) ?? null, code, linkFor })
   const notice = errors.map(e => `<pre class="vz-error">config: ${esc(e)}</pre>`).join('')
   return { id: '_/docs', ...out, html: notice + out.html, title: 'Templates' }
 }

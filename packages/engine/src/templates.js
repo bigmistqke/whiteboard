@@ -38,6 +38,7 @@ function normalize(t, source) {
     if (file && !fs.existsSync(file)) throw new Error(`template "${t.name}": ${field} file not found: ${file}`)
   return {
     name: t.name,
+    code: t.code === true,
     props: typeof t.props === 'function' ? t.props.bind(t) : null,
     html: typeof t.html === 'function' ? t.html.bind(t) : null,
     ...files,
@@ -76,15 +77,21 @@ export function createTemplateLoader(vite) {
 
   /**
    * Templates that apply to a project's pages (or, with no project, to the root's pages):
-   * the global config's, replaced by name with the project's.
-   * @returns {Promise<{ templates: Map<string, object>, errors: Error[] }>}
+   * the global config's, replaced by name with the project's. `code` is the template for code
+   * blocks no template claims by name: the last one with `code: true` that was not replaced.
+   * @returns {Promise<{ templates: Map<string, object>, code: object | null, errors: Error[] }>}
    */
   async function forProject(project) {
     const files = [globalConfigFile(), project?.configFile].filter(Boolean)
     const loaded = await Promise.all(files.map(config))
     const templates = new Map()
-    for (const c of loaded) for (const [name, t] of c.templates) templates.set(name, t)
-    return { templates, errors: loaded.map(c => c.error).filter(Boolean) }
+    let code = null
+    for (const c of loaded) for (const [name, t] of c.templates) {
+      templates.set(name, t)
+      if (t.code) code = t
+    }
+    if (code && templates.get(code.name) !== code) code = [...templates.values()].findLast(t => t.code) ?? null
+    return { templates, code, errors: loaded.map(c => c.error).filter(Boolean) }
   }
 
   return { forProject, invalidate: () => cache.clear() }

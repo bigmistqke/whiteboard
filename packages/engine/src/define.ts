@@ -31,6 +31,12 @@ export const defineConfig = (config: Config): Config => config
  */
 export interface Template<Props = unknown> {
   name: string
+  /**
+   * Also render every fence that no template claims by name, and the code view of repository
+   * files: the template for code blocks in general, such as a syntax highlighter. When several
+   * templates set it, the last one in config order wins (a project's after the global config's).
+   */
+  code?: boolean
   /** props for the client; JSON-serialisable. Without it a client gets the defaults (see DirectiveProps / FenceProps). */
   props?(ctx: ServerContext): Props | Promise<Props>
   /** HTML for the block. Without `client` this is the whole output; with it, what shows until it mounts. */
@@ -99,6 +105,8 @@ export interface DirectiveContext extends BaseContext {
 export interface FenceContext extends BaseContext {
   kind: 'fence'
   text: string
+  /** the fence's language (its first word); for a fence claimed by name it equals `name`, null when there is none */
+  lang: string | null
 }
 
 export type ServerContext = DirectiveContext | FenceContext

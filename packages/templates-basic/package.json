@@ -1,11 +1,12 @@
 {
   "name": "@visualize/templates-basic",
   "version": "0.1.0",
-  "description": "Basic templates for visualize: grid, gallery, details, callout, form, mermaid (via Pele)",
+  "description": "Basic templates for visualize: grid, gallery, details, callout, form, mermaid (via Pele), code (syntax highlighting via Shiki)",
   "type": "module",
   "private": true,
   "dependencies": {
     "pele": "^1.13.0",
+    "shiki": "^4.6.0",
     "@visualize/solid": "0.1.0"
   },
   "exports": {

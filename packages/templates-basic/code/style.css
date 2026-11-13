@@ -1,0 +1,17 @@
+/* Code blocks highlighted by Shiki: tokens carry both colours; pick the one for the current theme.
+   The block keeps the page's own code background. */
+pre.shiki { background: var(--code-bg); }
+.shiki span {
+  color: var(--shiki-light); font-style: var(--shiki-light-font-style);
+  font-weight: var(--shiki-light-font-weight); text-decoration: var(--shiki-light-text-decoration);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shiki span {
+    color: var(--shiki-dark); font-style: var(--shiki-dark-font-style);
+    font-weight: var(--shiki-dark-font-weight); text-decoration: var(--shiki-dark-text-decoration);
+  }
+}
+:root[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark); font-style: var(--shiki-dark-font-style);
+  font-weight: var(--shiki-dark-font-weight); text-decoration: var(--shiki-dark-text-decoration);
+}

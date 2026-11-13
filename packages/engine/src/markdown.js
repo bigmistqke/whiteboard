@@ -13,7 +13,6 @@ import remarkDirective from 'remark-directive'
 import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import { toString } from 'mdast-util-to-string'
-import { highlight } from './highlight.js'
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkDirective).freeze()
 const toHast = unified().use(remarkRehype, { allowDangerousHtml: true }).use(rehypeStringify, { allowDangerousHtml: true }).freeze()
@@ -106,11 +105,12 @@ function literalDirective(node, label) {
 }
 
 /**
- * @param {string} source
- * @param {{ page: string, file: string, resolve: (name: string) => object | null, linkFor?: (absolutePath: string) => string | null }} opts
- *   resolve returns a normalised template (see templates.js): { name, props, html, client, style }
+ * @param {string | object} source  markdown, or an mdast root to render as it is
+ * @param {{ page: string, file: string, resolve: (name: string) => object | null, code?: object | null, linkFor?: (absolutePath: string) => string | null }} opts
+ *   resolve returns a normalised template (see templates.js): { name, props, html, client, style };
+ *   code is the template for fences no template claims by name (without one they render as plain code)
  */
-export async function renderMarkdown(source, { page, file, resolve, linkFor }) {
+export async function renderMarkdown(source, { page, file, resolve, code = null, linkFor }) {
   let nextId = 0
   const islands = {}
   const keyCount = {}
@@ -207,20 +207,23 @@ export async function renderMarkdown(source, { page, file, resolve, linkFor }) {
   }
 
   async function fence(node) {
-    const template = node.lang ? resolve(node.lang) : null
-    // a plain code block: highlighted on the server
-    if (!template) return { type: 'html', value: await highlight(node.value, node.lang) }
+    const lang = node.lang || null
+    const plain = async () => `<pre><code${lang ? ` class="language-${esc(lang)}"` : ''}>${esc(node.value)}</code></pre>`
+    const template = (lang && resolve(lang)) || code
+    if (!template) return { type: 'html', value: await plain() }
+    const name = template === code && lang !== code.name ? code.name : lang
     const attrs = parseAttrs(node.meta)
     const ctx = {
       ...base,
       kind: 'fence',
-      name: node.lang,
+      name,
+      lang,
       attrs,
       text: node.value,
       node,
-      defaults: async () => ({ name: node.lang, attrs, text: node.value }),
+      defaults: async () => ({ name, attrs, text: node.value }),
     }
-    return { type: 'html', value: await run(template, ctx, async () => `<pre><code>${esc(node.value)}</code></pre>`) }
+    return { type: 'html', value: await run(template, ctx, plain) }
   }
 
   async function transform(parent) {
@@ -234,7 +237,7 @@ export async function renderMarkdown(source, { page, file, resolve, linkFor }) {
     }
   }
 
-  const tree = parse(source)
+  const tree = typeof source === 'string' ? parse(source) : source
   const h1 = tree.children.find(n => n.type === 'heading' && n.depth === 1)
   const title = h1 ? toString(h1) : null
   await transform(tree)
