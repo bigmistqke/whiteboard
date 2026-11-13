@@ -13,6 +13,7 @@ import remarkDirective from 'remark-directive'
 import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import { toString } from 'mdast-util-to-string'
+import { highlight } from './highlight.js'
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkDirective).freeze()
 const toHast = unified().use(remarkRehype, { allowDangerousHtml: true }).use(rehypeStringify, { allowDangerousHtml: true }).freeze()
@@ -206,8 +207,9 @@ export async function renderMarkdown(source, { page, file, resolve, linkFor }) {
   }
 
   async function fence(node) {
-    const template = resolve(node.lang)
-    if (!template) return node
+    const template = node.lang ? resolve(node.lang) : null
+    // a plain code block: highlighted on the server
+    if (!template) return { type: 'html', value: await highlight(node.value, node.lang) }
     const attrs = parseAttrs(node.meta)
     const ctx = {
       ...base,
@@ -227,7 +229,7 @@ export async function renderMarkdown(source, { page, file, resolve, linkFor }) {
     for (let i = 0; i < kids.length; i++) {
       const node = kids[i]
       if (DIRECTIVES.has(node.type)) kids[i] = await directive(node)
-      else if (node.type === 'code' && node.lang) kids[i] = await fence(node)
+      else if (node.type === 'code') kids[i] = await fence(node)
       else await transform(node)
     }
   }

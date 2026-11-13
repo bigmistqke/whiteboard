@@ -8,6 +8,7 @@ import { ROOT, PORT, EVENTS_FILE, REGISTRY_FILE, globalConfigFile, projects, pro
 import { appendEvent, readEvents, matches } from './events.js'
 import { createTemplateLoader } from './templates.js'
 import { renderMarkdown, esc } from './markdown.js'
+import { highlight } from './highlight.js'
 
 const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CLIENT_DIR = path.join(ENGINE_DIR, 'src', 'client')
@@ -199,9 +200,9 @@ async function renderRepo(id, loc) {
   }
   if (/\.(md|markdown)$/i.test(target)) return { id, ...(await renderFile(target, id, loc.project)), mtime: stat.mtimeMs }
   if (stat.size > 1e6 || !isText(target)) return null
-  const lang = CODE_LANG[path.extname(target).slice(1).toLowerCase()] ?? ''
+  const ext = path.extname(target).slice(1).toLowerCase()
   const code = fs.readFileSync(target, 'utf8')
-  const html = `<h1 class="vz-code-title">${esc(loc.rel)}</h1><pre class="vz-code"><code${lang ? ` class="language-${lang}"` : ''}>${esc(code)}</code></pre>`
+  const html = `<h1 class="vz-code-title vz-wide">${esc(loc.rel)}</h1><div class="vz-code vz-wide">${await highlight(code, CODE_LANG[ext] ?? ext)}</div>`
   return { id, title: path.basename(target), html, islands: {}, styles: [], mtime: stat.mtimeMs }
 }
 

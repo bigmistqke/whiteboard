@@ -62,6 +62,9 @@ registers itself. `/` lists every project's pages.
 
 1. Turns markdown into HTML: remark (GFM + `remark-directive`), then rehype.
    Raw HTML passes through, so `<details>` and hand-written forms work.
+   Code blocks that no template handles are highlighted on the server with
+   Shiki; each token carries a light and a dark colour as CSS variables, so
+   highlighting follows the theme without scripts.
 2. Resolves extension points to templates:
    - `:::name[label]{attrs}` … `:::` container directives, `::name[label]{attrs}`
      leaf directives, `:name[label]{attrs}` text directives
