@@ -1,0 +1,16 @@
+/* Pele reads its colours from --pele-* variables; map them onto the page's tokens so diagrams
+   follow the theme without being re-rendered. */
+.vz-diagram {
+  margin: 4em 0; overflow-x: auto; text-align: center;
+  --pele-bg: transparent;
+  --pele-fg: var(--text);
+  --pele-muted: var(--muted);
+  --pele-line: var(--muted);
+  --pele-surface: var(--surface);
+  --pele-surface-alt: var(--code-bg);
+  --pele-border: var(--border);
+  --pele-accent: var(--accent);
+  --pele-font: var(--sans);
+  --pele-radius: 6px;
+}
+.vz-diagram svg { max-width: 100%; height: auto; }

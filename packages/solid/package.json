@@ -1,0 +1,11 @@
+{
+  "name": "@visualize/solid",
+  "version": "0.1.0",
+  "description": "Write visualize template clients as Solid 2 components",
+  "type": "module",
+  "exports": { ".": "./index.tsx" },
+  "peerDependencies": {
+    "solid-js": "^2.0.0-rc.21",
+    "@solidjs/web": "^2.0.0-rc.21"
+  }
+}

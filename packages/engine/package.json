@@ -1,0 +1,31 @@
+{
+  "name": "@visualize/engine",
+  "version": "0.1.0",
+  "description": "Serve markdown as live HTML pages; directives and fences resolve to templates from config files; named form submits append to an ndjson log",
+  "type": "module",
+  "bin": {
+    "visualize": "bin/visualize.js"
+  },
+  "exports": {
+    "./config": "./src/define.ts",
+    "./template": "./src/define.ts",
+    "./client": "./src/client/api.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@solidjs/vite-plugin": "^3.0.0-next.57",
+    "@solidjs/web": "^2.0.0-rc.21",
+    "mdast-util-to-string": "^4.0.0",
+    "morphdom": "^2.7.7",
+    "rehype-stringify": "^10.0.1",
+    "remark-directive": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "solid-js": "^2.0.0-rc.21",
+    "unified": "^11.0.5",
+    "vite": "^8.3.8"
+  }
+}

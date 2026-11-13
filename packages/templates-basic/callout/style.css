@@ -1,0 +1,12 @@
+/* a margin note: a coloured rule and a light tint, set in the body face */
+.vz-callout {
+  --c: var(--info);
+  margin: 3.4em 0; padding: 1em 1.3em; border-left: 3px solid var(--c);
+  background: color-mix(in srgb, var(--c) 6%, var(--bg)); border-radius: 0 var(--radius) var(--radius) 0;
+}
+.vz-callout > :first-child { margin-top: 0; }
+.vz-callout > :last-child { margin-bottom: 0; }
+.vz-callout-title { font: 600 .8rem/1.4 var(--sans); color: var(--c); margin-bottom: .5em; letter-spacing: .01em; }
+.vz-callout:is([data-type=tip], [data-type=success]) { --c: var(--ok); }
+.vz-callout:is([data-type=warning], [data-type=question]) { --c: var(--warn); }
+.vz-callout[data-type=danger] { --c: var(--bad); }

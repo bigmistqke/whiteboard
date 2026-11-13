@@ -1,0 +1,189 @@
+/* Base page style: an article, set for reading. Templates bring their own style.css;
+   <root>/style.css is loaded after this file to override anything here.
+
+   Theme: follows the system unless <html data-theme="light|dark"> is set (the nav toggle). */
+:root {
+  --bg: #fdfdfc; --surface: #ffffff; --text: #1b1c1e; --muted: #696e76; --border: #e3e5e9;
+  --accent: #1d5bbf; --accent-text: #ffffff; --code-bg: #f2f3f5; --tint: #f6f7f9;
+  --ok: #1a7a49; --warn: #6b4fc0; --bad: #c4352b; --info: #1d5bbf;
+  --radius: 8px; --shadow: none;
+  --serif: "Iowan Old Style", "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --measure: 680px;
+  --wide: 1040px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131417; --surface: #191a1e; --text: #e4e5e7; --muted: #979ca5; --border: #2b2e34;
+    --accent: #82aaff; --accent-text: #0d1220; --code-bg: #1e2026; --tint: #1a1c21;
+    --ok: #57c48c; --warn: #b4a0ff; --bad: #ff6f66; --info: #82aaff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131417; --surface: #191a1e; --text: #e4e5e7; --muted: #979ca5; --border: #2b2e34;
+  --accent: #82aaff; --accent-text: #0d1220; --code-bg: #1e2026; --tint: #1a1c21;
+  --ok: #57c48c; --warn: #b4a0ff; --bad: #ff6f66; --info: #82aaff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 19px/1.72 var(--serif);
+  font-kerning: normal; font-variant-numeric: oldstyle-nums proportional-nums;
+  text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
+}
+/* The column: headings sit on its left edge, everything else is indented by --indent, and section
+   numbers hang in the margin left of the headings. */
+main { --indent: 34px; max-width: calc(var(--measure) + var(--indent) + 32px); margin: 0 auto; padding: 120px 16px 220px; }
+main > :first-child { margin-top: 0; }
+#vz-main > :not(h1, h2, h3, h4, h5, h6, hr, .vz-wide, .vz-island:has(.vz-wide)) { margin-left: var(--indent); }
+#vz-main > :is(h1, h2, h3, h4) + * { margin-top: 0; }
+
+/* text */
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+a:hover { text-decoration-color: currentColor; }
+h1, h2, h3, h4 { font-family: var(--serif); font-weight: 500; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+h1 { font-size: 2.9rem; line-height: 1.08; margin: 0 0 1.1em; letter-spacing: -0.022em; }
+h2 { font-size: 1.62rem; margin: 4.6em 0 1.5em; }
+h3 { font-size: 1.2rem; margin: 3.4em 0 1.2em; }
+#vz-main > h3 { font-style: italic; } /* section headings only; card titles stay upright */
+h4 { font: 600 .74rem/1.4 var(--sans); text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 3em 0 1.1em; }
+p, ul, ol, blockquote, pre, table { margin: 0 0 2.2em; }
+p { margin-bottom: 2.4em; }
+p { text-wrap: pretty; hyphens: auto; }
+ul, ol { padding-left: 1.4em; }
+li::marker { color: var(--muted); }
+li + li { margin-top: .8em; }
+li > p { margin-bottom: .8em; }
+strong { font-weight: 650; }
+img, video { max-width: 100%; height: auto; border-radius: 4px; }
+figure { margin: 3.6em 0; }
+figcaption { font: italic .9rem/1.5 var(--serif); color: var(--muted); margin-top: .7em; }
+code { font: .82em/1.5 var(--mono); background: var(--code-bg); padding: .12em .35em; border-radius: 4px; }
+pre { margin: 3em 0; background: var(--code-bg); padding: 14px 16px; border-radius: var(--radius); overflow-x: auto; font-size: .92rem; line-height: 1.55; }
+pre code { background: none; padding: 0; font-size: .82rem; }
+table { margin: 3em 0; border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; font: .88rem/1.5 var(--sans); }
+th, td { border-bottom: 1px solid var(--border); padding: 7px 12px 7px 0; text-align: left; vertical-align: top; }
+th { font-weight: 600; color: var(--muted); }
+li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.4em; }
+li > input[type=checkbox] { margin-right: 8px; }
+
+/* standfirst: the paragraph right under the title introduces the piece */
+#vz-main > h1 + p {
+  font-size: 1.24em; line-height: 1.5; color: color-mix(in srgb, var(--text) 72%, var(--bg));
+  margin-bottom: 3.6em; padding-bottom: 2.6em; border-bottom: 1px solid var(--border);
+}
+/* pull quote */
+blockquote {
+  margin: 3.4em 0; padding: 0 0 0 1em; border-left: 2px solid var(--text);
+  font-size: 1.24em; line-height: 1.45; font-style: italic; color: var(--text);
+}
+blockquote > :last-child { margin-bottom: 0; }
+/* a section break: an asterism instead of a rule */
+hr { border: 0; margin: 4.6em 0; text-align: center; height: auto; }
+hr::after { content: "⁂"; font-size: 1.1em; color: var(--muted); letter-spacing: .3em; }
+
+/* section numbers hanging in the margin: 1, 1.1, 1.1.1, in italic oldstyle figures. Only the
+   page's own headings (direct children of main), so headings inside cards stay unnumbered. The
+   number is an inline-block pulled into the margin, so it shares the heading's baseline. */
+#vz-main { counter-reset: h2; }
+#vz-main > h2 { counter-increment: h2; counter-reset: h3; }
+#vz-main > h3 { counter-increment: h3; counter-reset: h4; }
+#vz-main > h4 { counter-increment: h4; }
+#vz-main > :is(h2, h3, h4)::before {
+  display: inline-block; box-sizing: content-box; width: 64px; margin-left: -86px; margin-right: 22px; text-align: right;
+  font-family: var(--serif); font-style: italic; font-weight: 400; font-variant-numeric: oldstyle-nums tabular-nums;
+  color: var(--muted); letter-spacing: 0; text-transform: none; white-space: nowrap;
+}
+#vz-main > h2::before { content: counter(h2); font-size: .82em; }
+#vz-main > h3::before { content: counter(h2) "." counter(h3); font-size: .88em; }
+#vz-main > h4::before { content: counter(h2) "." counter(h3) "." counter(h4); font-size: 1.3em; }
+/* no margin to hang them in: set the number in front of the heading, and indent less */
+@media (max-width: 860px) {
+  main { --indent: 0px; }
+  #vz-main > :is(h2, h3, h4)::before { width: auto; margin-left: 0; margin-right: .6em; text-align: left; }
+}
+
+/* a <details>: a quiet, collapsible section rather than a box */
+details { margin: 3.2em 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+details + details { margin-top: -3.2em; border-top: 0; }
+details > summary {
+  cursor: pointer; list-style: none; padding: .95em 0; font: 500 .95rem/1.4 var(--sans); color: var(--text);
+  display: flex; gap: .6em; align-items: baseline;
+}
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "+"; font: 400 1.1em/1 var(--mono); color: var(--muted); width: .8em; flex: none; }
+details[open] > summary::before { content: "−"; }
+details > summary:hover { color: var(--accent); }
+details > :not(summary) { margin-left: 1.4em; }
+details[open] > :last-child { margin-bottom: 2em; }
+
+/* blocks that may run wider than the text column (templates opt in with .vz-wide) */
+/* positioned with left + transform, not margins, so a template's own margin rules can't undo it */
+.vz-wide { width: min(var(--wide), 100vw - 32px); position: relative; left: 50%; transform: translateX(-50%); }
+
+/* frame */
+.vz-nav {
+  position: sticky; top: 0; z-index: 5; display: flex; gap: 14px; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px);
+  font: .8rem/1.4 var(--sans); color: var(--muted);
+}
+.vz-nav > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vz-nav a { color: var(--muted); text-decoration: none; }
+.vz-nav a:hover { color: var(--text); }
+.vz-live { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; opacity: .4; }
+.vz-live.on { background: var(--ok); opacity: 1; }
+.vz-theme {
+  font: inherit; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 99px;
+  padding: 2px 10px; cursor: pointer;
+}
+.vz-theme:hover { color: var(--text); border-color: var(--muted); }
+.vz-meta { color: var(--muted); font: .8rem/1.5 var(--sans); }
+.vz-index { padding: 0; }
+.vz-index li { list-style: none; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.vz-index .vz-meta { display: block; }
+.vz-error { color: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--bg)); white-space: pre-wrap; font: .8rem/1.5 var(--mono); }
+.vz-unknown > .vz-label { color: var(--muted); }
+.vz-island { display: block; }
+span.vz-island { display: inline; }
+
+/* plain named forms: the only engine-level interaction */
+input:not([type=checkbox], [type=radio], [type=range]), textarea, select {
+  font: .95rem/1.45 var(--sans); color: inherit; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; max-width: 100%;
+}
+input:focus, textarea:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 0; border-color: var(--accent); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+button {
+  font: 500 .85rem/1.3 var(--sans); padding: 7px 14px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+button:hover { border-color: var(--muted); }
+form[data-vz-state=sending] { opacity: .7; }
+form[data-vz-sent]:not(.vz-form)::after { content: "✓ sent " attr(data-vz-sent); display: block; margin-top: 6px; color: var(--ok); font: .8rem var(--sans); }
+form[data-vz-state=failed]:not(.vz-form)::after { content: "failed to send"; color: var(--bad); }
+
+/* new content since the reader last saw the page */
+#vz-main > * { scroll-margin-top: 72px; }
+.vz-new { position: relative; }
+.vz-new::after {
+  content: ""; position: absolute; left: -14px; top: 3px; bottom: 3px; width: 3px; border-radius: 2px;
+  background: var(--bad); transition: opacity 1.2s ease;
+}
+.vz-wide.vz-new::after { left: -10px; }
+.vz-new.vz-new-seen::after { opacity: 0; transition-delay: 1s; }
+.vz-fresh { position: fixed; right: 16px; bottom: 16px; z-index: 10; display: flex; flex-direction: column; gap: 6px; }
+.vz-fresh[hidden], .vz-fresh button[hidden] { display: none; }
+.vz-fresh button { background: var(--bad); color: #fff; border-color: var(--bad); border-radius: 99px; font-size: .8rem; }
+
+@media (max-width: 600px) {
+  body { font-size: 18px; }
+  main { padding-top: 32px; }
+  h1 { font-size: 2.2rem; }
+  .vz-new::after { left: -9px; }
+}

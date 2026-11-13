@@ -1,0 +1,9 @@
+{
+  "name": "visualize-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "start": "node packages/engine/bin/visualize.js serve"
+  }
+}
