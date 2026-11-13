@@ -134,6 +134,10 @@ export default {
   (`sections` splits the content at its shallowest headings, or at blank
   lines when there are none); a fence client gets `{ name, attrs, text }`.
 - A template with only `html` is static: no JavaScript on the page.
+- Layout classes a template can put on its outermost element: `.vz-figure`
+  runs up to `--figure` (920px) wide, like a standalone image or a diagram;
+  `.vz-wide` runs up to `--wide` (1040px), like a grid of cards. Both centre
+  on the text column and stay within the screen.
 - A client's island is wrapped in `<div class="vz-island" data-template="name">`.
   The engine never adds `vz-<name>` classes, so a template owns its class names.
 - `api` (a `ClientApi`) gives the page id, the page's form submissions and the

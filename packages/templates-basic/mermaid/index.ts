@@ -11,7 +11,7 @@ export function html(ctx: FenceContext) {
   const idPrefix = `vzm-${crypto.createHash('sha1').update(ctx.text).digest('hex').slice(0, 8)}-`
   try {
     const { svg } = render(ctx.text, { idPrefix, fontFamily: FONT, responsive: true })
-    return `<figure class="vz-diagram">${svg}</figure>`
+    return `<figure class="vz-diagram vz-figure">${svg}</figure>`
   } catch (err) {
     if (!(err instanceof PeleError)) throw err
     const where = err.line ? ` (line ${err.line}${err.column ? `, column ${err.column}` : ''})` : ''

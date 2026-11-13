@@ -12,6 +12,7 @@
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
   --measure: 680px;
   --wide: 1040px;
+  --figure: 920px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -41,7 +42,7 @@ body {
    numbers hang in the margin left of the headings. */
 main { --indent: 34px; max-width: calc(var(--measure) + var(--indent) + 32px); margin: 0 auto; padding: 120px 16px 220px; }
 main > :first-child { margin-top: 0; }
-#vz-main > :not(h1, h2, h3, h4, h5, h6, hr, .vz-wide, .vz-island:has(.vz-wide)) { margin-left: var(--indent); }
+#vz-main > :not(h1, h2, h3, h4, h5, h6, hr, .vz-wide, .vz-island:has(.vz-wide), figure, .vz-figure, p:has(> img:only-child), p:has(> a:only-child > img:only-child)) { margin-left: var(--indent); }
 #vz-main > :is(h1, h2, h3, h4) + * { margin-top: 0; }
 
 /* text */
@@ -122,6 +123,16 @@ details[open] > summary::before { content: "−"; }
 details > summary:hover { color: var(--accent); }
 details > :not(summary) { margin-left: 1.4em; }
 details[open] > :last-child { margin-bottom: 2em; }
+
+/* figures: an image alone in its paragraph, an HTML <figure>, or anything with .vz-figure (templates
+   opt in) may run wider than the text, up to --figure, centred on the column. Images keep their
+   natural size within that. */
+#vz-main > :is(figure, .vz-figure, p:has(> img:only-child), p:has(> a:only-child > img:only-child)) {
+  width: min(var(--figure), 100vw - 32px); position: relative; left: 50%; transform: translateX(-50%);
+  margin-left: 0; margin-right: 0; text-align: center;
+}
+#vz-main > p:has(> img:only-child), #vz-main > p:has(> a:only-child > img:only-child) { margin-top: 3.6em; margin-bottom: 3.6em; }
+#vz-main > :is(figure, .vz-figure) figcaption { text-align: center; }
 
 /* blocks that may run wider than the text column (templates opt in with .vz-wide) */
 /* positioned with left + transform, not margins, so a template's own margin rules can't undo it */
