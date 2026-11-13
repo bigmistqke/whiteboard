@@ -78,6 +78,7 @@ const strip = p => p.replace(/\\/g, '/').replace(/\.md$/, '').replace(/^\/+|\/+$
 /**
  * A file path or page name → the page id used in URLs and events.
  * - a file inside a project's pages folder → "<project>/<path>"
+ * - any other file inside a project's folder → "<project>/-/<path>" (rendered from the repository)
  * - a file inside the root → "<path>"
  * - a bare name while inside a project → "<project>/<name>"; a leading "/" opts out
  */
@@ -93,6 +94,8 @@ export function pageId(input, cwd = process.cwd()) {
     const projectDir = findProjectDir(path.dirname(abs))
     const pages = projectDir && path.join(projectDir, '.visualize', 'pages')
     if (pages && abs.startsWith(pages + path.sep)) return `${projectName(projectDir)}/${strip(path.relative(pages, abs))}`
+    // any other file in a project's folder is a repository file: /<project>/-/<path>, extension kept
+    if (projectDir) return `${projectName(projectDir)}/-/${path.relative(projectDir, abs).replace(/\\/g, '/')}`
     if (abs.startsWith(ROOT + path.sep)) return strip(path.relative(ROOT, abs))
     return strip(s)
   }

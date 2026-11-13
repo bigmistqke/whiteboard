@@ -26,6 +26,12 @@ write the user's answers to an ndjson log you can wait on.
    URL. Give the user the URL the first time; after that, just keep editing
    the file — the open page follows.
 
+Files that already exist in the repository render too: `visualize show
+README.md` (any path in the project) gives a URL that renders that file, and
+relative links in it lead to the other files they name. Link to existing
+documents and code from your pages with relative paths instead of copying
+them.
+
 Write for a reader who comes back later:
 
 - Lead with the state of things; put depth in `:::details[…]` blocks so the

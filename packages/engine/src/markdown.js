@@ -30,6 +30,29 @@ export function parseAttrs(s) {
 
 const DIRECTIVES = new Set(['containerDirective', 'leafDirective', 'textDirective'])
 
+const SCHEME = /^[a-z][a-z0-9+.-]*:/i
+
+/**
+ * Point relative links and images at what they name on disk: each is resolved from the markdown
+ * file's own folder and handed to `linkFor(absolutePath)`, which returns the URL that serves it
+ * (or null to leave the link as written).
+ */
+function rewriteLinks(tree, file, linkFor) {
+  if (!linkFor || !file) return
+  const walk = node => {
+    if ((node.type === 'link' || node.type === 'image' || node.type === 'definition') && node.url &&
+        !SCHEME.test(node.url) && !/^[/#]/.test(node.url)) {
+      const [, target, rest] = /^([^?#]*)(.*)$/s.exec(node.url)
+      let decoded = target
+      try { decoded = decodeURIComponent(target) } catch { /* keep as written */ }
+      const url = decoded && linkFor(path.resolve(path.dirname(file), decoded))
+      if (url) node.url = url + rest
+    }
+    node.children?.forEach(walk)
+  }
+  walk(tree)
+}
+
 /**
  * remark-directive needs an outer container fence to be longer than the ones inside it
  * (`::::details` around `:::callout`). Writers — agents especially — use `:::` everywhere, so pair
@@ -83,10 +106,10 @@ function literalDirective(node, label) {
 
 /**
  * @param {string} source
- * @param {{ page: string, file: string, resolve: (name: string) => object | null }} opts
+ * @param {{ page: string, file: string, resolve: (name: string) => object | null, linkFor?: (absolutePath: string) => string | null }} opts
  *   resolve returns a normalised template (see templates.js): { name, props, html, client, style }
  */
-export async function renderMarkdown(source, { page, file, resolve }) {
+export async function renderMarkdown(source, { page, file, resolve, linkFor }) {
   let nextId = 0
   const islands = {}
   const keyCount = {}
@@ -145,7 +168,12 @@ export async function renderMarkdown(source, { page, file, resolve }) {
     }
   }
 
-  const markdown = async src => toHtml(parser.parse(balanceContainers(String(src ?? ''))).children)
+  const parse = src => {
+    const tree = parser.parse(balanceContainers(String(src ?? '')))
+    rewriteLinks(tree, file, linkFor)
+    return tree
+  }
+  const markdown = async src => toHtml(parse(src).children)
   const inline = async src => (await markdown(src)).trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1')
   const base = { page, file, dir: path.dirname(file), esc, parseAttrs, toHtml, toString, markdown, inline }
 
@@ -204,7 +232,7 @@ export async function renderMarkdown(source, { page, file, resolve }) {
     }
   }
 
-  const tree = parser.parse(balanceContainers(source))
+  const tree = parse(source)
   const h1 = tree.children.find(n => n.type === 'heading' && n.depth === 1)
   const title = h1 ? toString(h1) : null
   await transform(tree)

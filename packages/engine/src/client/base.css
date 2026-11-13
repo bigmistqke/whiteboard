@@ -187,3 +187,11 @@ form[data-vz-state=failed]:not(.vz-form)::after { content: "failed to send"; col
   h1 { font-size: 2.2rem; }
   .vz-new::after { left: -9px; }
 }
+
+/* repository views: folder listings and code */
+.vz-files { padding: 0; font: .92rem/1.5 var(--mono); }
+.vz-files li { list-style: none; margin: 0; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.vz-files li + li { margin-top: 0; }
+.vz-files a { text-decoration: none; }
+.vz-code-title { font: 500 1.1rem/1.4 var(--mono); letter-spacing: 0; }
+#vz-main > .vz-code { margin-left: 0; font-size: .85rem; line-height: 1.55; }

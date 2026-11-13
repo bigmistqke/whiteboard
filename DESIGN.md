@@ -41,6 +41,17 @@ A project is a folder (usually a repository) with a `.visualize/` folder:
   .gitignore    "pages/": remove the line to keep pages in git
 ```
 
+Any other file in the project folder is served from the repository at
+`/<name>/-/<path>`: markdown renders like a page (templates, live reload,
+forms), folders list their files with their README on top, other text files
+show as code, and images are served as they are. `.git` is never served.
+
+Relative links and images in any rendered markdown are resolved from that
+file's own folder on disk and rewritten to the URL that serves the target
+(a page, a repository file, or a file in the shared folder; `name` also
+finds `name.md`), so links between documents work the way they do in the
+repository. A link that points nowhere is left as written.
+
 `visualize init` creates it. Agents working in the repository write pages
 there, so they need no access outside the repository. One server serves every
 project: `<root>/projects.json` maps names to folders, and every CLI command

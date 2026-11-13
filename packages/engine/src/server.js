@@ -73,6 +73,7 @@ function locate(id) {
   const project = first ? projectByName(first) : null
   if (project) {
     watchProject(project)
+    if (rest[0] === '-') return { project, repo: true, base: project.dir, rel: rest.slice(1).join('/'), prefix: `${project.name}/-` }
     return { project, base: project.pagesDir, rel: rest.join('/'), prefix: project.name }
   }
   return { project: null, base: ROOT, rel: id, prefix: '' }
@@ -129,10 +130,85 @@ function folderHtml(loc) {
   return `<h1>${esc(id)}</h1>${pages.length ? pageList(pages) : '<p class="vz-meta">No pages yet.</p>'}<p class="vz-meta">${esc(path.join(loc.base, loc.rel))}${docs}</p>`
 }
 
+const SKIP_DIRS = new Set(['node_modules', '.git'])
+
+/** The URL that serves a file or folder on disk, or null when nothing here serves it. */
+function urlFor(abs) {
+  const within = (dir) => abs === dir || abs.startsWith(dir + path.sep)
+  const rel = dir => path.relative(dir, abs).split(path.sep).map(encodeURIComponent).join('/')
+  for (const p of projects()) {
+    if (within(p.pagesDir)) return `/${p.name}/${rel(p.pagesDir).replace(/\.md$/, '')}`
+  }
+  for (const p of projects()) {
+    if (within(p.dir)) {
+      if (rel(p.dir).split('/').some(part => SKIP_DIRS.has(part))) return null
+      return `/${p.name}/-/${rel(p.dir)}`
+    }
+  }
+  if (within(ROOT)) return `/${rel(ROOT).replace(/\.md$/, '')}`
+  return null
+}
+
+/** For relative links: the target if it exists (also with .md added), mapped to its URL. */
+function linkFor(abs) {
+  for (const candidate of [abs, abs + '.md']) {
+    if (fs.existsSync(candidate)) {
+      const url = urlFor(candidate)
+      if (url) return url + (fs.statSync(candidate).isDirectory() && !url.endsWith('/') ? '/' : '')
+    }
+  }
+  return null
+}
+
+const CODE_LANG = { js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'tsx', jsx: 'jsx', json: 'json', css: 'css', html: 'html', sh: 'bash', zsh: 'bash', py: 'python', rs: 'rust', go: 'go', toml: 'toml', yml: 'yaml', yaml: 'yaml' }
+const RAW = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.svg', '.pdf', '.mp4', '.webm', '.ico', '.woff', '.woff2'])
+
+/** Text files are shown as code; anything with a NUL byte near the start is binary. */
+function isText(file) {
+  const fd = fs.openSync(file, 'r')
+  const buf = Buffer.alloc(8192)
+  const n = fs.readSync(fd, buf, 0, buf.length, 0)
+  fs.closeSync(fd)
+  return !buf.subarray(0, n).includes(0)
+}
+
+function repoDirHtml(loc, dir) {
+  const id = [loc.prefix, loc.rel].filter(Boolean).join('/')
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+    .filter(e => !SKIP_DIRS.has(e.name) && e.name !== '.DS_Store')
+    .sort((a, b) => (b.isDirectory() - a.isDirectory()) || a.name.localeCompare(b.name))
+  const up = loc.rel ? `<li><a href="../">../</a></li>` : ''
+  const rows = entries.map(e => {
+    const name = e.name + (e.isDirectory() ? '/' : '')
+    return `<li><a href="${esc(encodeURIComponent(e.name) + (e.isDirectory() ? '/' : ''))}">${esc(name)}</a></li>`
+  }).join('')
+  return `<h1>${esc(loc.rel || loc.project.name)}</h1><ul class="vz-files">${up}${rows}</ul><p class="vz-meta">${esc(dir)} · <code>${esc(id)}</code></p>`
+}
+
+/** A repository path: markdown renders as a page, folders list their files (and README), other text shows as code. */
+async function renderRepo(id, loc) {
+  const target = inside(loc.base, loc.rel)
+  if (!target || !fs.existsSync(target) || target.split(path.sep).includes('.git')) return null
+  const stat = fs.statSync(target)
+  if (stat.isDirectory()) {
+    const listing = repoDirHtml(loc, target)
+    const readme = ['README.md', 'readme.md', 'Readme.md'].map(n => path.join(target, n)).find(f => fs.existsSync(f))
+    if (!readme) return { id, title: loc.rel || loc.project.name, isDir: true, html: listing, islands: {}, styles: [] }
+    const r = await renderFile(readme, id, loc.project)
+    return { id, ...r, html: `${r.html}<hr>${listing}`, mtime: fs.statSync(readme).mtimeMs }
+  }
+  if (/\.(md|markdown)$/i.test(target)) return { id, ...(await renderFile(target, id, loc.project)), mtime: stat.mtimeMs }
+  if (stat.size > 1e6 || !isText(target)) return null
+  const lang = CODE_LANG[path.extname(target).slice(1).toLowerCase()] ?? ''
+  const code = fs.readFileSync(target, 'utf8')
+  const html = `<h1 class="vz-code-title">${esc(loc.rel)}</h1><pre class="vz-code"><code${lang ? ` class="language-${lang}"` : ''}>${esc(code)}</code></pre>`
+  return { id, title: path.basename(target), html, islands: {}, styles: [], mtime: stat.mtimeMs }
+}
+
 async function renderFile(file, page, project) {
   const { templates: set, errors } = await templates.forProject(project)
   for (const t of set.values()) for (const f of [t.client, t.style, t.readme]) if (f) allow(path.dirname(f))
-  const rendered = await renderMarkdown(fs.readFileSync(file, 'utf8'), { page, file, resolve: name => set.get(name) ?? null })
+  const rendered = await renderMarkdown(fs.readFileSync(file, 'utf8'), { page, file, resolve: name => set.get(name) ?? null, linkFor })
   const notice = errors.map(e => `<pre class="vz-error">config: ${esc(e.message)}</pre>`).join('')
   return { ...rendered, html: notice + rendered.html }
 }
@@ -179,7 +255,7 @@ async function renderDocs(projectName) {
   // docs are not a file; this path only serves as the render's location for relative references
   const file = project ? path.join(project.pagesDir, '_docs.md') : path.join(ROOT, '_docs.md')
   const { templates: set } = await templates.forProject(project)
-  const out = await renderMarkdown(intro + parts.join('\n\n---\n\n'), { page: '_/docs', file, resolve: name => set.get(name) ?? null })
+  const out = await renderMarkdown(intro + parts.join('\n\n---\n\n'), { page: '_/docs', file, resolve: name => set.get(name) ?? null, linkFor })
   const notice = errors.map(e => `<pre class="vz-error">config: ${esc(e)}</pre>`).join('')
   return { id: '_/docs', ...out, html: notice + out.html, title: 'Templates' }
 }
@@ -245,8 +321,18 @@ function watchProject(project) {
   if (watched.has(project.dir)) return
   watched.add(project.dir)
   fs.mkdirSync(project.pagesDir, { recursive: true })
-  fs.watch(project.pagesDir, { recursive: true }, (_evt, filename) => {
-    if (filename?.endsWith('.md')) pageChanged(`${project.name}/${filename.replace(/\\/g, '/').replace(/\.md$/, '')}`)
+  fs.watch(project.dir, { recursive: true }, (_evt, filename) => {
+    if (!filename) return
+    const f = filename.replace(/\\/g, '/')
+    if (f.split('/').some(part => SKIP_DIRS.has(part))) return
+    if (f.startsWith('.visualize/pages/')) {
+      if (f.endsWith('.md')) pageChanged(`${project.name}/${f.slice('.visualize/pages/'.length).replace(/\.md$/, '')}`)
+      return
+    }
+    // a repository file; its folder's listing shows it too
+    pageChanged(`${project.name}/-/${f}`)
+    const parent = f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : ''
+    pageChanged(`${project.name}/-${parent ? '/' + parent : ''}`)
   })
   allow(path.join(project.dir, '.visualize'))
 }
@@ -329,6 +415,28 @@ httpServer.on('request', async (req, res) => {
 
     let page
     if (p === '/_/docs') page = await renderDocs(q.project)
+    else if (locate(p.replace(/^\/+/, '').replace(/\/+$/, '')).repo) {
+      const id = p.replace(/^\/+/, '').replace(/\/+$/, '')
+      const loc = locate(id)
+      const target = inside(loc.base, loc.rel)
+      // repository internals are never served
+      if (!target || path.relative(loc.base, target).split(path.sep).includes('.git')) return send(res, 404, 'not found', 'text/plain')
+      if (fs.existsSync(target) && fs.statSync(target).isDirectory() && !p.endsWith('/')) {
+        res.writeHead(302, { location: `/${id}/${url.search}` })
+        return res.end()
+      }
+      const ext = path.extname(target ?? '').toLowerCase()
+      if (target && fs.existsSync(target) && fs.statSync(target).isFile() && (RAW.has(ext) || 'raw' in q)) {
+        return send(res, 200, fs.readFileSync(target), MIME[ext] || 'application/octet-stream')
+      }
+      page = await renderRepo(id, loc)
+      if (page) page.project = loc.project
+      else if (target && fs.existsSync(target) && fs.statSync(target).isFile()) {
+        return send(res, 200, fs.readFileSync(target), MIME[ext] || 'application/octet-stream')
+      } else {
+        return send(res, 404, shell({ id, title: 'Not found', islands: {}, styles: [], html: `<h1>Not found</h1><p><code>${esc(target ?? id)}</code> does not exist.</p>` }))
+      }
+    }
     else {
       const id = p.replace(/^\/+|\/+$/g, '').replace(/\.md$/, '')
       const loc = locate(id)
