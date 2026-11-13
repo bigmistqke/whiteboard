@@ -158,9 +158,36 @@ const FIELD = (n: Element): n is HTMLInputElement | HTMLTextAreaElement | HTMLSe
 const KEEP_CLASSES = ['wb-new', 'wb-new-seen']
 
 /** Patch the page in place: focus, caret, typed values, open <details> and unchanged islands survive. */
+/**
+ * A <details> element's identity across renders: its summary, the nearest heading above its
+ * top-level block, and how many before it share both. Blocks are matched by position when the page
+ * updates, so a block inserted above an open section would otherwise pair it with a different
+ * element and close it; this finds the same section wherever it moved.
+ */
+function detailsKeys(root: HTMLElement): Map<HTMLDetailsElement, string> {
+  const keys = new Map<HTMLDetailsElement, string>()
+  const seen = new Map<string, number>()
+  for (const el of root.querySelectorAll('details')) {
+    let block: Element = el
+    while (block.parentElement && block.parentElement !== root) block = block.parentElement
+    let heading = ''
+    for (let b: Element | null = block; b; b = b.previousElementSibling) {
+      if (/^H[1-6]$/.test(b.tagName)) { heading = b.textContent?.trim() ?? ''; break }
+    }
+    const base = `${heading}\u0000${el.querySelector(':scope > summary')?.textContent?.trim() ?? ''}`
+    const n = seen.get(base) ?? 0
+    seen.set(base, n + 1)
+    keys.set(el, `${base}\u0000${n}`)
+  }
+  return keys
+}
+
 function morph(html: string) {
+  const open = new Set<string>()
+  for (const [el, key] of detailsKeys(main)) if (el.open) open.add(key)
   const next = main.cloneNode(false) as HTMLElement
   next.innerHTML = html
+  for (const [el, key] of detailsKeys(next)) el.open = open.has(key)
   morphdom(main, next, {
     getNodeKey: n => (n as HTMLElement).dataset?.wbKey || (n as HTMLElement).id || undefined,
     onBeforeElUpdated(from, to) {
@@ -176,7 +203,7 @@ function morph(html: string) {
         ;(to as typeof from).value = from.value
         if (from instanceof HTMLInputElement) (to as HTMLInputElement).checked = from.checked
       }
-      if (from instanceof HTMLDetailsElement) (to as HTMLDetailsElement).open = from.open
+      // <details> open state was set on the new tree by detailsKeys(), matched by identity, not position
       if (from instanceof HTMLFormElement) {
         for (const k of ['wbSent', 'wbState']) if (from.dataset[k] != null) to.dataset[k] = from.dataset[k]
       }
