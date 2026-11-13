@@ -92,7 +92,10 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   waiting, so you never miss one and never get one twice. Run it in the
   background and keep working; you are notified when it exits.
 - `whiteboard watch --page <file>` streams every submit on a page (for a
-  monitor that stays open).
+  monitor that stays open). Use this for a page with several forms: the user
+  answers them one at a time, and each answer deserves a reply. Do not use
+  `wait --count <n>` for that: it returns only after all n answers, so the
+  first ones go unread until the last arrives.
 - `whiteboard events --page <file> [--form <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer.
