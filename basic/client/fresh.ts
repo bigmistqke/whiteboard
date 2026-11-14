@@ -122,6 +122,9 @@ dock.append(nav)
 nav.innerHTML = ['up', 'down'].map(dir =>
   `<button type="button" data-dir="${dir}"><span class="wb-fresh-label"></span><span class="wb-fresh-close" title="Mark everything new as seen" aria-label="Mark everything new as seen">✕</span></button>`).join('')
 const [upBtn, downBtn] = nav.querySelectorAll('button')
+// hidden until the first update has counted: it runs in an animation frame, which a hidden tab
+// does not get, so until then the bubbles would show without their labels
+nav.hidden = upBtn.hidden = downBtn.hidden = true
 
 function split() {
   const above: Element[] = [], below: Element[] = []
