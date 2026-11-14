@@ -231,8 +231,14 @@ templates.
      leaf directives, `:name[label]{attrs}` text directives
    - ```` ```name attrs ```` fences
 3. Draws the frame: breadcrumbs, when the page was updated, the theme
-   toggle (light, dark or the system's) and the live indicator; the overview,
-   folder listings with their README on top, and repository files as code.
+   toggle (light, dark or the system's) and the live indicator; the overview
+   (the pages, then every markdown document in the project), folder listings
+   with their README on top, and repository files as code. These are Solid
+   components rendered to a string per request (`renderToString`), so text
+   and attributes are escaped by Solid and markdown's HTML goes in through
+   `innerHTML`. Nothing hydrates: the browser patches the new HTML in (step
+   4). The server build compiles them and bundles Solid in (`dist/vendor/`),
+   so Solid is no dependency of the package.
 4. Patches the page in place when it changes, with morphdom: focus, caret,
    typed values, open `<details>` (found by their heading and summary, so a
    block added above one keeps it open), the reader's place on the page,
