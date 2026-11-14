@@ -51,6 +51,11 @@ Write for a reader who comes back later:
   the form, each option with its meaning (`- label | what it means`, see the
   form template's docs), not in a section above it: the user decides where
   they read. Keep `:::details` for real depth, not for the options.
+- A send is a choice, and only that. Questions and remarks about a form go
+  in its thread (`thread` events, see the form template's docs): answer them
+  there, and never read a thread message, or a note sent along with a
+  submit, as a choice. Don't add a notes field to a decision form for
+  questions; the thread is for that.
 - Don't number headings yourself (`### 1. Naming`): the basic renderer
   numbers section headings already, so yours would show twice. Refer to a
   section by its name.
@@ -66,15 +71,52 @@ its content, so a typo never breaks the page.
 
 ## Showing the page beside the conversation
 
-When you run inside herdr (`HERDR_ENV=1`, and `HERDR_PANE_ID` names your pane)
-and `terminal-browser` is on the PATH, open the page in a browser next to
-yours instead of only printing the URL. The user then reads the page and talks
-to you side by side. Do this the first time you show a page in a session, or
-when the user asks to see one.
+Open the page in a browser next to your pane instead of only printing the URL.
+The user then reads the page and talks to you side by side. Do this the first
+time you show a page in a session, or when the user asks to see one. Which
+browser depends on where you run: in cmux, its own browser pane; in herdr,
+terminal-browser.
 
-**One browser, a tab per page.** The first page opens a browser in a pane to
-the right of yours; every later page opens as a new tab in that same browser,
-not in another pane or herdr tab:
+**One browser pane, a tab per page.** The first page opens a browser pane to
+the right of yours; every later page opens as a new tab in that same pane, not
+in another pane or workspace. Later edits to a page show up in its tab by
+themselves, so open each page once.
+
+### In cmux
+
+When `CMUX_WORKSPACE_ID` is set, you run in cmux, and its browser pane is a
+native web view beside your terminal. The `cmux` command works from a sandbox,
+so run it directly.
+
+Find out whether your workspace has a browser pane already:
+
+```sh
+cmux tree        # this workspace's panes, their surfaces (tabs) with [browser], title and URL
+```
+
+- **No browser pane yet:** `cmux browser open <url>` opens one in a split to
+  the right, without taking focus. It prints `surface=surface:N pane=pane:M`.
+- **A browser pane already:** add the page as a tab in it, without taking
+  focus from the user's terminal:
+
+  ```sh
+  cmux new-surface --type browser --pane pane:M --url <url> --focus false
+  ```
+
+  Not `cmux browser … tab new`: that moves keyboard focus into the browser,
+  away from the conversation.
+
+- Each tab's title in `cmux tree` is the page's title: one starting with `(!n)`
+  has n forms waiting for the user.
+- `cmux browser --surface surface:N eval '…'` (or `snapshot`, `get text`,
+  `click <css>`, `screenshot --out <file>`) works in the user's open tab, so
+  you can check how a page actually renders instead of asking. `cmux help
+  browser` lists the commands.
+
+### In herdr
+
+When you run inside herdr (`HERDR_ENV=1`, and `HERDR_PANE_ID` names your pane)
+and `terminal-browser` is on the PATH, it is the browser:
 
 ```sh
 terminal-browser new-tab <url>
@@ -83,8 +125,7 @@ terminal-browser new-tab <url>
 With no browser in your herdr tab yet, this opens one in a split to the right;
 with one, it adds a tab to it. When there are several, it asks for one:
 `terminal-browser ls` lists them with their key, and
-`terminal-browser new-tab --browser <key> <url>` picks it. Later edits to a
-page show up in its tab by themselves, so open each page once.
+`terminal-browser new-tab --browser <key> <url>` picks it.
 
 **From a sandbox.** `terminal-browser` may be blocked inside your sandbox
 ("Operation not permitted"). herdr starts panes outside it, so run the command
@@ -123,13 +164,20 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   answers it has not handed out before, also ones given before you started
   waiting, so you never miss one and never get one twice. Run it in the
   background and keep working; you are notified when it exits.
+- **A page with several forms: one `wait` per answer.** Run
+  `whiteboard wait --page <file>` (no `--type`: any answer on the page) in
+  the background. It exits on the next answer, and that exit notifies you.
+  Act on the answer, then run the wait again for as long as the page still
+  has forms without an answer. When all are answered, stop: nothing keeps
+  running. When you add a question later, start a wait again. An answer
+  given between two waits is not lost: the next wait hands it out first.
+  Background commands have no time limit, unlike a monitor tool, which
+  expires. Do not use `wait --count <n>`: it returns only after all n
+  answers, so the first ones go unread until the last arrives.
 - `whiteboard watch --page <file>` is `wait` that never exits: it prints
-  every answer on the page once, also those given while no watch ran (for a
-  monitor that stays open, and one you restart). Use this for a page with
-  several forms: the user
-  answers them one at a time, and each answer deserves a reply. Do not use
-  `wait --count <n>` for that: it returns only after all n answers, so the
-  first ones go unread until the last arrives.
+  every answer on the page once, also those given while no watch ran. Use it
+  only with something that reports each printed line as it comes (a
+  monitor), and restart it when that expires.
 - `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer.
