@@ -7,7 +7,7 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
-import { appendEvent, parseLines, readEvents, matches } from '../src/events.js'
+import { appendEvent, parseLines, readEvents, matches, readDelivered, writeDelivered } from '../src/events.js'
 
 // a failing command prints its message, not a stack trace
 const fail = err => {
@@ -82,9 +82,35 @@ async function ensureServer() {
   const proj = needProject()
   const base = await running(proj)
   if (base) return base
-  const log = fs.openSync(proj.logFile, 'a')
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { cwd: proj.dir, detached: true, stdio: ['ignore', log, log], env: process.env })
-  child.unref()
+  // Several commands may get here at once (an agent starting three watches, say): the one that
+  // creates the lock file starts the server, the others wait for it. A lock whose command is gone
+  // is left over, and taken over. (Should two servers still start, the server lets one survive.)
+  const lock = path.join(proj.wb, 'server.lock')
+  const claim = () => {
+    try { fs.writeFileSync(lock, String(process.pid), { flag: 'wx' }); return true } catch (err) {
+      if (err.code !== 'EEXIST') throw err
+      return false
+    }
+  }
+  let mine = claim()
+  if (!mine) {
+    // taking a stale lock over must be exclusive too: remove it, then claim it again, so that of
+    // several commands finding it at once only one starts a server
+    let stale = false
+    try {
+      const owner = Number(fs.readFileSync(lock, 'utf8'))
+      try { process.kill(owner, 0) } catch (err) { stale = err.code === 'ESRCH' }
+    } catch { /* removed meanwhile */ }
+    if (stale) {
+      try { fs.unlinkSync(lock) } catch { /* another command removed it first */ }
+      mine = claim()
+    }
+  }
+  if (mine) {
+    const log = fs.openSync(proj.logFile, 'a')
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { cwd: proj.dir, detached: true, stdio: ['ignore', log, log], env: process.env })
+    child.unref()
+  }
   for (let i = 0; i < 75; i++) {
     await new Promise(r => setTimeout(r, 200))
     const base = await running(proj)
@@ -182,9 +208,11 @@ ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served:
 pages/
 # form submits from the pages, which ones \`whiteboard wait\` handed out, and the running server's port and output
 events.ndjson
+delivered/
 delivered.json
 server.json
 server.log
+server.lock
 `)
   console.log(`project: ${wb}
   pages:     ${path.join(wb, 'pages')} (gitignored); \`whiteboard show <page>\` starts the server
@@ -267,22 +295,17 @@ switch (cmd) {
   case 'wait':
   case 'watch': {
     // Events this filter has not handed out yet come first, also those from before the command
-    // started; then new ones. What was handed out is kept per filter in delivered.json, so an
+    // started; then new ones. What was handed out is kept per filter in .whiteboard/delivered/, so an
     // answer is neither lost between two commands (a wait after a wait, a watch restarted) nor
     // handed out twice. `wait` stops after --count events (default 1); `watch` never does.
     const proj = needProject()
     const f = filter()
     const key = `${f.page ?? ''}\0${f.type ?? ''}`
-    let delivered = {}
-    try { delivered = JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8')) } catch {}
     const want = cmd === 'wait' ? Number(opts.count ?? 1) : Infinity
     let got = 0
     const hand = e => {
       console.log(JSON.stringify(e))
-      // another command may have handed out others meanwhile: merge, don't overwrite
-      try { delivered = JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8')) } catch {}
-      delivered[key] = { id: e.id, ts: e.ts }
-      fs.writeFileSync(proj.deliveredFile, JSON.stringify(delivered, null, 2) + '\n')
+      writeDelivered(proj, key, e)
       if (++got >= want) process.exit(0)
     }
     // the backlog and the follow split the log at one offset, so no event falls between them
@@ -290,7 +313,7 @@ switch (cmd) {
     // events the command line wrote (an agent's own reply, say) are not answers to wait for
     const heard = e => matches(e, f) && e.from !== 'cli'
     const matching = readEventsUpTo(proj.eventsFile, offset).filter(heard)
-    const last = delivered[key]
+    const last = readDelivered(proj, key)
     const at = last ? matching.findIndex(e => e.id === last.id) : -1
     const backlog = !last ? matching : at >= 0 ? matching.slice(at + 1) : matching.filter(e => e.ts > last.ts)
     for (const e of backlog) hand(e)

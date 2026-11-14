@@ -94,7 +94,7 @@ whiteboard keeps is there; nothing is written outside the project.
   pages/          the pages: pages/plan.md is served at /plan
   style.css       optional, extra styles for the pages
   events.ndjson   every form submit, one JSON object per line
-  delivered.json  which submits `whiteboard wait` already handed out
+  delivered/      which events `whiteboard wait` and `watch` already handed out
   server.json     the port and process of the running server
   server.log      that server's output
 ```
@@ -141,7 +141,7 @@ whiteboard events --page plan --last 1      # what was already submitted
 ```
 
 `wait` never misses an answer and never hands one out twice. It remembers
-per filter what it handed out (in `.whiteboard/delivered.json`), and when it
+per filter what it handed out (in `.whiteboard/delivered/`), and when it
 starts it first returns answers it hasn't handed out yet, including ones
 given before it started. So an agent can ask, do other work, and wait later.
 

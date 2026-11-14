@@ -32,7 +32,7 @@ const MIME = {
   '.csv': 'text/csv; charset=utf-8', '.html': 'text/html; charset=utf-8',
 }
 // files in .whiteboard/ that are the server's own bookkeeping, not content
-const OWN_FILES = new Set(['events.ndjson', 'delivered.json', 'server.json', 'server.log'])
+const OWN_FILES = new Set(['events.ndjson', 'delivered.json', 'server.json', 'server.log', 'server.lock'])
 const SKIP_DIRS = new Set(['node_modules', '.git'])
 
 const esc = s =>
@@ -296,7 +296,7 @@ function fileChanged(f) {
       if (inner.endsWith('.md')) pageChanged(inner.slice('pages/'.length).replace(/\.md$/, ''))
       return
     }
-    if (OWN_FILES.has(inner)) return
+    if (OWN_FILES.has(inner) || inner.startsWith('delivered/')) return
     // the config, or something it imports
     return onSourceChange(path.join(PROJECT.dir, f))
   }
@@ -461,6 +461,17 @@ function httpServer() {
   return httpServer.instance
 }
 
+/** The URL of a server of this project that is up already, or null. */
+async function runningServer() {
+  const port = previousPort()
+  if (!port) return null
+  try {
+    const res = await fetch(`http://localhost:${port}/api/health`, { signal: AbortSignal.timeout(800) })
+    const health = res.ok ? await res.json() : null
+    return health?.dir === PROJECT.dir && health.pid !== process.pid ? `http://localhost:${port}` : null
+  } catch { return null }
+}
+
 /** The port the last server of this project used, so open tabs reconnect after a restart. */
 function previousPort() {
   try { return Number(JSON.parse(fs.readFileSync(PROJECT.serverFile, 'utf8')).port) || null } catch { return null }
@@ -469,6 +480,12 @@ function previousPort() {
 /** Listen on the previous port, else the default, else the next free one; then record it in server.json. */
 export async function start() {
   const server = httpServer()
+  // one server per project: another may have started a moment ago
+  const other = await runningServer()
+  if (other) {
+    console.log(`whiteboard: ${PROJECT.name} is already served at ${other}`)
+    process.exit(0)
+  }
   fs.mkdirSync(PROJECT.pagesDir, { recursive: true })
   await config()
   const candidates = [...new Set([previousPort(), DEFAULT_PORT, ...Array.from({ length: 50 }, (_, i) => DEFAULT_PORT + 1 + i)].filter(Boolean))]
@@ -482,10 +499,17 @@ export async function start() {
     })
     if (!ok) continue
     fs.writeFileSync(PROJECT.serverFile, JSON.stringify({ port, pid: process.pid }, null, 2) + '\n')
+    // the command that started this server waits for it; others can now find it
+    try { fs.unlinkSync(path.join(PROJECT.wb, 'server.lock')) } catch {}
     const cleanup = () => {
       try { if (JSON.parse(fs.readFileSync(PROJECT.serverFile, 'utf8')).pid === process.pid) fs.unlinkSync(PROJECT.serverFile) } catch {}
     }
     process.on('exit', cleanup)
+    // one server per project: should another have started at the same moment, whichever one
+    // server.json names last stays, and the others leave (their clients reconnect to it)
+    const yieldToOther = async () => { if (await runningServer()) { console.log('whiteboard: another server of this project took over'); process.exit(0) } }
+    setTimeout(yieldToOther, 1500).unref()
+    setInterval(yieldToOther, 30000).unref()
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => process.exit(0))
     console.log(`whiteboard: ${PROJECT.name} (${PROJECT.dir}) at http://localhost:${port}`)
     return port

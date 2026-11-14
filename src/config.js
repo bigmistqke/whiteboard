@@ -49,6 +49,9 @@ export function project(dir) {
     pagesDir: path.join(wb, 'pages'),
     eventsFile: path.join(wb, 'events.ndjson'),
     /** per wait filter, the last submit `whiteboard wait` handed out */
+    /** per wait/watch filter, the last event handed out: one file each (see events.js) */
+    deliveredDir: path.join(wb, 'delivered'),
+    /** where that was kept before, in one file for all filters; still read */
     deliveredFile: path.join(wb, 'delivered.json'),
     serverFile: path.join(wb, 'server.json'),
     logFile: path.join(wb, 'server.log'),

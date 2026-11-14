@@ -2,6 +2,7 @@
 // `type`: a submitted form's type is the form's name; a template can append events of its own.
 import fs from 'node:fs'
 import crypto from 'node:crypto'
+import path from 'node:path'
 
 /**
  * Append one event; `action` is the button that submitted a form, null for anything else. `from`
@@ -49,3 +50,26 @@ export function matches(event, { page, type } = {}) {
   return true
 }
 
+// ---- what was handed out -----------------------------------------------------------------------
+// Per filter (page and type), the last event `whiteboard wait` or `watch` handed out, so the next
+// command with that filter starts after it. Each filter has a file of its own, written by renaming
+// a finished temporary file over it: commands running at once never write the same file, and a
+// read never sees half of one.
+
+const filterFile = (dir, key) => path.join(dir, `${encodeURIComponent(key).replace(/\./g, '%2E')}.json`)
+
+/** The last event handed out for `key`, or null. */
+export function readDelivered(proj, key) {
+  try { return JSON.parse(fs.readFileSync(filterFile(proj.deliveredDir, key), 'utf8')) } catch {}
+  // kept in one file for all filters before
+  try { return JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8'))[key] ?? null } catch {}
+  return null
+}
+
+export function writeDelivered(proj, key, event) {
+  fs.mkdirSync(proj.deliveredDir, { recursive: true })
+  const file = filterFile(proj.deliveredDir, key)
+  const tmp = `${file}.${process.pid}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify({ id: event.id, ts: event.ts }) + '\n')
+  fs.renameSync(tmp, file)
+}

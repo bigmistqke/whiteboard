@@ -44,7 +44,7 @@ outside the project:
   pages/        the project's pages, served at /<page>
   style.css     optional, applied to the project's pages
   events.ndjson the project's form submits
-  delivered.json per wait filter, the last submit `whiteboard wait` handed out
+  delivered/    per wait/watch filter, the last event handed out (one file each)
   server.json   the port and process of the project's running server
   server.log    that server's output
   .gitignore    everything but config.ts and style.css: remove a line to keep it in git
@@ -89,8 +89,11 @@ that has submits in the log stays taken after its page is deleted, so a new
 page never inherits the answers of an old one.
 
 `whiteboard wait` and `watch` hand out each event once, without the agent keeping
-track: `delivered.json` records, per filter (page and type), the last event
-it handed out. Each command first returns matching events after that one,
+track: `delivered/` records, per filter (page and type), the last event
+it handed out, one file per filter, written by renaming a finished
+temporary file over it: commands running at once never write the same
+file, and a read never sees half of one. (`delivered.json`, where all
+filters were kept in one file before, is still read.) Each command first returns matching events after that one,
 also those from before it started, then follows the log. The backlog and the
 following split the log at one byte offset, so no event falls between
 them. Different filters count separately: a wait on a whole page does not
@@ -162,6 +165,11 @@ event once per filter (see Projects): `watch` is `wait` that never exits.
 Events the command line appends (`whiteboard append`, an agent's reply,
 say) carry `from: "cli"`; waits skip them, so an agent never wakes on its
 own events, and renderers can tell the two sides apart.
+
+Only one server runs per project, also when several commands want one at
+the same moment: the one that creates `server.lock` starts it and the others
+wait for it, and a server that finds another of its project already up
+exits.
 
 ### Listeners
 

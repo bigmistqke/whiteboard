@@ -5,3 +5,5 @@ events.ndjson
 delivered.json
 server.json
 server.log
+delivered/
+server.lock
