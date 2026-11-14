@@ -119,8 +119,36 @@ export function setTitlePrefix(prefix: string) {
 const nav = document.createElement('div')
 nav.className = 'wb-fresh'
 dock.append(nav)
-nav.innerHTML = '<button type="button" data-dir="up"></button><button type="button" data-dir="down"></button>'
-const [upBtn, downBtn] = nav.querySelectorAll('button')
+nav.innerHTML = '<button type="button" data-dir="up"></button><button type="button" data-dir="down"></button><button type="button" data-dir="all" class="wb-fresh-all" title="Mark every new block as seen">✕ all seen</button>'
+const [upBtn, downBtn, allBtn] = nav.querySelectorAll('button')
+
+// a ✕ at the top of each block's bar marks that block seen; the buttons live in a layer above the
+// page, not in its blocks, which are compared on every update
+const dismissLayer = document.createElement('div')
+dismissLayer.className = 'wb-new-dismiss'
+let dismissable: Element[] = []
+dismissLayer.addEventListener('click', e => {
+  const i = Number((e.target as HTMLElement).closest<HTMLElement>('button[data-i]')?.dataset.i)
+  const el = dismissable[i]
+  if (el) markSeen(el)
+})
+
+function drawDismiss() {
+  dismissable = [...unseen].filter(el => el.isConnected)
+  dismissLayer.replaceChildren(...dismissable.map((el, i) => {
+    const r = el.getBoundingClientRect()
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.dataset.i = String(i)
+    b.title = 'Mark as seen'
+    b.textContent = '✕'
+    // centred on the bar, which runs 14px left of the block (10px for wide ones, 9px on phones)
+    const bar = el.classList.contains('wb-wide') ? 10 : innerWidth <= 700 ? 9 : 14
+    b.style.left = `${Math.max(2, r.left - bar + 1.5 - 9) + scrollX}px`
+    b.style.top = `${r.top + scrollY - 20}px`
+    return b
+  }))
+}
 
 function split() {
   const above: Element[] = [], below: Element[] = []
@@ -143,9 +171,11 @@ function update() {
     const { above, below } = split()
     upBtn.hidden = !above.length
     downBtn.hidden = !below.length
+    allBtn.hidden = !unseen.size
+    drawDismiss()
     upBtn.textContent = `↑ new (${above.length})`
     downBtn.textContent = `↓ new (${below.length})`
-    nav.hidden = !above.length && !below.length
+    nav.hidden = !unseen.size
     document.title = `${titlePrefix}${unseen.size ? `(${unseen.size}) ` : ''}${baseTitle}`
   })
 }
@@ -153,6 +183,7 @@ function update() {
 nav.addEventListener('click', e => {
   const dir = (e.target as HTMLElement).closest('button')?.dataset.dir
   if (!dir) return
+  if (dir === 'all') { for (const el of [...unseen]) markSeen(el); return }
   const { above, below } = split()
   ;(dir === 'up' ? above : below)[0]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 })
@@ -173,7 +204,7 @@ export function trackInitial(main: HTMLElement, page: string) {
   mainEl = main
   storeKey = `wb-seen:${page}`
   baseTitle = document.title
-  document.body.append(dock)
+  document.body.append(dock, dismissLayer)
   const blocks = [...main.children]
   const sigs = blocks.map(signature)
   blocks.forEach((el, i) => sigOf.set(el, sigs[i]))
