@@ -67,24 +67,44 @@ its content, so a typo never breaks the page.
 ## Showing the page beside the conversation
 
 When you run inside herdr (`HERDR_ENV=1`, and `HERDR_PANE_ID` names your pane)
-and `terminal-browser` is on the PATH, open the page in a pane next to yours
-instead of only printing the URL. The user then reads the page and talks to you
-side by side. Do this the first time you show a page in a session, or when the
-user asks to see one.
+and `terminal-browser` is on the PATH, open the page in a browser next to
+yours instead of only printing the URL. The user then reads the page and talks
+to you side by side. Do this the first time you show a page in a session, or
+when the user asks to see one.
+
+**One browser, a tab per page.** The first page opens a browser in a pane to
+the right of yours; every later page opens as a new tab in that same browser,
+not in another pane or herdr tab:
 
 ```sh
-herdr pane split --current --direction right --cwd "$PWD"   # prints JSON; the new id is result.pane.pane_id
-herdr pane run <new-pane-id> terminal-browser <url>
+terminal-browser new-tab <url>
 ```
 
-- Open the pane once and remember its id. Later edits to the page show up in
-  it by themselves; for a different page, close that pane
-  (`herdr pane close <id>`) and open a new one the same way.
-- `terminal-browser` may be blocked inside your own sandbox but runs fine in
-  the herdr pane, which herdr starts outside it.
-- `herdr pane read` returns no text for terminal-browser, since it draws with
-  graphics. To check it started, look for it in
-  `herdr pane process-info --pane <id>`.
+With no browser in your herdr tab yet, this opens one in a split to the right;
+with one, it adds a tab to it. When there are several, it asks for one:
+`terminal-browser ls` lists them with their key, and
+`terminal-browser new-tab --browser <key> <url>` picks it. Later edits to a
+page show up in its tab by themselves, so open each page once.
+
+**From a sandbox.** `terminal-browser` may be blocked inside your sandbox
+("Operation not permitted"). herdr starts panes outside it, so run the command
+in a short-lived pane and read what it printed:
+
+```sh
+herdr pane split --current --direction down --cwd "$PWD"     # JSON; the new id is result.pane.pane_id
+herdr pane run <id> 'terminal-browser new-tab <url> 2>&1; echo DONE_$((40+2))'
+herdr pane wait-output <id> --match DONE_42                  # the marker is computed, so the echoed command doesn't match it
+herdr pane read <id> --source recent-unwrapped --format text
+herdr pane close <id>
+```
+
+- `terminal-browser ls` shows each browser's tabs and their titles: a title
+  starting with `(!n)` has n forms waiting for the user.
+- `terminal-browser action -- snapshot` (or `eval "…"`, `click @e14`) works
+  in the user's open browser, so you can check how a page actually renders
+  instead of asking. `terminal-browser action --help` has the selectors.
+- `herdr pane read` returns no text for a pane showing the browser itself,
+  since it draws with graphics.
 
 ## Getting answers
 
