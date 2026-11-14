@@ -19,6 +19,7 @@ import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
 import { resolveTemplates } from './templates.js'
 import { createDocs, createRender } from './render.js'
+import { formNames } from './markdown.js'
 
 export { callout, code, details, form, gallery, grid, mermaid, quiet }
 export type { CodeOptions }
@@ -42,6 +43,8 @@ export default function basic(options: Options = {}): Renderer {
     name: 'basic',
     render: createRender(templates, options.style),
     docs: createDocs(templates),
+    // the questions a page asks are its named forms; a form's answers are events of its name
+    expects: page => (page.kind === 'page' ? formNames(page.source) : []),
     client: new URL('./client/main.js', import.meta.url),
   }
 }

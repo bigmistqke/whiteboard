@@ -197,6 +197,27 @@ that no agent is listening. So:
   just a button under it (`submit: Read it`) and wait for it. Then
   everything you wait for is a form the page can point to.
 
+### Status and hooks
+
+`whiteboard status` lists, per page, the questions without an answer, the
+answers no agent picked up, and who is listening, with the `wait` command
+that picks them up. Pages are claimed by the session that ran
+`whiteboard new` for them, and `status` marks yours. Run it when you resume
+work, or when you're unsure what is still open.
+
+A project can have Claude Code hooks for this (`whiteboard hooks install`;
+`whiteboard init` asks). None of them ever blocks:
+
+- when your turn ends with something on your pages nobody listens for, the
+  user sees a one-line warning;
+- when the user sends a message, answers on your pages that no wait picked
+  up come with it, and count as picked up from then on;
+- a new session starts with the same, plus what is open on other sessions'
+  pages (not handed over: those answers stay for whoever waits on them).
+
+So when a message arrives with answers from the hook, act on them as on
+answers from a wait, and start a wait when it says nobody listens.
+
 The user can also select text on a page and comment on it: a `watch` on the
 page hands you those as `comment` events. `whiteboard docs` says how to reply
 (by editing the page, or in the thread with `whiteboard append`).

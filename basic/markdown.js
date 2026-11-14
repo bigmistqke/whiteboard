@@ -112,6 +112,31 @@ function literalDirective(node, label) {
  *   resolve returns a normalised template (see templates.js): { name, props, html, client, style };
  *   code is the template for fences no template claims by name (without one they render as plain code)
  */
+/**
+ * The forms a page asks the reader to answer, by name: fenced `form` blocks (named like the form
+ * template names them: `name=…`, else the first bare word) and hand-written <form name="…"> without
+ * an action. Parsed, so a form shown as an example inside a code block doesn't count.
+ */
+export function formNames(source) {
+  const tree = parser.parse(balanceContainers(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')))
+  const names = []
+  const walk = node => {
+    if (node.type === 'code' && node.lang === 'form') {
+      const attrs = parseAttrs(node.meta)
+      names.push(attrs.name || Object.keys(attrs).find(k => attrs[k] === '') || 'form')
+    } else if (node.type === 'html') {
+      for (const m of node.value.matchAll(/<form\b([^>]*)>/gi)) {
+        if (/\baction\s*=/i.test(m[1])) continue
+        const name = /\bname\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(m[1])
+        if (name) names.push(name[2] ?? name[3] ?? name[4])
+      }
+    }
+    for (const child of node.children ?? []) walk(child)
+  }
+  walk(tree)
+  return [...new Set(names)]
+}
+
 export async function renderMarkdown(source, { page, file, resolve, code = null, linkFor }) {
   let nextId = 0
   const islands = {}

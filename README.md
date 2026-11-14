@@ -161,6 +161,8 @@ upward with `.whiteboard/config.ts`.
 | `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed |
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
+| `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent picked up, who is listening |
+| `whiteboard hooks install [--user]` | add Claude Code hooks that report the status: a warning when a turn ends with something unheard, unpicked answers brought into the next message and into new sessions; none blocks |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 

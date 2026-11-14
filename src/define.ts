@@ -43,6 +43,13 @@ export interface Renderer {
   client?: URL | string
   /** markdown documentation for whoever writes pages for this renderer: `whiteboard docs` */
   docs?(ctx: RenderContext): string | Promise<string>
+  /**
+   * The event types a page waits on the reader for: its questions (for basic, its named forms).
+   * Only the renderer can know them, since they are written in its syntax. `whiteboard status` and
+   * the hooks use them to say which questions have no answer, and which nobody listens for
+   * (optional; without it a page asks nothing)
+   */
+  expects?(page: StoredPage, ctx: RenderContext): string[] | Promise<string[]>
 }
 
 export const defineRenderer = (renderer: Renderer): Renderer => renderer

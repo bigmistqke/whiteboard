@@ -15,7 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
-import { appendEvent, readEvents, matches, pickedUp } from './events.js'
+import { appendEvent, readEvents, matches, pickedUp, CLAIM } from './events.js'
 import { createConfigLoader, toPath } from './renderers.js'
 
 const PROJECT = projectAt(findProjectDir())
@@ -100,7 +100,8 @@ function pageSource(id, file) {
 /** The pages in a folder of the pages folder, newest first, with when each was last answered. */
 function pagesIn(dir) {
   const last = new Map()
-  for (const e of readEvents(PROJECT.eventsFile)) last.set(e.page, e.ts)
+  // the last time the reader sent something: what the agent appended doesn't count
+  for (const e of readEvents(PROJECT.eventsFile)) if (e.from !== 'cli') last.set(e.page, e.ts)
   const out = []
   const walk = d => {
     if (!fs.existsSync(d)) return
@@ -222,6 +223,39 @@ async function render(page) {
     out = rawRender(page)
   }
   return { renderer, out, notices }
+}
+
+/**
+ * Per page: the questions it asks that have no answer yet, the reader's events no wait or watch
+ * picked up, who is listening, and the session that claimed it. What `whiteboard status` and the
+ * hooks report. The questions come from each page's renderer (`expects`).
+ */
+async function status(only) {
+  const { renderers } = await config()
+  const all = readEvents(PROJECT.eventsFile)
+  const picked = pickedUp(PROJECT, all)
+  const owner = new Map()
+  for (const e of all) if (e.type === CLAIM && e.from === 'cli') owner.set(e.page, e.data?.session ?? null)
+  const out = []
+  for (const p of pagesIn(PROJECT.pagesDir)) {
+    if (only && p.id !== only && !p.id.startsWith(only + '/')) continue
+    const page = pageSource(p.id, p.file)
+    const renderer = pick(page, renderers, [])
+    let asks = []
+    try { asks = renderer?.expects ? [...(await renderer.expects(page, context()))] : [] } catch (err) { console.error(`renderer ${renderer.name}: expects:`, err) }
+    const sent = all.filter(e => e.page === p.id && e.from !== 'cli')
+    const answered = new Set(sent.map(e => e.type))
+    const open = asks.filter(t => !answered.has(t))
+    const listening = listenersFor(p.id)
+    const heard = t => listening.some(l => l.type === null || l.type === t)
+    out.push({
+      page: p.id, file: p.file, owner: owner.get(p.id) ?? null, asks, open,
+      unheard: open.filter(t => !heard(t)),
+      unpicked: sent.filter(e => !picked.has(e.id)),
+      listeners: listening,
+    })
+  }
+  return out
 }
 
 /** The documentation of every renderer, as markdown. */
@@ -410,6 +444,7 @@ httpServer().on('request', async (req, res) => {
       return sendJson(res, 200, all.filter(e => matches(e, q)).map(e => (picked.has(e.id) ? { ...e, pickedUp: true } : e)))
     }
     if (p === '/api/docs') return sendJson(res, 200, await docs())
+    if (p === '/api/status') return sendJson(res, 200, await status(q.page || null))
     if (p === '/api/listeners') return sendJson(res, 200, listenersFor(q.page ?? null))
     if (p === '/api/listen') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })

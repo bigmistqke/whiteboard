@@ -22,6 +22,7 @@ function normalize(r, source) {
     name: r.name,
     render: typeof r.render === 'function' ? r.render.bind(r) : null,
     docs: typeof r.docs === 'function' ? r.docs.bind(r) : null,
+    expects: typeof r.expects === 'function' ? r.expects.bind(r) : null,
     client,
   }
 }

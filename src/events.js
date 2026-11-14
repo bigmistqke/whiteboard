@@ -5,6 +5,12 @@ import crypto from 'node:crypto'
 import path from 'node:path'
 
 /**
+ * The type of the event `whiteboard new` appends when an agent session creates a page:
+ * `{ session }`. The colon keeps it apart from form names, which are event types too.
+ */
+export const CLAIM = 'whiteboard:claim'
+
+/**
  * Append one event; `action` is the button that submitted a form, null for anything else. `from`
  * is set only for events the command line writes ('cli'), so that waits skip them and pages can
  * tell them apart; what the browser appends has none.

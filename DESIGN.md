@@ -129,6 +129,7 @@ interface Renderer {
   render?(page: StoredPage, ctx: RenderContext): { html, title?, head?, data? }   // server
   client?: URL                         // browser: default export mount(root, page, api)
   docs?(ctx): string                   // markdown: how to write pages for it
+  expects?(page, ctx): string[]        // the event types the page waits on the reader for: its questions
 }
 ```
 
@@ -156,8 +157,7 @@ interface Renderer {
 The core appends `{ id, ts, page, type, action, data }` to
 `.whiteboard/events.ndjson` when the browser calls `api.append`. A form's
 submit is one: its `type` is the form's name, `action` the button that sent
-it. Lines written before events had a type say `form` instead; they are read
-as `type`. `whiteboard wait` and `watch` filter by page and type, and hand out each
+it. `whiteboard wait` and `watch` filter by page and type, and hand out each
 event once per filter (see Projects): `watch` is `wait` that never exits.
 
 Events the command line appends (`whiteboard append`, an agent's reply,
@@ -179,6 +179,29 @@ channel), and `api.listeners()` gives the ones covering the page. So what an
 agent waits for is a fact the command line knows, not something the agent
 has to mark; renderers show it as they like. Reading the log never depends
 on the connection, so no answer is missed while the server is away.
+
+### Status and hooks
+
+What is open is a fact the core can state without asking the agent, so the
+agent forgetting a wait is caught from outside it:
+
+- **Questions.** A question exists only in a renderer's syntax (for basic,
+  a named form), so the renderer says which a page asks: `expects(page)`
+  returns their event types. A question is open while no event of its type
+  came from the reader.
+- **Claims.** `whiteboard new` appends a `whiteboard:claim` event with the
+  session that made the page (`CLAUDE_CODE_SESSION_ID`); the colon keeps it
+  apart from form names.
+- **Status.** `/api/status` and `whiteboard status` give, per page: its open
+  questions, those no listener covers (unheard), the reader's events no wait
+  or watch picked up, its listeners and its claim.
+- **Hooks.** `whiteboard status --hook stop|prompt|session` is what Claude
+  Code runs (`whiteboard hooks install` adds them; `init` asks). None blocks.
+  `stop` shows the reader what on the session's pages nobody listens for.
+  `prompt` and `session` give the agent, as context, the answers on its
+  pages nobody picked up, and count them as picked up (a page-wide delivery
+  record); `session` also lists what is open on other sessions' pages,
+  without handing it over.
 
 ### Loading and reloading
 
