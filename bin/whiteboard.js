@@ -25,7 +25,7 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard new <name>           create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
-  whiteboard docs                  how to write pages here (for basic: its templates) — read before writing one
+  whiteboard docs                  how to write pages here (for markboard: its templates) — read before writing one
   whiteboard events [filters]      print recorded events as ndjson
   whiteboard wait [filters]        block until the next matching event, print it, exit
   whiteboard watch [filters]       like wait, but never exits: print each matching event once
@@ -198,14 +198,14 @@ function init(name) {
   }
   // the home folder is no repository: serving and watching all of it would be slow and expose everything
   const home = dir === os.homedir()
-  // the basic set ships in this package, and the server resolves its imports, so it always works
+  // the markboard set ships in this package, and the server resolves its imports, so it always works
   fs.mkdirSync(path.join(wb, 'pages'), { recursive: true })
   fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard/config'
-import basic from '@bigmistqke/whiteboard/basic'
+import markboard from '@bigmistqke/whiteboard/markboard'
 
 export default defineConfig({
 ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  renderers: [
-    basic(),
+    markboard(),
   ],
 })
 `)
@@ -393,7 +393,7 @@ switch (cmd) {
     break
   }
   case 'docs': {
-    // what each renderer says about writing pages for it: for basic, the syntax of its templates
+    // what each renderer says about writing pages for it: for markboard, the syntax of its templates
     const info = await api('/api/docs')
     for (const e of info.errors) console.error(`config error: ${e}`)
     if (!info.renderers.length) console.log('This project has no renderers: pages show as their raw text. Add them to `renderers` in .whiteboard/config.ts.')

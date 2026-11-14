@@ -10,7 +10,7 @@ conversation; the page holds overview, detail and decisions.
 
 - **Stored, not shown.** A page is stored as text, usually markdown. How it
   is shown is a renderer's choice, not the core's: the core reads pages as
-  they are and hands them over. `basic()` (markdown with templates) is one
+  they are and hands them over. `markboard()` (markdown with templates) is one
   renderer; slides, a canvas or a React app could be others. A page no
   renderer takes shows as its raw text.
 - **A light core.** The core keeps pages, the event log and the live
@@ -24,7 +24,7 @@ conversation; the page holds overview, detail and decisions.
 - **Extensions are modules.** Renderers and templates are objects (usually
   returned by a factory taking options) that a config imports from a
   package or a local file, the way bundler plugins work.
-- **Agent-written pages must never break.** basic renders an unknown
+- **Agent-written pages must never break.** markboard renders an unknown
   directive as its content, an unknown fence as a code block, a template
   that throws as an error box in place of that block only. A broken config
   or a failing renderer shows its error above the raw text.
@@ -148,7 +148,7 @@ interface Renderer {
   events, `onEvents`, `last(type)` and `append(type, data, action)`.
 - **Changes.** The core only signals that a page changed; the renderer
   fetches what it needs. That keeps how an update looks the renderer's
-  choice: basic morphs it in place.
+  choice: markboard morphs it in place.
 
 ### Events
 
@@ -183,7 +183,7 @@ on the connection, so no answer is missed while the server is away.
 What is open is a fact the core can state without asking the agent, so the
 agent forgetting a wait is caught from outside it:
 
-- **Questions.** A question exists only in a renderer's syntax (for basic,
+- **Questions.** A question exists only in a renderer's syntax (for markboard,
   a named form), so the renderer says which a page asks: `expects(page)`
   returns their event types. A question is open while no event of its type
   came from the reader.
@@ -217,7 +217,7 @@ The browser listens at `/api/watch`: `change` (its page changed), `events`
 and the folders of served files are watched; any other change in them loads
 the config afresh and re-renders open pages.
 
-## basic (`basic/`)
+## markboard (`markboard/`)
 
 The renderer that ships with whiteboard: pages are markdown, extended by
 templates.
@@ -277,7 +277,7 @@ templates.
    again to change it. A line above the page counts the four states and
    jumps through each.
 
-Nested containers may all use `:::`. basic pairs the fences and lengthens
+Nested containers may all use `:::`. markboard pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence
 to be longer than the ones inside it.
 
@@ -286,18 +286,18 @@ to be longer than the ones inside it.
 ```ts
 // <repo>/.whiteboard/config.ts
 import { defineConfig } from '@bigmistqke/whiteboard/config'
-import basic from '@bigmistqke/whiteboard/basic'
+import markboard from '@bigmistqke/whiteboard/markboard'
 import chart from 'whiteboard-chart'   // a template package of someone else's
 import timeline from './templates/timeline.ts'
 
 export default defineConfig({
   name: 'radio-garden',
-  renderers: [basic({ templates: [chart({ palette: 'cool' }), timeline] })],
+  renderers: [markboard({ templates: [chart({ palette: 'cool' }), timeline] })],
 })
 ```
 
 A template handles the directive and fence with its `name`
-(`:::name`, `::name`, `:name`, ```` ```name ````). basic's own templates are
+(`:::name`, `::name`, `:name`, ```` ```name ````). markboard's own templates are
 always there; one passed with the same name replaces it.
 
 ```ts
@@ -334,13 +334,13 @@ export default {
   `.wb-wide` runs up to `--wide` (1040px), like a grid of cards. Both centre
   on the text column and stay within the screen.
 - A client's island is wrapped in `<div class="wb-island" data-template="name">`.
-  basic never adds `wb-<name>` classes, so a template owns its class names.
+  markboard never adds `wb-<name>` classes, so a template owns its class names.
 - `api` (a `ClientApi`) is the core's `Api` (the page id, its events with a
-  subscription, `last(type)`, `append(type, data)`) plus basic's theme, with
+  subscription, `last(type)`, `append(type, data)`) plus markboard's theme, with
   a subscription too. `@bigmistqke/whiteboard/solid` wraps it:
   `export default solid(Component)` and `useWhiteboard()` for signals.
 - A client is one module the browser loads as it is, so a package bundles
-  what its client needs, UI framework included. `basic()`'s Solid clients
+  what its client needs, UI framework included. `markboard()`'s Solid clients
   each carry their own copy of Solid; the cost is some bytes over a local
   connection, and in return a client needs nothing from the page.
 
@@ -356,8 +356,8 @@ and re-renders.
 src/              the core; ./config (and the types of ./client)
 src/client/       the core in the browser
 bin/whiteboard.js the `whiteboard` command
-basic/            ./basic: the basic renderer and its templates; ./template: their contract
-basic/client/     basic in the browser: morphing, islands, forms, new-content marks, theme
+markboard/            ./markboard: the markboard renderer and its templates; ./template: their contract
+markboard/client/     markboard in the browser: morphing, islands, forms, new-content marks, theme
 solid/            ./solid: write template clients as Solid 2 components
 build.js          builds dist/: what the package ships as JavaScript (`npm run dev` watches)
 skills/whiteboard the agent skill: where to write pages, how to wait for input
@@ -366,9 +366,9 @@ skills/whiteboard the agent skill: where to write pages, how to wait for input
 
 It is one package, `@bigmistqke/whiteboard`, with a subpath export per part;
 it splits into packages once a second renderer exists. The core never
-imports basic; a config does. The server resolves the package's own exports
+imports markboard; a config does. The server resolves the package's own exports
 itself, so a config in a repository without npm can import
-`@bigmistqke/whiteboard/basic`.
+`@bigmistqke/whiteboard/markboard`.
 
 Node runs TypeScript, but not inside `node_modules`, where an installed
 package lives; so what a project imports from this one ships built in

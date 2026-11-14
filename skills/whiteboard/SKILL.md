@@ -18,7 +18,7 @@ PATH, the project has it installed locally: run them as `npx whiteboard …`.
 ## Writing a page
 
 1. Run `whiteboard docs` once per session and read it: it is how pages are
-   written in this project (with the basic renderer: the current syntax of
+   written in this project (with the markboard renderer: the current syntax of
    every template it can use). Do not rely on memory for
    template syntax; the set differs per project. If it says there is no
    project, ask the user before running `whiteboard init`: it adds a folder
@@ -56,7 +56,7 @@ Write for a reader who comes back later:
   there, and never read a thread message, or a note sent along with a
   submit, as a choice. Don't add a notes field to a decision form for
   questions; the thread is for that.
-- Don't number headings yourself (`### 1. Naming`): the basic renderer
+- Don't number headings yourself (`### 1. Naming`): the markboard renderer
   numbers section headings already, so yours would show twice. Refer to a
   section by its name.
 - When you only repeat back what the user answered, or update a status line

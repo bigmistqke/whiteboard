@@ -1,4 +1,4 @@
-// basic in the browser: mounts template islands, records named form submits, and patches the page
+// markboard in the browser: mounts template islands, records named form submits, and patches the page
 // in place when it changes. Framework-free: an island's client module exports
 // mount(element, props, api) (see types.ts).
 import morphdom from 'morphdom'

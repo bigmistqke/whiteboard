@@ -2,10 +2,10 @@
 //
 //   dist/client/runtime.js     the core in the browser: events, live channel, hand-over to a renderer
 //   dist/define.js             ./config: defineConfig, defineRenderer
-//   dist/basic/…               ./basic (the renderer) and ./template, module for module, with
+//   dist/markboard/…               ./markboard (the renderer) and ./template, module for module, with
 //                              each template's style and readme
-//   dist/basic/client/main.js  basic in the browser, one module (morphdom included)
-//   dist/basic/<t>/client.js   a template's browser code: one module with Solid included
+//   dist/markboard/client/main.js  markboard in the browser, one module (morphdom included)
+//   dist/markboard/<t>/client.js   a template's browser code: one module with Solid included
 //   dist/solid/index.js        ./solid, for template packages that bundle it themselves
 //
 // The engine itself (src/*.js, bin/) is plain JavaScript and runs as it is. Node runs TypeScript
@@ -35,10 +35,10 @@ const solidJsx = () => ({
 
 const bare = id => !id.startsWith('.') && !path.isAbsolute(id)
 
-const templateDirs = fs.readdirSync(at('basic'), { withFileTypes: true })
-  .filter(e => e.isDirectory() && fs.existsSync(at('basic', e.name, 'index.ts')))
+const templateDirs = fs.readdirSync(at('markboard'), { withFileTypes: true })
+  .filter(e => e.isDirectory() && fs.existsSync(at('markboard', e.name, 'index.ts')))
   .map(e => e.name)
-const clients = templateDirs.filter(name => fs.existsSync(at('basic', name, 'client.tsx')))
+const clients = templateDirs.filter(name => fs.existsSync(at('markboard', name, 'client.tsx')))
 
 const builds = [
   // the core in the browser
@@ -47,20 +47,20 @@ const builds = [
     platform: 'browser',
     output: { file: path.join(DIST, 'client/runtime.js'), format: 'esm' },
   },
-  // basic in the browser
+  // markboard in the browser
   {
-    input: at('basic/client/main.ts'),
+    input: at('markboard/client/main.ts'),
     platform: 'browser',
-    output: { file: path.join(DIST, 'basic/client/main.js'), format: 'esm' },
+    output: { file: path.join(DIST, 'markboard/client/main.js'), format: 'esm' },
   },
   // what configs and template packages import on the server, module for module so that
   // new URL('./style.css', import.meta.url) still points next to the module
   {
     input: {
       define: at('src/define.ts'),
-      'basic/index': at('basic/index.ts'),
-      'basic/types': at('basic/types.ts'),
-      ...Object.fromEntries(templateDirs.map(name => [`basic/${name}/index`, at('basic', name, 'index.ts')])),
+      'markboard/index': at('markboard/index.ts'),
+      'markboard/types': at('markboard/types.ts'),
+      ...Object.fromEntries(templateDirs.map(name => [`markboard/${name}/index`, at('markboard', name, 'index.ts')])),
     },
     platform: 'node',
     external: id => bare(id) || id.startsWith('node:'),
@@ -69,11 +69,11 @@ const builds = [
   // each template's browser code as one module: Solid and the adapter included, so it needs
   // nothing from the page to run
   ...clients.map(name => ({
-    input: at('basic', name, 'client.tsx'),
+    input: at('markboard', name, 'client.tsx'),
     platform: 'browser',
     resolve: { alias: { '@bigmistqke/whiteboard/solid': at('solid/index.tsx') } },
     plugins: [solidJsx()],
-    output: { file: path.join(DIST, 'basic', name, 'client.js'), format: 'esm', minify: true },
+    output: { file: path.join(DIST, 'markboard', name, 'client.js'), format: 'esm', minify: true },
   })),
   // the Solid adapter, for template packages: Solid stays theirs to bundle
   {
@@ -87,12 +87,12 @@ const builds = [
 
 /** Styles and readmes sit next to the template modules that point at them. */
 function copyAssets() {
-  for (const e of fs.readdirSync(at('basic'), { withFileTypes: true })) {
+  for (const e of fs.readdirSync(at('markboard'), { withFileTypes: true })) {
     if (!e.isDirectory()) continue  // client/ holds base.css
-    for (const f of fs.readdirSync(at('basic', e.name))) {
+    for (const f of fs.readdirSync(at('markboard', e.name))) {
       if (!/\.(css|md)$/.test(f)) continue
-      fs.mkdirSync(path.join(DIST, 'basic', e.name), { recursive: true })
-      fs.copyFileSync(at('basic', e.name, f), path.join(DIST, 'basic', e.name, f))
+      fs.mkdirSync(path.join(DIST, 'markboard', e.name), { recursive: true })
+      fs.copyFileSync(at('markboard', e.name, f), path.join(DIST, 'markboard', e.name, f))
     }
   }
 }

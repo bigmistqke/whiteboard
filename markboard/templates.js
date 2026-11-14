@@ -1,4 +1,4 @@
-// basic's templates: its own and those passed to basic({ templates }), checked and resolved into
+// markboard's templates: its own and those passed to markboard({ templates }), checked and resolved into
 // what the markdown renderer uses.
 import fs from 'node:fs'
 import path from 'node:path'

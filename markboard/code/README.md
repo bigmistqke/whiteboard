@@ -18,10 +18,10 @@ const page = await whiteboard.show('plan')
 A missing or unknown language renders as plain text. Fences named after
 another template, such as `mermaid`, still go to that template.
 
-In a config, pass options through `basic()`:
+In a config, pass options through `markboard()`:
 
 ```ts
-basic({
+markboard({
   code: {
     themes: { light: 'github-light', dark: 'github-dark' },          // any Shiki theme names
     colorReplacements: { 'github-light': { '#e36209': '#0f766e' } }, // per theme

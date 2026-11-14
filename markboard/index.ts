@@ -1,12 +1,12 @@
-// The basic renderer: pages are markdown, extended by templates. In a whiteboard config:
+// The markboard renderer: pages are markdown, extended by templates. In a whiteboard config:
 //
-//   import basic from '@bigmistqke/whiteboard/basic'
-//   export default defineConfig({ renderers: [basic()] })
+//   import markboard from '@bigmistqke/whiteboard/markboard'
+//   export default defineConfig({ renderers: [markboard()] })
 //
 // Its own templates are always there; add more, or replace one by giving yours the same name:
-// `basic({ templates: [timeline] })`. Single templates can be imported too:
-// `import { grid, form } from '@bigmistqke/whiteboard/basic'`. `code` (syntax highlighting for code
-// blocks) takes options, so it is a function: `code({ themes })`, or `basic({ code: { themes } })`.
+// `markboard({ templates: [timeline] })`. Single templates can be imported too:
+// `import { grid, form } from '@bigmistqke/whiteboard/markboard'`. `code` (syntax highlighting for code
+// blocks) takes options, so it is a function: `code({ themes })`, or `markboard({ code: { themes } })`.
 import type { Renderer } from '../src/define.ts'
 import type { TemplateEntry } from './types.ts'
 import callout from './callout/index.ts'
@@ -29,18 +29,18 @@ export interface Options {
   templates?: TemplateEntry[]
   /** options for the code-block highlighter */
   code?: CodeOptions
-  /** a stylesheet linked on every page, after basic's own: new URL('./style.css', import.meta.url) */
+  /** a stylesheet linked on every page, after markboard's own: new URL('./style.css', import.meta.url) */
   style?: URL | string
 }
 
-export default function basic(options: Options = {}): Renderer {
+export default function markboard(options: Options = {}): Renderer {
   let resolved: ReturnType<typeof resolveTemplates> | undefined
   const templates = () => (resolved ??= resolveTemplates([
-    { entries: [callout, code(options.code), details, form, gallery, grid, mermaid, quiet], source: 'basic' },
-    { entries: options.templates ?? [], source: 'basic({ templates })' },
+    { entries: [callout, code(options.code), details, form, gallery, grid, mermaid, quiet], source: 'markboard' },
+    { entries: options.templates ?? [], source: 'markboard({ templates })' },
   ]))
   return {
-    name: 'basic',
+    name: 'markboard',
     render: createRender(templates, options.style),
     docs: createDocs(templates),
     // the questions a page asks are its named forms; a form's answers are events of its name

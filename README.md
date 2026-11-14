@@ -103,7 +103,7 @@ Pages, the event log and the server files are gitignored by default.
   when it isn't running. It takes the port it had last time, else 4777 (or
   `$WHITEBOARD_PORT`), else the next free one.
 - **Stored as markdown, shown by a renderer.** The core keeps pages as text
-  and hands them to a renderer, which decides what they become. `basic()`,
+  and hands them to a renderer, which decides what they become. `markboard()`,
   which ships with the package, renders markdown with templates; another
   renderer could make slides or a canvas of the same files.
 - **Live pages.** Every save of a page updates the open tab in place. Blocks
@@ -127,7 +127,7 @@ A form with a `name` and no `action` attribute is recorded when submitted:
 `type` is the form's name, `action` is the button that was pressed and
 `data` holds the fields. The log is an event stream: a template can append
 events of other types too, through `api.append(type, data)`. The
-`form` template (in `basic()`) writes forms from a short syntax; a
+`form` template (in `markboard()`) writes forms from a short syntax; a
 hand-written `<form name="…">` works without it.
 
 Reading answers:
@@ -156,7 +156,7 @@ upward with `.whiteboard/config.ts`.
 | `whiteboard new <name>` | create a page under a name no other page has (`name`, else `name-2`, …), print its path |
 | `whiteboard show <page\|file>` | start the server if needed, print the page's URL |
 | `whiteboard url <page\|file>` | the same |
-| `whiteboard docs` | print how to write pages in this project (for basic: its templates' syntax) |
+| `whiteboard docs` | print how to write pages in this project (for markboard: its templates' syntax) |
 | `whiteboard events [filters]` | print recorded events |
 | `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed |
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
@@ -175,11 +175,11 @@ Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form
 ```ts
 // .whiteboard/config.ts
 import { defineConfig } from '@bigmistqke/whiteboard/config'
-import basic from '@bigmistqke/whiteboard/basic'
+import markboard from '@bigmistqke/whiteboard/markboard'
 
 export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
-  renderers: [basic()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
+  renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
 })
 ```
@@ -194,7 +194,7 @@ your home folder. Then only `.whiteboard/` is served and watched.
 
 Templates turn parts of a page into something richer. A template handles a
 container `:::name`, a line `::name`, inline `:name`, or a fenced block
-```` ```name ````. `basic()` ships with the package:
+```` ```name ````. `markboard()` ships with the package:
 
 | template | for |
 | --- | --- |
@@ -211,14 +211,14 @@ The full syntax, with live examples, is at `/_/docs` on the running server
 and printed by `whiteboard docs`. The agent reads it from there, so it
 always matches the templates the project actually has.
 
-`basic()` takes your own templates, options for the code highlighter, and a
+`markboard()` takes your own templates, options for the code highlighter, and a
 stylesheet of your own:
 
 ```ts
-basic({
+markboard({
   templates: [timeline],   // one with the name of a built-in replaces it
   code: { themes: { light: 'github-light', dark: 'github-dark' } },
-  style: new URL('./style.css', import.meta.url),   // linked on every page, after basic's own
+  style: new URL('./style.css', import.meta.url),   // linked on every page, after markboard's own
 })
 ```
 
@@ -240,7 +240,7 @@ export default {
 } satisfies Template
 ```
 
-Pass it to `basic({ templates: [timeline] })` in the config. Browser code can be written in any
+Pass it to `markboard({ templates: [timeline] })` in the config. Browser code can be written in any
 framework; `@bigmistqke/whiteboard/solid` turns a Solid component into a
 client. A template with `code: true` also renders every code block no other
 template claims. See [DESIGN.md](https://github.com/bigmistqke/whiteboard/blob/main/DESIGN.md#templates)
@@ -250,7 +250,7 @@ The config and a template's server side can be TypeScript: Node runs it as
 it is. The browser gets the `client` file as it is too, so a client written
 in TypeScript or JSX needs building to JavaScript first, with whatever tool
 you like; the server reloads the open pages when that file changes. The
-templates in `basic()` ship built.
+templates in `markboard()` ship built.
 
 ## The agent skill
 

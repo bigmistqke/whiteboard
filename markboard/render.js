@@ -1,6 +1,6 @@
-// basic on the server: a stored page → the HTML the reader sees. Markdown goes through remark with
+// markboard on the server: a stored page → the HTML the reader sees. Markdown goes through remark with
 // directives and fences handed to templates (markdown.js); repository files show as highlighted
-// code, folders as listings with their README on top; around all of it goes basic's frame.
+// code, folders as listings with their README on top; around all of it goes markboard's frame.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -50,8 +50,8 @@ function readmeOf(page) {
 function stylePath(ref) {
   if (ref == null) return null
   const file = ref instanceof URL || String(ref).startsWith('file:') ? fileURLToPath(ref) : String(ref)
-  if (!path.isAbsolute(file)) throw new Error(`basic({ style }): use a URL, e.g. new URL('./style.css', import.meta.url)`)
-  if (!fs.existsSync(file)) throw new Error(`basic({ style }): file not found: ${file}`)
+  if (!path.isAbsolute(file)) throw new Error(`markboard({ style }): use a URL, e.g. new URL('./style.css', import.meta.url)`)
+  if (!fs.existsSync(file)) throw new Error(`markboard({ style }): file not found: ${file}`)
   return file
 }
 
@@ -104,7 +104,7 @@ export function createRender(templates, style) {
     try {
       out = await content(page, ctx)
     } catch (err) {
-      // a template set that does not resolve (a bad entry in basic({ templates }))
+      // a template set that does not resolve (a bad entry in markboard({ templates }))
       out = { html: `<pre class="wb-error">${esc(err.message)}</pre>`, islands: {}, styles: [] }
     }
     const islands = Object.fromEntries(Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]))
@@ -152,7 +152,7 @@ export function createDocs(templates) {
       const readme = t.readme ? fs.readFileSync(t.readme, 'utf8') : `# ${t.name}\n\n_No readme._\n`
       return readme.replace(/^(#\s.*)$/m, `$1\n\n${where}\n`)
     })
-    const intro = `# Templates\n\nThe basic renderer: markdown, with these templates in **${ctx.project.name}**: ${list.map(t => `[${t.name}](#${t.name})`).join(' · ')}\n\nPlain markdown, GFM tables, \`<details>\` and raw HTML \`<form name="…">\` work without templates.\n\n${COMMENTS}\n\n---\n\n`
+    const intro = `# Templates\n\nThe markboard renderer: markdown, with these templates in **${ctx.project.name}**: ${list.map(t => `[${t.name}](#${t.name})`).join(' · ')}\n\nPlain markdown, GFM tables, \`<details>\` and raw HTML \`<form name="…">\` work without templates.\n\n${COMMENTS}\n\n---\n\n`
     return intro + parts.join('\n\n---\n\n')
   }
 }

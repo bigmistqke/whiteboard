@@ -31,15 +31,15 @@
       "default": "./dist/define.js"
     },
     "./template": {
-      "types": "./basic/types.ts",
-      "default": "./dist/basic/types.js"
+      "types": "./markboard/types.ts",
+      "default": "./dist/markboard/types.js"
     },
     "./client": {
       "types": "./src/define.ts"
     },
-    "./basic": {
-      "types": "./basic/index.ts",
-      "default": "./dist/basic/index.js"
+    "./markboard": {
+      "types": "./markboard/index.ts",
+      "default": "./dist/markboard/index.js"
     },
     "./solid": {
       "types": "./solid/index.tsx",
@@ -50,7 +50,7 @@
     "bin",
     "src",
     "dist",
-    "basic",
+    "markboard",
     "solid",
     "skills"
   ],

@@ -1,6 +1,6 @@
 // Syntax highlighting for code blocks, on the server with Shiki: the page gets plain HTML, no script.
 //
-// Part of basic(); pass options through it: basic({ code: { themes: { light, dark } } }).
+// Part of markboard(); pass options through it: markboard({ code: { themes: { light, dark } } }).
 //
 // The template sets `code: true`, so it renders every fence no template claims by name, and the
 // code view of repository files.

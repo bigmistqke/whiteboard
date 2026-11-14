@@ -1,8 +1,8 @@
-// The template contract of the basic renderer: how its markdown is extended.
+// The template contract of the markboard renderer: how its markdown is extended.
 //
 //   import { defineTemplate, type Template } from '@bigmistqke/whiteboard/template'
 //
-// basic turns markdown into HTML and hands its extension points (`:::name`, `::name`, `:name` and
+// markboard turns markdown into HTML and hands its extension points (`:::name`, `::name`, `:name` and
 // ```` ```name ````) to templates. `defineTemplate` only returns its argument; a template package
 // needs nothing from whiteboard at runtime.
 import type { Api, WbEvent } from '../src/define.ts'
@@ -124,7 +124,7 @@ export interface FenceProps {
 
 export type Theme = 'light' | 'dark'
 
-/** Passed to every Mount: the core's api, and basic's theme. */
+/** Passed to every Mount: the core's api, and markboard's theme. */
 export interface ClientApi extends Api {
   /** the theme in effect (the reader's choice, else the system's) */
   theme(): Theme

@@ -1,4 +1,4 @@
-// basic's light and dark theme: the reader's choice (kept in localStorage), else the system's.
+// markboard's light and dark theme: the reader's choice (kept in localStorage), else the system's.
 import type { Theme } from '../types'
 
 export type ThemePreference = Theme | 'auto'
