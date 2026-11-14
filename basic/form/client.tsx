@@ -78,7 +78,8 @@ function Thread(props: { form: string; fields: Field[] }) {
           ref={[el => (box = el), autosize({ maxRows: 10 })]}
           rows={1}
           placeholder="Ask about this question (doesn't choose anything)"
-          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); post() } }}
+          // Enter sends, Shift+Enter starts a new line; not while an input method is composing
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); post() } }}
         />
         <button type="button" onClick={post}>Ask</button>
       </div>

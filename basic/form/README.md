@@ -65,9 +65,9 @@ submit: Approve, Hold
 ```
 
 **A thread under every form.** The reader can ask about a question without
-answering it: what they write in the form's thread is a `thread` event,
-`{ "form": "<name>", "text": "…" }`, never a submit of the form, so it never
-makes a choice. Answer in the same thread:
+answering it (Enter sends, Shift+Enter starts a new line): what they write
+in the form's thread is a `thread` event, `{ "form": "<name>", "text": "…" }`,
+never a submit of the form, so it never makes a choice. Answer in the same thread:
 
 ```sh
 whiteboard append --page <file> --type thread --data '{"form":"<name>","text":"your answer"}'
