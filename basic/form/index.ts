@@ -2,9 +2,15 @@
 import type { FenceContext, Template } from '@bigmistqke/whiteboard/template'
 
 export interface Option {
+  /** what is sent: the label as plain text */
   value: string
-  /** preselected; for an option with a description, the writer's recommendation */
+  /** the label as HTML (inline markdown); for an option with a description */
+  label: string
+  /** preselected (a plain option marked with `*`) */
   checked: boolean
+  /** the writer's recommendation (an option with a description marked with `*`): tagged, never
+   * preselected, so a send without a pick leaves the choice open */
+  recommended: boolean
   /** what choosing it means, as HTML; empty for a plain option */
   description: string
 }
@@ -17,6 +23,10 @@ export interface Field {
   options: Option[]
 }
 export interface FormProps { name: string; fields: Field[]; buttons: string[] }
+
+/** HTML from inline markdown → its text: what an option sends. */
+const plain = (html: string) => html.replace(/<[^>]*>/g, '')
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
 
 const FIELD = /^(text|textarea|number|date|range|select|radio|checkbox|hidden|submit):\s*(.*)$/
 
@@ -36,7 +46,8 @@ export async function props(ctx: FenceContext): Promise<FormProps> {
       const [label, ...rest] = choice[1].split('|')
       const value = label.trim()
       const recommended = value.startsWith('*')
-      owner.options.push({ value: recommended ? value.slice(1).trim() : value, checked: recommended, description: rest.length ? await inline(rest.join('|').trim()) : '' })
+      const html = await inline(recommended ? value.slice(1).trim() : value)
+      owner.options.push({ value: plain(html), label: html, checked: false, recommended, description: rest.length ? await inline(rest.join('|').trim()) : '' })
       continue
     }
     const m = FIELD.exec(line)
@@ -52,7 +63,7 @@ export async function props(ctx: FenceContext): Promise<FormProps> {
     }
     const [fieldName, label = fieldName, extra = ''] = seg
     const options = ['select', 'radio', 'checkbox'].includes(type)
-      ? extra.split(',').map(s => s.trim()).filter(Boolean).map(o => (o.startsWith('*') ? { value: o.slice(1).trim(), checked: true, description: '' } : { value: o, checked: false, description: '' }))
+      ? extra.split(',').map(s => s.trim()).filter(Boolean).map(o => (o.startsWith('*') ? { value: o.slice(1).trim(), label: '', checked: true, recommended: false, description: '' } : { value: o, label: '', checked: false, recommended: false, description: '' }))
       : []
     fields.push({
       type,
