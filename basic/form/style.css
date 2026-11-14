@@ -42,4 +42,4 @@
 .wb-chat-bubble { white-space: pre-wrap; padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--tint); border: 1px solid var(--border); }
 .wb-chat-message[data-from=you] .wb-chat-bubble { border-radius: 14px 14px 4px 14px; background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .wb-form-thread-new { display: flex; gap: 8px; align-items: flex-start; }
-.wb-form-thread-new textarea { flex: 1; min-height: 2.2em; resize: vertical; font: inherit; }
+.wb-form-thread-new textarea { flex: 1; resize: none; font: inherit; }

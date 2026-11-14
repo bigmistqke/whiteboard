@@ -8,6 +8,7 @@ import { createMemo, For, Match, Show, Switch, untrack } from 'solid-js'
 import { solid, useWhiteboard } from '@bigmistqke/whiteboard/solid'
 import type { Field, FormProps, Option } from './index'
 import type { WbEvent } from '@bigmistqke/whiteboard/template'
+import { autosize } from './autosize'
 
 type Data = Record<string, unknown>
 
@@ -57,6 +58,8 @@ function Thread(props: { form: string; fields: Field[] }) {
     if (!text) return
     await wb.append('thread', { form: props.form, text })
     box!.value = ''
+    // measure again: a value set from code fires no input event
+    box!.dispatchEvent(new Event('input'))
   }
   return (
     // a div, not a form: forms don't nest, and the box has no name, so it is never part of the answer
@@ -72,7 +75,7 @@ function Thread(props: { form: string; fields: Field[] }) {
       </For>
       <div class="wb-form-thread-new">
         <textarea
-          ref={el => (box = el)}
+          ref={[el => (box = el), autosize({ maxRows: 10 })]}
           rows={1}
           placeholder="Ask about this question (doesn't choose anything)"
           onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); post() } }}
