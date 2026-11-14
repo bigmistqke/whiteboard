@@ -4,6 +4,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
 import { renderMarkdown, esc } from './markdown.js'
 
 const BASE_CSS = new URL('./client/base.css', import.meta.url)
@@ -35,9 +36,6 @@ function pageList(pages) {
       p.listeners ? ` · <span class="wb-waiting">agent waiting</span>` : ''}</span></li>`).join('')}</ul>`
 }
 
-/**
- * @param {() => { templates: Map<string, object>, code: object | null }} templates
- */
 /** The folder's README, when it has one. */
 function readmeOf(page) {
   const name = ['README.md', 'readme.md', 'Readme.md'].find(n => page.entries.some(e => !e.dir && e.name === n))
@@ -55,6 +53,52 @@ function stylePath(ref) {
   return file
 }
 
+const SKIP = new Set(['node_modules', '.git', '.whiteboard', 'dist', 'build'])
+const MARKDOWN = /\.(md|markdown)$/i
+
+/**
+ * Every markdown file in the project, which markboard renders as a page: the top folder's first,
+ * then by path. In a git repository, the files git knows (tracked, or new and not ignored), so
+ * built copies and dependencies stay out; elsewhere a walk that skips the usual build and
+ * dependency folders. The project's own pages (.whiteboard/) are listed apart.
+ */
+function documentsIn(dir) {
+  let files
+  try {
+    files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ':(icase)*.md', ':(icase)*.markdown'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n').filter(f => f && !f.startsWith('.whiteboard/') && fs.existsSync(path.join(dir, f)))
+  } catch {
+    files = []
+    const walk = rel => {
+      let entries = []
+      try { entries = fs.readdirSync(path.join(dir, rel), { withFileTypes: true }) } catch { return }
+      for (const e of entries) {
+        if (e.isDirectory()) { if (!SKIP.has(e.name) && !e.name.startsWith('.')) walk(path.posix.join(rel, e.name)) }
+        else if (MARKDOWN.test(e.name)) files.push(path.posix.join(rel, e.name))
+      }
+    }
+    walk('')
+  }
+  const depth = f => f.split('/').length
+  return [...new Set(files)].sort((a, b) => depth(a) - depth(b) || a.localeCompare(b))
+}
+
+/** The overview's list of the project's documents: each by its title, linked to its rendered page. */
+function documentList(ctx) {
+  const files = documentsIn(ctx.project.dir)
+  if (!files.length) return ''
+  const rows = files.map(f => {
+    const abs = path.join(ctx.project.dir, f)
+    const href = ctx.urlFor(abs) ?? `/-/${f}`
+    return `<li><a href="${esc(href)}">${esc(titleOf(abs, f))}</a> <span class="wb-meta"><code>${esc(f)}</code></span></li>`
+  }).join('')
+  // in a section, so the heading isn't numbered like the page's own sections
+  return `<section class="wb-documents"><h2>Documents</h2><ul class="wb-index">${rows}</ul></section>`
+}
+
+/**
+ * @param {() => { templates: Map<string, object>, code: object | null }} templates
+ */
 export function createRender(templates, style) {
   const STYLE = stylePath(style)
   async function markdown(source, page, file, ctx) {
@@ -72,7 +116,7 @@ export function createRender(templates, style) {
         const list = page.pages.length ? pageList(page.pages) : '<p class="wb-meta">No pages yet.</p>'
         const html = page.id
           ? `<h1>${esc(page.id)}</h1>${list}<p class="wb-meta">${esc(page.file)}</p>`
-          : `<h1>${esc(project.name)}</h1>${list}<p class="wb-meta"><code>${esc(project.dir)}</code> · ${links}</p>`
+          : `<h1>${esc(project.name)}</h1>${list}${project.files ? documentList(ctx) : ''}<p class="wb-meta"><code>${esc(project.dir)}</code> · ${links}</p>`
         return { html, title: page.id || project.name, islands: {}, styles: [] }
       }
       case 'folder': {

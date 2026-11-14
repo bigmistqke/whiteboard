@@ -111,6 +111,10 @@ new: it's for the agent echoing your answer or updating a status line.
   toggle (light, dark or the system's) and a live indicator.
 - **Numbered sections.** Headings are numbered, so a page can refer to
   "section 3"; write headings without numbers.
+- **An overview** of the project's pages, with when each was edited and
+  answered and which an agent waits on, and below it every markdown document
+  in the project (READMEs, design notes, skills), each linked to its
+  rendered page.
 - **Repository files too.** `/-/README.md` renders that file as a page,
   `/-/src/` lists a folder with its README on top, and other text files show
   as highlighted code. Relative links work as they do in the repository.

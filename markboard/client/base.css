@@ -256,3 +256,7 @@ form.wb-form[data-wb-folded] { padding: 1em 0; gap: 0; }
 .wb-thread-reply { display: grid; gap: 8px; margin: 0; }
 .wb-thread-actions { display: flex; gap: 8px; }
 .wb-thread .wb-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+/* the overview's list of the project's documents */
+.wb-documents { margin-top: 2.5em; }
+.wb-documents h2 { font-size: 1.1rem; margin-bottom: .4em; }
