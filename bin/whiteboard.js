@@ -123,6 +123,9 @@ async function ensureServer() {
 
 async function api(route) {
   const res = await fetch(`${await ensureServer()}${route}`)
+  // a server started from an older version of this package doesn't know newer routes
+  if (!(res.headers.get('content-type') ?? '').includes('application/json'))
+    throw new Error(`the running server doesn't know ${route.split('?')[0]}: it is older than this command; restart it (stop the process in .whiteboard/server.json, then run whiteboard show)`)
   const body = await res.json()
   if (!res.ok) throw new Error(body.error ?? res.statusText)
   return body
@@ -456,7 +459,11 @@ switch (cmd) {
     break
   }
   case 'status':
-    await status()
+    // a hook that fails must not get in the way of the session it runs in: say why, and exit cleanly
+    try { await status() } catch (err) {
+      if (!opts.hook) throw err
+      console.error(`whiteboard status: ${err.message}`)
+    }
     break
   case 'hooks': {
     if (positionals[0] !== 'install') throw new Error('usage: whiteboard hooks install [--user]')
