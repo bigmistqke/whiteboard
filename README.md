@@ -106,9 +106,8 @@ Pages, the event log and the server files are gitignored by default.
   and hands them to a renderer, which decides what they become. `markboard()`,
   which ships with the package, renders markdown with templates; another
   renderer could make slides or a canvas of the same files.
-- **Live pages.** Every save of a page updates the open tab in place. Blocks
-  that changed get a marker until you've seen them, and buttons jump to the
-  next unseen block.
+- **Live pages.** Every save of a page updates the open tab in place; with
+  markboard, blocks that changed are marked until you've seen them.
 - **Repository files render too.** `/-/README.md` shows that file as a page,
   `/-/src/` lists a folder, and other text files show as highlighted code.
   Relative links between documents work the way they do in the repository.
@@ -190,67 +189,15 @@ Set `files: false` for a project whose folder is not a repository, such as
 your home folder. Then only `.whiteboard/` is served and watched.
 `whiteboard init` sets it when run in the home folder.
 
-## Templates
+## markboard
 
-Templates turn parts of a page into something richer. A template handles a
-container `:::name`, a line `::name`, inline `:name`, or a fenced block
-```` ```name ````. `markboard()` ships with the package:
-
-| template | for |
-| --- | --- |
-| `grid` | cards in a grid, with status badges |
-| `gallery` | images with a lightbox |
-| `details` | a collapsible section |
-| `callout` | a highlighted note, tip or warning |
-| `form` | forms from a short syntax |
-| `mermaid` | Mermaid diagrams, rendered on the server |
-| `code` | syntax highlighting for code blocks (Shiki) |
-| `quiet` | content that is never marked as new: echoes, status lines, timestamps |
-
-The full syntax, with live examples, is at `/_/docs` on the running server
-and printed by `whiteboard docs`. The agent reads it from there, so it
-always matches the templates the project actually has.
-
-`markboard()` takes your own templates, options for the code highlighter, and a
-stylesheet of your own:
-
-```ts
-markboard({
-  templates: [timeline],   // one with the name of a built-in replaces it
-  code: { themes: { light: 'github-light', dark: 'github-dark' } },
-  style: new URL('./style.css', import.meta.url),   // linked on every page, after markboard's own
-})
-```
-
-### Writing a template
-
-A template is an object. It can render HTML on the server, run a component
-in the browser, or both:
-
-```ts
-// .whiteboard/templates/timeline.ts
-import type { Template } from '@bigmistqke/whiteboard/template'
-
-export default {
-  name: 'timeline',
-  html: ctx => `<ol class="timeline">…</ol>`,             // server: the block's HTML
-  client: new URL('./timeline.js', import.meta.url),      // browser: default export mount(el, props, api)
-  style: new URL('./timeline.css', import.meta.url),      // linked on pages that use it
-  readme: new URL('./timeline.md', import.meta.url),      // its syntax, shown by `whiteboard docs`
-} satisfies Template
-```
-
-Pass it to `markboard({ templates: [timeline] })` in the config. Browser code can be written in any
-framework; `@bigmistqke/whiteboard/solid` turns a Solid component into a
-client. A template with `code: true` also renders every code block no other
-template claims. See [DESIGN.md](https://github.com/bigmistqke/whiteboard/blob/main/DESIGN.md#templates)
-for the full contract, and for writing a renderer of your own.
-
-The config and a template's server side can be TypeScript: Node runs it as
-it is. The browser gets the `client` file as it is too, so a client written
-in TypeScript or JSX needs building to JavaScript first, with whatever tool
-you like; the server reloads the open pages when that file changes. The
-templates in `markboard()` ship built.
+`markboard()`, the renderer that ships with the package, renders pages as
+markdown extended by templates (forms, grids, callouts, diagrams,
+highlighted code and more), and makes each page a conversation: a thread
+under every form, comments on any passage, and a page that shows what waits
+on whom, folds decided questions away and marks what changed since you
+looked. Its own [README](https://github.com/bigmistqke/whiteboard/blob/main/markboard/README.md)
+describes all of it, its options, and how to write a template.
 
 ## The agent skill
 
