@@ -2,16 +2,18 @@
 // block as new, and a block that is quiet as a whole is never marked. For what changes without
 // being news to the reader: an echo of their answer, a status line, a timestamp. The mechanism is
 // the data-wb-quiet attribute, which any template or hand-written HTML can use as well.
-import type { DirectiveContext, Template } from '@bigmistqke/whiteboard/template'
+import { html, raw, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
 
-export async function html(ctx: DirectiveContext) {
-  if (ctx.kind === 'textDirective') return `<span data-wb-quiet>${ctx.label ?? ''}</span>`
-  if (ctx.kind === 'leafDirective') return `<div data-wb-quiet>${ctx.label ? `<p>${ctx.label}</p>` : ''}</div>`
-  return `<div data-wb-quiet>${await ctx.toHtml(ctx.children)}</div>`
+export async function render(ctx: DirectiveContext) {
+  // the label and content are HTML already
+  const label = ctx.label && raw(ctx.label)
+  if (ctx.kind === 'textDirective') return html`<span data-wb-quiet>${label}</span>`
+  if (ctx.kind === 'leafDirective') return html`<div data-wb-quiet>${label && html`<p>${label}</p>`}</div>`
+  return html`<div data-wb-quiet>${raw(await ctx.toHtml(ctx.children))}</div>`
 }
 
 export default {
   name: 'quiet',
-  html,
+  html: render,
   readme: new URL('./README.md', import.meta.url),
 } satisfies Template

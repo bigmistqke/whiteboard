@@ -3,11 +3,16 @@
 //   import { defineTemplate, type Template } from '@bigmistqke/whiteboard/template'
 //
 // markboard turns markdown into HTML and hands its extension points (`:::name`, `::name`, `:name` and
-// ```` ```name ````) to templates. `defineTemplate` only returns its argument; a template package
-// needs nothing from whiteboard at runtime.
+// ```` ```name ````) to templates. `defineTemplate` only returns its argument.
+//
+// Templates build their HTML with `html`, which escapes every value unless it is HTML already
+// (`raw()`, or what `html` returned): `html`<li>${title}</li>``. The context's `label`, `toHtml()`,
+// `markdown()`, `inline()` and a section's `title` and `html` are HTML: pass them through `raw()`.
 import type { Api, WbEvent } from '../src/define.ts'
+import type { Html } from '../src/html.js'
 
-export type { Api, WbEvent }
+export type { Api, WbEvent, Html }
+export { html, raw, escape } from '../src/html.js'
 
 /** Templates may be nested in arrays (a set returns several); falsy entries are skipped. */
 export type TemplateEntry = Template | null | false | undefined | readonly TemplateEntry[]
@@ -31,8 +36,11 @@ export interface Template<Props = unknown> {
   code?: boolean
   /** props for the client; JSON-serialisable. Without it a client gets the defaults (see DirectiveProps / FenceProps). */
   props?(ctx: ServerContext): Props | Promise<Props>
-  /** HTML for the block. Without `client` this is the whole output; with it, what shows until it mounts. */
-  html?(ctx: ServerContext): string | null | Promise<string | null>
+  /**
+   * HTML for the block, as a string or built with `html`. Without `client` this is the whole
+   * output; with it, what shows until it mounts.
+   */
+  html?(ctx: ServerContext): string | Html | null | Promise<string | Html | null>
   /** a browser module whose default export is a `Mount` */
   client?: URL | string
   /** a stylesheet linked on every page that uses the template */
@@ -68,7 +76,6 @@ interface BaseContext {
   dir: string
   name: string
   attrs: Record<string, string>
-  esc(s: unknown): string
   parseAttrs(s: string): Record<string, string>
   /** render mdast nodes to HTML; nested directives and fences go through their templates */
   toHtml(nodes: unknown[]): Promise<string>

@@ -3,6 +3,8 @@
 // visit (remembered per page in localStorage). New blocks get .wb-new (a left border) until they
 // have been in view for a moment with the tab visible. Floating buttons jump to unseen blocks.
 
+import { html } from '../../src/html.js'
+
 const DWELL_MS = 600
 const FADE_MS = 2500
 
@@ -119,8 +121,8 @@ export function setTitlePrefix(prefix: string) {
 const nav = document.createElement('div')
 nav.className = 'wb-fresh'
 dock.append(nav)
-nav.innerHTML = ['up', 'down'].map(dir =>
-  `<button type="button" data-dir="${dir}"><span class="wb-fresh-label"></span><span class="wb-fresh-close" title="Mark everything new as seen" aria-label="Mark everything new as seen">✕</span></button>`).join('')
+nav.innerHTML = String(html`${['up', 'down'].map(dir =>
+  html`<button type="button" data-dir="${dir}"><span class="wb-fresh-label"></span><span class="wb-fresh-close" title="Mark everything new as seen" aria-label="Mark everything new as seen">✕</span></button>`)}`)
 const [upBtn, downBtn] = nav.querySelectorAll('button')
 // hidden until the first update has counted: it runs in an animation frame, which a hidden tab
 // does not get, so until then the bubbles would show without their labels

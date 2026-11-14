@@ -13,16 +13,28 @@ import remarkDirective from 'remark-directive'
 import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import { toString } from 'mdast-util-to-string'
+import { html, raw, type Html } from '../src/html.js'
+import type { ResolvedTemplate } from './templates.ts'
+
+/**
+ * An mdast node, loosely: the pipeline hands nodes between remark, the directive plugin and
+ * templates, and replaces some in place with `html` nodes.
+ */
+export interface MdNode {
+  type: string
+  children?: MdNode[]
+  value?: string
+  [key: string]: any
+}
+
+type LinkFor = (absolutePath: string) => string | null
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkDirective).freeze()
 const toHast = unified().use(remarkRehype, { allowDangerousHtml: true }).use(rehypeStringify, { allowDangerousHtml: true }).freeze()
 
-export const esc = s =>
-  String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
-
 /** `cols=3 open title="a b"` → { cols: '3', open: '', title: 'a b' } (bare words get '' like directive attrs) */
-export function parseAttrs(s) {
-  const out = {}
+export function parseAttrs(s: unknown) {
+  const out: Record<string, string> = {}
   for (const m of String(s ?? '').matchAll(/([\w-]+)(?:=("[^"]*"|'[^']*'|\S+))?/g))
     out[m[1]] = m[2] ? m[2].replace(/^["']|["']$/g, '') : ''
   return out
@@ -39,12 +51,12 @@ const SCHEME = /^[a-z][a-z0-9+.-]*:/i
  * file's own folder and handed to `linkFor(absolutePath)`, which returns the URL that serves it
  * (or null to leave the link as written).
  */
-function rewriteLinks(tree, file, linkFor) {
+function rewriteLinks(tree: MdNode, file: string, linkFor?: LinkFor) {
   if (!linkFor || !file) return
-  const walk = node => {
+  const walk = (node: MdNode) => {
     if ((node.type === 'link' || node.type === 'image' || node.type === 'definition') && node.url &&
         !SCHEME.test(node.url) && !/^[/#]/.test(node.url)) {
-      const [, target, rest] = /^([^?#]*)(.*)$/s.exec(node.url)
+      const [, target, rest] = /^([^?#]*)(.*)$/s.exec(node.url)!
       let decoded = target
       try { decoded = decodeURIComponent(target) } catch { /* keep as written */ }
       const url = decoded && linkFor(path.resolve(path.dirname(file), decoded))
@@ -61,11 +73,13 @@ function rewriteLinks(tree, file, linkFor) {
  * opening and closing fences by nesting and lengthen each one to 3 + the depth of what it contains.
  * Fences inside code blocks are left alone.
  */
-export function balanceContainers(source) {
+interface Pair { open: number; close?: number; children: Pair[]; height?: number }
+
+export function balanceContainers(source: string) {
   const lines = source.split('\n')
-  const stack = []
-  const pairs = []
-  let fence = null
+  const stack: Pair[] = []
+  const pairs: Pair[] = []
+  let fence: string | null = null
   lines.forEach((line, i) => {
     const code = /^\s{0,3}(`{3,}|~{3,})/.exec(line)
     if (code) {
@@ -76,16 +90,16 @@ export function balanceContainers(source) {
     if (fence) return
     if (/^:{3,}[\w-]/.test(line)) stack.push({ open: i, children: [] })
     else if (/^:{3,}\s*$/.test(line) && stack.length) {
-      const pair = stack.pop()
+      const pair = stack.pop()!
       pair.close = i
       ;(stack.length ? stack[stack.length - 1].children : pairs).push(pair)
     }
   })
-  const height = p => (p.height ??= p.children.length ? 1 + Math.max(...p.children.map(height)) : 0)
-  const rewrite = p => {
+  const height = (p: Pair): number => (p.height ??= p.children.length ? 1 + Math.max(...p.children.map(height)) : 0)
+  const rewrite = (p: Pair) => {
     const colons = ':'.repeat(3 + height(p))
     lines[p.open] = lines[p.open].replace(/^:{3,}/, colons)
-    lines[p.close] = lines[p.close].replace(/^:{3,}/, colons)
+    lines[p.close!] = lines[p.close!].replace(/^:{3,}/, colons)
     p.children.forEach(rewrite)
   }
   pairs.forEach(rewrite)
@@ -93,39 +107,35 @@ export function balanceContainers(source) {
 }
 
 /** Separate a directive's `[label]` (remark-directive stores it as a flagged first paragraph). */
-function splitLabel(node) {
+function splitLabel(node: MdNode): { label: MdNode[] | null; children: MdNode[] } {
   const [head, ...rest] = node.children ?? []
-  if (node.type === 'containerDirective' && head?.data?.directiveLabel) return { label: head.children, children: rest }
+  if (node.type === 'containerDirective' && head?.data?.directiveLabel) return { label: head.children ?? null, children: rest }
   if (node.type !== 'containerDirective') return { label: node.children?.length ? node.children : null, children: [] }
   return { label: null, children: node.children ?? [] }
 }
 
-function literalDirective(node, label) {
-  const marker = { textDirective: ':', leafDirective: '::', containerDirective: ':::' }[node.type]
+const MARKER: Record<string, string> = { textDirective: ':', leafDirective: '::', containerDirective: ':::' }
+
+function literalDirective(node: MdNode, label: MdNode[] | null) {
+  const marker = MARKER[node.type]
   const attrs = Object.entries(node.attributes ?? {}).map(([k, v]) => (v ? `${k}="${v}"` : k)).join(' ')
-  return `${marker}${node.name}${label ? `[${toString({ type: 'root', children: label })}]` : ''}${attrs ? `{${attrs}}` : ''}`
+  return `${marker}${node.name}${label ? `[${toString({ type: 'root', children: label } as any)}]` : ''}${attrs ? `{${attrs}}` : ''}`
 }
 
-/**
- * @param {string | object} source  markdown, or an mdast root to render as it is
- * @param {{ page: string, file: string, resolve: (name: string) => object | null, code?: object | null, linkFor?: (absolutePath: string) => string | null }} opts
- *   resolve returns a normalised template (see templates.js): { name, props, html, client, style };
- *   code is the template for fences no template claims by name (without one they render as plain code)
- */
 /**
  * The forms a page asks the reader to answer, by name: fenced `form` blocks (named like the form
  * template names them: `name=…`, else the first bare word) and hand-written <form name="…"> without
  * an action. Parsed, so a form shown as an example inside a code block doesn't count.
  */
-export function formNames(source) {
-  const tree = parser.parse(balanceContainers(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')))
-  const names = []
-  const walk = node => {
+export function formNames(source: string) {
+  const tree = parser.parse(balanceContainers(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, ''))) as MdNode
+  const names: string[] = []
+  const walk = (node: MdNode) => {
     if (node.type === 'code' && node.lang === 'form') {
       const attrs = parseAttrs(node.meta)
       names.push(attrs.name || Object.keys(attrs).find(k => attrs[k] === '') || 'form')
     } else if (node.type === 'html') {
-      for (const m of node.value.matchAll(/<form\b([^>]*)>/gi)) {
+      for (const m of (node.value ?? '').matchAll(/<form\b([^>]*)>/gi)) {
         if (/\baction\s*=/i.test(m[1])) continue
         const name = /\bname\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(m[1])
         if (name) names.push(name[2] ?? name[3] ?? name[4])
@@ -137,26 +147,44 @@ export function formNames(source) {
   return [...new Set(names)]
 }
 
-export async function renderMarkdown(source, { page, file, resolve, code = null, linkFor }) {
-  let nextId = 0
-  const islands = {}
-  const keyCount = {}
-  const used = new Map()
+export interface RenderOptions {
+  page: string
+  file: string
+  /** a template by name, resolved (see templates.ts) */
+  resolve: (name: string) => ResolvedTemplate | null
+  /** the template for fences no template claims by name; without one they render as plain code */
+  code?: ResolvedTemplate | null
+  /** the URL that serves a file on disk, for relative links */
+  linkFor?: LinkFor
+}
 
-  const stringify = nodes => {
+export interface Island { template: string; client: string; props: unknown }
+
+/**
+ * Markdown (or an mdast root, rendered as it is) → HTML, with directives and fences handed to
+ * templates. Returns the page's HTML, its first heading, the islands to mount and the templates'
+ * stylesheets.
+ */
+export async function renderMarkdown(source: string | MdNode, { page, file, resolve, code = null, linkFor }: RenderOptions) {
+  let nextId = 0
+  const islands: Record<string, Island> = {}
+  const keyCount: Record<string, number> = {}
+  const used = new Map<string, ResolvedTemplate>()
+
+  const stringify = (nodes: MdNode[]): string => {
     // inline content (a label, say) is one line: as children of the root, each node would be a block
     // of its own, separated by newlines, which show as spaces
     if (nodes.length && nodes.every(n => PHRASING.has(n.type))) {
-      const html = toHast.stringify(toHast.runSync({ type: 'root', children: [{ type: 'paragraph', children: nodes }] }))
-      return html.replace(/^<p>([\s\S]*)<\/p>$/, '$1')
+      const out = toHast.stringify(toHast.runSync({ type: 'root', children: [{ type: 'paragraph', children: nodes }] } as any))
+      return out.replace(/^<p>([\s\S]*)<\/p>$/, '$1')
     }
-    return toHast.stringify(toHast.runSync({ type: 'root', children: nodes }))
+    return toHast.stringify(toHast.runSync({ type: 'root', children: nodes } as any))
   }
   /** Render mdast nodes to HTML. Transforms nested directives first; safe to call twice on the same nodes. */
-  const toHtml = async nodes => { await transform({ children: nodes }); return stringify(nodes) }
+  const toHtml = async (nodes: MdNode[]) => { await transform({ type: 'root', children: nodes }); return stringify(nodes) }
 
-  async function sectionsOf(children) {
-    await transform({ children })
+  async function sectionsOf(children: MdNode[]) {
+    await transform({ type: 'root', children })
     const heads = children.filter(n => n.type === 'heading')
     if (!heads.length) {
       return {
@@ -165,9 +193,9 @@ export async function renderMarkdown(source, { page, file, resolve, code = null,
       }
     }
     const depth = Math.min(...heads.map(h => h.depth))
-    const out = []
-    let intro = []
-    let current = null
+    const out: { heading: MdNode; body: MdNode[] }[] = []
+    const intro: MdNode[] = []
+    let current: { heading: MdNode; body: MdNode[] } | null = null
     for (const n of children) {
       if (n.type === 'heading' && n.depth === depth) {
         current = { heading: n, body: [] }
@@ -177,76 +205,80 @@ export async function renderMarkdown(source, { page, file, resolve, code = null,
     }
     return {
       intro: stringify(intro),
-      sections: out.map(s => ({ title: stringify(s.heading.children), text: toString(s.heading), html: stringify(s.body) })),
+      sections: out.map(s => ({ title: stringify(s.heading.children ?? []), text: toString(s.heading as any), html: stringify(s.body) })),
     }
   }
 
-  async function run(template, ctx, fallback) {
+  /** HTML into the markdown tree, where the rest of the pipeline takes it as it is: the one place it becomes a string. */
+  const htmlNode = (markup: Html | string): MdNode => ({ type: 'html', value: String(markup) })
+
+  /** A template's output for one directive or fence: static HTML, or an island around it. */
+  async function run(template: ResolvedTemplate, ctx: any, fallback: () => Promise<Html | string>): Promise<Html> {
     used.set(template.name, template)
     try {
-      const inline = ctx.kind === 'textDirective'
-      const html = template.html ? await template.html(ctx) : null
-      if (!template.client) {
-        const tag = inline ? 'span' : 'div'
-        return html ?? `<${tag} data-template="${esc(ctx.name)}">${await fallback()}</${tag}>`
-      }
+      // a template may return a string or an `html` result: either is HTML
+      const own = template.html ? await template.html(ctx) : null
+      const body = raw(own ?? (await fallback()))
+      // the element is span or div, chosen here, never from input
+      const tag = raw(ctx.kind === 'textDirective' ? 'span' : 'div')
+      if (!template.client) return own != null ? body : html`<${tag} data-template="${ctx.name}">${body}</${tag}>`
       const props = template.props ? await template.props(ctx) : await ctx.defaults()
       const id = String(++nextId)
       islands[id] = { template: template.name, client: template.client, props }
       // stable across re-renders while template + props are unchanged, so the client keeps the mounted island
       const hash = crypto.createHash('sha1').update(template.name + '\0' + JSON.stringify(props)).digest('hex').slice(0, 12)
       const key = `${hash}-${(keyCount[hash] = (keyCount[hash] ?? 0) + 1)}`
-      const tag = inline ? 'span' : 'div'
-      return `<${tag} class="wb-island" data-template="${esc(ctx.name)}" data-wb-island="${id}" data-wb-key="${key}">${html ?? (await fallback())}</${tag}>`
+      return html`<${tag} class="wb-island" data-template="${ctx.name}" data-wb-island="${id}" data-wb-key="${key}">${body}</${tag}>`
     } catch (err) {
       console.error(`template ${template.name}:`, err)
-      return `<pre class="wb-error">template "${esc(template.name)}" failed: ${esc(err.message)}</pre>`
+      return html`<pre class="wb-error">template "${template.name}" failed: ${(err as Error).message}</pre>`
     }
   }
 
-  const parse = src => {
-    const tree = parser.parse(balanceContainers(String(src ?? '')))
+  const parse = (src: string) => {
+    const tree = parser.parse(balanceContainers(String(src ?? ''))) as MdNode
     rewriteLinks(tree, file, linkFor)
     return tree
   }
-  const markdown = async src => toHtml(parse(src).children)
-  const inline = async src => (await markdown(src)).trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1')
-  const base = { page, file, dir: path.dirname(file), esc, parseAttrs, toHtml, toString, markdown, inline }
+  const markdown = async (src: string) => toHtml(parse(src).children ?? [])
+  const inline = async (src: string) => (await markdown(src)).trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1')
+  const base = { page, file, dir: path.dirname(file), parseAttrs, toHtml, toString, markdown, inline }
 
-  async function directive(node) {
+  async function directive(node: MdNode): Promise<MdNode> {
     const { label, children } = splitLabel(node)
     const template = resolve(node.name)
     if (!template) {
       if (node.type === 'textDirective') return { type: 'text', value: literalDirective(node, label) }
-      const labelHtml = label ? `<p class="wb-label"><strong>${await toHtml(label)}</strong></p>` : ''
-      return { type: 'html', value: `<div class="wb-unknown" data-directive="${esc(node.name)}">${labelHtml}${await toHtml(children)}</div>` }
+      // an unknown directive still shows its content: a typo never breaks the page
+      const labelHtml = label && html`<p class="wb-label"><strong>${raw(await toHtml(label))}</strong></p>`
+      return htmlNode(html`<div class="wb-unknown" data-directive="${node.name}">${labelHtml}${raw(await toHtml(children))}</div>`)
     }
     const labelHtml = label ? await toHtml(label) : null
-    let defaults
+    let defaults: Promise<Record<string, unknown>> | undefined
     const ctx = {
       ...base,
       kind: node.type,
       name: node.name,
       attrs: { ...node.attributes },
       label: labelHtml,
-      labelText: label ? toString({ type: 'root', children: label }) : null,
+      labelText: label ? toString({ type: 'root', children: label } as any) : null,
       children,
       node,
       sections: () => sectionsOf(children),
       defaults: () => (defaults ??= (async () => {
-        const html = await toHtml(children)
-        return { name: node.name, attrs: { ...node.attributes }, label: labelHtml, html, ...(await sectionsOf(children)) }
+        const content = await toHtml(children)
+        return { name: node.name, attrs: { ...node.attributes }, label: labelHtml, html: content, ...(await sectionsOf(children)) }
       })()),
     }
-    return { type: 'html', value: await run(template, ctx, () => toHtml(children)) }
+    return htmlNode(await run(template, ctx, () => toHtml(children)))
   }
 
-  async function fence(node) {
-    const lang = node.lang || null
-    const plain = async () => `<pre><code${lang ? ` class="language-${esc(lang)}"` : ''}>${esc(node.value)}</code></pre>`
+  async function fence(node: MdNode): Promise<MdNode> {
+    const lang: string | null = node.lang || null
+    const plain = async () => html`<pre><code${lang && html` class="language-${lang}"`}>${node.value}</code></pre>`
     const template = (lang && resolve(lang)) || code
-    if (!template) return { type: 'html', value: await plain() }
-    const name = template === code && lang !== code.name ? code.name : lang
+    if (!template) return htmlNode(await plain())
+    const name = code && template === code && lang !== code.name ? code.name : lang
     const attrs = parseAttrs(node.meta)
     const ctx = {
       ...base,
@@ -258,10 +290,10 @@ export async function renderMarkdown(source, { page, file, resolve, code = null,
       node,
       defaults: async () => ({ name, attrs, text: node.value }),
     }
-    return { type: 'html', value: await run(template, ctx, plain) }
+    return htmlNode(await run(template, ctx, plain))
   }
 
-  async function transform(parent) {
+  async function transform(parent: MdNode) {
     const kids = parent.children
     if (!kids) return
     for (let i = 0; i < kids.length; i++) {
@@ -273,10 +305,10 @@ export async function renderMarkdown(source, { page, file, resolve, code = null,
   }
 
   const tree = typeof source === 'string' ? parse(source) : source
-  const h1 = tree.children.find(n => n.type === 'heading' && n.depth === 1)
-  const title = h1 ? toString(h1) : null
+  const h1 = tree.children?.find(n => n.type === 'heading' && n.depth === 1)
+  const title = h1 ? toString(h1 as any) : null
   await transform(tree)
-  const html = stringify(tree.children)
-  const styles = [...used.values()].map(t => t.style).filter(Boolean)
-  return { html, title, islands, styles }
+  const out = stringify(tree.children ?? [])
+  const styles = [...used.values()].map(t => t.style).filter((s): s is string => !!s)
+  return { html: out, title, islands, styles }
 }

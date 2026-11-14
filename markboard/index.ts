@@ -17,9 +17,9 @@ import gallery from './gallery/index.ts'
 import grid from './grid/index.ts'
 import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
-import { resolveTemplates } from './templates.js'
-import { createDocs, createRender } from './render.js'
-import { formNames } from './markdown.js'
+import { resolveTemplates } from './templates.ts'
+import { createDocs, createRender } from './render.ts'
+import { formNames } from './markdown.ts'
 
 export { callout, code, details, form, gallery, grid, mermaid, quiet }
 export type { CodeOptions }

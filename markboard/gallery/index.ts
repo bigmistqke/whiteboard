@@ -1,6 +1,6 @@
 // Turns the block's content into gallery items: one per heading (first image in the section is
 // its picture), or one per image when there are no headings.
-import type { DirectiveContext, Template } from '@bigmistqke/whiteboard/template'
+import { escape, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
 
 interface Node { type: string; depth?: number; url?: string; alt?: string; children?: Node[] }
 export interface Item { src: string | null; alt: string; title: string | null; html: string }
@@ -40,7 +40,7 @@ export async function props(ctx: DirectiveContext) {
   } else {
     const walk = (nodes: Node[]) => {
       for (const n of nodes) {
-        if (n.type === 'image') items.push({ src: n.url!, alt: n.alt ?? '', title: n.alt ? ctx.esc(n.alt) : null, html: '' })
+        if (n.type === 'image') items.push({ src: n.url!, alt: n.alt ?? '', title: n.alt ? escape(n.alt) : null, html: '' })
         else if (n.children) walk(n.children)
       }
     }

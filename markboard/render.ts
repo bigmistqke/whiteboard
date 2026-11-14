@@ -1,13 +1,19 @@
 // markboard on the server: a stored page → the HTML the reader sees. Markdown goes through remark with
-// directives and fences handed to templates (markdown.js); repository files show as highlighted
+// directives and fences handed to templates (markdown.ts); repository files show as highlighted
 // code, folders as listings with their README on top; around all of it goes markboard's frame.
-// What markboard draws itself is built with `html` (./html.js), which escapes every value.
+// What markboard draws itself is built with `html` (src/html.js), which escapes every value.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
-import { renderMarkdown } from './markdown.js'
-import { html, raw } from '../src/html.js'
+import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
+import { html, raw, type Html } from '../src/html.js'
+import type { RenderContext, Rendered, StoredPage } from '../src/define.ts'
+import type { ResolvedTemplates } from './templates.ts'
+
+type PagesPage = Extract<StoredPage, { kind: 'pages' }>
+type FolderPage = Extract<StoredPage, { kind: 'folder' }>
+interface Content { html: string | Html; title?: string | null; islands: Record<string, Island>; styles: string[] }
 
 const BASE_CSS = new URL('./client/base.css', import.meta.url)
 
@@ -16,34 +22,34 @@ const BASE_CSS = new URL('./client/base.css', import.meta.url)
 // template would change the raw text the tag gets, so it rewrites the template into a helper call
 const THEME_SCRIPT = raw(`<script>try{const t=localStorage.getItem('wb-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch{}</script>`)
 
-const CODE_LANG = { js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'tsx', jsx: 'jsx', json: 'json', css: 'css', html: 'html', sh: 'bash', zsh: 'bash', py: 'python', rs: 'rust', go: 'go', toml: 'toml', yml: 'yaml', yaml: 'yaml' }
+const CODE_LANG: Record<string, string> = { js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'tsx', jsx: 'jsx', json: 'json', css: 'css', html: 'html', sh: 'bash', zsh: 'bash', py: 'python', rs: 'rust', go: 'go', toml: 'toml', yml: 'yaml', yaml: 'yaml' }
 
 /** Frontmatter is the core's (it picks the renderer); the page starts after it. */
-const body = source => source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
+const body = (source: string) => source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
 
 /** A page's title: its first heading, else its name. */
-function titleOf(file, fallback) {
+function titleOf(file: string, fallback: string) {
   try {
     const h1 = /^#\s+(.+)$/m.exec(body(fs.readFileSync(file, 'utf8')))
     return h1 ? h1[1].replace(/[*_`]/g, '') : fallback
   } catch { return fallback }
 }
 
-function crumbs(id, name) {
+function crumbs(id: string, name: string) {
   const parts = id ? id.split('/') : []
   return html`<a href="/">${name}</a>${parts.map((p, i) => html` / <a href="/${parts.slice(0, i + 1).join('/')}">${p}</a>`)}`
 }
 
-const time = ts => html`<time data-ts="${ts}"></time>`
+const time = (ts: number) => html`<time data-ts="${ts}"></time>`
 
-function pageList(pages) {
+function pageList(pages: PagesPage['pages']) {
   return html`<ul class="wb-index">${pages.map(p => html`<li><a href="/${p.id}">${titleOf(p.file, path.basename(p.id))}</a> <span class="wb-meta"><code>${p.id}</code> · edited ${time(p.mtime)}${
     p.lastEvent && html` · last submit ${time(Date.parse(p.lastEvent))}`}${
     p.listeners > 0 && html` · <span class="wb-waiting">agent waiting</span>`}</span></li>`)}</ul>`
 }
 
 /** The folder's README, when it has one. */
-function readmeOf(page) {
+function readmeOf(page: FolderPage) {
   const name = ['README.md', 'readme.md', 'Readme.md'].find(n => page.entries.some(e => !e.dir && e.name === n))
   if (!name) return null
   const file = path.join(page.file, name)
@@ -51,7 +57,7 @@ function readmeOf(page) {
 }
 
 /** A stylesheet reference (URL, file: URL string, or absolute path) → absolute path. */
-function stylePath(ref) {
+function stylePath(ref: URL | string | undefined) {
   if (ref == null) return null
   const file = ref instanceof URL || String(ref).startsWith('file:') ? fileURLToPath(ref) : String(ref)
   if (!path.isAbsolute(file)) throw new Error(`markboard({ style }): use a URL, e.g. new URL('./style.css', import.meta.url)`)
@@ -68,15 +74,15 @@ const MARKDOWN = /\.(md|markdown)$/i
  * built copies and dependencies stay out; elsewhere a walk that skips the usual build and
  * dependency folders. The project's own pages (.whiteboard/) are listed apart.
  */
-function documentsIn(dir) {
-  let files
+function documentsIn(dir: string) {
+  let files: string[]
   try {
     files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ':(icase)*.md', ':(icase)*.markdown'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
       .split('\n').filter(f => f && !f.startsWith('.whiteboard/') && fs.existsSync(path.join(dir, f)))
   } catch {
     files = []
-    const walk = rel => {
-      let entries = []
+    const walk = (rel: string) => {
+      let entries: fs.Dirent[] = []
       try { entries = fs.readdirSync(path.join(dir, rel), { withFileTypes: true }) } catch { return }
       for (const e of entries) {
         if (e.isDirectory()) { if (!SKIP.has(e.name) && !e.name.startsWith('.')) walk(path.posix.join(rel, e.name)) }
@@ -85,12 +91,12 @@ function documentsIn(dir) {
     }
     walk('')
   }
-  const depth = f => f.split('/').length
+  const depth = (f: string) => f.split('/').length
   return [...new Set(files)].sort((a, b) => depth(a) - depth(b) || a.localeCompare(b))
 }
 
 /** The overview's list of the project's documents: each by its title, linked to its rendered page. */
-function documentList(ctx) {
+function documentList(ctx: RenderContext) {
   const files = documentsIn(ctx.project.dir)
   if (!files.length) return ''
   const rows = files.map(f => {
@@ -101,17 +107,14 @@ function documentList(ctx) {
   return html`<section class="wb-documents"><h2>Documents</h2><ul class="wb-index">${rows}</ul></section>`
 }
 
-/**
- * @param {() => { templates: Map<string, object>, code: object | null }} templates
- */
-export function createRender(templates, style) {
+export function createRender(templates: () => ResolvedTemplates, style?: URL | string) {
   const STYLE = stylePath(style)
-  async function markdown(source, page, file, ctx) {
+  async function markdown(source: string, page: string, file: string, ctx: RenderContext) {
     const { templates: set, code } = templates()
     return renderMarkdown(body(source), { page, file, resolve: name => set.get(name) ?? null, code, linkFor: ctx.urlFor })
   }
 
-  async function content(page, ctx) {
+  async function content(page: StoredPage, ctx: RenderContext): Promise<Content> {
     const { project } = ctx
     switch (page.kind) {
       case 'page':
@@ -121,38 +124,37 @@ export function createRender(templates, style) {
         const view = page.id
           ? html`<h1>${page.id}</h1>${list}<p class="wb-meta">${page.file}</p>`
           : html`<h1>${project.name}</h1>${list}${project.files && documentList(ctx)}<p class="wb-meta"><code>${project.dir}</code>${project.files && html` · <a href="/-/">files</a>`} · <a href="/_/docs">templates</a></p>`
-        return { html: String(view), title: page.id || project.name, islands: {}, styles: [] }
+        return { html: view, title: page.id || project.name, islands: {}, styles: [] }
       }
       case 'folder': {
         const rel = page.id.slice(2)
         const rows = page.entries.map(e => html`<li><a href="${encodeURIComponent(e.name) + (e.dir ? '/' : '')}">${e.name + (e.dir ? '/' : '')}</a></li>`)
         const listing = html`<h1>${rel || project.name}</h1><ul class="wb-files">${rel && html`<li><a href="../">../</a></li>`}${rows}</ul><p class="wb-meta">${page.file} · <code>${page.id}</code></p>`
         const readme = readmeOf(page)
-        if (!readme) return { html: String(listing), title: rel || project.name, islands: {}, styles: [] }
+        if (!readme) return { html: listing, title: rel || project.name, islands: {}, styles: [] }
         // markdown's output is HTML already
         const r = await markdown(readme.source, page.id, readme.file, ctx)
-        return { ...r, html: String(html`${raw(r.html)}<hr>${listing}`) }
+        return { ...r, html: html`${raw(r.html)}<hr>${listing}` }
       }
       case 'file': {
         // the file as one code block, rendered by the code template (or as plain code)
         const { code } = templates()
         const ext = path.extname(page.file).slice(1).toLowerCase()
-        const tree = { type: 'root', children: [{ type: 'code', lang: CODE_LANG[ext] ?? (ext || null), meta: null, value: page.source }] }
+        const tree: MdNode = { type: 'root', children: [{ type: 'code', lang: CODE_LANG[ext] ?? (ext || null), meta: null, value: page.source }] }
         const out = await renderMarkdown(tree, { page: page.id, file: page.file, resolve: () => null, code, linkFor: ctx.urlFor })
         const view = html`<h1 class="wb-code-title wb-wide">${page.id.slice(2)}</h1><div class="wb-code wb-wide">${raw(out.html)}</div>`
-        return { html: String(view), title: path.basename(page.file), islands: out.islands, styles: out.styles }
+        return { html: view, title: path.basename(page.file), islands: out.islands, styles: out.styles }
       }
     }
   }
 
-  /** @type {import('../src/define.ts').Renderer['render']} */
-  return async function render(page, ctx) {
-    let out
+  return async function render(page: StoredPage, ctx: RenderContext): Promise<Rendered> {
+    let out: Content
     try {
       out = await content(page, ctx)
     } catch (err) {
       // a template set that does not resolve (a bad entry in markboard({ templates }))
-      out = { html: String(html`<pre class="wb-error">${err.message}</pre>`), islands: {}, styles: [] }
+      out = { html: html`<pre class="wb-error">${(err as Error).message}</pre>`, islands: {}, styles: [] }
     }
     const islands = Object.fromEntries(Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]))
     const styles = out.styles.map(s => ctx.asset(s))
@@ -160,10 +162,10 @@ export function createRender(templates, style) {
     const links = [ctx.asset(BASE_CSS), ...styles, ...(STYLE ? [ctx.asset(STYLE)] : [])]
     return {
       title: out.title || page.id || ctx.project.name,
-      head: String(html`${THEME_SCRIPT}
-${links.map(href => html`<link rel="stylesheet" href="${href}">`)}`),
+      head: html`${THEME_SCRIPT}
+${links.map(href => html`<link rel="stylesheet" href="${href}">`)}`,
       // the page's content is HTML already: markdown's output, or what was built above
-      html: String(html`${nav}<main id="wb-main">${raw(out.html)}</main>`),
+      html: html`${nav}<main id="wb-main">${raw(out.html)}</main>`,
       // the client mounts `islands` and links `styles`
       data: { islands, styles, mtime: page.mtime },
     }
@@ -192,8 +194,8 @@ Your replies show as the agent's, and \`wait\` and \`watch\` skip what you
 append, so you don't hear your own replies.`
 
 /** The syntax of every template, from their readmes: what `whiteboard docs` prints. */
-export function createDocs(templates) {
-  return function docs(ctx) {
+export function createDocs(templates: () => ResolvedTemplates) {
+  return function docs(ctx: RenderContext) {
     const list = [...templates().templates.values()].sort((a, b) => a.name.localeCompare(b.name))
     const parts = list.map(t => {
       const what = [t.code && 'code blocks', t.client && 'client', t.html && 'html', t.props && 'props'].filter(Boolean).join(' · ')

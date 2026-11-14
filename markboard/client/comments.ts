@@ -252,8 +252,8 @@ function onSelection() {
 const composer = document.createElement('form')
 composer.className = 'wb-thread wb-comment-new'
 composer.hidden = true
-composer.innerHTML = `<blockquote class="wb-thread-quote"></blockquote><textarea rows="3" placeholder="Your comment"></textarea>
-  <div class="wb-thread-actions"><button type="submit" class="wb-primary">Comment</button><button type="button" data-cancel>Cancel</button></div>`
+composer.innerHTML = String(html`<blockquote class="wb-thread-quote"></blockquote><textarea rows="3" placeholder="Your comment"></textarea>
+  <div class="wb-thread-actions"><button type="submit" class="wb-primary">Comment</button><button type="button" data-cancel>Cancel</button></div>`)
 
 function startComment() {
   if (!pending) return

@@ -8,6 +8,7 @@ import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { applyWaiting, trackWaiting } from './waiting'
 import { refreshComments, trackComments } from './comments'
+import { html } from '../../src/html.js'
 
 interface Island { template: string; client: string; props: unknown }
 interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }
@@ -34,7 +35,7 @@ async function mountOne(el: HTMLElement) {
     if (typeof dispose === 'function') disposers.set(el, dispose)
   } catch (err) {
     console.error(`island ${island.template}:`, err)
-    el.insertAdjacentHTML('afterbegin', `<pre class="wb-error">template "${island.template}" failed to mount: ${String((err as Error).message)}</pre>`)
+    el.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error">template "${island.template}" failed to mount: ${(err as Error).message}</pre>`))
   }
 }
 
@@ -279,12 +280,12 @@ async function refresh() {
   islands = data.islands
   for (const href of data.styles) {
     if (![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(l => new URL(l.href).pathname === new URL(href, location.href).pathname))
-      document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${href}">`)
+      document.head.insertAdjacentHTML('beforeend', String(html`<link rel="stylesheet" href="${href}">`))
   }
-  const html = new DOMParser().parseFromString(next.html, 'text/html').getElementById('wb-main')?.innerHTML ?? ''
-  const nextSigs = signaturesOf(html)
+  const content = new DOMParser().parseFromString(next.html, 'text/html').getElementById('wb-main')?.innerHTML ?? ''
+  const nextSigs = signaturesOf(content)
   const place = placeOf(nextSigs)
-  morph(html)
+  morph(content)
   keepPlace(place, nextSigs)
   const updated = document.getElementById('wb-updated')
   if (updated && data.mtime) updated.dataset.ts = String(data.mtime)
