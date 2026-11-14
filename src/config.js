@@ -5,7 +5,6 @@
 //   config.ts      templates and options
 //   pages/         the pages, served at /<page>
 //   events.ndjson  form submits
-//   delivered/     per wait/watch filter, the last event it handed out
 //   server.json    the port and process of this project's running server
 //   server.log     that server's output
 // Each project runs its own server; nothing is shared between projects.
@@ -48,8 +47,6 @@ export function project(dir) {
     wb,
     pagesDir: path.join(wb, 'pages'),
     eventsFile: path.join(wb, 'events.ndjson'),
-    /** per wait/watch filter, the last event handed out: one file each (see events.js) */
-    deliveredDir: path.join(wb, 'delivered'),
     serverFile: path.join(wb, 'server.json'),
     logFile: path.join(wb, 'server.log'),
     /** shown in titles and the overview: `name` in the config if it is a plain literal, else the folder name */

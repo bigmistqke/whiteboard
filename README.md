@@ -92,8 +92,7 @@ whiteboard keeps is there; nothing is written outside the project.
 .whiteboard/
   config.ts       renderers and options
   pages/          the pages: pages/plan.md is served at /plan
-  events.ndjson   every form submit, one JSON object per line
-  delivered/      which events `whiteboard wait` and `watch` already handed out
+  events.ndjson   every form submit, one JSON object per line, and which ones an agent picked up
   server.json     the port and process of the running server
   server.log      that server's output
 ```
@@ -139,10 +138,11 @@ whiteboard watch --page plan                # streams submits, never exits
 whiteboard events --page plan --last 1      # what was already submitted
 ```
 
-`wait` never misses an answer and never hands one out twice. It remembers
-per filter what it handed out (in `.whiteboard/delivered/`), and when it
-starts it first returns answers it hasn't handed out yet, including ones
-given before it started. So an agent can ask, do other work, and wait later.
+`wait` never misses an answer and never hands one out twice. Handing an
+answer out is itself an event in the log (`whiteboard:picked`), and when a
+wait starts it first returns the answers nobody picked up yet, including
+ones given before it started, whatever filter handed out the others. So an
+agent can ask, do other work, and wait later.
 
 ## Commands
 

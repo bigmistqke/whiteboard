@@ -8,7 +8,7 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
-import { appendEvent, parseLines, readEvents, matches, readDelivered, writeDelivered, CLAIM } from '../src/events.js'
+import { appendEvent, parseLines, readEvents, matches, pickedUp, markPicked, CLAIM } from '../src/events.js'
 
 // a failing command prints its message, not a stack trace
 const fail = err => {
@@ -211,9 +211,8 @@ ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served:
 `)
   fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git
 pages/
-# events from the pages, which ones \`whiteboard wait\` handed out, and the running server's port and output
+# events from the pages (and which ones an agent picked up), and the running server's port and output
 events.ndjson
-delivered/
 server.json
 server.log
 server.lock
@@ -322,7 +321,7 @@ async function status() {
     if (p.unpicked.length) {
       out.push(`Answers on your page ${p.page} (${relFile(p.file)}) that no wait picked up; they count as picked up now:`)
       for (const e of p.unpicked) out.push(JSON.stringify(e))
-      writeDelivered(proj, `${p.page}\0`, p.unpicked.at(-1))
+      for (const e of p.unpicked) markPicked(proj.eventsFile, e)
     }
     if (p.unheard.length) out.push(`Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}: run \`whiteboard wait --page ${relFile(p.file)}\` in the background.`)
   }
@@ -418,29 +417,27 @@ switch (cmd) {
   }
   case 'wait':
   case 'watch': {
-    // Events this filter has not handed out yet come first, also those from before the command
-    // started; then new ones. What was handed out is kept per filter in .whiteboard/delivered/, so an
-    // answer is neither lost between two commands (a wait after a wait, a watch restarted) nor
-    // handed out twice. `wait` stops after --count events (default 1); `watch` never does.
+    // Events nobody picked up yet come first, also those from before the command started; then new
+    // ones. Handing one out appends a `whiteboard:picked` event naming it, so the log itself says
+    // what was handed out: no later wait, whatever its filter, hands it out again, and an answer is
+    // never lost between two commands. While it runs, a wait gets every new matching event, also
+    // when another wait gets it too. `wait` stops after --count events (default 1); `watch` never does.
     const proj = needProject()
     const f = filter()
-    const key = `${f.page ?? ''}\0${f.type ?? ''}`
     const want = cmd === 'wait' ? Number(opts.count ?? 1) : Infinity
     let got = 0
     const hand = e => {
       console.log(JSON.stringify(e))
-      writeDelivered(proj, key, e)
+      markPicked(proj.eventsFile, e)
       if (++got >= want) process.exit(0)
     }
     // the backlog and the follow split the log at one offset, so no event falls between them
     const offset = logSize(proj.eventsFile)
     // events the command line wrote (an agent's own reply, say) are not answers to wait for
     const heard = e => matches(e, f) && e.from !== 'cli'
-    const matching = readEventsUpTo(proj.eventsFile, offset).filter(heard)
-    const last = readDelivered(proj, key)
-    const at = last ? matching.findIndex(e => e.id === last.id) : -1
-    const backlog = !last ? matching : at >= 0 ? matching.slice(at + 1) : matching.filter(e => e.ts > last.ts)
-    for (const e of backlog) hand(e)
+    const before = readEventsUpTo(proj.eventsFile, offset)
+    const picked = pickedUp(before)
+    for (const e of before.filter(e => heard(e) && !picked.has(e.id))) hand(e)
     follow(e => { if (e.from !== 'cli') hand(e) }, offset)
     listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)

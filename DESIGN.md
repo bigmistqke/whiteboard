@@ -42,8 +42,7 @@ outside the project:
 <repo>/.whiteboard/
   config.ts     defineConfig({ name, renderers: [...], files })
   pages/        the project's pages, served at /<page>
-  events.ndjson the project's form submits
-  delivered/    per wait/watch filter, the last event handed out (one file each)
+  events.ndjson the project's events: form submits, threads, comments, and what agents picked up
   server.json   the port and process of the project's running server
   server.log    that server's output
   .gitignore    everything but config.ts: remove a line to keep it in git
@@ -88,14 +87,13 @@ that has submits in the log stays taken after its page is deleted, so a new
 page never inherits the answers of an old one.
 
 `whiteboard wait` and `watch` hand out each event once, without the agent keeping
-track: `delivered/` records, per filter (page and type), the last event
-it handed out, one file per filter, written by renaming a finished
-temporary file over it: commands running at once never write the same
-file, and a read never sees half of one. Each command first returns matching events after that one,
-also those from before it started, then follows the log. The backlog and the
-following split the log at one byte offset, so no event falls between
-them. Different filters count separately: a wait on a whole page does not
-count what a wait on one of its forms handed out.
+track: handing an event out appends a `whiteboard:picked` event naming it,
+so the log is the only record of what was handed out. Each command first
+returns the matching events nobody picked up, also those from before it
+started, whatever filter handed out the others; then it follows the log, and
+gets every new matching event, also when another running wait gets it too.
+The backlog and the following split the log at one byte offset, so no event
+falls between them.
 
 Relative links and images in any rendered markdown are resolved from that
 file's own folder on disk and rewritten to the URL that serves the target
@@ -158,7 +156,7 @@ The core appends `{ id, ts, page, type, action, data }` to
 `.whiteboard/events.ndjson` when the browser calls `api.append`. A form's
 submit is one: its `type` is the form's name, `action` the button that sent
 it. `whiteboard wait` and `watch` filter by page and type, and hand out each
-event once per filter (see Projects): `watch` is `wait` that never exits.
+event once (see Projects): `watch` is `wait` that never exits.
 
 Events the command line appends (`whiteboard append`, an agent's reply,
 say) carry `from: "cli"`; waits skip them, so an agent never wakes on its
@@ -199,8 +197,8 @@ agent forgetting a wait is caught from outside it:
   Code runs (`whiteboard hooks install` adds them; `init` asks). None blocks.
   `stop` shows the reader what on the session's pages nobody listens for.
   `prompt` and `session` give the agent, as context, the answers on its
-  pages nobody picked up, and count them as picked up (a page-wide delivery
-  record); `session` also lists what is open on other sessions' pages,
+  pages nobody picked up, and count them as picked up (a `whiteboard:picked`
+  event each); `session` also lists what is open on other sessions' pages,
   without handing it over.
 
 ### Loading and reloading
@@ -274,7 +272,7 @@ templates.
    pages an agent waits on. An unanswered form nobody listens for says so,
    so the reader knows an answer would go unheard for now. An answered form
    is "waiting for the agent" until a `wait` or `watch` hands its answer out
-   (the core marks such events `pickedUp`, from `delivered/`), and then
+   (the core marks such events `pickedUp`, from the `whiteboard:picked` events in the log), and then
    decided: it folds into one line quoting the answer, and a click opens it
    again to change it. A line above the page counts the four states and
    jumps through each.

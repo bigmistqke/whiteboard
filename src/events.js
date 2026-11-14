@@ -2,7 +2,6 @@
 // `type`: a submitted form's type is the form's name; a template can append events of its own.
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import path from 'node:path'
 
 /**
  * The type of the event `whiteboard new` appends when an agent session creates a page:
@@ -52,47 +51,19 @@ export function matches(event, { page, type } = {}) {
 }
 
 // ---- what was handed out -----------------------------------------------------------------------
-// Per filter (page and type), the last event `whiteboard wait` or `watch` handed out, so the next
-// command with that filter starts after it. Each filter has a file of its own, written by renaming
-// a finished temporary file over it: commands running at once never write the same file, and a
-// read never sees half of one.
+// When `whiteboard wait` or `watch` hands an event out, it appends a `whiteboard:picked` event
+// naming it. The log is the only record: a wait that starts hands out the matching events nobody
+// picked up yet, whatever its filter, and pages show the same events as picked up.
 
-const filterFile = (dir, key) => path.join(dir, `${encodeURIComponent(key).replace(/\./g, '%2E')}.json`)
+/** The type of the event that says another event was handed to an agent: `{ event: <its id> }`. */
+export const PICKED = 'whiteboard:picked'
 
-/** The last event handed out for `key`, or null. */
-export function readDelivered(proj, key) {
-  try { return JSON.parse(fs.readFileSync(filterFile(proj.deliveredDir, key), 'utf8')) } catch {}
-  return null
+/** The ids of the events some wait, watch or hook handed out. */
+export function pickedUp(events) {
+  return new Set(events.filter(e => e.type === PICKED && e.from === 'cli').map(e => String(e.data?.event)))
 }
 
-export function writeDelivered(proj, key, event) {
-  fs.mkdirSync(proj.deliveredDir, { recursive: true })
-  const file = filterFile(proj.deliveredDir, key)
-  const tmp = `${file}.${process.pid}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify({ id: event.id, ts: event.ts }) + '\n')
-  fs.renameSync(tmp, file)
-}
-
-/**
- * The ids of the events some wait or watch has handed out: for every filter, its last handed-out
- * event and every matching one before it in the log. What the reader sees as "picked up".
- */
-export function pickedUp(proj, events) {
-  const filters = []
-  try {
-    for (const name of fs.readdirSync(proj.deliveredDir)) {
-      if (!name.endsWith('.json')) continue
-      try { filters.push([decodeURIComponent(name.slice(0, -5)), JSON.parse(fs.readFileSync(path.join(proj.deliveredDir, name), 'utf8'))]) } catch {}
-    }
-  } catch { /* none yet */ }
-  const position = new Map(events.map((e, i) => [e.id, i]))
-  const picked = new Set()
-  for (const [key, last] of filters) {
-    const until = position.get(last?.id)
-    if (until == null) continue
-    const [page, type] = key.split('\0')
-    const filter = { page: page || undefined, type: type || undefined }
-    for (let i = 0; i <= until; i++) if (events[i].from !== 'cli' && matches(events[i], filter)) picked.add(events[i].id)
-  }
-  return picked
+/** Record that `event` was handed to an agent. */
+export function markPicked(file, event) {
+  return appendEvent(file, { page: event.page, type: PICKED, data: { event: event.id } }, 'cli')
 }
