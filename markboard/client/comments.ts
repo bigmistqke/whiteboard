@@ -11,6 +11,7 @@
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
 // so updates and new-content marks don't see comments at all.
 import type { ClientApi, WbEvent } from '../types'
+import { html } from '../html.js'
 
 interface Thread {
   id: string
@@ -38,9 +39,6 @@ startButton.hidden = true
 const popover = document.createElement('div')
 popover.className = 'wb-thread'
 popover.hidden = true
-
-const esc = (s: unknown) =>
-  String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
 // ---- the page's text ---------------------------------------------------------------------------
 
@@ -176,17 +174,18 @@ function renderPopover() {
   const t = threads.find(x => x.id === openThread)
   if (!t) return
   const who = (e: WbEvent) => (e.from === 'cli' ? 'agent' : 'you')
+  // the quote and every message are text from the reader or the agent: `html` escapes them
   const message = (e: WbEvent) =>
-    `<div class="wb-thread-message" data-from="${who(e)}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text">${esc(e.data.text)}</div></div>`
+    html`<div class="wb-thread-message" data-from="${who(e)}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text">${e.data.text ?? ''}</div></div>`
   const draft = popover.querySelector('textarea')?.value ?? ''
-  popover.innerHTML = `
-    <blockquote class="wb-thread-quote">${esc(t.comment.data.quote)}</blockquote>
-    ${t.range ? '' : '<p class="wb-thread-detached">This passage is no longer on the page.</p>'}
-    ${[t.comment, ...t.replies].map(message).join('')}
+  popover.innerHTML = String(html`
+    <blockquote class="wb-thread-quote">${t.comment.data.quote ?? ''}</blockquote>
+    ${!t.range && html`<p class="wb-thread-detached">This passage is no longer on the page.</p>`}
+    ${[t.comment, ...t.replies].map(message)}
     <form class="wb-thread-reply">
       <textarea rows="2" placeholder="Reply"></textarea>
       <div class="wb-thread-actions"><button type="submit" class="wb-primary">Reply</button><button type="button" data-close>Close thread</button></div>
-    </form>`
+    </form>`)
   popover.querySelector('textarea')!.value = draft
 }
 
