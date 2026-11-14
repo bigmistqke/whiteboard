@@ -32,7 +32,7 @@ const MIME = {
   '.csv': 'text/csv; charset=utf-8', '.html': 'text/html; charset=utf-8',
 }
 // files in .whiteboard/ that are the server's own bookkeeping, not content
-const OWN_FILES = new Set(['events.ndjson', 'delivered.json', 'server.json', 'server.log', 'server.lock'])
+const OWN_FILES = new Set(['events.ndjson', 'delivered', 'server.json', 'server.log', 'server.lock'])
 const SKIP_DIRS = new Set(['node_modules', '.git'])
 
 const esc = s =>
@@ -297,7 +297,7 @@ function fileChanged(f) {
       return
     }
     // an agent picked an event up: pages show it
-    if (inner.startsWith('delivered/') || inner === 'delivered.json') return notifyAll('events')
+    if (inner.startsWith('delivered/')) return notifyAll('events')
     if (OWN_FILES.has(inner)) return
     // the config, or something it imports
     return onSourceChange(path.join(PROJECT.dir, f))

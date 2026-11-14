@@ -42,8 +42,6 @@ Submitting a <form name="…"> on a page appends {id, ts, page, type, action, da
 .whiteboard/events.ndjson, with the form's name as its type.`
 
 const [cmd, ...rest] = process.argv.slice(2)
-if (rest.some(a => a === '--form' || a.startsWith('--form=')))
-  throw new Error('--form is now --type: a form\'s events have its name as their type (--type <name>)')
 const { values: opts, positionals } = parseArgs({
   args: rest,
   allowPositionals: true,
@@ -209,7 +207,6 @@ pages/
 # form submits from the pages, which ones \`whiteboard wait\` handed out, and the running server's port and output
 events.ndjson
 delivered/
-delivered.json
 server.json
 server.log
 server.lock

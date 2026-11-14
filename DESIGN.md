@@ -92,8 +92,7 @@ page never inherits the answers of an old one.
 track: `delivered/` records, per filter (page and type), the last event
 it handed out, one file per filter, written by renaming a finished
 temporary file over it: commands running at once never write the same
-file, and a read never sees half of one. (`delivered.json`, where all
-filters were kept in one file before, is still read.) Each command first returns matching events after that one,
+file, and a read never sees half of one. Each command first returns matching events after that one,
 also those from before it started, then follows the log. The backlog and the
 following split the log at one byte offset, so no event falls between
 them. Different filters count separately: a wait on a whole page does not

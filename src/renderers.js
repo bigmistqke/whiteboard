@@ -45,7 +45,6 @@ export function createConfigLoader(configFile) {
       if (renderers.some(x => x.name === n.name)) throw new Error(`two renderers are named "${n.name}" in ${configFile}`)
       renderers.push(n)
     }
-    if (config?.templates) throw new Error(`${configFile}: \`templates\` moved into the renderer: renderers: [basic({ templates: [...] })]`)
     return { renderers, files: config?.files !== false }
   }
 

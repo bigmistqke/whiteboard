@@ -29,11 +29,6 @@ export function parseLines(text) {
     if (!line.trim()) continue
     let event
     try { event = JSON.parse(line) } catch { continue /* a partial or corrupt line */ }
-    // logs written before events had a type named it `form`
-    if (event && event.type === undefined && 'form' in event) {
-      const { id, ts, page, form, ...rest } = event
-      event = { id, ts, page, type: form, ...rest }
-    }
     out.push(event)
   }
   return out
@@ -61,8 +56,6 @@ const filterFile = (dir, key) => path.join(dir, `${encodeURIComponent(key).repla
 /** The last event handed out for `key`, or null. */
 export function readDelivered(proj, key) {
   try { return JSON.parse(fs.readFileSync(filterFile(proj.deliveredDir, key), 'utf8')) } catch {}
-  // kept in one file for all filters before
-  try { return JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8'))[key] ?? null } catch {}
   return null
 }
 
@@ -86,10 +79,6 @@ export function pickedUp(proj, events) {
       try { filters.push([decodeURIComponent(name.slice(0, -5)), JSON.parse(fs.readFileSync(path.join(proj.deliveredDir, name), 'utf8'))]) } catch {}
     }
   } catch { /* none yet */ }
-  try {
-    for (const [key, last] of Object.entries(JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8'))))
-      if (!filters.some(([k]) => k === key)) filters.push([key, last])
-  } catch {}
   const position = new Map(events.map((e, i) => [e.id, i]))
   const picked = new Set()
   for (const [key, last] of filters) {
