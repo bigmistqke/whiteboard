@@ -3,8 +3,7 @@
 //   dist/client/runtime.js     the core in the browser: events, live channel, hand-over to a renderer
 //   dist/define.js             ./config: defineConfig, defineRenderer
 //   dist/markboard/…               ./markboard (the renderer) and ./template, module for module, with
-//                              each template's style and readme; markboard draws its frame with
-//                              Solid on the server, bundled in
+//                              each template's style and readme
 //   dist/markboard/client/main.js  markboard in the browser, one module (morphdom included)
 //   dist/markboard/<t>/client.js   a template's browser code: one module with Solid included
 //   dist/solid/index.js        ./solid, for template packages that bundle it themselves
@@ -22,27 +21,19 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(ROOT, 'dist')
 const at = (...p) => path.join(ROOT, ...p)
 
-/**
- * Compile Solid JSX, for the browser (`dom`) or for rendering to a string on the server (`ssr`);
- * rolldown strips the types that are left.
- */
-const solidJsx = (generate = 'dom') => ({
+/** Compile Solid JSX; rolldown strips the types that are left. */
+const solidJsx = () => ({
   name: 'solid-jsx',
   transform: {
     filter: { id: /\.[jt]sx$/ },
     handler(code, id) {
-      const out = transform(code, { filename: id, generate, moduleName: '@solidjs/web' })
+      const out = transform(code, { filename: id, generate: 'dom', moduleName: '@solidjs/web' })
       return { code: out.code, map: out.map ?? null, moduleType: id.endsWith('.tsx') ? 'ts' : 'js' }
     },
   },
 })
 
 const bare = id => !id.startsWith('.') && !path.isAbsolute(id)
-
-// the package's dependencies stay imports; anything else the server side uses is bundled in, so
-// Solid, which markboard renders with on the server, needs no install of its own
-const PKG = JSON.parse(fs.readFileSync(at('package.json'), 'utf8'))
-const dependency = id => Object.keys(PKG.dependencies ?? {}).some(d => id === d || id.startsWith(d + '/'))
 
 const templateDirs = fs.readdirSync(at('markboard'), { withFileTypes: true })
   .filter(e => e.isDirectory() && fs.existsSync(at('markboard', e.name, 'index.ts')))
@@ -72,11 +63,8 @@ const builds = [
       ...Object.fromEntries(templateDirs.map(name => [`markboard/${name}/index`, at('markboard', name, 'index.ts')])),
     },
     platform: 'node',
-    external: id => id.startsWith('node:') || (bare(id) && dependency(id)),
-    plugins: [solidJsx('ssr')],
-    // what is bundled in goes to dist/vendor/, not dist/node_modules/: npm leaves folders named
-    // node_modules out of a published package
-    output: { dir: DIST, format: 'esm', preserveModules: true, preserveModulesRoot: ROOT, entryFileNames: chunk => `${chunk.name.replace(/(^|\/)node_modules\//g, '$1vendor/')}.js` },
+    external: id => bare(id) || id.startsWith('node:'),
+    output: { dir: DIST, format: 'esm', preserveModules: true, preserveModulesRoot: ROOT, entryFileNames: '[name].js' },
   },
   // each template's browser code as one module: Solid and the adapter included, so it needs
   // nothing from the page to run

@@ -18,7 +18,7 @@ import grid from './grid/index.ts'
 import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
 import { resolveTemplates } from './templates.js'
-import { createDocs, createRender } from './render.tsx'
+import { createDocs, createRender } from './render.js'
 import { formNames } from './markdown.js'
 
 export { callout, code, details, form, gallery, grid, mermaid, quiet }
