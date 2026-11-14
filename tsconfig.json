@@ -10,7 +10,8 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": []
+    "types": ["node"],
+    "allowJs": true
   },
   "include": ["src/**/*", "basic/**/*", "solid/**/*"]
 }

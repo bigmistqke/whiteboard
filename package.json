@@ -58,7 +58,8 @@
     "build": "node build.js",
     "dev": "node build.js --watch",
     "prepare": "node build.js",
-    "start": "node bin/whiteboard.js serve"
+    "start": "node bin/whiteboard.js serve",
+    "types": "tsc -p tsconfig.json"
   },
   "engines": {
     "node": ">=22.18"
@@ -75,8 +76,8 @@
     "unified": "^11.0.5"
   },
   "peerDependencies": {
-    "solid-js": "^2.0.0-rc.21",
-    "@solidjs/web": "^2.0.0-rc.21"
+    "@solidjs/web": "^2.0.0-rc.21",
+    "solid-js": "^2.0.0-rc.21"
   },
   "peerDependenciesMeta": {
     "solid-js": {
@@ -89,8 +90,10 @@
   "devDependencies": {
     "@solidjs/compiler": "^2.0.0-rc.21",
     "@solidjs/web": "^2.0.0-rc.21",
+    "@types/node": "^26.6.6",
     "morphdom": "^2.7.7",
     "rolldown": "^1.2.19",
-    "solid-js": "^2.0.0-rc.21"
+    "solid-js": "^2.0.0-rc.21",
+    "typescript": "^7.0.2"
   }
 }
