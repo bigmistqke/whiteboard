@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { renderMarkdown } from './markdown.js'
-import { html, raw } from './html.js'
+import { html, raw } from '../src/html.js'
 
 const BASE_CSS = new URL('./client/base.css', import.meta.url)
 

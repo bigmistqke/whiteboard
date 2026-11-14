@@ -6,6 +6,7 @@
 // How a page looks and behaves is a renderer's: the core hands it the page as stored, and the
 // renderer turns it into whatever it likes. Both functions only return their argument; they exist
 // for types, so a renderer package needs nothing from the core at runtime.
+import type { Html } from './html.js'
 
 // ---- config ------------------------------------------------------------------------------------
 
@@ -55,12 +56,19 @@ export interface Renderer {
 export const defineRenderer = (renderer: Renderer): Renderer => renderer
 
 export interface Rendered {
-  html: string
+  /** the page's HTML: a string, or built with `html` (the core turns it into a string once) */
+  html: string | Html
   title?: string
   /** extra markup for <head>: stylesheets, meta */
-  head?: string
+  head?: string | Html
   /** JSON handed to the client with the HTML, e.g. what to mount where */
   data?: unknown
+}
+
+/** A render as the browser gets it: the core has turned its HTML into strings. */
+export interface RenderedPage extends Rendered {
+  html: string
+  head?: string
 }
 
 /** A page as the core stores it: what is in the file, read as is. */
@@ -130,7 +138,7 @@ export interface PageHandle {
   /** called when the stored page changed; returns an unsubscribe */
   onChange(fn: () => void): () => void
   /** the server render, afresh */
-  render(): Promise<Rendered>
+  render(): Promise<RenderedPage>
   /** the page as stored, afresh */
   stored(): Promise<StoredPage>
 }

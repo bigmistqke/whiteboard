@@ -1,7 +1,8 @@
 // The core in the browser: the page's events, the live channel, and handing the page to its
 // renderer. Framework-free, and it draws nothing: the renderer's client gets the root element and
 // does the rest. A page without a renderer client shows the server's HTML, replaced when it changes.
-import type { Api, Listener, PageHandle, Rendered, RendererMount, StoredPage, WbEvent } from '../define'
+import type { Api, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
+import { html } from '../html.js'
 
 interface Handoff { id: string; kind: StoredPage['kind']; renderer: string | null; client: string | null; data: unknown }
 
@@ -71,7 +72,7 @@ const handle: PageHandle = {
   kind: handoff.kind,
   data: handoff.data,
   onChange(fn) { changeListeners.add(fn); return () => changeListeners.delete(fn) },
-  render: () => getJson<Rendered>(`/api/render?page=${encodeURIComponent(page)}`),
+  render: () => getJson<RenderedPage>(`/api/render?page=${encodeURIComponent(page)}`),
   stored: () => getJson<StoredPage>(`/api/page?page=${encodeURIComponent(page)}`),
 }
 
@@ -120,7 +121,7 @@ if (handoff.client) {
     await mount(root, handle, api)
   } catch (err) {
     console.error(`renderer ${handoff.renderer}:`, err)
-    root.insertAdjacentHTML('afterbegin', `<pre class="wb-error" role="alert">renderer "${handoff.renderer}" failed to start: ${String((err as Error).message)}</pre>`)
+    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">renderer "${handoff.renderer}" failed to start: ${(err as Error).message}</pre>`))
   }
 }
 connect()

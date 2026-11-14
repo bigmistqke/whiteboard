@@ -11,7 +11,7 @@
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
 // so updates and new-content marks don't see comments at all.
 import type { ClientApi, WbEvent } from '../types'
-import { html } from '../html.js'
+import { html } from '../../src/html.js'
 
 interface Thread {
   id: string

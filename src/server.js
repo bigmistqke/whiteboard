@@ -16,6 +16,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
 import { appendEvent, readEvents, matches, pickedUp, CLAIM } from './events.js'
+import { html, raw } from './html.js'
 import { createConfigLoader, toPath } from './renderers.js'
 
 const PROJECT = projectAt(findProjectDir())
@@ -35,8 +36,6 @@ const MIME = {
 const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server.lock'])
 const SKIP_DIRS = new Set(['node_modules', '.git'])
 
-const esc = s =>
-  String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
 const loader = createConfigLoader(PROJECT.configFile)
 
@@ -199,12 +198,12 @@ function pick(page, renderers, notices) {
 
 /** No renderer: the page as stored, as text. */
 function rawRender(page) {
-  const list = items => `<ul>${items.map(([href, text]) => `<li><a href="${esc(href)}">${esc(text)}</a></li>`).join('')}</ul>`
+  const list = items => html`<ul>${items.map(([href, text]) => html`<li><a href="${href}">${text}</a></li>`)}</ul>`
   if (page.kind === 'pages') return { html: list(page.pages.map(p => [`/${p.id}`, p.id])) }
   if (page.kind === 'folder') {
     return { html: list(page.entries.map(e => [encodeURIComponent(e.name) + (e.dir ? '/' : ''), e.name + (e.dir ? '/' : '')])) }
   }
-  return { html: `<pre>${esc(page.source)}</pre>` }
+  return { html: html`<pre>${page.source}</pre>` }
 }
 
 const context = () => ({ project: { name: PROJECT.name, dir: PROJECT.dir, files: FILES }, asset, urlFor })
@@ -222,6 +221,9 @@ async function render(page) {
     notices.push(`renderer "${renderer.name}" failed: ${err.message}`)
     out = rawRender(page)
   }
+  // a renderer may return HTML built with `html`: from here on it is a string, for the shell and
+  // for /api/render's JSON alike
+  out = { ...out, html: String(out.html ?? ''), ...(out.head != null ? { head: String(out.head) } : {}) }
   return { renderer, out, notices }
 }
 
@@ -270,14 +272,15 @@ const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
 
 function shell(page, { renderer, out, notices }) {
   const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null }
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(out.title || page.id || PROJECT.name)}</title>
-${out.head ?? ''}</head>
-<body data-page="${esc(page.id)}" data-kind="${esc(page.kind)}">
-${notices.map(n => `<pre class="wb-error" role="alert">${esc(n)}</pre>`).join('')}
-<div id="wb-root">${out.html}</div>
-<script type="application/json" id="wb-page">${json(handoff)}</script>
-<script type="module" src="/_/runtime.js"></script></body></html>`
+  // the renderer's head and html are HTML already; the handoff is JSON made safe for a script tag
+  return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${out.title || page.id || PROJECT.name}</title>
+${raw(out.head ?? '')}</head>
+<body data-page="${page.id}" data-kind="${page.kind}">
+${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
+<div id="wb-root">${raw(out.html)}</div>
+<script type="application/json" id="wb-page">${raw(json(handoff))}</script>
+<script type="module" src="/_/runtime.js"></script></body></html>`)
 }
 
 // ---- listeners ---------------------------------------------------------------------------------
@@ -479,7 +482,7 @@ httpServer().on('request', async (req, res) => {
     if (r.raw) return sendFile(res, r.raw)
     if (r.notFound) {
       const page = { kind: 'page', id, file: '', mtime: null, source: r.notFound, frontmatter: {} }
-      return send(res, 404, shell(page, { renderer: null, out: { title: 'Not found', html: `<h1>Not found</h1><p>${esc(r.notFound)}</p>` }, notices: [] }))
+      return send(res, 404, shell(page, { renderer: null, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }))
     }
     return send(res, 200, shell(r.page, await render(r.page)))
   } catch (err) {
