@@ -86,8 +86,6 @@ export interface FileSource extends StoredBase {
 export interface FolderSource extends StoredBase {
   kind: 'folder'
   entries: { name: string; dir: boolean }[]
-  /** its README, when it has one */
-  readme: PageSource | null
 }
 
 /** The overview, or a folder of pages without an index.md. */

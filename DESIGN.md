@@ -42,12 +42,11 @@ outside the project:
 <repo>/.whiteboard/
   config.ts     defineConfig({ name, renderers: [...], files })
   pages/        the project's pages, served at /<page>
-  style.css     optional, applied to the project's pages
   events.ndjson the project's form submits
   delivered/    per wait/watch filter, the last event handed out (one file each)
   server.json   the port and process of the project's running server
   server.log    that server's output
-  .gitignore    everything but config.ts and style.css: remove a line to keep it in git
+  .gitignore    everything but config.ts: remove a line to keep it in git
 ```
 
 `whiteboard init` creates it. Every command works on the project of the
@@ -64,9 +63,9 @@ project's before using it. Two projects open at once are two servers on two
 ports; nothing coordinates them, and `/` lists only this project's pages.
 
 Any other file in the project folder is served from the repository at
-`/-/<path>`: markdown renders like a page (templates, live reload, forms),
-folders list their files with their README on top, other text files show as
-code, and images are served as they are. `.git` is never served. The whole
+`/-/<path>`: markdown files as pages, folders with their entries, other text
+files with their text, all handed to the renderer like any page; images and
+other binary files are served as they are. `.git` is never served. The whole
 project folder is watched so these views stay live.
 
 `files: false` in the config turns that off: only `.whiteboard/` is served and
@@ -117,7 +116,7 @@ What a renderer gets is the page as stored (`StoredPage` in `src/define.ts`):
 | --- | --- | --- |
 | `page` | a markdown file: `source`, and its `frontmatter` fields | `/<page>`, `/-/<path>.md` |
 | `file` | any other text file of the repository: `source` | `/-/<path>` |
-| `folder` | a repository folder: its `entries`, and its README as a `page` | `/-/<path>/` |
+| `folder` | a repository folder: its `entries` | `/-/<path>/` |
 | `pages` | the overview, or a folder of pages without an `index.md`: the `pages` in it, with when each was last answered | `/`, `/<folder>/` |
 
 Images and other binary files are served as they are.

@@ -28,6 +28,8 @@ export interface Options {
   templates?: TemplateEntry[]
   /** options for the code-block highlighter */
   code?: CodeOptions
+  /** a stylesheet linked on every page, after basic's own: new URL('./style.css', import.meta.url) */
+  style?: URL | string
 }
 
 export default function basic(options: Options = {}): Renderer {
@@ -38,7 +40,7 @@ export default function basic(options: Options = {}): Renderer {
   ]))
   return {
     name: 'basic',
-    render: createRender(templates),
+    render: createRender(templates, options.style),
     docs: createDocs(templates),
     client: new URL('./client/main.js', import.meta.url),
   }

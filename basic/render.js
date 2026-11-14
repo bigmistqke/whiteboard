@@ -3,6 +3,7 @@
 // code, folders as listings with their README on top; around all of it goes basic's frame.
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { renderMarkdown, esc } from './markdown.js'
 
 const BASE_CSS = new URL('./client/base.css', import.meta.url)
@@ -37,7 +38,25 @@ function pageList(pages) {
 /**
  * @param {() => { templates: Map<string, object>, code: object | null }} templates
  */
-export function createRender(templates) {
+/** The folder's README, when it has one. */
+function readmeOf(page) {
+  const name = ['README.md', 'readme.md', 'Readme.md'].find(n => page.entries.some(e => !e.dir && e.name === n))
+  if (!name) return null
+  const file = path.join(page.file, name)
+  return { file, source: fs.readFileSync(file, 'utf8') }
+}
+
+/** A stylesheet reference (URL, file: URL string, or absolute path) → absolute path. */
+function stylePath(ref) {
+  if (ref == null) return null
+  const file = ref instanceof URL || String(ref).startsWith('file:') ? fileURLToPath(ref) : String(ref)
+  if (!path.isAbsolute(file)) throw new Error(`basic({ style }): use a URL, e.g. new URL('./style.css', import.meta.url)`)
+  if (!fs.existsSync(file)) throw new Error(`basic({ style }): file not found: ${file}`)
+  return file
+}
+
+export function createRender(templates, style) {
+  const STYLE = stylePath(style)
   async function markdown(source, page, file, ctx) {
     const { templates: set, code } = templates()
     return renderMarkdown(body(source), { page, file, resolve: name => set.get(name) ?? null, code, linkFor: ctx.urlFor })
@@ -62,8 +81,9 @@ export function createRender(templates) {
         const rows = page.entries.map(e =>
           `<li><a href="${esc(encodeURIComponent(e.name) + (e.dir ? '/' : ''))}">${esc(e.name + (e.dir ? '/' : ''))}</a></li>`).join('')
         const listing = `<h1>${esc(rel || project.name)}</h1><ul class="wb-files">${up}${rows}</ul><p class="wb-meta">${esc(page.file)} · <code>${esc(page.id)}</code></p>`
-        if (!page.readme) return { html: listing, title: rel || project.name, islands: {}, styles: [] }
-        const r = await markdown(page.readme.source, page.id, page.readme.file, ctx)
+        const readme = readmeOf(page)
+        if (!readme) return { html: listing, title: rel || project.name, islands: {}, styles: [] }
+        const r = await markdown(readme.source, page.id, readme.file, ctx)
         return { ...r, html: `${r.html}<hr>${listing}` }
       }
       case 'file': {
@@ -93,7 +113,7 @@ export function createRender(templates) {
     return {
       title: out.title || page.id || ctx.project.name,
       head: `<script>try{const t=localStorage.getItem('wb-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch{}</script>
-<link rel="stylesheet" href="${esc(ctx.asset(BASE_CSS))}">${styles.map(s => `<link rel="stylesheet" href="${esc(s)}">`).join('')}`,
+<link rel="stylesheet" href="${esc(ctx.asset(BASE_CSS))}">${styles.map(s => `<link rel="stylesheet" href="${esc(s)}">`).join('')}${STYLE ? `<link rel="stylesheet" href="${esc(ctx.asset(STYLE))}">` : ''}`,
       html: `${nav}<main id="wb-main">${out.html}</main>`,
       // the client mounts `islands` and links `styles`
       data: { islands, styles, mtime: page.mtime },

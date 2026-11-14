@@ -143,8 +143,7 @@ function stored(id) {
         .filter(e => !SKIP_DIRS.has(e.name) && e.name !== '.DS_Store')
         .map(e => ({ name: e.name, dir: e.isDirectory() }))
         .sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name))
-      const readme = ['README.md', 'readme.md', 'Readme.md'].map(n => path.join(target, n)).find(f => fs.existsSync(f))
-      return { kind: 'folder', id, file: target, mtime: stat.mtimeMs, entries, readme: readme ? pageSource(id, readme) : null }
+      return { kind: 'folder', id, file: target, mtime: stat.mtimeMs, entries }
     }
     if (/\.(md|markdown)$/i.test(target)) return pageSource(id, target)
     if (stat.size > 1e6 || !isText(target)) return { raw: target }
@@ -202,8 +201,7 @@ function rawRender(page) {
   const list = items => `<ul>${items.map(([href, text]) => `<li><a href="${esc(href)}">${esc(text)}</a></li>`).join('')}</ul>`
   if (page.kind === 'pages') return { html: list(page.pages.map(p => [`/${p.id}`, p.id])) }
   if (page.kind === 'folder') {
-    const entries = list(page.entries.map(e => [encodeURIComponent(e.name) + (e.dir ? '/' : ''), e.name + (e.dir ? '/' : '')]))
-    return { html: entries + (page.readme ? `<pre>${esc(page.readme.source)}</pre>` : '') }
+    return { html: list(page.entries.map(e => [encodeURIComponent(e.name) + (e.dir ? '/' : ''), e.name + (e.dir ? '/' : '')])) }
   }
   return { html: `<pre>${esc(page.source)}</pre>` }
 }
@@ -237,11 +235,10 @@ async function docs() {
 const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
 
 function shell(page, { renderer, out, notices }) {
-  const projectCss = fs.existsSync(PROJECT.styleFile) ? '<link rel="stylesheet" href="/_/project.css" data-wb-style>' : ''
   const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null }
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(out.title || page.id || PROJECT.name)}</title>
-${out.head ?? ''}${projectCss}</head>
+${out.head ?? ''}</head>
 <body data-page="${esc(page.id)}" data-kind="${esc(page.kind)}">
 ${notices.map(n => `<pre class="wb-error" role="alert">${esc(n)}</pre>`).join('')}
 <div id="wb-root">${out.html}</div>
@@ -291,7 +288,6 @@ function fileChanged(f) {
   if (f.startsWith('.whiteboard/')) {
     const inner = f.slice('.whiteboard/'.length)
     if (inner === 'events.ndjson') return notifyAll('events')
-    if (inner === 'style.css') return notifyAll('style')
     if (inner.startsWith('pages/')) {
       if (inner.endsWith('.md')) pageChanged(inner.slice('pages/'.length).replace(/\.md$/, ''))
       return
@@ -397,7 +393,6 @@ httpServer().on('request', async (req, res) => {
 
     if (p === '/favicon.ico') { res.writeHead(204); return res.end() }
     if (p === '/_/runtime.js') return sendFile(res, RUNTIME)
-    if (p === '/_/project.css') return send(res, 200, fs.existsSync(PROJECT.styleFile) ? fs.readFileSync(PROJECT.styleFile) : '', 'text/css')
     if (p.startsWith('/_/file/')) {
       const file = path.resolve(p.slice('/_/file'.length))
       if (!assetDirs.has(path.dirname(file)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')

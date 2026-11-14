@@ -52,7 +52,6 @@ export function project(dir) {
     deliveredDir: path.join(wb, 'delivered'),
     serverFile: path.join(wb, 'server.json'),
     logFile: path.join(wb, 'server.log'),
-    styleFile: path.join(wb, 'style.css'),
     /** shown in titles and the overview: `name` in the config if it is a plain literal, else the folder name */
     name: (/\bname\s*:\s*['"]([^'"]+)['"]/.exec(fs.readFileSync(configFile, 'utf8')) ?? [])[1] ?? path.basename(dir),
   }

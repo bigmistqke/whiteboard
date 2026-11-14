@@ -17,7 +17,7 @@ const fail = err => {
 process.on('uncaughtException', fail)
 process.on('unhandledRejection', fail)
 
-const HELP = `whiteboard — markdown pages in the browser, form submits and other events in an ndjson log
+const HELP = `whiteboard — markdown pages in the browser, what the reader does on them as events in an ndjson log
 
   whiteboard init [name]           make this folder a project: .whiteboard/{config.ts,pages/}
   whiteboard root                  print where pages go (this project's .whiteboard/pages)
@@ -32,14 +32,14 @@ const HELP = `whiteboard — markdown pages in the browser, form submits and oth
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
-filters: --page <page|file> (includes pages below it)  --type <type>  (a form's type is its name)
+filters: --page <page|file> (includes pages below it)  --type <type>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
 events:  --since <iso time or event id>  --last <n>
 
 Every command works on the project of the current folder: the nearest folder upward with
 .whiteboard/config.ts. Each project runs its own server; its port is in .whiteboard/server.json.
-Submitting a <form name="…"> on a page appends {id, ts, page, type, action, data} to
-.whiteboard/events.ndjson, with the form's name as its type.`
+A page appends events {id, ts, page, type, action, data} to .whiteboard/events.ndjson;
+which types it sends is up to its renderer (\`whiteboard docs\` says).`
 
 const [cmd, ...rest] = process.argv.slice(2)
 const { values: opts, positionals } = parseArgs({
@@ -204,7 +204,7 @@ ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served:
 `)
   fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git
 pages/
-# form submits from the pages, which ones \`whiteboard wait\` handed out, and the running server's port and output
+# events from the pages, which ones \`whiteboard wait\` handed out, and the running server's port and output
 events.ndjson
 delivered/
 server.json

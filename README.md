@@ -92,7 +92,6 @@ whiteboard keeps is there; nothing is written outside the project.
 .whiteboard/
   config.ts       renderers and options
   pages/          the pages: pages/plan.md is served at /plan
-  style.css       optional, extra styles for the pages
   events.ndjson   every form submit, one JSON object per line
   delivered/      which events `whiteboard wait` and `watch` already handed out
   server.json     the port and process of the running server
@@ -210,12 +209,14 @@ The full syntax, with live examples, is at `/_/docs` on the running server
 and printed by `whiteboard docs`. The agent reads it from there, so it
 always matches the templates the project actually has.
 
-`basic()` takes your own templates, and options for the code highlighter:
+`basic()` takes your own templates, options for the code highlighter, and a
+stylesheet of your own:
 
 ```ts
 basic({
   templates: [timeline],   // one with the name of a built-in replaces it
   code: { themes: { light: 'github-light', dark: 'github-dark' } },
+  style: new URL('./style.css', import.meta.url),   // linked on every page, after basic's own
 })
 ```
 
