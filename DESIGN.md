@@ -263,7 +263,12 @@ templates.
    filled when the agent spoke last.
 6. Appends an event for every `<form name="…">` without an `action`
    attribute that is submitted: its name as `type`, the button as `action`,
-   the fields as `data`.
+   the fields as `data`. The `form` template adds a thread under each form:
+   messages are `thread` events (`{ form, text }`, from the reader or the
+   agent), never submits, so asking about a choice never makes it. An agent
+   message can name the submit whose typed text it answers (`replyTo`),
+   shown as the reader's message before it, and can take the place of an
+   earlier one (`replaces`), since the log only grows.
 7. Shows what an agent is waiting for. A form is marked "waiting for you"
    when a listener asks for it by name (also when it was answered before:
    the agent wants a new answer), or when a listener takes any answer on
