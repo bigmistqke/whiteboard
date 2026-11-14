@@ -231,7 +231,7 @@ function morph(html: string) {
       }
       // <details> open state was set on the new tree by detailsKeys(), matched by identity, not position
       if (from instanceof HTMLFormElement) {
-        for (const k of ['wbSent', 'wbState', 'wbWaiting', 'wbUnheard']) if (from.dataset[k] != null) to.dataset[k] = from.dataset[k]
+        for (const k of ['wbSent', 'wbState', 'wbWaiting', 'wbUnheard', 'wbPending', 'wbDecided', 'wbFolded', 'wbOutcome']) if (from.dataset[k] != null) to.dataset[k] = from.dataset[k]
       }
       for (const c of KEEP_CLASSES) if (from.classList.contains(c)) to.classList.add(c)
       return true

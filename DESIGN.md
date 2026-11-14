@@ -251,7 +251,12 @@ templates.
    the page and the form has none yet. A button jumps from one waiting form
    to the next, the tab title gets a `(!n)` prefix, and the overview marks
    pages an agent waits on. An unanswered form nobody listens for says so,
-   so the reader knows an answer would go unheard for now.
+   so the reader knows an answer would go unheard for now. An answered form
+   is "waiting for the agent" until a `wait` or `watch` hands its answer out
+   (the core marks such events `pickedUp`, from `delivered/`), and then
+   decided: it folds into one line quoting the answer, and a click opens it
+   again to change it. A line above the page counts the four states and
+   jumps through each.
 
 Nested containers may all use `:::`. basic pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence

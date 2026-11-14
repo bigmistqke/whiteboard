@@ -50,6 +50,7 @@ const api: Api = {
   events: () => events,
   onEvents(fn) { eventListeners.add(fn); return () => eventListeners.delete(fn) },
   last: type => events.findLast(e => e.type === type),
+  pickedUp: id => !!events.find(e => e.id === id)?.pickedUp,
   append,
   listeners: () => listeners,
   onListeners(fn) { listenerListeners.add(fn); return () => listenerListeners.delete(fn) },
@@ -91,8 +92,16 @@ function connect() {
   es.addEventListener('change', () => { for (const fn of changeListeners) fn() })
   es.addEventListener('events', () => loadEvents())
   es.addEventListener('listeners', () => loadListeners())
-  // browser code changed; renderers keep what matters across a reload themselves
-  es.addEventListener('reload', () => location.reload())
+  // browser code changed; renderers keep what matters across a reload themselves. Reload only once
+  // the server answers: reloading while it restarts would leave the browser's error page, which
+  // has nothing left in it to recover with.
+  es.addEventListener('reload', () => {
+    const go = async () => {
+      try { if ((await fetch('/api/health', { cache: 'no-store' })).ok) return location.reload() } catch { /* not up yet */ }
+      setTimeout(go, 500)
+    }
+    go()
+  })
   es.addEventListener('style', () => {
     for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')) {
       const url = new URL(link.href)

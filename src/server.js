@@ -15,7 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
-import { appendEvent, readEvents, matches } from './events.js'
+import { appendEvent, readEvents, matches, pickedUp } from './events.js'
 import { createConfigLoader, toPath } from './renderers.js'
 
 const PROJECT = projectAt(findProjectDir())
@@ -296,7 +296,9 @@ function fileChanged(f) {
       if (inner.endsWith('.md')) pageChanged(inner.slice('pages/'.length).replace(/\.md$/, ''))
       return
     }
-    if (OWN_FILES.has(inner) || inner.startsWith('delivered/')) return
+    // an agent picked an event up: pages show it
+    if (inner.startsWith('delivered/') || inner === 'delivered.json') return notifyAll('events')
+    if (OWN_FILES.has(inner)) return
     // the config, or something it imports
     return onSourceChange(path.join(PROJECT.dir, f))
   }
@@ -407,7 +409,11 @@ httpServer().on('request', async (req, res) => {
       if (!body.type) return sendJson(res, 400, { error: 'event type required' })
       return sendJson(res, 200, appendEvent(PROJECT.eventsFile, body))
     }
-    if (p === '/api/events') return sendJson(res, 200, readEvents(PROJECT.eventsFile).filter(e => matches(e, q)))
+    if (p === '/api/events') {
+      const all = readEvents(PROJECT.eventsFile)
+      const picked = pickedUp(PROJECT, all)
+      return sendJson(res, 200, all.filter(e => matches(e, q)).map(e => (picked.has(e.id) ? { ...e, pickedUp: true } : e)))
+    }
     if (p === '/api/docs') return sendJson(res, 200, await docs())
     if (p === '/api/listeners') return sendJson(res, 200, listenersFor(q.page ?? null))
     if (p === '/api/listen') {

@@ -143,6 +143,8 @@ export interface WbEvent {
   data: Record<string, unknown>
   /** 'cli' for events the command line appended (`whiteboard append`), such as an agent's reply */
   from?: 'cli'
+  /** in the browser: an agent has picked this event up (`whiteboard wait` or `watch` handed it out) */
+  pickedUp?: true
 }
 
 /**
@@ -168,6 +170,8 @@ export interface Api {
   last(type: string): WbEvent | undefined
   /** record an event for this page: it lands in the log, where the agent reads it */
   append(type: string, data?: Record<string, unknown>, action?: string | null): Promise<WbEvent>
+  /** has an agent picked this event up (a `wait` or `watch` handed it out)? */
+  pickedUp(id: string): boolean
   /** the agents waiting for answers on this page right now */
   listeners(): Listener[]
   onListeners(fn: (listeners: Listener[]) => void): () => void

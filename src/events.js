@@ -73,3 +73,31 @@ export function writeDelivered(proj, key, event) {
   fs.writeFileSync(tmp, JSON.stringify({ id: event.id, ts: event.ts }) + '\n')
   fs.renameSync(tmp, file)
 }
+
+/**
+ * The ids of the events some wait or watch has handed out: for every filter, its last handed-out
+ * event and every matching one before it in the log. What the reader sees as "picked up".
+ */
+export function pickedUp(proj, events) {
+  const filters = []
+  try {
+    for (const name of fs.readdirSync(proj.deliveredDir)) {
+      if (!name.endsWith('.json')) continue
+      try { filters.push([decodeURIComponent(name.slice(0, -5)), JSON.parse(fs.readFileSync(path.join(proj.deliveredDir, name), 'utf8'))]) } catch {}
+    }
+  } catch { /* none yet */ }
+  try {
+    for (const [key, last] of Object.entries(JSON.parse(fs.readFileSync(proj.deliveredFile, 'utf8'))))
+      if (!filters.some(([k]) => k === key)) filters.push([key, last])
+  } catch {}
+  const position = new Map(events.map((e, i) => [e.id, i]))
+  const picked = new Set()
+  for (const [key, last] of filters) {
+    const until = position.get(last?.id)
+    if (until == null) continue
+    const [page, type] = key.split('\0')
+    const filter = { page: page || undefined, type: type || undefined }
+    for (let i = 0; i <= until; i++) if (events[i].from !== 'cli' && matches(events[i], filter)) picked.add(events[i].id)
+  }
+  return picked
+}
