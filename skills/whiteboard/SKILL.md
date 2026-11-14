@@ -146,4 +146,8 @@ that no agent is listening. So:
   just a button under it (`submit: Read it`) and wait for it. Then
   everything you wait for is a form the page can point to.
 
+The user can also select text on a page and comment on it: a `watch` on the
+page hands you those as `comment` events. `whiteboard docs` says how to reply
+(by editing the page, or in the thread with `whiteboard append`).
+
 After acting on an answer, update the page to say what you did with it.

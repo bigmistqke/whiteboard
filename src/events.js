@@ -3,8 +3,12 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 
-/** Append one event; `action` is the button that submitted a form, null for anything else. */
-export function appendEvent(file, input) {
+/**
+ * Append one event; `action` is the button that submitted a form, null for anything else. `from`
+ * is set only for events the command line writes ('cli'), so that waits skip them and pages can
+ * tell them apart; what the browser appends has none.
+ */
+export function appendEvent(file, input, from = null) {
   const event = {
     id: `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
     ts: new Date().toISOString(),
@@ -12,6 +16,7 @@ export function appendEvent(file, input) {
     type: String(input.type ?? ''),
     action: input.action ?? null,
     data: input.data ?? {},
+    ...(from ? { from } : {}),
   }
   fs.appendFileSync(file, JSON.stringify(event) + '\n')
   return event
@@ -43,3 +48,4 @@ export function matches(event, { page, type } = {}) {
   if (type && event.type !== type) return false
   return true
 }
+

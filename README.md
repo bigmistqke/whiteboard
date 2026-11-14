@@ -161,6 +161,7 @@ upward with `.whiteboard/config.ts`.
 | `whiteboard events [filters]` | print recorded events |
 | `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed |
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
+| `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 

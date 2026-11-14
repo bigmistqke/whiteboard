@@ -7,6 +7,7 @@ import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { applyWaiting, trackWaiting } from './waiting'
+import { refreshComments, trackComments } from './comments'
 
 interface Island { template: string; client: string; props: unknown }
 interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }
@@ -295,6 +296,7 @@ async function refresh() {
   restorePlainForms(false)
   restoreDrafts()
   applyWaiting()
+  refreshComments()
   tickTimes()
 }
 
@@ -330,6 +332,7 @@ const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, core:
   restorePlainForms(true)
   restoreDrafts()
   if (!isDir) trackWaiting(main, api)
+  if (!isDir) trackComments(main, api)
   tickTimes()
 }
 

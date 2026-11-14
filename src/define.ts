@@ -141,6 +141,8 @@ export interface WbEvent {
   /** the button that submitted a form; null for other events */
   action: string | null
   data: Record<string, unknown>
+  /** 'cli' for events the command line appended (`whiteboard append`), such as an agent's reply */
+  from?: 'cli'
 }
 
 /**

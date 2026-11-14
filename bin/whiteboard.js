@@ -7,7 +7,7 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
-import { parseLines, readEvents, matches } from '../src/events.js'
+import { appendEvent, parseLines, readEvents, matches } from '../src/events.js'
 
 // a failing command prints its message, not a stack trace
 const fail = err => {
@@ -28,6 +28,7 @@ const HELP = `whiteboard — markdown pages in the browser, form submits and oth
   whiteboard events [filters]      print recorded events as ndjson
   whiteboard wait [filters]        block until the next matching event, print it, exit
   whiteboard watch [filters]       like wait, but never exits: print each matching event once
+  whiteboard append --page <p> --type <t> [--data <json>]   add an event to a page's log (e.g. a reply)
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
@@ -47,7 +48,7 @@ const { values: opts, positionals } = parseArgs({
   args: rest,
   allowPositionals: true,
   options: {
-    page: { type: 'string' }, type: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
+    page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
     since: { type: 'string' }, last: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   },
 })
@@ -286,14 +287,28 @@ switch (cmd) {
     }
     // the backlog and the follow split the log at one offset, so no event falls between them
     const offset = logSize(proj.eventsFile)
-    const matching = readEventsUpTo(proj.eventsFile, offset).filter(e => matches(e, f))
+    // events the command line wrote (an agent's own reply, say) are not answers to wait for
+    const heard = e => matches(e, f) && e.from !== 'cli'
+    const matching = readEventsUpTo(proj.eventsFile, offset).filter(heard)
     const last = delivered[key]
     const at = last ? matching.findIndex(e => e.id === last.id) : -1
     const backlog = !last ? matching : at >= 0 ? matching.slice(at + 1) : matching.filter(e => e.ts > last.ts)
     for (const e of backlog) hand(e)
-    follow(hand, offset)
+    follow(e => { if (e.from !== 'cli') hand(e) }, offset)
     listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
+    break
+  }
+  case 'append': {
+    // the agent's side of the log: anything a page's renderer understands, such as a reply to a
+    // comment. Waits skip what is appended here, so an agent does not hear its own events.
+    const proj = needProject()
+    if (!opts.page || !opts.type) throw new Error("usage: whiteboard append --page <page|file> --type <type> [--data '<json>']")
+    let data = {}
+    if (opts.data) {
+      try { data = JSON.parse(opts.data) } catch { throw new Error('--data must be JSON, e.g. \'{"text":"…"}\'') }
+    }
+    console.log(JSON.stringify(appendEvent(proj.eventsFile, { page: pageId(proj, opts.page), type: opts.type, data }, 'cli')))
     break
   }
   case 'skill': {

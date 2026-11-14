@@ -159,6 +159,10 @@ it. Lines written before events had a type say `form` instead; they are read
 as `type`. `whiteboard wait` and `watch` filter by page and type, and hand out each
 event once per filter (see Projects): `watch` is `wait` that never exits.
 
+Events the command line appends (`whiteboard append`, an agent's reply,
+say) carry `from: "cli"`; waits skip them, so an agent never wakes on its
+own events, and renderers can tell the two sides apart.
+
 ### Listeners
 
 While `whiteboard wait` or `watch` runs, it holds a connection to the
@@ -223,10 +227,17 @@ templates.
      marked. It is for what changes without being news to the reader.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons jump to the
      nearest unseen block; the tab title gets a `(n)` prefix.
-5. Appends an event for every `<form name="…">` without an `action`
+5. Comments: selecting text in the page shows a "Comment" button; a comment
+   is an event (`comment`, with the quote and the text around it), and so
+   are replies (`comment-reply`) and closing a thread (`comment-resolve`).
+   Passages are found again by quote and context after edits, and
+   highlighted with the CSS Highlight API, so the page's markup never
+   changes for them. A badge in the margin opens each open thread; it is
+   filled when the agent spoke last.
+6. Appends an event for every `<form name="…">` without an `action`
    attribute that is submitted: its name as `type`, the button as `action`,
    the fields as `data`.
-6. Shows what an agent is waiting for. A form is marked "waiting for you"
+7. Shows what an agent is waiting for. A form is marked "waiting for you"
    when a listener asks for it by name (also when it was answered before:
    the agent wants a new answer), or when a listener takes any answer on
    the page and the form has none yet. A button jumps from one waiting form
