@@ -1,14 +1,14 @@
 // The core in the browser: the page's events, the live channel, and handing the page to its
 // renderer. Framework-free, and it draws nothing: the renderer's client gets the root element and
 // does the rest. A page without a renderer client shows the server's HTML, replaced when it changes.
-import type { Api, ExtensionMount, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
+import type { Api, PluginMount, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
 import { html } from '../html.js'
 import { formsApi, trackForms } from './forms'
 
 interface Handoff {
   id: string; kind: StoredPage['kind']; renderer: string | null; client: string | null; data: unknown
-  /** the extensions' browser modules */
-  extensions: { name: string; client: string }[]
+  /** the plugins' browser modules */
+  plugins: { name: string; client: string }[]
 }
 
 const handoff: Handoff = JSON.parse(document.getElementById('wb-page')!.textContent!)
@@ -155,15 +155,15 @@ if (handoff.client) {
 }
 // named forms, once the renderer has put them on the page
 trackForms(root, page, api)
-// the extensions after the renderer, so that what they work on is on the page; one failing leaves the others
-await Promise.all((handoff.extensions ?? []).map(async ext => {
+// the plugins after the renderer, so that what they work on is on the page; one failing leaves the others
+await Promise.all((handoff.plugins ?? []).map(async ext => {
   try {
-    const mount: ExtensionMount = (await import(ext.client)).default
+    const mount: PluginMount = (await import(ext.client)).default
     if (typeof mount !== 'function') throw new Error('the client module must export a mount(root, page, api) function as default')
     await mount(root, handle, api)
   } catch (err) {
-    console.error(`extension ${ext.name}:`, err)
-    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">extension "${ext.name}" failed in the browser: ${(err as Error).message}</pre>`))
+    console.error(`plugin ${ext.name}:`, err)
+    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">plugin "${ext.name}" failed in the browser: ${(err as Error).message}</pre>`))
   }
 }))
 connect()

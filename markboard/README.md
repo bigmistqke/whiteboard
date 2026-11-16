@@ -90,7 +90,7 @@ jumps from one form waiting for you to the next, and the tab title gets a
 
 ### Comments
 
-With the comments extension (`@bigmistqke/whiteboard/comments`; `whiteboard
+With the comments plugin (`@bigmistqke/whiteboard/comments`; `whiteboard
 init` adds it), select any passage and a "Comment" button appears. A comment
 opens a thread in the margin, and the agent replies there or edits the page. Passages are
 found again by their quote and its surroundings after edits, and

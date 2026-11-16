@@ -1,24 +1,24 @@
-// The project's config: its renderers, its extensions and whether it serves the repository's files. Node loads it
+// The project's config: its renderers, its plugins and whether it serves the repository's files. Node loads it
 // (see load.js), so it can be TypeScript and import renderer packages from the project's own
 // node_modules.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { importFresh } from './load.js'
-import { extensionCommands } from './extensions.js'
+import { pluginCommands } from './plugins.js'
 
 const NAME = /^[\w-]+$/
-/** The command line's own commands: an extension can't be named like one, since its commands are `whiteboard <name>`. */
+/** The command line's own commands: a plugin can't be named like one, since its commands are `whiteboard <name>`. */
 export const BUILTIN_COMMANDS = new Set(['serve', 'init', 'root', 'new', 'show', 'url', 'docs', 'events', 'wait', 'watch', 'append', 'status', 'skill', 'help'])
 // folders in .whiteboard/ that are the core's, and the built-in commands
 const RESERVED = new Set(['pages', 'delivered', ...BUILTIN_COMMANDS])
 
-/** An extension's own folder, `.whiteboard/<name>/`, made with a .gitignore that ignores all of it. */
-export function extensionDir(wb, name) {
+/** A plugin's own folder, `.whiteboard/<name>/`, made with a .gitignore that ignores all of it. */
+export function pluginDir(wb, name) {
   const dir = path.join(wb, name)
   fs.mkdirSync(dir, { recursive: true })
   const ignore = path.join(dir, '.gitignore')
-  if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, `# what the ${name} extension keeps; not for git\n*\n`)
+  if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, `# what the ${name} plugin keeps; not for git\n*\n`)
   return dir
 }
 
@@ -61,23 +61,24 @@ export function createConfigLoader(configFile) {
       if (renderers.some(x => x.name === n.name)) throw new Error(`two renderers are named "${n.name}" in ${configFile}`)
       renderers.push(n)
     }
-    const extensions = []
-    for (const e of [config?.extensions ?? []].flat(Infinity)) {
+    const plugins = []
+    if (config?.extensions) throw new Error(`\`extensions\` is called \`plugins\` now: rename it in ${configFile}`)
+    for (const e of [config?.plugins ?? []].flat(Infinity)) {
       if (!e) continue
-      if (typeof e !== 'object' || !NAME.test(e.name ?? '')) throw new Error(`an extension in ${configFile} needs a name: letters, digits, - and _`)
-      if (RESERVED.has(e.name)) throw new Error(`extension name "${e.name}" in ${configFile} is taken by the core (a folder in .whiteboard/ or a command)`)
-      extensionCommands(e) // checks them
-      if (extensions.some(x => x.name === e.name)) throw new Error(`two extensions are named "${e.name}" in ${configFile}`)
-      extensions.push(e)
+      if (typeof e !== 'object' || !NAME.test(e.name ?? '')) throw new Error(`a plugin in ${configFile} needs a name: letters, digits, - and _`)
+      if (RESERVED.has(e.name)) throw new Error(`plugin name "${e.name}" in ${configFile} is taken by the core (a folder in .whiteboard/ or a command)`)
+      pluginCommands(e) // checks them
+      if (plugins.some(x => x.name === e.name)) throw new Error(`two plugins are named "${e.name}" in ${configFile}`)
+      plugins.push(e)
     }
-    return { renderers, extensions, files: config?.files !== false }
+    return { renderers, plugins, files: config?.files !== false }
   }
 
-  /** @returns {Promise<{ renderers: object[], extensions: object[], files: boolean, errors: Error[] }>} */
+  /** @returns {Promise<{ renderers: object[], plugins: object[], files: boolean, errors: Error[] }>} */
   function config() {
     cached ??= load().then(
       value => ({ ...value, errors: [] }),
-      error => ({ renderers: [], extensions: [], files: false, errors: [error] }),
+      error => ({ renderers: [], plugins: [], files: false, errors: [error] }),
     )
     return cached
   }

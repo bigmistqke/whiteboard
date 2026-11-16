@@ -6,7 +6,7 @@
 //   /_/docs          the documentation of the project's renderers
 //   /_/file/<path>   a file a renderer asked to serve (its client, a stylesheet)
 //   /_/auth          sets the project's token as a cookie (see auth.js)
-//   /api/<ext>/…     an extension's own routes (see Extension in define.ts)
+//   /api/<ext>/…     a plugin's own routes (see Plugin in define.ts)
 //   /api/…           the stored page, its render, events, live changes
 //
 // The core reads pages as they are stored and hands them to a renderer, which decides what they
@@ -19,8 +19,8 @@ import { fileURLToPath } from 'node:url'
 import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
 import { appendEvent, readEvents, matches, pickedUp, CLAIM } from './events.js'
 import { html, raw } from './html.js'
-import { createConfigLoader, extensionDir, toPath } from './renderers.js'
-import { describeRoutes, dispatch, extensionCommands, mountRoutes, usage } from './extensions.js'
+import { createConfigLoader, pluginDir, toPath } from './renderers.js'
+import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage } from './plugins.js'
 import { createAuth } from './auth.js'
 
 const PROJECT = projectAt(findProjectDir())
@@ -44,26 +44,26 @@ const SKIP_DIRS = new Set(['node_modules', '.git'])
 const loader = createConfigLoader(PROJECT.configFile)
 const auth = createAuth(PROJECT.wb)
 
-// ---- extensions --------------------------------------------------------------------------------
+// ---- plugins --------------------------------------------------------------------------------
 // Behaviour on every page, next to the renderer: each one's setup runs once per loaded config.
 
 const setups = new WeakMap()
-// the extensions' own folders in .whiteboard/: changes in them reload nothing
-const extensionDirs = new Set()
+// the plugins' own folders in .whiteboard/: changes in them reload nothing
+const pluginDirs = new Set()
 
-/** The hooks of the loaded config's extensions, set up once per config. */
-async function extensionHooks() {
+/** The hooks of the loaded config's plugins, set up once per config. */
+async function pluginHooks() {
   const c = await config()
   if (!setups.has(c)) {
-    setups.set(c, Promise.all(c.extensions.map(async e => {
+    setups.set(c, Promise.all(c.plugins.map(async e => {
       try {
-        extensionDirs.add(e.name)
-        const dataDir = extensionDir(PROJECT.wb, e.name)
+        pluginDirs.add(e.name)
+        const dataDir = pluginDir(PROJECT.wb, e.name)
         const hooks = (await e.setup?.({ project: { name: PROJECT.name, dir: PROJECT.dir, wb: PROJECT.wb }, dataDir, authorized: auth.authorized, asset })) ?? {}
-        return { name: e.name, ...hooks, table: mountRoutes(e.name, hooks.routes), extension: e }
+        return { name: e.name, ...hooks, table: mountRoutes(e.name, hooks.routes), plugin: e }
       } catch (err) {
-        console.error(`extension ${e.name}:`, err)
-        return { name: e.name, table: [], extension: e, error: err }
+        console.error(`plugin ${e.name}:`, err)
+        return { name: e.name, table: [], plugin: e, error: err }
       }
     })))
   }
@@ -71,17 +71,17 @@ async function extensionHooks() {
 }
 
 /**
- * What the extensions add to the page shell for this request, and the notices of those that failed:
- * a failing extension shows on the page, as a failing config does, instead of quietly leaving its
+ * What the plugins add to the page shell for this request, and the notices of those that failed:
+ * a failing plugin shows on the page, as a failing config does, instead of quietly leaving its
  * part out.
  */
 async function shellExtras(req) {
-  const hooks = await extensionHooks()
-  const notices = hooks.filter(h => h.error).map(h => `extension "${h.name}" failed to start: ${h.error.message}`)
+  const hooks = await pluginHooks()
+  const notices = hooks.filter(h => h.error).map(h => `plugin "${h.name}" failed to start: ${h.error.message}`)
   const parts = await Promise.all(hooks.map(async h => {
     try { return (await h.shell?.(req)) ?? null } catch (err) {
-      console.error(`extension ${h.name}:`, err)
-      notices.push(`extension "${h.name}" failed on this page: ${err.message}`)
+      console.error(`plugin ${h.name}:`, err)
+      notices.push(`plugin "${h.name}" failed on this page: ${err.message}`)
       return null
     }
   }))
@@ -90,7 +90,7 @@ async function shellExtras(req) {
   return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), clients, notices }
 }
 
-/** A page with what the extensions add, their notices among the page's. */
+/** A page with what the plugins add, their notices among the page's. */
 async function page(req, stored, rendered) {
   const extras = await shellExtras(req)
   return shell(stored, { ...rendered, notices: [...rendered.notices, ...extras.notices] }, extras)
@@ -322,26 +322,26 @@ async function docs() {
   const { renderers, errors } = await config()
   const list = []
   for (const r of renderers) list.push({ name: r.name, docs: r.docs ? await r.docs(context()) : null })
-  // what each extension declares: its routes (for an agent that wants to call them) and commands
-  const extensions = await Promise.all((await extensionHooks()).map(async h => ({
+  // what each plugin declares: its routes (for an agent that wants to call them) and commands
+  const plugins = await Promise.all((await pluginHooks()).map(async h => ({
     name: h.name,
     error: h.error?.message ?? null,
-    docs: h.extension.docs ? await h.extension.docs() : null,
+    docs: h.plugin.docs ? await h.plugin.docs() : null,
     routes: describeRoutes(h.table),
-    commands: extensionCommands(h.extension).map(c => ({ name: c.name, usage: usage(c.command), description: c.command.description })),
+    commands: pluginCommands(h.plugin).map(c => ({ name: c.name, usage: usage(c.command), description: c.command.description })),
   })))
-  return { errors: errors.map(e => e.message), renderers: list, extensions }
+  return { errors: errors.map(e => e.message), renderers: list, plugins }
 }
 
 const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
 
 // the page's corner (api.corner()): the one thing the core puts on every page, empty, for the
-// renderer's and the extensions' floating buttons; above what covers the bottom of the window
+// renderer's and the plugins' floating buttons; above what covers the bottom of the window
 const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
 
-/** `extras`: what extensions add to <head> and <body> (see shellExtras). */
+/** `extras`: what plugins add to <head> and <body> (see shellExtras). */
 function shell(page, { renderer, out, notices }, extras = { head: [], body: [], clients: [] }) {
-  const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null, extensions: extras.clients }
+  const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null, plugins: extras.clients }
   // the renderer's head and html are HTML already; the handoff is JSON made safe for a script tag
   return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${out.title || page.id || PROJECT.name}</title>
@@ -401,7 +401,7 @@ function fileChanged(f) {
       if (inner.endsWith('.md')) pageChanged(inner.slice('pages/'.length).replace(/\.md$/, ''))
       return
     }
-    if (OWN_FILES.has(inner) || extensionDirs.has(inner.split('/')[0])) return
+    if (OWN_FILES.has(inner) || pluginDirs.has(inner.split('/')[0])) return
     // the config, or something it imports
     return onSourceChange(path.join(PROJECT.dir, f))
   }
@@ -433,7 +433,7 @@ let reloadTimer = null
 async function onSourceChange(file) {
   if (within(file, PROJECT.pagesDir)) return
   if (path.dirname(file) === PROJECT.wb && OWN_FILES.has(path.basename(file))) return
-  if ([...extensionDirs].some(name => within(file, path.join(PROJECT.wb, name)))) return
+  if ([...pluginDirs].some(name => within(file, path.join(PROJECT.wb, name)))) return
   if (file.endsWith('.css')) return notifyAll('style')
   if (file.endsWith('.md')) return notifyAll('change')
   if (file === RUNTIME || assets.has(file)) return notifyAll('reload')
@@ -503,11 +503,11 @@ httpServer().on('request', async (req, res) => {
     if (p === '/_/runtime.js') return sendFile(res, RUNTIME)
     if (auth.handle(req, res, p, q)) return
     if (p.startsWith('/api/')) {
-      const hooks = await extensionHooks()
+      const hooks = await pluginHooks()
       for (const h of hooks) if (await dispatch(h.table, req, res, url, auth.authorized)) return
-      // under an extension's name, but none of its routes
+      // under a plugin's name, but none of its routes
       const owner = hooks.find(h => p.startsWith(`/api/${h.name}/`) || p === `/api/${h.name}`)
-      if (owner) return sendJson(res, 404, { error: `extension ${owner.name} has no route ${req.method} ${p}` })
+      if (owner) return sendJson(res, 404, { error: `plugin ${owner.name} has no route ${req.method} ${p}` })
     }
     if (p.startsWith('/_/file/')) {
       const file = path.resolve(p.slice('/_/file'.length))

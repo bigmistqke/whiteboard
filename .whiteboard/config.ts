@@ -9,5 +9,5 @@ export default defineConfig({
   renderers: [
     markboard(),
   ],
-  extensions: [comments(), terminal({ command: 'claude' }), claudeCode()],
+  plugins: [comments(), terminal({ command: 'claude' }), claudeCode()],
 })

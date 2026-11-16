@@ -1,10 +1,10 @@
-// Extensions' routes and commands: declared, so the core mounts them under the extension's name,
-// checks the token and the arguments before an extension's code runs, and lists them in the help
-// and the docs. Two extensions can't collide: everything an extension declares lives under its name,
+// Plugins' routes and commands: declared, so the core mounts them under the plugin's name,
+// checks the token and the arguments before a plugin's code runs, and lists them in the help
+// and the docs. Two plugins can't collide: everything a plugin declares lives under its name,
 // and names are unique (and can't be a built-in command).
 //
-//   routes:   { 'GET /status': { description, auth, query, run } }   → GET /api/<extension>/status
-//   commands: { '': { description, args, options, run }, stop: {…} } → whiteboard <extension> [stop]
+//   routes:   { 'GET /status': { description, auth, query, run } }   → GET /api/<plugin>/status
+//   commands: { '': { description, args, options, run }, stop: {…} } → whiteboard <plugin> [stop]
 import { parseArgs } from 'node:util'
 
 // ---- fields --------------------------------------------------------------------------------------
@@ -51,17 +51,17 @@ function fromQuery(spec = {}, params) {
 
 const ROUTE = /^(GET|POST|PUT|PATCH|DELETE) (\/[\w\-/]*)$/
 
-/** An extension's routes, checked and mounted under /api/<name>/. Throws on a malformed one. */
+/** A plugin's routes, checked and mounted under /api/<name>/. Throws on a malformed one. */
 export function mountRoutes(name, routes = {}) {
   const table = []
   for (const [key, route] of Object.entries(routes)) {
     const m = ROUTE.exec(key)
-    if (!m) throw new Error(`extension ${name}: route "${key}" must look like "GET /path"`)
-    if (typeof route?.run !== 'function') throw new Error(`extension ${name}: route "${key}" has no run function`)
-    for (const [field, spec] of Object.entries({ ...route.body, ...route.query })) parseType(spec, `extension ${name}, route "${key}", ${field}`)
+    if (!m) throw new Error(`plugin ${name}: route "${key}" must look like "GET /path"`)
+    if (typeof route?.run !== 'function') throw new Error(`plugin ${name}: route "${key}" has no run function`)
+    for (const [field, spec] of Object.entries({ ...route.body, ...route.query })) parseType(spec, `plugin ${name}, route "${key}", ${field}`)
     const path = `/api/${name}${m[2] === '/' ? '' : m[2].replace(/\/$/, '')}`
-    if (table.some(r => r.method === m[1] && r.path === path)) throw new Error(`extension ${name}: route "${key}" is declared twice`)
-    table.push({ method: m[1], path, route, extension: name })
+    if (table.some(r => r.method === m[1] && r.path === path)) throw new Error(`plugin ${name}: route "${key}" is declared twice`)
+    table.push({ method: m[1], path, route, plugin: name })
   }
   return table
 }
@@ -121,14 +121,14 @@ export const describeRoutes = table => table.map(({ method, path, route }) => ({
 
 // ---- commands ----------------------------------------------------------------------------------
 
-/** The commands of an extension as `whiteboard <name> [sub]`, checked. */
-export function extensionCommands(extension) {
-  return Object.entries(extension.commands ?? {}).map(([sub, command]) => {
-    const where = `extension ${extension.name}, command "${sub}"`
+/** The commands of a plugin as `whiteboard <name> [sub]`, checked. */
+export function pluginCommands(plugin) {
+  return Object.entries(plugin.commands ?? {}).map(([sub, command]) => {
+    const where = `plugin ${plugin.name}, command "${sub}"`
     if (sub && !/^[\w-]+$/.test(sub)) throw new Error(`${where}: use letters, digits, - and _`)
     if (typeof command?.run !== 'function') throw new Error(`${where} has no run function`)
     for (const [name, o] of Object.entries(command.options ?? {})) parseType(o.type, `${where}, option ${name}`)
-    return { extension: extension.name, sub, command, name: [extension.name, sub].filter(Boolean).join(' ') }
+    return { plugin: plugin.name, sub, command, name: [plugin.name, sub].filter(Boolean).join(' ') }
   })
 }
 

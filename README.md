@@ -146,7 +146,7 @@ agent can ask, do other work, and wait later.
 
 ## A terminal on every page
 
-The terminal is an extension: add it to the config, with the program a
+The terminal is a plugin: add it to the config, with the program a
 session starts. Without `command` it starts your shell.
 
 ```ts
@@ -154,7 +154,7 @@ import terminal from '@bigmistqke/whiteboard/terminal'
 
 export default defineConfig({
   renderers: [markboard()],
-  extensions: [terminal({ command: 'claude' })],   // or ['npm', 'run', 'dev'], with arguments
+  plugins: [terminal({ command: 'claude' })],   // or ['npm', 'run', 'dev'], with arguments
 })
 ```
 
@@ -181,14 +181,14 @@ continues a Claude Code session in the drawer.
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
 that is only sent from the project's own pages, and requests from another
-origin are refused. Any extension can ask the core whether a request has it.
+origin are refused. Any plugin can ask the core whether a request has it.
 It needs `node-pty`, an optional dependency; without it the drawer says what
 to install. The host listens on `.whiteboard/terminal/host.sock`, readable
 by its owner only, and leaves ten minutes after its program ended.
 
 ## Claude Code hooks
 
-The Claude Code extension tells an agent session what is open on its pages,
+The Claude Code plugin tells an agent session what is open on its pages,
 from outside the agent, so a forgotten wait gets noticed:
 
 ```ts
@@ -196,7 +196,7 @@ import claudeCode from '@bigmistqke/whiteboard/claude-code'
 
 export default defineConfig({
   renderers: [markboard()],
-  extensions: [claudeCode()],
+  plugins: [claudeCode()],
 })
 ```
 
@@ -250,7 +250,7 @@ export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
   renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
-  extensions: [comments()], // behaviour on every page, whatever the renderer: also terminal({ command }), claudeCode()
+  plugins: [comments()], // behaviour on every page, whatever the renderer: also terminal({ command }), claudeCode()
 })
 ```
 
@@ -261,9 +261,9 @@ Named forms need nothing in the config: the core sends a submit of any
 select any passage and comment on it; the agent replies in the thread.
 `whiteboard init` adds it.
 
-An extension (`defineExtension` from `@bigmistqke/whiteboard/config`)
+A plugin (`definePlugin` from `@bigmistqke/whiteboard/config`)
 declares what it adds, and everything lives under its name, so two
-extensions can't collide:
+plugins can't collide:
 
 - `routes`, by method and path (`'POST /start'`), are mounted at
   `/api/<name>/start`. Each says what it does, whether it needs the token
@@ -273,7 +273,7 @@ extensions can't collide:
   declared options that the core parses and checks.
 - `shell` adds markup at the end of every page's `<head>` and `<body>`.
 - `docs` is markdown that `whiteboard docs` prints after the renderers':
-  what the extension sends to the log, and how an agent answers it.
+  what the plugin sends to the log, and how an agent answers it.
 - `client` is a browser module the page imports after the renderer's, with
   the page and the same api a renderer gets: events, listeners, a signal
   after the renderer patched the page, the page's corner for floating
@@ -282,7 +282,7 @@ extensions can't collide:
   nothing when it changes.
 
 `whiteboard help` lists the commands and `whiteboard docs` the routes. An
-extension can't be named like a built-in command or a folder of the core.
+plugin can't be named like a built-in command or a folder of the core.
 Something that covers the bottom of the window says how much in
 `--wb-inset-bottom`, and markboard keeps clear of it.
 

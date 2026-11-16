@@ -1,5 +1,5 @@
 // The project's token: what a browser or command needs for anything that runs code, such as an
-// extension that starts a process. Pages and events don't need it.
+// plugin that starts a process. Pages and events don't need it.
 //
 //   /_/auth?token=…&to=/page   sets the token as a cookie in this browser, then goes to `to`
 //
@@ -19,7 +19,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 const COOKIE = 'wb-token'
-// the cookie's name before extensions had the token from the core
+// the cookie's name before plugins had the token from the core
 const OLD_COOKIES = ['wb-terminal']
 
 /** The project's token, made on first use. */

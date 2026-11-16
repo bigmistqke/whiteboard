@@ -8,8 +8,8 @@ import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
 import { appendEvent, parseLines, readEvents, matches, pickedUp, markPicked, CLAIM } from '../src/events.js'
-import { BUILTIN_COMMANDS, createConfigLoader, extensionDir } from '../src/renderers.js'
-import { extensionCommands, parseCommandArgs, usage } from '../src/extensions.js'
+import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/renderers.js'
+import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.js'
 import { projectToken } from '../src/auth.js'
 
 // a failing command prints its message, not a stack trace
@@ -43,11 +43,11 @@ events:  --since <iso time or event id>  --last <n>
 Every command works on the project of the current folder: the nearest folder upward with
 .whiteboard/config.ts. Each project runs its own server; its port is in .whiteboard/server.json.
 A page appends events {id, ts, page, type, action, data} to .whiteboard/events.ndjson;
-which types it sends is up to its renderer (\`whiteboard docs\` says). The project's extensions
+which types it sends is up to its renderer (\`whiteboard docs\` says). The project's plugins
 can add commands of their own; \`whiteboard help\` in a project lists them.`
 
 const [cmd, ...rest] = process.argv.slice(2)
-// an extension's command parses its own arguments
+// a plugin's command parses its own arguments
 const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { values: {}, positionals: [] } : parseArgs({
   args: rest,
   allowPositionals: true,
@@ -211,7 +211,7 @@ ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served:
     markboard(),
   ],
   // comments on any passage of a page
-  extensions: [comments()],
+  plugins: [comments()],
 })
 `)
   fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git
@@ -221,7 +221,7 @@ events.ndjson
 server.json
 server.log
 server.lock
-# the secret for anything that runs code (an extension like the terminal)
+# the secret for anything that runs code (a plugin like the terminal)
 token
 `)
   console.log(`project: ${wb}
@@ -234,13 +234,13 @@ token
 const relFile = file => path.relative(process.cwd(), file) || file
 
 /**
- * The agent session this command runs in, as the project's extensions know it (Claude Code's
- * extension reads it from the environment): the first one that names one. Null without any.
+ * The agent session this command runs in, as the project's plugins know it (Claude Code's
+ * plugin reads it from the environment): the first one that names one. Null without any.
  */
 async function currentSession(proj) {
   try {
     const { config } = createConfigLoader(proj.configFile)
-    for (const e of (await config()).extensions) {
+    for (const e of (await config()).plugins) {
       const session = typeof e.session === 'function' ? await e.session() : null
       if (session) return String(session)
     }
@@ -339,8 +339,8 @@ switch (cmd) {
       console.log(r.docs ? r.docs.trim() : `# ${r.name}\n\n(no documentation)`)
       console.log()
     }
-    for (const e of info.extensions ?? []) {
-      console.log(`<!-- extension: ${e.name} -->\n# Extension: ${e.name}\n`)
+    for (const e of info.plugins ?? []) {
+      console.log(`<!-- plugin: ${e.name} -->\n# Plugin: ${e.name}\n`)
       if (e.error) console.log(`It failed to load: ${e.error}\n`)
       if (e.docs) console.log(`${e.docs.trim()}\n`)
       for (const c of e.commands) console.log(`- \`whiteboard ${[c.name, c.usage].filter(Boolean).join(' ')}\`: ${c.description}`)
@@ -428,9 +428,9 @@ switch (cmd) {
     break
   }
   default: {
-    // `whiteboard <extension> [sub] …`: a command of one of the project's extensions
+    // `whiteboard <plugin> [sub] …`: a command of one of the project's plugins
     const commands = project ? await projectCommands(project) : []
-    const mine = commands.filter(c => c.extension === cmd)
+    const mine = commands.filter(c => c.plugin === cmd)
     const found = mine.find(c => c.sub && c.sub === rest[0]) ?? mine.find(c => !c.sub)
     if (found) {
       const args = found.sub ? rest.slice(1) : rest
@@ -440,7 +440,7 @@ switch (cmd) {
         positionals,
         rest: after,
         project: { name: project.name, dir: project.dir, wb: project.wb },
-        dataDir: extensionDir(project.wb, found.extension),
+        dataDir: pluginDir(project.wb, found.plugin),
         token: projectToken(project.wb),
         server: ensureServer,
         pagePath: page => `/${pageId(project, page ?? '')}`,
@@ -455,7 +455,7 @@ switch (cmd) {
     const print = asked ? console.log : console.error
     print(HELP)
     if (commands.length) {
-      print(`\nfrom this project's extensions:\n`)
+      print(`\nfrom this project's plugins:\n`)
       for (const c of commands) print(`  whiteboard ${[c.name, usage(c.command)].filter(Boolean).join(' ')}\n      ${c.command.description}`)
     }
     if (mine.length) console.error(`\nwhiteboard: ${cmd} has no command ${JSON.stringify(rest[0] ?? '')}`)
@@ -463,10 +463,10 @@ switch (cmd) {
   }
 }
 
-/** The commands the project's extensions add: `whiteboard <extension> [sub]`. */
+/** The commands the project's plugins add: `whiteboard <plugin> [sub]`. */
 async function projectCommands(proj) {
   const { config } = createConfigLoader(proj.configFile)
-  const { extensions, errors } = await config()
+  const { plugins, errors } = await config()
   for (const e of errors) console.error(`whiteboard: config error: ${e.message}`)
-  return extensions.flatMap(extensionCommands)
+  return plugins.flatMap(pluginCommands)
 }

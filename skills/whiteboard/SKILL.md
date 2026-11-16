@@ -213,7 +213,7 @@ that picks them up. Pages are claimed by the session that ran
 `whiteboard new` for them, and `status` marks yours. Run it when you resume
 work, or when you're unsure what is still open.
 
-A project can have Claude Code hooks for this: the Claude Code extension in
+A project can have Claude Code hooks for this: the Claude Code plugin in
 its config, and `whiteboard claude-code install`. None of them ever blocks:
 
 - when your turn ends with something on your pages nobody listens for, the

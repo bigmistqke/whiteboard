@@ -1,8 +1,8 @@
-// The terminal drawer, as a whiteboard extension: a terminal at the bottom of every page, running a
+// The terminal drawer, as a whiteboard plugin: a terminal at the bottom of every page, running a
 // program in a session that outlives the tab and the page server. In a config:
 //
 //   import terminal from '@bigmistqke/whiteboard/terminal'
-//   export default defineConfig({ renderers: [markboard()], extensions: [terminal({ command: 'htop' })] })
+//   export default defineConfig({ renderers: [markboard()], plugins: [terminal({ command: 'htop' })] })
 //
 // `command` is the program a session starts: a name or path, or an array with its first arguments
 // (`['npm', 'run', 'dev']`). Without it, the user's shell.

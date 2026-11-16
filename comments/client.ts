@@ -11,7 +11,7 @@
 // Passages are found again by their quote and the text around it, so they survive edits elsewhere
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
 // so updates and new-content marks don't see comments at all.
-import type { Api, ExtensionMount, PageHandle, WbEvent } from '../src/define'
+import type { Api, PluginMount, PageHandle, WbEvent } from '../src/define'
 import { html } from '../src/html.js'
 
 interface Thread {
@@ -274,7 +274,7 @@ function startComment() {
 
 // ---- entry -------------------------------------------------------------------------------------
 
-const mount: ExtensionMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
+const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   // the overview and folders are lists, not text to comment on
   if (handle.kind !== 'page' && handle.kind !== 'file') return
   root = el

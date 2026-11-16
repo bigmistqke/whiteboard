@@ -21,8 +21,8 @@ conversation; the page holds overview, detail and decisions.
   log: a submitted form is one, a renderer can append others. Everything
   else is a renderer, a template, or a convention between an agent and its
   pages.
-- **Extensions are modules.** Renderers and templates are objects (usually
-  returned by a factory taking options) that a config imports from a
+- **Everything added is a module.** Renderers, plugins and templates are
+  objects (usually returned by a factory taking options) that a config imports from a
   package or a local file, the way bundler plugins work.
 - **Agent-written pages must never break.** markboard renders an unknown
   directive as its content, an unknown fence as a code block, a template
@@ -147,7 +147,7 @@ interface Renderer {
   afresh) and `stored()` (the stored page, afresh). `api` has the page's
   events, `onEvents`, `last(type)` and `append(type, data, action)`, the
   listeners, and three things the page's parts share: `rendered()` (a
-  renderer that patched its content says so, and extensions listening with
+  renderer that patched its content says so, and plugins listening with
   `onRendered` put back what they add to it), `corner()` (an empty column at
   the bottom right, the one element the core puts on every page, for
   floating buttons) and `badge(key, text, order)` with `title(title)` (counts
@@ -156,10 +156,10 @@ interface Renderer {
   fetches what it needs. That keeps how an update looks the renderer's
   choice: markboard morphs it in place.
 
-### Extensions
+### Plugins
 
-Behaviour on every page, whatever renderer draws it (`Extension` in
-`src/define.ts`): an object in the config's `extensions`, with a name and
+Behaviour on every page, whatever renderer draws it (`Plugin` in
+`src/define.ts`): an object in the config's `plugins`, with a name and
 optional parts. Its routes are mounted at `/api/<name>/…`, its commands are
 `whiteboard <name> [sub]`, its files go in `.whiteboard/<name>/`, and
 `shell(req)` adds markup to every page. The core checks a route's token and
@@ -172,31 +172,31 @@ arguments before its code runs.
   dropping the ten lines that wire them in.
 - **In the browser.** `client` is a module the runtime imports after the
   renderer has mounted, with the same `mount(root, page, api)` arguments.
-  An extension that works on the page's content puts back what it adds
+  A plugin that works on the page's content puts back what it adds
   after `api.onRendered`; a renderer that patches its content keeps the
-  `data-wb-*` attributes an extension set (markboard does). Floating
+  `data-wb-*` attributes a plugin set (markboard does). Floating
   buttons go in `api.corner()` and counts in the title through
-  `api.badge()`, so a renderer and extensions never need to know about each
+  `api.badge()`, so a renderer and plugins never need to know about each
   other.
-- **An extension owns a whole feature.** Its event types, what it draws
+- **A plugin owns a whole feature.** Its event types, what it draws
   and what it tells agents, end to end, so taking it out of the config
   removes the feature and breaks nothing else: the terminal, the Claude
   Code hooks, comments. A behaviour that is half a core protocol and half
   a renderer's look is neither: named forms are the core's protocol, and
   how they look is the renderer's.
 - **Renderers stay their own kind.** A renderer is chosen (one per page:
-  the first, or the one the page names), an extension is added (all of
+  the first, or the one the page names), a plugin is added (all of
   them, on every page). One list of plugins would not remove that choice,
   only turn it into a rule about the list, so the config keeps saying
   plainly what renders and what is added. The two already share their
   shape where it overlaps: a name, a `client` with the same `mount`, and
   `docs()`. When a renderer needs routes, commands or a folder of its own,
-  it gets `setup` and `commands` the way an extension does; until one does,
+  it gets `setup` and `commands` the way a plugin does; until one does,
   that stays unbuilt.
 
 ### Comments (`comments/`)
 
-An extension too, so any page can be commented on. Selecting text in the
+A plugin too, so any page can be commented on. Selecting text in the
 page's content (its `<main>`, else all of it) shows a "Comment" button; a
 comment is an event (`comment`, with the quote and the text around it),
 and so are replies (`comment-reply`) and closing a thread
@@ -205,7 +205,7 @@ edits, and highlighted with the CSS Highlight API, so the page's markup
 never changes for them. A badge in the margin opens each open thread; it
 is filled when the agent spoke last. How an agent answers is in its
 `docs()`, which `whiteboard docs` prints after the renderers': an
-extension can document what it sends to the log.
+plugin can document what it sends to the log.
 
 ### Named forms
 
@@ -236,7 +236,7 @@ it looks is the renderer's.
 - **Which forms a page asks** is the renderer's (`expects`): only it can
   read its own syntax.
 
-An earlier version made this an extension. It held half of a core
+An earlier version made this a plugin. It held half of a core
 protocol and half of markboard's look, so it was split between the two.
 
 ### Events
@@ -279,21 +279,21 @@ agent forgetting a wait is caught from outside it:
 - **Claims.** `whiteboard new` appends a `whiteboard:claim` event with the
   agent session that made the page; the colon keeps it apart from form
   names. Which session runs a command is something only the agent's tooling
-  knows, so the core asks the project's extensions (`session()`), and
+  knows, so the core asks the project's plugins (`session()`), and
   records no claim when none names one.
 - **Status.** `/api/status` and `whiteboard status` give, per page: its open
   questions, those no listener covers (unheard), the reader's events no wait
   or watch picked up, its listeners and its claim.
-- **Hooks.** Reporting the status to an agent is an extension, since how is
+- **Hooks.** Reporting the status to an agent is a plugin, since how is
   particular to each agent, and the core has no agent-specific code. The
-  Claude Code extension (`claude-code/`) names the session from
+  Claude Code plugin (`claude-code/`) names the session from
   `CLAUDE_CODE_SESSION_ID`, and adds `whiteboard claude-code hook
   stop|prompt|session`, which Claude Code runs (`whiteboard claude-code
   install` adds them). None blocks. `stop` shows the reader what on the
   session's pages nobody listens for. `prompt` and `session` give the agent,
   as context, the answers on its pages nobody picked up, and count them as
   picked up (a `whiteboard:picked` event each); `session` also lists what is
-  open on other sessions' pages, without handing it over. An extension's
+  open on other sessions' pages, without handing it over. A plugin's
   command gets the status and the pick-up from the core (`ctx.status()`,
   `ctx.pickUp()`).
 
@@ -354,7 +354,7 @@ templates.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons in the
      page's corner jump to the nearest unseen block; the tab title gets a
      `(n)` badge.
-5. Leaves comments to the comments extension, which works on its
+5. Leaves comments to the comments plugin, which works on its
    `<main>`.
 6. Writes forms as markdown (the `form` template); sending them and
    drafts are the core's. The template adds a

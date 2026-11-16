@@ -142,7 +142,7 @@ function morph(html: string) {
         if (from instanceof HTMLInputElement) (to as HTMLInputElement).checked = from.checked
       }
       // <details> open state was set on the new tree by detailsKeys(), matched by identity, not position
-      // what an extension marked on an element (`data-wb-*`) stays, unless the new render sets it;
+      // what a plugin marked on an element (`data-wb-*`) stays, unless the new render sets it;
       // data-wb-mounted is markboard's own, and a replaced island must mount afresh
       for (const { name, value } of [...from.attributes])
         if (name.startsWith('data-wb-') && name !== 'data-wb-mounted' && !to.hasAttribute(name)) to.setAttribute(name, value)
@@ -208,7 +208,7 @@ async function refresh() {
   // islands that mounted just now can change the height of what is above the reader
   keepPlace(place, nextSigs)
   tickTimes()
-  // extensions put back what they add to the content
+  // plugins put back what they add to the content
   api.rendered()
 }
 

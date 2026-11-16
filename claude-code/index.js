@@ -1,8 +1,8 @@
-// Claude Code, as a whiteboard extension: the pages an agent session makes are claimed for that
+// Claude Code, as a whiteboard plugin: the pages an agent session makes are claimed for that
 // session, and Claude Code hooks report to it what is open on them. In a config:
 //
 //   import claudeCode from '@bigmistqke/whiteboard/claude-code'
-//   export default defineConfig({ renderers: [markboard()], extensions: [claudeCode()] })
+//   export default defineConfig({ renderers: [markboard()], plugins: [claudeCode()] })
 //
 // `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json. Each runs
 // `whiteboard claude-code hook <stop|prompt|session>`, and none of them ever blocks:
@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process'
 
 const MODES = { stop: 'Stop', prompt: 'UserPromptSubmit', session: 'SessionStart' }
 
-/** A hook command this extension installs, or one an older version of the package installed. */
+/** A hook command this plugin installs, or one an older version of the package installed. */
 const OURS = /\bwhiteboard (claude-code hook|status --hook)\b/
 
 export default function claudeCode() {

@@ -1,8 +1,8 @@
-// Comments, as a whiteboard extension: on every page, whatever renderer drew it, the reader selects a
+// Comments, as a whiteboard plugin: on every page, whatever renderer drew it, the reader selects a
 // passage and comments on it, and the agent replies in the thread or edits the page. In a config:
 //
 //   import comments from '@bigmistqke/whiteboard/comments'
-//   export default defineConfig({ renderers: [markboard()], extensions: [comments()] })
+//   export default defineConfig({ renderers: [markboard()], plugins: [comments()] })
 //
 // A thread is events on the page (see client.ts), so the server has nothing to do but serve the
 // browser module and the styles, and tell agents how to answer (`whiteboard docs`).

@@ -19,7 +19,7 @@ function init(drawer: HTMLElement) {
   const actions = drawer.querySelector<HTMLElement>('.wb-term-actions')!
   const toggle = drawer.querySelector<HTMLButtonElement>('.wb-term-toggle')!
   const grip = drawer.querySelector<HTMLElement>('.wb-term-grip')!
-  // the program the session runs, by name, as the extension's config says
+  // the program the session runs, by name, as the plugin's config says
   const label = drawer.dataset.command || 'terminal'
 
   const term = new Terminal({

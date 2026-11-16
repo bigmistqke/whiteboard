@@ -1,6 +1,6 @@
 // The contract between the core, a project's config and its renderers.
 //
-//   import { defineConfig, defineRenderer, defineExtension } from '@bigmistqke/whiteboard/config'
+//   import { defineConfig, defineRenderer, definePlugin } from '@bigmistqke/whiteboard/config'
 //
 // The core stores pages, keeps the event log and runs the live channel between them and a browser.
 // How a page looks and behaves is a renderer's: the core hands it the page as stored, and the
@@ -25,49 +25,49 @@ export interface Config {
    */
   files?: boolean
   /**
-   * Extensions: behaviour on every page, whatever renderer draws it, such as the terminal drawer
+   * Plugins: behaviour on every page, whatever renderer draws it, such as the terminal drawer
    * (`@bigmistqke/whiteboard/terminal`). Each adds routes to the server and markup to the page.
    */
-  extensions?: Extension[]
+  plugins?: Plugin[]
 }
 
 export const defineConfig = (config: Config): Config => config
 
-// ---- extensions --------------------------------------------------------------------------------
+// ---- plugins --------------------------------------------------------------------------------
 
 /**
  * Behaviour on every page, next to what the renderer draws, and commands of its own. `setup` runs
- * once per loaded config, on the server, and returns what the extension adds to it. Everything is
+ * once per loaded config, on the server, and returns what the plugin adds to it. Everything is
  * optional but the name.
  *
- * What an extension adds lives under its name, so two extensions can't collide:
+ * What a plugin adds lives under its name, so two plugins can't collide:
  * - its routes are mounted at `/api/<name>/…`,
  * - its commands are `whiteboard <name>` and `whiteboard <name> <sub>`,
  * - its files go in `.whiteboard/<name>/`, which ignores itself in git and reloads nothing.
  * The core checks a route's token and arguments before its code runs, and lists routes and commands
  * in `whiteboard help` and `whiteboard docs`.
  */
-export interface Extension {
+export interface Plugin {
   /** letters, digits, - and _; not a folder of the core (`pages`, `delivered`) nor a built-in command */
   name: string
-  setup?(ctx: ExtensionContext): ExtensionHooks | Promise<ExtensionHooks>
+  setup?(ctx: PluginContext): PluginHooks | Promise<PluginHooks>
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>
   /**
    * Markdown for whoever writes pages here, printed by `whiteboard docs` with the renderers' own:
-   * what the extension sends to the page's log, and how to answer it (comments say how to reply)
+   * what the plugin sends to the page's log, and how to answer it (comments say how to reply)
    */
   docs?(): string | Promise<string>
   /**
-   * The agent session the command line runs in, for an extension that knows how its agent says so
+   * The agent session the command line runs in, for a plugin that knows how its agent says so
    * (Claude Code's reads `CLAUDE_CODE_SESSION_ID`); null when it doesn't run in one. `whiteboard
    * new` claims the page it makes for this session, and `whiteboard status` marks the session's
-   * pages. The first extension that names a session wins.
+   * pages. The first plugin that names a session wins.
    */
   session?(): string | null | undefined | Promise<string | null | undefined>
 }
 
-export const defineExtension = (extension: Extension): Extension => extension
+export const definePlugin = (plugin: Plugin): Plugin => plugin
 
 export interface Project {
   name: string
@@ -77,13 +77,13 @@ export interface Project {
   wb: string
 }
 
-export interface ExtensionContext {
+export interface PluginContext {
   project: Project
-  /** the extension's own folder, `.whiteboard/<name>/` (made, and ignored in git) */
+  /** the plugin's own folder, `.whiteboard/<name>/` (made, and ignored in git) */
   dataDir: string
   /** whether a request carries the project's token: for a check of its own, beyond a route's `auth` */
   authorized(req: import('node:http').IncomingMessage): boolean
-  /** the URL that serves a file of the extension (its browser module, a stylesheet) */
+  /** the URL that serves a file of the plugin (its browser module, a stylesheet) */
   asset(file: URL | string): string
 }
 
@@ -93,7 +93,7 @@ export interface ExtensionContext {
  */
 export type FieldType = 'string' | 'number' | 'boolean' | 'string[]' | 'string?' | 'number?' | 'boolean?' | 'string[]?'
 
-export interface ExtensionHooks {
+export interface PluginHooks {
   /** by method and path, `'POST /start'`: mounted at `/api/<name>/start` */
   routes?: Record<string, Route>
   /**
@@ -108,9 +108,9 @@ export interface ExtensionHooks {
    */
   shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
   /**
-   * A browser module whose default export is an `ExtensionMount`: on every page, the core imports
+   * A browser module whose default export is an `PluginMount`: on every page, the core imports
    * it once the renderer has mounted, and hands it the page and the api a renderer gets. For
-   * behaviour on the page's own content (its forms, say); markup of the extension's own can come
+   * behaviour on the page's own content (its forms, say); markup of the plugin's own can come
    * from `shell` instead. Serve it with `ctx.asset`.
    */
   client?: URL | string
@@ -141,7 +141,7 @@ export interface RouteRequest {
   res?: import('node:http').ServerResponse
 }
 
-/** `whiteboard <extension> [sub] …` */
+/** `whiteboard <plugin> [sub] …` */
 export interface Command {
   description: string
   /** the positional arguments, for the help: `[page]` */
@@ -160,7 +160,7 @@ export interface CommandContext {
   /** what followed `--`, untouched (only for a command that declares `rest`) */
   rest: string[]
   project: Project
-  /** the extension's own folder, `.whiteboard/<name>/` */
+  /** the plugin's own folder, `.whiteboard/<name>/` */
   dataDir: string
   /** the project's token, for the requests the command sends (header `x-whiteboard-token`) */
   token: string
@@ -296,8 +296,8 @@ export interface RenderContext {
 /** Default export of a renderer's `client` module. Return a cleanup, or nothing. */
 export type RendererMount = (root: HTMLElement, page: PageHandle, api: Api) => void | (() => void) | Promise<void | (() => void)>
 
-/** The default export of an extension's browser module: the same arguments as a renderer's mount. */
-export type ExtensionMount = (root: HTMLElement, page: PageHandle, api: Api) => void | Promise<void>
+/** The default export of a plugin's browser module: the same arguments as a renderer's mount. */
+export type PluginMount = (root: HTMLElement, page: PageHandle, api: Api) => void | Promise<void>
 
 /** The page, in the browser. */
 export interface PageHandle {
@@ -360,7 +360,7 @@ export interface Api {
   onListeners(fn: (listeners: Listener[]) => void): () => void
   /**
    * Say that the page's content changed in place: a renderer that patches the page on an update
-   * (markboard morphs it) calls this after each patch, so that extensions working on the content
+   * (markboard morphs it) calls this after each patch, so that plugins working on the content
    * can put back what they add to it. A renderer that leaves its content alone never needs to.
    */
   rendered(): void
@@ -368,7 +368,7 @@ export interface Api {
   onRendered(fn: () => void): () => void
   /**
    * The page's corner: a column at the bottom right, above whatever covers the bottom of the
-   * window (`--wb-inset-bottom`), for floating buttons. The renderer and the extensions each add
+   * window (`--wb-inset-bottom`), for floating buttons. The renderer and the plugins each add
    * their own; the core draws nothing in it.
    */
   corner(): HTMLElement
