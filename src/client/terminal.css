@@ -2,7 +2,14 @@
    named, so it keeps its place and size while the page around it changes. */
 @view-transition { navigation: auto; }
 
+/* How much of the window the drawer takes at the bottom, for the page to keep clear: its content
+   scrolls to above it, and its own fixed elements sit above it (markboard's buttons at the bottom).
+   Registered as a length so that it computes to pixels a script can read. */
+@property --wb-inset-bottom { syntax: '<length>'; inherits: true; initial-value: 0px; }
+
 :root { --wb-term-h: 320px; --wb-term-bar: 34px; }
+:root:has(body > #wb-terminal) { --wb-inset-bottom: var(--wb-term-bar); }
+:root:has(body > #wb-terminal[data-state=open]) { --wb-inset-bottom: calc(var(--wb-term-bar) + var(--wb-term-h)); }
 
 #wb-terminal {
   view-transition-name: wb-terminal;
@@ -13,8 +20,7 @@
   box-shadow: 0 -6px 24px rgb(0 0 0 / .18);
   font: 500 12px/1 ui-sans-serif, system-ui, sans-serif;
 }
-body:has(> #wb-terminal) { padding-bottom: var(--wb-term-bar); }
-body:has(> #wb-terminal[data-state=open]) { padding-bottom: calc(var(--wb-term-bar) + var(--wb-term-h)); }
+body:has(> #wb-terminal) { padding-bottom: var(--wb-inset-bottom); }
 
 .wb-term-grip { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; touch-action: none; }
 .wb-term-bar { height: var(--wb-term-bar); display: flex; align-items: center; gap: 12px; padding: 0 10px 0 6px; flex: none; }

@@ -4,6 +4,7 @@
 // have been in view for a moment with the tab visible. Floating buttons jump to unseen blocks.
 
 import { html } from '../../src/html.js'
+import { viewBottom } from './view'
 
 const DWELL_MS = 600
 const FADE_MS = 2500
@@ -62,8 +63,9 @@ let mainEl: HTMLElement
 /** In view enough to count as read: half the block, or half the screen for blocks taller than that. */
 function inView(el: Element) {
   const r = el.getBoundingClientRect()
-  const overlap = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)
-  return overlap > 0 && overlap >= Math.min(r.height, innerHeight) * 0.5
+  const bottom = viewBottom()
+  const overlap = Math.min(r.bottom, bottom) - Math.max(r.top, 0)
+  return overlap > 0 && overlap >= Math.min(r.height, bottom) * 0.5
 }
 
 /** Start the dwell timer of unseen blocks in view; stop it for blocks that left the view. */
@@ -134,7 +136,7 @@ function split() {
     if (!el.isConnected) { unseen.delete(el); continue }
     const r = el.getBoundingClientRect()
     if (r.bottom < 60) above.push(el)
-    else if (r.top > innerHeight) below.push(el)
+    else if (r.top > viewBottom()) below.push(el)
   }
   const top = (el: Element) => el.getBoundingClientRect().top
   above.sort((a, b) => top(b) - top(a)) // nearest first

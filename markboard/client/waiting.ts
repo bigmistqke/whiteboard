@@ -8,6 +8,7 @@
 // form has none yet.
 import type { ClientApi } from '../types'
 import { dock, setTitlePrefix } from './fresh'
+import { viewBottom } from './view'
 
 const button = document.createElement('button')
 button.type = 'button'
@@ -110,17 +111,18 @@ function next(state: State) {
   const forms = formsIn(state)
   const i = current ? forms.indexOf(current) : -1
   if (i >= 0 && Math.abs(scrollY - scrolledTo) < 40) return forms[(i + 1) % forms.length]
-  return forms.find(f => f.getBoundingClientRect().top > innerHeight / 2) ?? forms[0]
+  return forms.find(f => f.getBoundingClientRect().top > viewBottom() / 2) ?? forms[0]
 }
 
 function jump(state: State) {
   const form = next(state)
   if (!form) return
   current = form
-  form.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  // where the smooth scroll ends: the form centred, as far as the page allows
+  // the form centred in the part of the window the page is seen in (above the terminal drawer),
+  // as far as the page allows
   const r = form.getBoundingClientRect()
-  scrolledTo = Math.max(0, Math.min(scrollY + r.top + r.height / 2 - innerHeight / 2, document.documentElement.scrollHeight - innerHeight))
+  scrolledTo = Math.max(0, Math.min(scrollY + r.top + r.height / 2 - viewBottom() / 2, document.documentElement.scrollHeight - innerHeight))
+  scrollTo({ top: scrolledTo, behavior: 'smooth' })
   if (state === 'waiting') form.querySelector<HTMLElement>('input:not([type=hidden]), textarea, select, button')?.focus({ preventScroll: true })
 }
 

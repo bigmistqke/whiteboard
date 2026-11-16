@@ -191,7 +191,8 @@ form[data-wb-state=failed]:not(.wb-form)::after { content: "failed to send"; col
 .wb-fresh button { display: inline-flex; align-items: center; gap: 8px; }
 .wb-fresh-close { display: inline-block; margin-right: -4px; padding: 0 4px; border-left: 1px solid rgb(255 255 255 / .35); opacity: .75; }
 .wb-fresh-close:hover { opacity: 1; }
-.wb-dock { position: fixed; right: 16px; bottom: 16px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+/* above anything the core puts at the bottom of the window (the terminal drawer) */
+.wb-dock { position: fixed; right: 16px; bottom: calc(16px + var(--wb-inset-bottom, 0px)); z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .wb-fresh { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .wb-waiting-next { background: var(--accent); color: var(--accent-text); border-color: var(--accent); border-radius: 99px; font-size: .8rem; }
 .wb-waiting-next[hidden] { display: none; }
