@@ -27,6 +27,10 @@ function init(drawer: HTMLElement) {
     fontSize: 13,
     cursorBlink: true,
     scrollback: 5000,
+    // xterm scales every wheel event smaller than 50 pixels down to 0.3 of its lines, and a trackpad
+    // sends almost only those: a swipe moved a program that handles the mouse itself (scrolling its
+    // own view) at a third of the speed of a native terminal. This undoes that factor.
+    scrollSensitivity: 3,
     allowProposedApi: true,
     theme: { background: '#0f1115', foreground: '#d7dae0', cursor: '#d7dae0', selectionBackground: '#3a4150' },
   })
