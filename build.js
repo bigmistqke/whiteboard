@@ -1,6 +1,7 @@
 // Builds what the package ships as JavaScript, into dist/:
 //
 //   dist/client/runtime.js     the core in the browser: events, live channel, hand-over to a renderer
+//   dist/client/terminal.js    the terminal drawer (xterm included), and terminal.css with xterm's styles
 //   dist/define.js             ./config: defineConfig, defineRenderer
 //   dist/markboard/…               ./markboard (the renderer) and ./template, module for module, with
 //                              each template's style and readme
@@ -47,6 +48,12 @@ const builds = [
     platform: 'browser',
     output: { file: path.join(DIST, 'client/runtime.js'), format: 'esm' },
   },
+  // the terminal drawer
+  {
+    input: at('src/client/terminal.ts'),
+    platform: 'browser',
+    output: { file: path.join(DIST, 'client/terminal.js'), format: 'esm', minify: true },
+  },
   // markboard in the browser
   {
     input: at('markboard/client/main.ts'),
@@ -87,6 +94,10 @@ const builds = [
 
 /** Styles and readmes sit next to the template modules that point at them. */
 function copyAssets() {
+  // the drawer's styles after xterm's own
+  fs.mkdirSync(path.join(DIST, 'client'), { recursive: true })
+  fs.writeFileSync(path.join(DIST, 'client/terminal.css'),
+    fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') + '\n' + fs.readFileSync(at('src/client/terminal.css'), 'utf8'))
   for (const e of fs.readdirSync(at('markboard'), { withFileTypes: true })) {
     if (!e.isDirectory()) continue  // client/ holds base.css
     for (const f of fs.readdirSync(at('markboard', e.name))) {

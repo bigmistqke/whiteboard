@@ -32,6 +32,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard append --page <p> --type <t> [--data <json>]   add an event to a page's log (e.g. a reply)
   whiteboard status [--page <p>]   per page: questions without an answer, answers no agent picked up, who listens
   whiteboard hooks install [--user]   add Claude Code hooks that report the status (this project, or all)
+  whiteboard terminal [page]       print a link that opens the terminal drawer in this browser (it unlocks it once)
+             [--resume <id> | --continue] [--restart]   start claude in it, or continue a session
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
@@ -52,6 +54,7 @@ const { values: opts, positionals } = parseArgs({
     page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
     since: { type: 'string' }, last: { type: 'string' }, help: { type: 'boolean', short: 'h' },
     hook: { type: 'string' }, user: { type: 'boolean' },
+    resume: { type: 'string' }, continue: { type: 'boolean' }, restart: { type: 'boolean' },
   },
 })
 
@@ -216,6 +219,8 @@ events.ndjson
 server.json
 server.log
 server.lock
+# the secret that unlocks the terminal drawer
+token
 `)
   console.log(`project: ${wb}
   pages:     ${path.join(wb, 'pages')} (gitignored); \`whiteboard show <page>\` starts the server
@@ -390,6 +395,26 @@ switch (cmd) {
     if (cmd === 'show' && !positionals[0]) throw new Error('usage: whiteboard show <page|file>')
     const base = await ensureServer()
     console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
+    break
+  }
+  case 'terminal': {
+    // the link carries the project's token once, which the server turns into a cookie: from then on
+    // every page of this project in that browser has the drawer
+    const base = await ensureServer()
+    const token = fs.readFileSync(path.join(project.wb, 'token'), 'utf8').trim()
+    const args = opts.resume ? ['--resume', opts.resume] : opts.continue ? ['--continue'] : null
+    if (args || opts.restart) {
+      const res = await fetch(`${base}/api/term/start`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-whiteboard-token': token },
+        body: JSON.stringify({ args: args ?? [], restart: !!opts.restart }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? res.statusText)
+      if (body.already) console.error(`whiteboard: a session runs already (${body.command}); --restart replaces it`)
+    }
+    const to = `/${pageId(project, positionals[0] ?? '')}`
+    console.log(`${base}/_/terminal/auth?token=${encodeURIComponent(token)}&to=${encodeURIComponent(to)}&open=1`)
     break
   }
   case 'docs': {

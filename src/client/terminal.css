@@ -1,0 +1,48 @@
+/* The terminal drawer (see terminal.ts). Pages morph into each other on navigation, and the drawer is
+   named, so it keeps its place and size while the page around it changes. */
+@view-transition { navigation: auto; }
+
+:root { --wb-term-h: 320px; --wb-term-bar: 34px; }
+
+#wb-terminal {
+  view-transition-name: wb-terminal;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  display: flex; flex-direction: column;
+  background: #0f1115; color: #d7dae0;
+  border-top: 1px solid #2a2f3a;
+  box-shadow: 0 -6px 24px rgb(0 0 0 / .18);
+  font: 500 12px/1 ui-sans-serif, system-ui, sans-serif;
+}
+body:has(> #wb-terminal) { padding-bottom: var(--wb-term-bar); }
+body:has(> #wb-terminal[data-state=open]) { padding-bottom: calc(var(--wb-term-bar) + var(--wb-term-h)); }
+
+.wb-term-grip { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; touch-action: none; }
+.wb-term-bar { height: var(--wb-term-bar); display: flex; align-items: center; gap: 12px; padding: 0 10px 0 6px; flex: none; }
+.wb-term-bar button {
+  font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 5px;
+  padding: 5px 8px; cursor: pointer;
+}
+.wb-term-bar button:hover { background: #1c2029; border-color: #2a2f3a; }
+.wb-term-toggle { display: inline-flex; align-items: center; gap: 7px; letter-spacing: .04em; text-transform: uppercase; }
+/* points up while closed (it opens upward), down while open */
+.wb-term-chevron { width: 7px; height: 7px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; rotate: 45deg; translate: 0 -2px; transition: rotate .2s, translate .2s; }
+#wb-terminal[data-state=collapsed] .wb-term-chevron { rotate: -135deg; translate: 0 2px; }
+.wb-term-status { color: #8b93a3; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-term-actions { display: flex; gap: 4px; }
+
+/* content-box: the fit addon reads this height as the room for rows, so the padding must not be in it */
+.wb-term-screen { height: calc(var(--wb-term-h) - 10px); padding: 4px 0 6px 10px; box-sizing: content-box; overflow: hidden; }
+/* the screen as the server wrote it into the page, over the terminal until that has drawn it */
+.wb-term-screen { position: relative; }
+.wb-term-placeholder {
+  position: absolute; inset: 4px 0 6px 10px; z-index: 1; overflow: hidden; background: #0f1115;
+  font: 13px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; color: #d7dae0;
+}
+.wb-term-placeholder > div { height: 1.2em; }
+#wb-terminal[data-state=collapsed] .wb-term-screen { height: 0; padding: 0; visibility: hidden; }
+
+::view-transition-group(wb-terminal) { animation-duration: .22s; animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
+/* opening and closing: the pictures keep their scale and stay anchored at the bar, so the text
+   doesn't stretch while the drawer grows */
+::view-transition-old(wb-terminal), ::view-transition-new(wb-terminal) { height: 100%; object-fit: none; object-position: top; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*) { animation: none !important; } }

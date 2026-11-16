@@ -7,3 +7,5 @@ server.json
 server.log
 delivered/
 server.lock
+# the secret that unlocks the terminal drawer
+token

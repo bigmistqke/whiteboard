@@ -5,6 +5,7 @@
 //   /-/<path>        a file of the project, from the repository (unless the config sets files: false)
 //   /_/docs          the documentation of the project's renderers
 //   /_/file/<path>   a file a renderer asked to serve (its client, a stylesheet)
+//   /_/terminal/…    the terminal drawer's code; /api/term/… its session (see terminal.js)
 //   /api/…           the stored page, its render, events, live changes
 //
 // The core reads pages as they are stored and hands them to a renderer, which decides what they
@@ -18,6 +19,7 @@ import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
 import { appendEvent, readEvents, matches, pickedUp, CLAIM } from './events.js'
 import { html, raw } from './html.js'
 import { createConfigLoader, toPath } from './renderers.js'
+import { createTerminal } from './terminal.js'
 
 const PROJECT = projectAt(findProjectDir())
 if (!PROJECT) throw new Error(`not inside a whiteboard project: no .whiteboard/config.ts in ${process.cwd()} or above it`)
@@ -25,6 +27,9 @@ if (!PROJECT) throw new Error(`not inside a whiteboard project: no .whiteboard/c
 const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 // the browser runtime, built by build.js
 const RUNTIME = path.join(ENGINE_DIR, 'dist', 'client', 'runtime.js')
+// the terminal drawer in the browser, built by build.js
+const TERMINAL_JS = path.join(ENGINE_DIR, 'dist', 'client', 'terminal.js')
+const TERMINAL_CSS = path.join(ENGINE_DIR, 'dist', 'client', 'terminal.css')
 const MIME = {
   '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
@@ -33,11 +38,12 @@ const MIME = {
   '.csv': 'text/csv; charset=utf-8', '.html': 'text/html; charset=utf-8',
 }
 // files in .whiteboard/ that are the server's own bookkeeping, not content
-const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server.lock'])
+const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server.lock', 'token'])
 const SKIP_DIRS = new Set(['node_modules', '.git'])
 
 
 const loader = createConfigLoader(PROJECT.configFile)
+const terminal = createTerminal({ dir: PROJECT.dir, wb: PROJECT.wb })
 
 /** The loaded config. Also applies its `files` setting to what is served and watched. */
 async function config() {
@@ -270,17 +276,33 @@ async function docs() {
 
 const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
 
-function shell(page, { renderer, out, notices }) {
+/**
+ * The terminal drawer, for a browser that has the token: markup the server writes, so that it is
+ * there when the page first renders and the browser can morph it from the previous page (a view
+ * transition across the page load). Its open state and height come from this tab's sessionStorage,
+ * set before the first render, and the session's screen is in it as HTML, so a page shows it from its
+ * first render on; terminal.js puts the live terminal in its place.
+ */
+const TERMINAL_HEAD = html`<link rel="stylesheet" href="/_/terminal/terminal.css">`
+const terminalDrawer = screen => html`<aside id="wb-terminal" aria-label="Terminal">
+<div class="wb-term-grip" title="drag to resize"></div>
+<div class="wb-term-bar"><button type="button" class="wb-term-toggle" title="Toggle the terminal (Ctrl+\`)"><span class="wb-term-chevron"></span>terminal</button><span class="wb-term-status"></span><span class="wb-term-actions"></span></div>
+<div class="wb-term-screen">${screen && html`<div class="wb-term-placeholder" aria-hidden="true">${raw(screen)}</div>`}</div>
+</aside>
+<script>try{const t=document.getElementById('wb-terminal'),s=sessionStorage,o=new URLSearchParams(location.search).get('terminal')==='open'||s.getItem('wb-terminal-open')==='1';t.dataset.state=o?'open':'collapsed';const h=+s.getItem('wb-terminal-height');if(h)document.documentElement.style.setProperty('--wb-term-h',h+'px')}catch{}</script>
+<script type="module" src="/_/terminal/terminal.js"></script>`
+
+function shell(page, { renderer, out, notices }, withTerminal = false) {
   const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null }
   // the renderer's head and html are HTML already; the handoff is JSON made safe for a script tag
   return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${out.title || page.id || PROJECT.name}</title>
-${raw(out.head ?? '')}</head>
+${raw(out.head ?? '')}${withTerminal && TERMINAL_HEAD}</head>
 <body data-page="${page.id}" data-kind="${page.kind}">
 ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
 <div id="wb-root">${raw(out.html)}</div>
 <script type="application/json" id="wb-page">${raw(json(handoff))}</script>
-<script type="module" src="/_/runtime.js"></script></body></html>`)
+<script type="module" src="/_/runtime.js"></script>${withTerminal && terminalDrawer(terminal.screenHtml())}</body></html>`)
 }
 
 // ---- listeners ---------------------------------------------------------------------------------
@@ -428,6 +450,9 @@ httpServer().on('request', async (req, res) => {
 
     if (p === '/favicon.ico') { res.writeHead(204); return res.end() }
     if (p === '/_/runtime.js') return sendFile(res, RUNTIME)
+    if (p === '/_/terminal/terminal.js') return sendFile(res, TERMINAL_JS)
+    if (p === '/_/terminal/terminal.css') return sendFile(res, TERMINAL_CSS)
+    if (await terminal.handle(req, res, p, q)) return
     if (p.startsWith('/_/file/')) {
       const file = path.resolve(p.slice('/_/file'.length))
       if (!assetDirs.has(path.dirname(file)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
@@ -482,9 +507,9 @@ httpServer().on('request', async (req, res) => {
     if (r.raw) return sendFile(res, r.raw)
     if (r.notFound) {
       const page = { kind: 'page', id, file: '', mtime: null, source: r.notFound, frontmatter: {} }
-      return send(res, 404, shell(page, { renderer: null, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }))
+      return send(res, 404, shell(page, { renderer: null, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }, terminal.authorized(req)))
     }
-    return send(res, 200, shell(r.page, await render(r.page)))
+    return send(res, 200, shell(r.page, await render(r.page), terminal.authorized(req)))
   } catch (err) {
     console.error(err)
     send(res, 500, String(err?.stack || err), 'text/plain')
