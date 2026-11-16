@@ -146,8 +146,8 @@ agent can ask, do other work, and wait later.
 
 ## A terminal on every page
 
-The terminal is a plugin: add it to the config, with the program a
-session starts. Without `command` it starts your shell.
+The terminal is a plugin: add it to the config, with the program a new tab
+starts. Without `command`, a tab is just your shell.
 
 ```ts
 import terminal from '@bigmistqke/whiteboard/terminal'
@@ -159,28 +159,39 @@ export default defineConfig({
 
 `whiteboard terminal` prints a link that unlocks a terminal drawer at the
 bottom of every page of the project, in that browser. Collapsed it's a bar;
-open, it runs the command in a pseudo-terminal, in a small host process of
-its own that the server starts. So the session outlives the tab (switching
-pages, reloading or opening a second tab shows the same session) and the
-server: a restarted server finds the session where it was. The browser
-morphs the drawer from one page into the next (a view transition across the
-page load), and the server writes the current screen into each page, so it
-never shows empty. Ctrl+\` opens and closes it.
+open, it shows a terminal with tabs. Each tab is a session in a
+pseudo-terminal, in a small host process of its own that the server starts.
+So the sessions outlive the browser tab (switching pages, reloading or
+opening a second browser tab shows the same ones) and the server: a
+restarted server finds them where they were. The browser morphs the drawer
+from one page into the next (a view transition across the page load), and
+the server writes the current screens into each page, so it never shows
+empty. Ctrl+\` opens and closes it.
+
+A tab runs the command inside your shell, and the shell takes over when the
+command exits: leaving `claude` leaves a prompt in the same tab, not a dead
+one. "+" opens a tab with just the shell, "×" closes a tab and ends what
+runs in it, and a tab whose shell exited offers to start again.
 
 ```sh
 whiteboard terminal [page]             # the link; the drawer starts the command on demand
-whiteboard terminal -- <arguments>     # start it with these arguments after its own
-whiteboard terminal --restart          # replace the running session (with -- <arguments> too)
-whiteboard terminal stop               # end the session and its host
+whiteboard terminal --new              # start the command in a new tab
+whiteboard terminal -- <arguments>     # the same, with these arguments after its own
+whiteboard terminal --new --shell      # a new tab with just the shell
+whiteboard terminal stop               # end every tab and their host
 ```
 
-With `command: 'claude'`, `whiteboard terminal --restart -- --resume <id>`
-continues a Claude Code session in the drawer.
+With `command: 'claude'`, `whiteboard terminal -- --resume <id>` continues
+a Claude Code session in a new tab.
 
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
 that is only sent from the project's own pages, and requests from another
 origin are refused. Any plugin can ask the core whether a request has it.
+
+It needs `node-pty`, an optional dependency; without it the drawer says what
+to install. The host listens on `.whiteboard/terminal/host.sock`, readable
+by its owner only, and leaves ten minutes after the last tab's program ended.
 
 The token keeps other websites out, not agents: it is in the project, and so
 is the config the server runs. **whiteboard runs with the rights of whoever
@@ -189,9 +200,6 @@ run. If they run in a sandbox, start it from inside that sandbox (an agent
 running `whiteboard show` does); the terminal and everything else it starts
 are then boxed in the same way. A server started outside the sandbox lets an
 agent reach past it, through the terminal or simply by editing `config.ts`.
-It needs `node-pty`, an optional dependency; without it the drawer says what
-to install. The host listens on `.whiteboard/terminal/host.sock`, readable
-by its owner only, and leaves ten minutes after its program ended.
 
 ## Claude Code hooks
 

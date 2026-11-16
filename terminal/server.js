@@ -1,10 +1,14 @@
-// What the terminal's routes do, forwarded to its host: the session's status, starting it, its
-// keystrokes and size, following its output, stopping it.
+// What the terminal's routes do, forwarded to its host: the sessions (the drawer's tabs), starting
+// one, its keystrokes and size, following its output, closing it, stopping them all.
 //
-// The session itself runs in a process of its own (host.js), which this starts the first time a
-// session starts and reaches over a Unix socket. So the session outlives the page server: a
-// restarted server connects to the same host and finds the session as it was. Each open drawer gets
-// its own connection to the host, which sends it the whole screen first and then follows the output.
+// The sessions run in a process of their own (host.js), which this starts the first time a session
+// starts and reaches over a Unix socket. So they outlive the page server: a restarted server
+// connects to the same host and finds them as they were. Each open drawer gets its own connection to
+// the host, which sends it the whole screen of its tab first and then follows the output.
+//
+// A session runs in the user's shell: the configured command first, and when it exits, the shell
+// takes over in the same tab (`$SHELL -c '"$@"; exec "$0" -l' $SHELL <command>`), so leaving the
+// program leaves a prompt, not a dead tab. A new tab can also start the shell alone.
 //
 // No whiteboard in it: give it the folder the session runs in and a folder for its socket and log.
 // It doesn't check who asks; whoever mounts it must (it runs code).
@@ -84,14 +88,27 @@ export function createTerminal({ dir, home, command }) {
     return false
   }
 
-  const status = async () => ({
-    available: hasPty(),
-    ...((await ask({ t: 'status' })) ?? { running: false, exited: null, command: null, started: null }),
-  })
+  const shell = process.env.SHELL || '/bin/sh'
+  const label = path.basename(command[0])
 
-  /** The screen as HTML rows, for a page's first render; empty without a session. */
-  async function screenHtml() {
-    return (await ask({ t: 'html' }, 300))?.html ?? ''
+  /**
+   * The sessions, as tabs: `{ id, label, running, exited, started }` each. `legacy`: the host is
+   * one from before tabs, running a single session until it leaves; it is shown as one tab.
+   */
+  async function sessions() {
+    const reply = await ask({ t: 'list' })
+    if (!reply) return { available: hasPty(), legacy: false, sessions: [] }
+    if (!reply.error) return { available: hasPty(), legacy: false, sessions: reply.sessions }
+    const old = await ask({ t: 'status' })
+    const one = old && (old.running || old.exited != null) ? [{ id: '1', label: path.basename(String(old.command ?? label).split(' ')[0]), running: old.running, exited: old.exited, started: old.started }] : []
+    return { available: hasPty(), legacy: true, sessions: one }
+  }
+
+  /** The screens as HTML rows by session id, for a page's first render. */
+  async function screens(list) {
+    const out = {}
+    await Promise.all(list.map(async s => { out[s.id] = (await ask({ t: 'html', id: s.id }, 300))?.html ?? '' }))
+    return out
   }
 
   // ---- what the routes do --------------------------------------------------------------------
@@ -99,26 +116,46 @@ export function createTerminal({ dir, home, command }) {
   const failure = (message, status = 500) => Object.assign(new Error(message), { status })
 
   /**
-   * Start the command, with `args` after its own, or report the running session (`already`) unless
-   * `restart`.
+   * Start the command, with `args` after its own, in the session `id` (a new tab without one), or
+   * report the running session (`already`) unless `restart`. With `shell`, the shell alone.
    */
-  async function start({ args = [], restart = false } = {}) {
+  async function start({ id, args = [], restart = false, shell: plain = false } = {}) {
     if (!hasPty()) throw failure('the terminal needs node-pty: npm install node-pty')
-    const request = { t: 'start', command: command[0], args: [...command.slice(1), ...args], restart }
+    const program = [...command, ...args]
+    const isShell = plain || path.basename(program[0]) === path.basename(shell)
+    const request = isShell
+      ? { t: 'start', id, command: shell, args: ['-l'], label: path.basename(shell), restart }
+      : { t: 'start', id, command: shell, args: ['-c', '"$@"; exec "$0" -l', shell, ...program], label, restart }
+    const state = await sessions()
+    if (state.legacy) {
+      // an old host runs one session: it can only be started again as it was
+      if (id == null || plain) throw failure('tabs come once the current session has ended (its host is from before tabs)', 409)
+      Object.assign(request, { command: command[0], args: program.slice(1) })
+    }
     let reply = await ask(request)
     if (!reply) {
       if (!(await startHost())) throw failure(`the terminal's host did not start; see ${log}`)
       reply = await ask(request)
     }
     if (!reply || reply.error) throw failure(reply?.error ?? 'no answer from the terminal host')
-    return { available: true, ...reply }
+    return { available: true, session: reply.session ?? '1', already: !!reply.already }
   }
 
-  const input = async data => { await ask({ t: 'input', d: data }) }
-  const resize = async (cols, rows) => { await ask({ t: 'resize', cols, rows }) }
+  const input = async (id, data) => { await ask({ t: 'input', id, d: data }) }
+  const resize = async (id, cols, rows) => { await ask({ t: 'resize', id, cols, rows }) }
 
-  /** Follow the session as server-sent events on `res`: `screen` first, then `data` and `exit`. */
-  async function stream(req, res) {
+  /** End one session and drop its tab. */
+  async function close(id) {
+    const reply = await ask({ t: 'close', id })
+    if (reply?.error) throw failure('this host is from before tabs: stop it to end its session', 409)
+    return { ok: true }
+  }
+
+  /**
+   * Follow a session as server-sent events on `res`: `sessions` (the tabs) and `screen` first, then
+   * `data`, `exit` and `sessions` as they come.
+   */
+  async function stream(req, res, id) {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
     res.write(': terminal\n\n')
     const ping = setInterval(() => res.write(': ping\n\n'), 25000)
@@ -147,7 +184,7 @@ export function createTerminal({ dir, home, command }) {
     conn.on('close', () => { if (!res.writableEnded) res.write('event: exit\ndata: {"code":null}\n\n') })
     conn.on('error', () => {})
     req.on('close', () => { clearInterval(ping); conn.destroy() })
-    conn.write(JSON.stringify({ t: 'attach' }) + '\n')
+    conn.write(JSON.stringify({ t: 'attach', id }) + '\n')
   }
 
   /** End the session and its host. */
@@ -155,5 +192,5 @@ export function createTerminal({ dir, home, command }) {
     return { stopped: !!(await ask({ t: 'stop' })) }
   }
 
-  return { status, start, input, resize, stream, stop, screenHtml }
+  return { sessions, screens, start, input, resize, close, stream, stop, label }
 }

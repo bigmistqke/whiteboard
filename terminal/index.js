@@ -1,18 +1,20 @@
-// The terminal drawer, as a whiteboard plugin: a terminal at the bottom of every page, running a
-// program in a session that outlives the tab and the page server. In a config:
+// The terminal drawer, as a whiteboard plugin: a terminal at the bottom of every page, with tabs, each
+// a session that outlives the browser tab and the page server. In a config:
 //
 //   import terminal from '@bigmistqke/whiteboard/terminal'
-//   export default defineConfig({ renderers: [markboard()], plugins: [terminal({ command: 'htop' })] })
+//   export default defineConfig({ plugins: [terminal({ command: 'claude' })] })
 //
-// `command` is the program a session starts: a name or path, or an array with its first arguments
-// (`['npm', 'run', 'dev']`). Without it, the user's shell.
+// `command` is the program a new tab starts: a name or path, or an array with its first arguments
+// (`['npm', 'run', 'dev']`). It runs in the user's shell, which takes over when it exits, so a tab
+// ends at a prompt. Without `command`, a tab is just the shell. "+" in the drawer opens a shell
+// next to the others.
 //
 // `whiteboard terminal` prints the link that gives a browser the project's token; only a browser
-// with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`.
+// with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`. What the
+// terminal can do is what the server can: it runs with the rights of whoever started the server.
 //
 // The parts are whiteboard-free: server.js is a request handler, host.js the process that runs the
-// session, client.ts the drawer in the browser. This file wires them in.
-import path from 'node:path'
+// sessions, client.ts the drawer in the browser. This file wires them in.
 import { html, raw } from '../src/html.js'
 import { createTerminal } from './server.js'
 
@@ -22,24 +24,22 @@ const STYLE = new URL('../dist/terminal/style.css', import.meta.url)
 /**
  * The drawer's markup, written by the server so that it is there when the page first renders and
  * the browser can morph it from the previous page (a view transition across the page load). Its
- * open state and height come from this tab's sessionStorage, set before the first render, and the
- * session's screen is in it as HTML, so a page shows it from its first render on; client.js puts the
- * live terminal in its place.
+ * open state, height and tab come from this browser tab's sessionStorage, set before the first
+ * render, and each session's screen is in it as HTML, so a page shows it from its first render on;
+ * client.js puts the live terminal in its place.
  */
-const drawer = (screen, client, label) => html`<aside id="wb-terminal" aria-label="Terminal" data-command="${label}">
+const drawer = (state, screens, client, label) => html`<aside id="wb-terminal" aria-label="Terminal" data-command="${label}" data-sessions="${JSON.stringify(state)}">
 <div class="wb-term-grip" title="drag to resize"></div>
-<div class="wb-term-bar"><button type="button" class="wb-term-toggle" title="Toggle the terminal (Ctrl+\`)"><span class="wb-term-chevron"></span>terminal</button><span class="wb-term-status"></span><span class="wb-term-actions"></span></div>
-<div class="wb-term-screen">${screen && html`<div class="wb-term-placeholder" aria-hidden="true">${raw(screen)}</div>`}</div>
+<div class="wb-term-bar"><button type="button" class="wb-term-toggle" title="Toggle the terminal (Ctrl+\`)"><span class="wb-term-chevron"></span>terminal</button><span class="wb-term-tabs">${state.sessions.map(s => html`<button type="button" class="wb-term-tab" data-id="${s.id}">${s.label}</button>`)}</span><span class="wb-term-status"></span><span class="wb-term-actions"></span></div>
+<div class="wb-term-screen">${state.sessions.map(s => screens[s.id] && html`<div class="wb-term-placeholder" data-id="${s.id}" aria-hidden="true">${raw(screens[s.id])}</div>`)}</div>
 </aside>
-<script>try{const t=document.getElementById('wb-terminal'),s=sessionStorage,o=new URLSearchParams(location.search).get('terminal')==='open'||s.getItem('wb-terminal-open')==='1';t.dataset.state=o?'open':'collapsed';const h=+s.getItem('wb-terminal-height');if(h)document.documentElement.style.setProperty('--wb-term-h',h+'px')}catch{}</script>
+<script>try{const t=document.getElementById('wb-terminal'),s=sessionStorage,o=new URLSearchParams(location.search).get('terminal')==='open'||s.getItem('wb-terminal-open')==='1';t.dataset.state=o?'open':'collapsed';const h=+s.getItem('wb-terminal-height');if(h)document.documentElement.style.setProperty('--wb-term-h',h+'px');const tabs=[...t.querySelectorAll('.wb-term-tab')],k=s.getItem('wb-terminal-tab'),a=tabs.find(b=>b.dataset.id===k)??tabs[0];if(a){t.dataset.tab=a.dataset.id;a.classList.add('wb-current');t.querySelector('.wb-term-placeholder[data-id="'+a.dataset.id+'"]')?.classList.add('wb-current')}}catch{}</script>
 <script type="module" src="${client}"></script>`
 
 /** @param {{ command?: string | string[] }} [options] */
 export default function terminal(options = {}) {
   const command = [options.command ?? process.env.SHELL ?? '/bin/sh'].flat().map(String)
   if (!command[0]) throw new Error('terminal: command is empty')
-  // what the drawer calls the session: the program's name
-  const label = path.basename(command[0])
   return {
     name: 'terminal',
     setup(ctx) {
@@ -49,48 +49,51 @@ export default function terminal(options = {}) {
       return {
         // all of them run code or show what runs, so all need the project's token
         routes: {
-          'GET /status': { description: 'whether a session runs, its command and when it started', auth: true, run: () => term.status() },
+          'GET /sessions': { description: 'the sessions (the drawer\'s tabs): id, label, whether each runs', auth: true, run: () => term.sessions() },
           'POST /start': {
-            description: `start ${command.join(' ')}, with these arguments after its own; with restart, replace the running session`,
+            description: `start ${command.join(' ')} (or the shell alone, with shell) in session id, a new tab without one; with restart, replace a running session`,
             auth: true,
-            body: { args: 'string[]?', restart: 'boolean?' },
+            body: { id: 'string?', args: 'string[]?', restart: 'boolean?', shell: 'boolean?' },
             run: ({ body }) => term.start(body),
           },
-          'POST /input': { description: 'keystrokes, as the terminal sends them', auth: true, body: { data: 'string' }, run: ({ body }) => term.input(body.data) },
-          'POST /resize': { description: 'the size of the terminal in the page', auth: true, body: { cols: 'number', rows: 'number' }, run: ({ body }) => term.resize(body.cols, body.rows) },
+          'POST /input': { description: 'keystrokes for a session, as the terminal sends them', auth: true, body: { id: 'string', data: 'string' }, run: ({ body }) => term.input(body.id, body.data) },
+          'POST /resize': { description: 'the size of the terminal in the page', auth: true, body: { id: 'string', cols: 'number', rows: 'number' }, run: ({ body }) => term.resize(body.id, body.cols, body.rows) },
           'GET /stream': {
-            description: 'the whole screen, then the output as it comes (events screen, data, exit; none without a session)',
+            description: 'the tabs and a session\'s whole screen, then its output as it comes (events sessions, screen, data, exit; none without that session)',
             auth: true,
             stream: true,
-            run: ({ req, res }) => term.stream(req, res),
+            query: { id: 'string?' },
+            run: ({ req, res, query }) => term.stream(req, res, query.id),
           },
-          'POST /stop': { description: 'end the session and its host', auth: true, run: () => term.stop() },
+          'POST /close': { description: 'end a session and drop its tab', auth: true, body: { id: 'string' }, run: ({ body }) => term.close(body.id) },
+          'POST /stop': { description: 'end every session and their host', auth: true, run: () => term.stop() },
         },
         async shell(req) {
           if (!ctx.authorized(req)) return null
-          return { head: html`<link rel="stylesheet" href="${style}">`, body: drawer(await term.screenHtml(), client, label) }
+          const state = await term.sessions()
+          return { head: html`<link rel="stylesheet" href="${style}">`, body: drawer(state, await term.screens(state.sessions), client, term.label) }
         },
       }
     },
     commands: {
       '': {
-        description: `print a link that opens the terminal drawer in this browser (it gives the browser the project's token); with --restart or arguments after --, start ${command.join(' ')} in it`,
+        description: `print a link that opens the terminal drawer in this browser (it gives the browser the project's token); with --new or arguments after --, start ${command.join(' ')} in a new tab`,
         args: '[page]',
         options: {
-          restart: { type: 'boolean?', description: 'replace the running session' },
+          new: { type: 'boolean?', description: 'start it in a new tab' },
+          shell: { type: 'boolean?', description: 'with --new: the shell alone' },
         },
-        rest: `<arguments for ${label}>`,
+        rest: `<arguments for ${command[0]}>`,
         async run(ctx) {
-          const { restart } = ctx.options
-          if (restart || ctx.rest.length) {
-            const body = await call(ctx, 'POST', '/start', { args: ctx.rest, restart: !!restart })
-            if (body.already) console.error(`whiteboard: a session runs already (${body.command}); --restart replaces it`)
+          if (ctx.options.new || ctx.rest.length) {
+            const body = await call(ctx, 'POST', '/start', { args: ctx.rest, shell: !!ctx.options.shell })
+            console.error(`whiteboard: started in tab ${body.session}`)
           }
           console.log(await ctx.authLink(`${ctx.pagePath(ctx.positionals[0])}?terminal=open`))
         },
       },
       stop: {
-        description: 'end the session and its host',
+        description: 'end every session and their host',
         async run(ctx) {
           const { stopped } = await call(ctx, 'POST', '/stop')
           console.log(stopped ? 'stopped' : 'no session ran')

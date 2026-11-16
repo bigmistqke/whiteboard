@@ -1,10 +1,11 @@
 // The terminal drawer at the bottom of every page (for a browser with the project's token; see
 // server.js). The server writes its markup and sets its open state before the first render, so
 // the browser can morph it from the page before (a view transition across the page load). This module
-// connects it: an xterm that shows the session the server runs, keystrokes and size sent back.
+// connects it: an xterm that shows the session of the current tab, keystrokes and size sent back,
+// and a tab per session, with "+" for a shell next to them.
 //
-// The session lives on the server. Each page load connects again and first gets the whole screen, so
-// switching pages loses nothing.
+// The sessions live on the server. Each page load connects again and first gets the whole screen of
+// its tab, so switching pages loses nothing.
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 
@@ -13,14 +14,22 @@ const store = {
   set: (k: string, v: string) => { try { sessionStorage.setItem(k, v) } catch { /* storage unavailable */ } },
 }
 
+interface Session { id: string; label: string; running: boolean; exited: number | null }
+
 function init(drawer: HTMLElement) {
   const screen = drawer.querySelector<HTMLElement>('.wb-term-screen')!
+  const tabs = drawer.querySelector<HTMLElement>('.wb-term-tabs')!
   const status = drawer.querySelector<HTMLElement>('.wb-term-status')!
   const actions = drawer.querySelector<HTMLElement>('.wb-term-actions')!
   const toggle = drawer.querySelector<HTMLButtonElement>('.wb-term-toggle')!
   const grip = drawer.querySelector<HTMLElement>('.wb-term-grip')!
-  // the program the session runs, by name, as the plugin's config says
+  // the program a new tab runs, by name, as the plugin's config says
   const label = drawer.dataset.command || 'terminal'
+  // the sessions as the server wrote them into the page, and the tab this browser tab shows
+  let sessions: Session[] = []
+  let legacy = false
+  try { ({ sessions, legacy } = JSON.parse(drawer.dataset.sessions ?? '{}')); sessions ??= [] } catch { /* none */ }
+  let current: string | null = drawer.dataset.tab ?? sessions[0]?.id ?? null
 
   const term = new Terminal({
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -55,7 +64,7 @@ function init(drawer: HTMLElement) {
     const size = `${term.cols}x${term.rows}`
     if (size === sent) return
     sent = size
-    post('/api/terminal/resize', { cols: term.cols, rows: term.rows })
+    if (current) post('/api/terminal/resize', { id: current, cols: term.cols, rows: term.rows })
   }
   new ResizeObserver(() => refit()).observe(screen)
 
@@ -102,10 +111,12 @@ function init(drawer: HTMLElement) {
   let pending = ''
   let chain = Promise.resolve()
   term.onData(d => {
+    if (!current) return
+    const id = current
     if (!pending) queueMicrotask(() => {
       const data = pending
       pending = ''
-      chain = chain.then(() => post('/api/terminal/input', { data })).then(() => {}, () => {})
+      chain = chain.then(() => post('/api/terminal/input', { id, data })).then(() => {}, () => {})
     })
     pending += d
   })
@@ -122,48 +133,133 @@ function init(drawer: HTMLElement) {
     }))
   }
 
-  async function start(restart = false) {
-    setStatus('starting…')
-    const res = await post('/api/terminal/start', { args: [], restart })
-    const body = await res.json().catch(() => ({}))
-    if (!res.ok) return setStatus(body.error ?? 'could not start', [['Try again', () => start(restart)]])
+  // ---- tabs ----------------------------------------------------------------------------------
+  function drawTabs() {
+    tabs.replaceChildren(...sessions.map(x => {
+      const tab = document.createElement('span')
+      tab.className = 'wb-term-tab'
+      tab.dataset.id = x.id
+      tab.classList.toggle('wb-current', x.id === current)
+      tab.toggleAttribute('data-exited', !x.running)
+      const name = document.createElement('button')
+      name.type = 'button'
+      name.className = 'wb-term-tab-name'
+      name.textContent = x.label
+      name.title = x.running ? x.label : `${x.label}: exited (${x.exited})`
+      name.addEventListener('click', () => select(x.id))
+      tab.append(name)
+      if (!legacy) {
+        const close = document.createElement('button')
+        close.type = 'button'
+        close.className = 'wb-term-tab-close'
+        close.title = 'Close this tab (ends its program)'
+        close.textContent = '×'
+        close.addEventListener('click', () => closeTab(x.id))
+        tab.append(close)
+      }
+      return tab
+    }))
+    if (!legacy) {
+      const add = document.createElement('button')
+      add.type = 'button'
+      add.className = 'wb-term-add'
+      add.title = 'A new tab with a shell'
+      add.textContent = '+'
+      add.addEventListener('click', () => start({ shell: true }))
+      tabs.append(add)
+    }
+    showStatus()
+  }
+
+  function showStatus() {
+    const x = sessions.find(y => y.id === current)
+    if (!x) return setStatus(sessions.length ? '' : 'no session', sessions.length ? [] : [[`Start ${label}`, () => start({})]])
+    if (x.running) return setStatus('', [])
+    setStatus(x.exited == null ? 'stopped' : `exited (${x.exited})`, [['Start again', () => start({ id: x.id, restart: true, shell: x.label !== label })]])
+  }
+
+  function select(id: string | null) {
+    // the tab that shows already: just give it the keyboard back
+    if (id === current && stream) { if (isOpen()) term.focus(); return }
+    current = id
+    if (id) store.set('wb-terminal-tab', id)
+    drawTabs()
     connect()
+    if (isOpen()) term.focus()
+  }
+
+  async function closeTab(id: string) {
+    await post('/api/terminal/close', { id })
+    sessions = sessions.filter(x => x.id !== id)
+    if (current === id) select(sessions.at(-1)?.id ?? null)
+    else drawTabs()
+  }
+
+  async function start(body: { id?: string; restart?: boolean; shell?: boolean }) {
+    setStatus('starting…')
+    const res = await post('/api/terminal/start', { args: [], ...body })
+    const reply = await res.json().catch(() => ({}))
+    if (!res.ok) return setStatus(reply.error ?? 'could not start', [['Try again', () => start(body)]])
+    await loadSessions()
     if (!isOpen()) setOpen(true)
-    else term.focus()
+    select(reply.session)
+    term.focus()
+  }
+
+  async function loadSessions() {
+    try {
+      const res = await fetch('/api/terminal/sessions')
+      if (res.ok) ({ sessions, legacy } = await res.json())
+    } catch { /* the server is away: the stream reconnects */ }
+    drawTabs()
   }
 
   let stream: EventSource | null = null
   function connect() {
     stream?.close()
-    stream = new EventSource('/api/terminal/stream')
+    term.reset()
+    sent = ''
+    if (!current) { stream = null; return showStatus() }
+    stream = new EventSource(`/api/terminal/stream?id=${encodeURIComponent(current)}`)
+    // an old host sends no list of its own
+    stream.addEventListener('open', () => { if (legacy) loadSessions() })
+    stream.addEventListener('sessions', e => {
+      sessions = JSON.parse((e as MessageEvent).data).sessions
+      if (current && !sessions.some(x => x.id === current)) return select(sessions.at(-1)?.id ?? null)
+      drawTabs()
+    })
     stream.addEventListener('none', () => {
       term.reset()
-      screen.querySelector('.wb-term-placeholder')?.remove()
-      setStatus('no session', [[`Start ${label}`, () => start()]])
+      screen.querySelectorAll('.wb-term-placeholder').forEach(p => p.remove())
+      showStatus()
     })
     stream.addEventListener('screen', e => {
-      const { d, cols, rows, exited } = JSON.parse((e as MessageEvent).data)
+      const { d, cols, rows } = JSON.parse((e as MessageEvent).data)
       term.reset()
       // the screen as the server has it, at its size; then this tab's own size, if it differs
       if (cols && rows) term.resize(cols, rows)
       sent = `${cols}x${rows}`
       term.write(d, () => {
         refit()
-        // the live terminal takes over from the screen the server wrote into the page
-        screen.querySelector('.wb-term-placeholder')?.remove()
+        // the live terminal takes over from the screens the server wrote into the page
+        screen.querySelectorAll('.wb-term-placeholder').forEach(p => p.remove())
       })
-      if (exited != null) exitedStatus(exited)
-      else setStatus(label, [['Restart', () => start(true)]])
+      showStatus()
       if (isOpen() && store.get('wb-terminal-focus') === '1') term.focus()
     })
     stream.addEventListener('data', e => term.write(JSON.parse((e as MessageEvent).data).d))
-    stream.addEventListener('exit', e => exitedStatus(JSON.parse((e as MessageEvent).data).code))
+    stream.addEventListener('exit', e => {
+      const code = JSON.parse((e as MessageEvent).data).code
+      const x = sessions.find(y => y.id === current)
+      if (x) { x.running = false; x.exited = code }
+      drawTabs()
+    })
   }
-  const exitedStatus = (code: number | null) => setStatus(code == null ? 'stopped' : `exited (${code})`, [[`Start ${label}`, () => start(true)]])
 
   // whether the terminal had the keyboard, for the next page
   addEventListener('pagehide', () => store.set('wb-terminal-focus', drawer.contains(document.activeElement) ? '1' : '0'))
 
+  drawTabs()
   connect()
 }
 

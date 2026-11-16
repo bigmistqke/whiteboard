@@ -1,21 +1,28 @@
-// The terminal's host: a small process of its own that runs the session, so the session outlives the
-// page server. The server starts it (detached, like the server itself) the first time a session
-// starts, and talks to it over a Unix socket; a restarted server connects again and finds the session
-// as it was.
+// The terminal's host: a small process of its own that runs the sessions, so they outlive the page
+// server. The server starts it (detached, like the server itself) the first time a session starts,
+// and talks to it over a Unix socket; a restarted server connects again and finds the sessions as
+// they were.
 //
 //   node terminal/host.js <project dir> <socket path>
 //
-// It runs one program in a pseudo-terminal (node-pty) and follows its output in a headless terminal,
-// which keeps the screen. One JSON object per line, each way. A connection sends one request:
+// Each session is a program in a pseudo-terminal (node-pty), followed by a headless terminal that
+// keeps its screen; the drawer shows them as tabs. A session has an id ('1', '2', …). One JSON
+// object per line, each way. A connection sends one request:
 //
-//   { t: 'status' }                   → { running, exited, command, started }
-//   { t: 'start', command, args, restart } → status, with `already` when a session runs and restart is false
-//   { t: 'input', d }                 → { ok }
-//   { t: 'resize', cols, rows }       → { ok }
-//   { t: 'html' }                     → { html }: the screen as HTML rows, for a page's first render
-//   { t: 'stop' }                     → { ok }, and the host exits
-//   { t: 'attach' }                   → { t: 'none' }, or { t: 'screen', d, cols, rows, exited } and then
-//                                       { t: 'data', d } and { t: 'exit', code } for as long as it stays open
+//   { t: 'list' }                          → { sessions: [{ id, label, running, exited, started }] }
+//   { t: 'start', id?, command, args, label?, restart }
+//                                          → { session, already? }: in the session `id` (a new one
+//                                            without), unless it runs and restart is false (`already`)
+//   { t: 'input', id, d }                  → { ok }
+//   { t: 'resize', id, cols, rows }        → { ok }
+//   { t: 'html', id? }                     → { html }: a screen as HTML rows (the first session's
+//                                            without an id), for a page's first render
+//   { t: 'close', id }                     → { ok }: end the session and drop its tab
+//   { t: 'stop' }                          → { ok }, and the host exits
+//   { t: 'attach', id }                    → { t: 'sessions', sessions }, then { t: 'none' } or
+//                                            { t: 'screen', d, cols, rows, exited }, and then
+//                                            { t: 'data', d }, { t: 'exit', code } and
+//                                            { t: 'sessions', sessions } for as long as it stays open
 //
 // It exits on `stop`, and after ten minutes without a program running.
 import fs from 'node:fs'
@@ -38,15 +45,28 @@ function loadPty() {
 const { Terminal } = (await import('@xterm/headless')).default
 const { SerializeAddon } = (await import('@xterm/addon-serialize')).default
 
-let session = null
-// a host with no program running leaves after a while (also one whose first start failed)
-let idle = setTimeout(() => quit(), 10 * 60 * 1000)
+/** @type {Map<string, any>} the sessions by id, in the order they were made */
+const sessions = new Map()
+let nextId = 1
+// connections following some session: each hears when the list of sessions changes
+const watchers = new Set()
 
-function start(command, args) {
-  const pty = loadPty()
-  const cols = session?.cols ?? 100, rows = session?.rows ?? 30
-  stopSession()
+// a host with no program running leaves after a while (also one whose first start failed)
+let idle = null
+function checkIdle() {
   clearTimeout(idle)
+  if (![...sessions.values()].some(s => s.exited == null)) idle = setTimeout(() => quit(), 10 * 60 * 1000)
+}
+
+const list = () => [...sessions.values()].map(s => ({ id: s.id, label: s.label, running: s.exited == null, exited: s.exited, started: s.started }))
+function announce() { for (const c of watchers) send(c, { t: 'sessions', sessions: list() }) }
+
+function start(id, command, args, label) {
+  const pty = loadPty()
+  const before = sessions.get(id)
+  const cols = before?.cols ?? 100, rows = before?.rows ?? 30
+  const attached = before?.attached ?? new Set()
+  if (before) endProcess(before)
   const screen = new Terminal({ cols, rows, scrollback: 2000, allowProposedApi: true })
   const serializer = new SerializeAddon()
   screen.loadAddon(serializer)
@@ -54,7 +74,7 @@ function start(command, args) {
     name: 'xterm-256color', cols, rows, cwd: dir,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
   })
-  const s = { proc, screen, serializer, command, args, cols, rows, attached: new Set(), exited: null, started: new Date().toISOString() }
+  const s = { id, label, proc, screen, serializer, cols, rows, attached, exited: null, started: new Date().toISOString() }
   proc.onData(d => {
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
@@ -62,31 +82,37 @@ function start(command, args) {
   proc.onExit(({ exitCode }) => {
     s.exited = exitCode
     for (const c of s.attached) send(c, { t: 'exit', code: exitCode })
-    if (session === s) idle = setTimeout(() => quit(), 10 * 60 * 1000)
+    announce()
+    checkIdle()
   })
-  session = s
+  sessions.set(id, s)
+  // a restarted session's followers get its new screen
+  for (const c of attached) sendScreen(c, s)
+  clearTimeout(idle)
+  announce()
+  return s
 }
 
-function stopSession() {
-  if (!session) return
-  try { if (session.exited == null) session.proc.kill() } catch {}
-  for (const c of session.attached) send(c, { t: 'exit', code: null })
-  session.screen.dispose()
-  session = null
+function endProcess(s) {
+  try { if (s.exited == null) s.proc.kill() } catch {}
+  s.screen.dispose()
+}
+
+function close(id) {
+  const s = sessions.get(id)
+  if (!s) return
+  endProcess(s)
+  sessions.delete(id)
+  for (const c of s.attached) send(c, { t: 'none' })
+  announce()
+  checkIdle()
 }
 
 function quit() {
-  stopSession()
+  for (const id of [...sessions.keys()]) close(id)
   try { fs.unlinkSync(socket) } catch {}
   process.exit(0)
 }
-
-const status = () => ({
-  running: !!session && session.exited == null,
-  exited: session?.exited ?? null,
-  command: session ? [session.command, ...session.args].join(' ') : null,
-  started: session?.started ?? null,
-})
 
 /** Write a message to a connection; one that is still waiting for its screen queues it. */
 function send(conn, msg) {
@@ -94,52 +120,63 @@ function send(conn, msg) {
   conn.socket.write(JSON.stringify(msg) + '\n')
 }
 
-function html() {
-  if (!session) return ''
+/** The screen once the headless terminal has parsed everything written so far; what arrives meanwhile follows it. */
+function sendScreen(conn, s) {
+  conn.queue = []
+  s.screen.write('', () => {
+    conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize(), cols: s.cols, rows: s.rows, exited: s.exited }) + '\n')
+    const queued = conn.queue
+    conn.queue = null
+    for (const msg of queued) send(conn, msg)
+  })
+}
+
+function html(s) {
+  if (!s) return ''
   try {
     // the rows, without the wrapper that sets the serializer's own colors and font; text is escaped
-    const m = /<pre><div style='[^']*'>([\s\S]*)<\/div><\/pre>/.exec(session.serializer.serializeAsHTML())
+    const m = /<pre><div style='[^']*'>([\s\S]*)<\/div><\/pre>/.exec(s.serializer.serializeAsHTML())
     return m ? m[1] : ''
   } catch { return '' }
 }
 
 function handle(conn, req) {
   const reply = msg => { conn.socket.end(JSON.stringify(msg) + '\n') }
+  const s = req.id != null ? sessions.get(String(req.id)) : undefined
   switch (req.t) {
-    case 'status': return reply(status())
-    case 'start':
-      if (session && session.exited == null && !req.restart) return reply({ ...status(), already: true })
+    case 'list': return reply({ sessions: list() })
+    case 'start': {
       if (typeof req.command !== 'string' || !req.command) return reply({ error: 'start needs a command' })
-      try { start(req.command, Array.isArray(req.args) ? req.args.map(String) : []) } catch (e) { return reply({ error: e.message }) }
-      return reply(status())
+      const id = req.id != null ? String(req.id) : String(nextId)
+      const running = sessions.get(id)
+      if (running && running.exited == null && !req.restart) return reply({ session: id, already: true })
+      try { start(id, req.command, Array.isArray(req.args) ? req.args.map(String) : [], String(req.label ?? path.basename(req.command))) } catch (e) { return reply({ error: e.message }) }
+      // ids are never reused while the host runs, so a closed tab's id can't come back as another
+      if (Number(id) >= nextId) nextId = Number(id) + 1
+      return reply({ session: id })
+    }
     case 'input':
-      if (session && session.exited == null && typeof req.d === 'string') session.proc.write(req.d)
+      if (s && s.exited == null && typeof req.d === 'string') s.proc.write(req.d)
       return reply({ ok: true })
     case 'resize': {
       const { cols, rows } = req
-      if (session && Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1 && cols < 1000 && rows < 500) {
-        session.cols = cols; session.rows = rows
-        session.screen.resize(cols, rows)
-        if (session.exited == null) session.proc.resize(cols, rows)
+      if (s && Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1 && cols < 1000 && rows < 500) {
+        s.cols = cols; s.rows = rows
+        s.screen.resize(cols, rows)
+        if (s.exited == null) s.proc.resize(cols, rows)
       }
       return reply({ ok: true })
     }
-    case 'html': return reply({ html: html() })
+    case 'html': return reply({ html: html(s ?? sessions.values().next().value) })
+    case 'close': close(String(req.id)); return reply({ ok: true })
     case 'stop': reply({ ok: true }); return void setTimeout(quit, 50)
     case 'attach': {
-      const s = session
-      if (!s) return reply({ t: 'none' })
-      // the screen once the headless terminal has parsed everything written so far; what arrives
-      // meanwhile is queued for this connection and follows the screen
-      conn.queue = []
+      watchers.add(conn)
+      conn.socket.on('close', () => { watchers.delete(conn); for (const x of sessions.values()) x.attached.delete(conn) })
+      send(conn, { t: 'sessions', sessions: list() })
+      if (!s) return send(conn, { t: 'none' })
       s.attached.add(conn)
-      conn.socket.on('close', () => s.attached.delete(conn))
-      s.screen.write('', () => {
-        conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize(), cols: s.cols, rows: s.rows, exited: s.exited }) + '\n')
-        const queued = conn.queue
-        conn.queue = null
-        for (const msg of queued) send(conn, msg)
-      })
+      sendScreen(conn, s)
       return
     }
     default: return reply({ error: `unknown request ${req.t}` })
@@ -178,5 +215,6 @@ server.listen(socket, () => {
   // only its owner may talk to it: the socket runs code
   try { fs.chmodSync(socket, 0o600) } catch {}
   console.log(`terminal host: ${process.pid} on ${socket}`)
+  checkIdle()
 })
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, quit)
