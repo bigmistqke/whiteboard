@@ -7,5 +7,5 @@ export default defineConfig({
   renderers: [
     markboard(),
   ],
-  extensions: [terminal()],
+  extensions: [terminal({ command: 'claude' })],
 })

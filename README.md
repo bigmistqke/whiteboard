@@ -146,38 +146,45 @@ agent can ask, do other work, and wait later.
 
 ## A terminal on every page
 
-The terminal is an extension: add it to the config.
+The terminal is an extension: add it to the config, with the program a
+session starts. Without `command` it starts your shell.
 
 ```ts
 import terminal from '@bigmistqke/whiteboard/terminal'
 
-export default defineConfig({ renderers: [markboard()], extensions: [terminal()] })
+export default defineConfig({
+  renderers: [markboard()],
+  extensions: [terminal({ command: 'claude' })],   // or ['npm', 'run', 'dev'], with arguments
+})
 ```
 
 `whiteboard terminal` prints a link that unlocks a terminal drawer at the
 bottom of every page of the project, in that browser. Collapsed it's a bar;
-open, it runs `claude` in a pseudo-terminal, in a small host process of its
-own that the server starts. So the session outlives the tab (switching pages,
-reloading or opening a second tab shows the same session) and the server: a
-restarted server finds the session where it was. The browser morphs the
-drawer from one page into the next (a view transition across the page load),
-and the server writes the current screen into each page, so it never shows
-empty. Ctrl+\` opens and closes it.
+open, it runs the command in a pseudo-terminal, in a small host process of
+its own that the server starts. So the session outlives the tab (switching
+pages, reloading or opening a second tab shows the same session) and the
+server: a restarted server finds the session where it was. The browser
+morphs the drawer from one page into the next (a view transition across the
+page load), and the server writes the current screen into each page, so it
+never shows empty. Ctrl+\` opens and closes it.
 
 ```sh
-whiteboard terminal                    # the link; the drawer starts claude on demand
-whiteboard terminal --continue         # continue the latest session of this folder in it
-whiteboard terminal --resume <id>      # or a given one (a session running elsewhere gets a copy)
-whiteboard terminal --restart          # replace the running session
+whiteboard terminal [page]             # the link; the drawer starts the command on demand
+whiteboard terminal -- <arguments>     # start it with these arguments after its own
+whiteboard terminal --restart          # replace the running session (with -- <arguments> too)
 whiteboard terminal stop               # end the session and its host
 ```
+
+With `command: 'claude'`, `whiteboard terminal --restart -- --resume <id>`
+continues a Claude Code session in the drawer.
 
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
 that is only sent from the project's own pages, and requests from another
-origin are refused. Any extension can ask the core whether a request has it. It needs `node-pty`, an optional dependency; without it the drawer
-says what to install. The host listens on `.whiteboard/terminal/host.sock`,
-readable by its owner only, and leaves ten minutes after its program ended.
+origin are refused. Any extension can ask the core whether a request has it.
+It needs `node-pty`, an optional dependency; without it the drawer says what
+to install. The host listens on `.whiteboard/terminal/host.sock`, readable
+by its owner only, and leaves ten minutes after its program ended.
 
 ## Commands
 
@@ -216,7 +223,7 @@ export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
   renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
-  extensions: [],        // behaviour on every page, whatever the renderer: terminal() for the drawer
+  extensions: [],        // behaviour on every page, whatever the renderer: terminal({ command }) for the drawer
 })
 ```
 

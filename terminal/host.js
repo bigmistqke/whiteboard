@@ -9,7 +9,7 @@
 // which keeps the screen. One JSON object per line, each way. A connection sends one request:
 //
 //   { t: 'status' }                   → { running, exited, command, started }
-//   { t: 'start', args, restart }     → status, with `already` when a session runs and restart is false
+//   { t: 'start', command, args, restart } → status, with `already` when a session runs and restart is false
 //   { t: 'input', d }                 → { ok }
 //   { t: 'resize', cols, rows }       → { ok }
 //   { t: 'html' }                     → { html }: the screen as HTML rows, for a page's first render
@@ -42,7 +42,7 @@ let session = null
 // a host with no program running leaves after a while (also one whose first start failed)
 let idle = setTimeout(() => quit(), 10 * 60 * 1000)
 
-function start(args) {
+function start(command, args) {
   const pty = loadPty()
   const cols = session?.cols ?? 100, rows = session?.rows ?? 30
   stopSession()
@@ -50,11 +50,11 @@ function start(args) {
   const screen = new Terminal({ cols, rows, scrollback: 2000, allowProposedApi: true })
   const serializer = new SerializeAddon()
   screen.loadAddon(serializer)
-  const proc = pty.spawn('claude', args, {
+  const proc = pty.spawn(command, args, {
     name: 'xterm-256color', cols, rows, cwd: dir,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
   })
-  const s = { proc, screen, serializer, args, cols, rows, attached: new Set(), exited: null, started: new Date().toISOString() }
+  const s = { proc, screen, serializer, command, args, cols, rows, attached: new Set(), exited: null, started: new Date().toISOString() }
   proc.onData(d => {
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
@@ -84,7 +84,7 @@ function quit() {
 const status = () => ({
   running: !!session && session.exited == null,
   exited: session?.exited ?? null,
-  command: session ? ['claude', ...session.args].join(' ') : null,
+  command: session ? [session.command, ...session.args].join(' ') : null,
   started: session?.started ?? null,
 })
 
@@ -109,7 +109,8 @@ function handle(conn, req) {
     case 'status': return reply(status())
     case 'start':
       if (session && session.exited == null && !req.restart) return reply({ ...status(), already: true })
-      try { start(Array.isArray(req.args) ? req.args.map(String) : []) } catch (e) { return reply({ error: e.message }) }
+      if (typeof req.command !== 'string' || !req.command) return reply({ error: 'start needs a command' })
+      try { start(req.command, Array.isArray(req.args) ? req.args.map(String) : []) } catch (e) { return reply({ error: e.message }) }
       return reply(status())
     case 'input':
       if (session && session.exited == null && typeof req.d === 'string') session.proc.write(req.d)

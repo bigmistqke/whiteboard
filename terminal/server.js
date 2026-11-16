@@ -32,10 +32,11 @@ export function hostSocket(home) {
 }
 
 /**
- * @param {{ dir: string, home: string }} options
- *   `dir` the folder the session runs in, `home` where the socket and log go
+ * @param {{ dir: string, home: string, command: string[] }} options
+ *   `dir` the folder the session runs in, `home` where the socket and log go, `command` the program
+ *   a session starts, with its first arguments
  */
-export function createTerminal({ dir, home }) {
+export function createTerminal({ dir, home, command }) {
   const own = hostSocket(home)
   // a host started before the terminal had a folder of its own listens on .whiteboard/term.sock;
   // it is used until it leaves, so that its session isn't lost
@@ -97,10 +98,13 @@ export function createTerminal({ dir, home }) {
 
   const failure = (message, status = 500) => Object.assign(new Error(message), { status })
 
-  /** Start `claude` with `args`, or report the running session (`already`) unless `restart`. */
+  /**
+   * Start the command, with `args` after its own, or report the running session (`already`) unless
+   * `restart`.
+   */
   async function start({ args = [], restart = false } = {}) {
     if (!hasPty()) throw failure('the terminal needs node-pty: npm install node-pty')
-    const request = { t: 'start', args, restart }
+    const request = { t: 'start', command: command[0], args: [...command.slice(1), ...args], restart }
     let reply = await ask(request)
     if (!reply) {
       if (!(await startHost())) throw failure(`the terminal's host did not start; see ${log}`)

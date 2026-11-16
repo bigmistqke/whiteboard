@@ -1,14 +1,18 @@
-// The terminal drawer, as a whiteboard extension: a terminal at the bottom of every page, running
-// `claude` in a session that outlives the tab and the page server. In a config:
+// The terminal drawer, as a whiteboard extension: a terminal at the bottom of every page, running a
+// program in a session that outlives the tab and the page server. In a config:
 //
 //   import terminal from '@bigmistqke/whiteboard/terminal'
-//   export default defineConfig({ renderers: [markboard()], extensions: [terminal()] })
+//   export default defineConfig({ renderers: [markboard()], extensions: [terminal({ command: 'htop' })] })
+//
+// `command` is the program a session starts: a name or path, or an array with its first arguments
+// (`['npm', 'run', 'dev']`). Without it, the user's shell.
 //
 // `whiteboard terminal` prints the link that gives a browser the project's token; only a browser
 // with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`.
 //
 // The parts are whiteboard-free: server.js is a request handler, host.js the process that runs the
 // session, client.ts the drawer in the browser. This file wires them in.
+import path from 'node:path'
 import { html, raw } from '../src/html.js'
 import { createTerminal } from './server.js'
 
@@ -22,7 +26,7 @@ const STYLE = new URL('../dist/terminal/style.css', import.meta.url)
  * session's screen is in it as HTML, so a page shows it from its first render on; client.js puts the
  * live terminal in its place.
  */
-const drawer = (screen, client) => html`<aside id="wb-terminal" aria-label="Terminal">
+const drawer = (screen, client, label) => html`<aside id="wb-terminal" aria-label="Terminal" data-command="${label}">
 <div class="wb-term-grip" title="drag to resize"></div>
 <div class="wb-term-bar"><button type="button" class="wb-term-toggle" title="Toggle the terminal (Ctrl+\`)"><span class="wb-term-chevron"></span>terminal</button><span class="wb-term-status"></span><span class="wb-term-actions"></span></div>
 <div class="wb-term-screen">${screen && html`<div class="wb-term-placeholder" aria-hidden="true">${raw(screen)}</div>`}</div>
@@ -30,11 +34,16 @@ const drawer = (screen, client) => html`<aside id="wb-terminal" aria-label="Term
 <script>try{const t=document.getElementById('wb-terminal'),s=sessionStorage,o=new URLSearchParams(location.search).get('terminal')==='open'||s.getItem('wb-terminal-open')==='1';t.dataset.state=o?'open':'collapsed';const h=+s.getItem('wb-terminal-height');if(h)document.documentElement.style.setProperty('--wb-term-h',h+'px')}catch{}</script>
 <script type="module" src="${client}"></script>`
 
-export default function terminal() {
+/** @param {{ command?: string | string[] }} [options] */
+export default function terminal(options = {}) {
+  const command = [options.command ?? process.env.SHELL ?? '/bin/sh'].flat().map(String)
+  if (!command[0]) throw new Error('terminal: command is empty')
+  // what the drawer calls the session: the program's name
+  const label = path.basename(command[0])
   return {
     name: 'terminal',
     setup(ctx) {
-      const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir })
+      const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir, command })
       const client = ctx.asset(CLIENT)
       const style = ctx.asset(STYLE)
       return {
@@ -42,7 +51,7 @@ export default function terminal() {
         routes: {
           'GET /status': { description: 'whether a session runs, its command and when it started', auth: true, run: () => term.status() },
           'POST /start': {
-            description: 'start claude with these arguments; with restart, replace the running session',
+            description: `start ${command.join(' ')}, with these arguments after its own; with restart, replace the running session`,
             auth: true,
             body: { args: 'string[]?', restart: 'boolean?' },
             run: ({ body }) => term.start(body),
@@ -59,24 +68,22 @@ export default function terminal() {
         },
         async shell(req) {
           if (!ctx.authorized(req)) return null
-          return { head: html`<link rel="stylesheet" href="${style}">`, body: drawer(await term.screenHtml(), client) }
+          return { head: html`<link rel="stylesheet" href="${style}">`, body: drawer(await term.screenHtml(), client, label) }
         },
       }
     },
     commands: {
       '': {
-        description: "print a link that opens the terminal drawer in this browser (it gives the browser the project's token); start claude in it, or continue a session",
+        description: `print a link that opens the terminal drawer in this browser (it gives the browser the project's token); with --restart or arguments after --, start ${command.join(' ')} in it`,
         args: '[page]',
         options: {
-          resume: { type: 'string?', value: 'id', description: 'continue this Claude Code session' },
-          continue: { type: 'boolean?', description: 'continue the latest session in this folder' },
           restart: { type: 'boolean?', description: 'replace the running session' },
         },
+        rest: `<arguments for ${label}>`,
         async run(ctx) {
-          const { resume, restart } = ctx.options
-          const args = resume ? ['--resume', resume] : ctx.options.continue ? ['--continue'] : null
-          if (args || restart) {
-            const body = await call(ctx, 'POST', '/start', { args: args ?? [], restart: !!restart })
+          const { restart } = ctx.options
+          if (restart || ctx.rest.length) {
+            const body = await call(ctx, 'POST', '/start', { args: ctx.rest, restart: !!restart })
             if (body.already) console.error(`whiteboard: a session runs already (${body.command}); --restart replaces it`)
           }
           console.log(await ctx.authLink(`${ctx.pagePath(ctx.positionals[0])}?terminal=open`))

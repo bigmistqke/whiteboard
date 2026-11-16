@@ -19,6 +19,8 @@ function init(drawer: HTMLElement) {
   const actions = drawer.querySelector<HTMLElement>('.wb-term-actions')!
   const toggle = drawer.querySelector<HTMLButtonElement>('.wb-term-toggle')!
   const grip = drawer.querySelector<HTMLElement>('.wb-term-grip')!
+  // the program the session runs, by name, as the extension's config says
+  const label = drawer.dataset.command || 'terminal'
 
   const term = new Terminal({
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -133,7 +135,7 @@ function init(drawer: HTMLElement) {
     stream.addEventListener('none', () => {
       term.reset()
       screen.querySelector('.wb-term-placeholder')?.remove()
-      setStatus('no session', [['Start claude', () => start()]])
+      setStatus('no session', [[`Start ${label}`, () => start()]])
     })
     stream.addEventListener('screen', e => {
       const { d, cols, rows, exited } = JSON.parse((e as MessageEvent).data)
@@ -147,13 +149,13 @@ function init(drawer: HTMLElement) {
         screen.querySelector('.wb-term-placeholder')?.remove()
       })
       if (exited != null) exitedStatus(exited)
-      else setStatus('claude', [['Restart', () => start(true)]])
+      else setStatus(label, [['Restart', () => start(true)]])
       if (isOpen() && store.get('wb-terminal-focus') === '1') term.focus()
     })
     stream.addEventListener('data', e => term.write(JSON.parse((e as MessageEvent).data).d))
     stream.addEventListener('exit', e => exitedStatus(JSON.parse((e as MessageEvent).data).code))
   }
-  const exitedStatus = (code: number | null) => setStatus(code == null ? 'stopped' : `exited (${code})`, [['Start claude', () => start(true)]])
+  const exitedStatus = (code: number | null) => setStatus(code == null ? 'stopped' : `exited (${code})`, [[`Start ${label}`, () => start(true)]])
 
   // whether the terminal had the keyboard, for the next page
   addEventListener('pagehide', () => store.set('wb-terminal-focus', drawer.contains(document.activeElement) ? '1' : '0'))
