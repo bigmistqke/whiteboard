@@ -108,6 +108,18 @@ function copyAssets() {
   }
 }
 
+/** Remove files under `dir` older than `since` (left from an earlier build), and folders left empty. */
+function prune(dir, since) {
+  if (!fs.existsSync(dir)) return
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, e.name)
+    if (e.isDirectory()) {
+      prune(file, since)
+      if (!fs.readdirSync(file).length) fs.rmdirSync(file)
+    } else if (fs.statSync(file).mtimeMs < since) fs.unlinkSync(file)
+  }
+}
+
 const options = b => ({ ...b, logLevel: 'warn', transform: { define: { 'process.env.NODE_ENV': '"production"' } } })
 
 if (process.argv.includes('--watch')) {
@@ -119,8 +131,12 @@ if (process.argv.includes('--watch')) {
   })
   console.log('build: watching')
 } else {
-  fs.rmSync(DIST, { recursive: true, force: true })
-  for (const b of builds) await build(options(b))
+  // A running server watches dist/ and reloads from it while this runs, so dist/ is never emptied:
+  // stylesheets and readmes come first (template modules point at them), bundles overwrite their
+  // files in place, and only then are files that this build didn't write removed.
+  const started = Date.now()
   copyAssets()
+  for (const b of builds) await build(options(b))
+  prune(DIST, started)
   console.log(`build: ${path.relative(process.cwd(), DIST) || DIST}`)
 }
