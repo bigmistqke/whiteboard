@@ -5,7 +5,7 @@
 //   export default defineConfig({ renderers: [markboard()], extensions: [terminal()] })
 //
 // `whiteboard terminal` prints the link that gives a browser the project's token; only a browser
-// with it gets the drawer. The parts are whiteboard-free: server.js is a request handler, host.js the
+// with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`. The parts are whiteboard-free: server.js is a request handler, host.js the
 // process that runs the session, client.js the drawer in the browser. This file wires them in.
 import { html, raw } from '../src/html.js'
 import { createTerminal } from './server.js'
@@ -32,7 +32,7 @@ export default function terminal() {
   return {
     name: 'terminal',
     setup(ctx) {
-      const term = createTerminal({ dir: ctx.project.dir, wb: ctx.project.wb, authorized: ctx.authorized })
+      const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir, authorized: ctx.authorized })
       const client = ctx.asset(CLIENT)
       const style = ctx.asset(STYLE)
       return {
@@ -41,8 +41,6 @@ export default function terminal() {
           if (!ctx.authorized(req)) return null
           return { head: html`<link rel="stylesheet" href="${style}">`, body: drawer(await term.screenHtml(), client) }
         },
-        // the host's socket and output
-        ownFiles: ['term.sock', 'term.log'],
       }
     },
   }

@@ -175,8 +175,8 @@ The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
 that is only sent from the project's own pages, and requests from another
 origin are refused. Any extension can ask the core whether a request has it. It needs `node-pty`, an optional dependency; without it the drawer
-says what to install. The host listens on `.whiteboard/term.sock`, readable
-by its owner only, and leaves ten minutes after its program ended.
+says what to install. The host listens on `.whiteboard/terminal/host.sock`,
+readable by its owner only, and leaves ten minutes after its program ended.
 
 ## Commands
 
@@ -223,9 +223,10 @@ A page without a renderer shows as its raw text, live.
 
 An extension (`defineExtension` from `@bigmistqke/whiteboard/config`) has a
 `setup` that returns what it adds: `handle` for its own routes, `shell` for
-markup at the end of every page's `<head>` and `<body>`, and `ownFiles` for
-files in `.whiteboard/` that are its own. It gets the project, whether a
-request has the token, and a way to serve its files.
+markup at the end of every page's `<head>` and `<body>`. It gets the
+project, whether a request has the token, a way to serve its files, and a
+folder of its own, `.whiteboard/<name>/`, which git ignores and which
+reloads nothing when it changes.
 
 Set `files: false` for a project whose folder is not a repository, such as
 your home folder. Then only `.whiteboard/` is served and watched.

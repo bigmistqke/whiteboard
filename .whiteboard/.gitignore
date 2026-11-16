@@ -9,6 +9,6 @@ delivered/
 server.lock
 # the secret that unlocks the terminal drawer
 token
-# the terminal's host: its socket and output
+# the socket of a terminal host started before the terminal had its own folder
 term.sock
 term.log

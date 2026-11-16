@@ -2,10 +2,22 @@
 // (see load.js), so it can be TypeScript and import renderer packages from the project's own
 // node_modules.
 import fs from 'node:fs'
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { importFresh } from './load.js'
 
 const NAME = /^[\w-]+$/
+// folders in .whiteboard/ that are the core's, so no extension can have them as its own
+const RESERVED = new Set(['pages', 'delivered'])
+
+/** An extension's own folder, `.whiteboard/<name>/`, made with a .gitignore that ignores all of it. */
+export function extensionDir(wb, name) {
+  const dir = path.join(wb, name)
+  fs.mkdirSync(dir, { recursive: true })
+  const ignore = path.join(dir, '.gitignore')
+  if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, `# what the ${name} extension keeps; not for git\n*\n`)
+  return dir
+}
 
 /** A file reference (URL, file: URL string, or absolute path) → absolute path. */
 export function toPath(ref) {
@@ -51,6 +63,7 @@ export function createConfigLoader(configFile) {
       if (!e) continue
       if (typeof e !== 'object' || !NAME.test(e.name ?? '') || typeof e.setup !== 'function')
         throw new Error(`an extension in ${configFile} needs a name (letters, digits, - and _) and a setup function`)
+      if (RESERVED.has(e.name)) throw new Error(`extension name "${e.name}" in ${configFile}: .whiteboard/${e.name}/ is the core's`)
       if (extensions.some(x => x.name === e.name)) throw new Error(`two extensions are named "${e.name}" in ${configFile}`)
       extensions.push(e)
     }

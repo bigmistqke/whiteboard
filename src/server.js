@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
 import { appendEvent, readEvents, matches, pickedUp, CLAIM } from './events.js'
 import { html, raw } from './html.js'
-import { createConfigLoader, toPath } from './renderers.js'
+import { createConfigLoader, extensionDir, toPath } from './renderers.js'
 import { createAuth } from './auth.js'
 
 const PROJECT = projectAt(findProjectDir())
@@ -47,6 +47,8 @@ const auth = createAuth(PROJECT.wb)
 // Behaviour on every page, next to the renderer: each one's setup runs once per loaded config.
 
 const setups = new WeakMap()
+// the extensions' own folders in .whiteboard/: changes in them reload nothing
+const extensionDirs = new Set()
 
 /** The hooks of the loaded config's extensions, set up once per config. */
 async function extensionHooks() {
@@ -54,8 +56,9 @@ async function extensionHooks() {
   if (!setups.has(c)) {
     setups.set(c, Promise.all(c.extensions.map(async e => {
       try {
-        const hooks = (await e.setup({ project: { name: PROJECT.name, dir: PROJECT.dir, wb: PROJECT.wb }, authorized: auth.authorized, asset })) ?? {}
-        for (const f of hooks.ownFiles ?? []) OWN_FILES.add(f)
+        extensionDirs.add(e.name)
+        const dataDir = extensionDir(PROJECT.wb, e.name)
+        const hooks = (await e.setup({ project: { name: PROJECT.name, dir: PROJECT.dir, wb: PROJECT.wb }, dataDir, authorized: auth.authorized, asset })) ?? {}
         return { name: e.name, ...hooks }
       } catch (err) {
         console.error(`extension ${e.name}:`, err)
@@ -365,7 +368,7 @@ function fileChanged(f) {
       if (inner.endsWith('.md')) pageChanged(inner.slice('pages/'.length).replace(/\.md$/, ''))
       return
     }
-    if (OWN_FILES.has(inner)) return
+    if (OWN_FILES.has(inner) || extensionDirs.has(inner.split('/')[0])) return
     // the config, or something it imports
     return onSourceChange(path.join(PROJECT.dir, f))
   }
@@ -397,6 +400,7 @@ let reloadTimer = null
 async function onSourceChange(file) {
   if (within(file, PROJECT.pagesDir)) return
   if (path.dirname(file) === PROJECT.wb && OWN_FILES.has(path.basename(file))) return
+  if ([...extensionDirs].some(name => within(file, path.join(PROJECT.wb, name)))) return
   if (file.endsWith('.css')) return notifyAll('style')
   if (file.endsWith('.md')) return notifyAll('change')
   if (file === RUNTIME || assets.has(file)) return notifyAll('reload')

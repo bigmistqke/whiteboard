@@ -38,8 +38,12 @@ export const defineConfig = (config: Config): Config => config
 /**
  * Behaviour on every page, next to what the renderer draws. `setup` runs once per loaded config,
  * on the server, and returns what the extension adds; all of it is optional.
+ *
+ * Each extension has a folder of its own, `.whiteboard/<name>/`, for files it keeps (a socket, a
+ * log): it ignores itself in git, and changes in it reload nothing.
  */
 export interface Extension {
+  /** letters, digits, - and _; not `pages` or `delivered` (folders of the core) */
   name: string
   setup(ctx: ExtensionContext): ExtensionHooks | Promise<ExtensionHooks>
 }
@@ -48,6 +52,8 @@ export const defineExtension = (extension: Extension): Extension => extension
 
 export interface ExtensionContext {
   project: { name: string; dir: string; wb: string }
+  /** the extension's own folder, `.whiteboard/<name>/` (made, and ignored in git) */
+  dataDir: string
   /** whether a request carries the project's token (see `whiteboard terminal`): needed for anything that runs code */
   authorized(req: import('node:http').IncomingMessage): boolean
   /** the URL that serves a file of the extension (its browser module, a stylesheet) */
@@ -71,11 +77,6 @@ export interface ExtensionHooks {
    * of view (markboard does).
    */
   shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
-  /**
-   * Files in `.whiteboard/` that are the extension's own (a socket, a log), by name: changes to
-   * them don't reload the config.
-   */
-  ownFiles?: string[]
 }
 
 // ---- renderers ---------------------------------------------------------------------------------

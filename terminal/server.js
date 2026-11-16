@@ -28,27 +28,32 @@ const HOST = path.join(path.dirname(fileURLToPath(import.meta.url)), 'host.js')
 const hasPty = () => { try { require.resolve('node-pty'); return true } catch { return false } }
 
 /**
- * Where the host listens: `.whiteboard/term.sock`, or, when that path is too long for a Unix
- * socket (about 100 bytes), a name in /tmp made from it.
+ * Where the host listens: `host.sock` in the terminal's folder, or, when that path is too long for
+ * a Unix socket (about 100 bytes), a name in /tmp made from it.
  */
-export function hostSocket(wb) {
-  const own = path.join(wb, 'term.sock')
-  return Buffer.byteLength(own) < 100 ? own : path.join('/tmp', `wb-term-${crypto.createHash('sha1').update(wb).digest('hex').slice(0, 12)}.sock`)
+export function hostSocket(home) {
+  const own = path.join(home, 'host.sock')
+  return Buffer.byteLength(own) < 100 ? own : path.join('/tmp', `wb-term-${crypto.createHash('sha1').update(home).digest('hex').slice(0, 12)}.sock`)
 }
 
 /**
- * @param {{ dir: string, wb: string, authorized: (req: import('node:http').IncomingMessage) => boolean }} options
- *   `dir` the folder the session runs in, `wb` where the socket and log go
+ * @param {{ dir: string, home: string, authorized: (req: import('node:http').IncomingMessage) => boolean }} options
+ *   `dir` the folder the session runs in, `home` where the socket and log go
  */
-export function createTerminal({ dir, wb, authorized }) {
-  const socket = hostSocket(wb)
+export function createTerminal({ dir, home, authorized }) {
+  const own = hostSocket(home)
+  // a host started before the terminal had a folder of its own listens on .whiteboard/term.sock;
+  // it is used until it leaves, so that its session isn't lost
+  const legacy = path.join(path.dirname(home), 'term.sock')
+  const socketPath = () => (fs.existsSync(legacy) ? legacy : own)
+  const log = path.join(home, 'host.log')
 
   // ---- the host -------------------------------------------------------------------------------
 
   /** A connection to the host, or null when none runs. */
   function connect() {
     return new Promise(resolve => {
-      const conn = net.connect(socket)
+      const conn = net.connect(socketPath())
       conn.once('connect', () => resolve(conn))
       conn.once('error', () => resolve(null))
     })
@@ -72,10 +77,10 @@ export function createTerminal({ dir, wb, authorized }) {
 
   /** Start the host (detached: it outlives this server) and wait until it answers. */
   async function startHost() {
-    const log = fs.openSync(path.join(wb, 'term.log'), 'a')
-    const child = spawn(process.execPath, [HOST, dir, socket], { cwd: dir, detached: true, stdio: ['ignore', log, log], env: process.env })
+    const out = fs.openSync(log, 'a')
+    const child = spawn(process.execPath, [HOST, dir, own], { cwd: dir, detached: true, stdio: ['ignore', out, out], env: process.env })
     child.unref()
-    fs.closeSync(log)
+    fs.closeSync(out)
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 100))
       if (await ask({ t: 'status' }, 500)) return true
@@ -118,7 +123,7 @@ export function createTerminal({ dir, wb, authorized }) {
       const request = { t: 'start', args: Array.isArray(body.args) ? body.args.map(String) : [], restart: !!body.restart }
       let reply = await ask(request)
       if (!reply) {
-        if (!(await startHost())) { json(res, 500, { error: `the terminal's host did not start; see ${path.join(wb, 'term.log')}` }); return true }
+        if (!(await startHost())) { json(res, 500, { error: `the terminal's host did not start; see ${log}` }); return true }
         reply = await ask(request)
       }
       if (!reply || reply.error) { json(res, 500, { error: reply?.error ?? 'no answer from the terminal host' }); return true }
