@@ -129,6 +129,8 @@ export interface Command {
   args?: string
   /** `--name`: its type, what it means, and for the help a word for its value (`<id>`) */
   options?: Record<string, { type: FieldType; description?: string; value?: string; short?: string }>
+  /** takes arguments after `--`, passed on untouched (`ctx.rest`); for the help, what they are */
+  rest?: string
   run(ctx: CommandContext): void | Promise<void>
 }
 
@@ -136,6 +138,8 @@ export interface CommandContext {
   /** the options, parsed and checked by their declaration */
   options: Record<string, unknown>
   positionals: string[]
+  /** what followed `--`, untouched (only for a command that declares `rest`) */
+  rest: string[]
   project: Project
   /** the extension's own folder, `.whiteboard/<name>/` */
   dataDir: string

@@ -132,17 +132,24 @@ export function extensionCommands(extension) {
   })
 }
 
-/** `[page] [--resume <string>] [--restart]` */
+/** `[page] [--restart] [-- <arguments>]` */
 export function usage(command) {
   const options = Object.entries(command.options ?? {}).map(([name, o]) => {
     const { type } = parseType(o.type, name)
     return `[--${name}${type === 'boolean' ? '' : ` <${o.value ?? type}>`}]`
   })
-  return [command.args ?? '', ...options].filter(Boolean).join(' ')
+  return [command.args ?? '', ...options, command.rest ? `[-- ${command.rest}]` : ''].filter(Boolean).join(' ')
 }
 
-/** Parse a command's arguments by its declared options; throws with the usage on a wrong one. */
-export function parseCommandArgs(command, args, name) {
+/**
+ * Parse a command's arguments by its declared options; throws with the usage on a wrong one. What
+ * follows `--` is passed on untouched, as `rest`, when the command takes it.
+ */
+export function parseCommandArgs(command, all, name) {
+  const cut = all.indexOf('--')
+  const args = cut < 0 ? all : all.slice(0, cut)
+  const rest = cut < 0 ? [] : all.slice(cut + 1)
+  if (rest.length && !command.rest) throw new Error(`whiteboard ${name} takes nothing after --\nusage: whiteboard ${name} ${usage(command)}`)
   const options = Object.fromEntries(Object.entries(command.options ?? {}).map(([key, o]) => {
     const { type } = parseType(o.type, key)
     return [key, { type: type === 'boolean' ? 'boolean' : 'string', ...(o.short ? { short: o.short } : {}) }]
@@ -160,5 +167,5 @@ export function parseCommandArgs(command, args, name) {
       if (!Number.isFinite(values[key])) throw new Error(`--${key} must be a number`)
     }
   }
-  return { options: values, positionals: parsed.positionals }
+  return { options: values, positionals: parsed.positionals, rest }
 }

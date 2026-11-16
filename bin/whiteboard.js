@@ -512,10 +512,11 @@ switch (cmd) {
     const found = mine.find(c => c.sub && c.sub === rest[0]) ?? mine.find(c => !c.sub)
     if (found) {
       const args = found.sub ? rest.slice(1) : rest
-      const { options, positionals } = parseCommandArgs(found.command, args, found.name)
+      const { options, positionals, rest: after } = parseCommandArgs(found.command, args, found.name)
       await found.command.run({
         options,
         positionals,
+        rest: after,
         project: { name: project.name, dir: project.dir, wb: project.wb },
         dataDir: extensionDir(project.wb, found.extension),
         token: projectToken(project.wb),
