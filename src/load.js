@@ -19,6 +19,8 @@ const OWN = {
   '@bigmistqke/whiteboard/template': 'markboard/types.js',
   '@bigmistqke/whiteboard/markboard': 'markboard/index.js',
   '@bigmistqke/whiteboard/solid': 'solid/index.js',
+  // plain JavaScript, run as it is: outside dist/
+  '@bigmistqke/whiteboard/terminal': '../terminal/index.js',
 }
 
 const versionOf = url => new URL(url).searchParams.get('wb-v')
