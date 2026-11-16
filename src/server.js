@@ -70,12 +70,28 @@ async function extensionHooks() {
   return setups.get(c)
 }
 
-/** What the extensions add to the page shell for this request. */
+/**
+ * What the extensions add to the page shell for this request, and the notices of those that failed:
+ * a failing extension shows on the page, as a failing config does, instead of quietly leaving its
+ * part out.
+ */
 async function shellExtras(req) {
-  const parts = await Promise.all((await extensionHooks()).map(async h => {
-    try { return (await h.shell?.(req)) ?? null } catch (err) { console.error(`extension ${h.name}:`, err); return null }
+  const hooks = await extensionHooks()
+  const notices = hooks.filter(h => h.error).map(h => `extension "${h.name}" failed to start: ${h.error.message}`)
+  const parts = await Promise.all(hooks.map(async h => {
+    try { return (await h.shell?.(req)) ?? null } catch (err) {
+      console.error(`extension ${h.name}:`, err)
+      notices.push(`extension "${h.name}" failed on this page: ${err.message}`)
+      return null
+    }
   }))
-  return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))) }
+  return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), notices }
+}
+
+/** A page with what the extensions add, their notices among the page's. */
+async function page(req, stored, rendered) {
+  const extras = await shellExtras(req)
+  return shell(stored, { ...rendered, notices: [...rendered.notices, ...extras.notices] }, extras)
 }
 
 /** The loaded config. Also applies its `files` setting to what is served and watched. */
@@ -537,10 +553,10 @@ httpServer().on('request', async (req, res) => {
     if (r.redirect) { res.writeHead(302, { location: r.redirect + url.search }); return res.end() }
     if (r.raw) return sendFile(res, r.raw)
     if (r.notFound) {
-      const page = { kind: 'page', id, file: '', mtime: null, source: r.notFound, frontmatter: {} }
-      return send(res, 404, shell(page, { renderer: null, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }, await shellExtras(req)))
+      const missing = { kind: 'page', id, file: '', mtime: null, source: r.notFound, frontmatter: {} }
+      return send(res, 404, await page(req, missing, { renderer: null, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }))
     }
-    return send(res, 200, shell(r.page, await render(r.page), await shellExtras(req)))
+    return send(res, 200, await page(req, r.page, await render(r.page)))
   } catch (err) {
     console.error(err)
     send(res, 500, String(err?.stack || err), 'text/plain')
