@@ -64,6 +64,11 @@ export interface ExtensionHooks {
    * Markup for the page shell, outside the renderer's root: `head` at the end of <head>, `body` at
    * the end of <body>. Called for every page; null adds nothing. The body is there for the first
    * render, so an element in it can take part in the view transition between two pages.
+   *
+   * Something that covers an edge of the window (a drawer at the bottom) says how much of it, as a
+   * length in `--wb-inset-bottom` on :root, registered with `@property` so that it computes to
+   * pixels. A renderer keeps its own fixed elements clear of it and counts what is behind it as out
+   * of view (markboard does).
    */
   shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
   /**
