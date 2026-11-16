@@ -3,34 +3,36 @@
 //
 // - `@bigmistqke/whiteboard/*` always means this engine's own build, so a config works in a
 //   project without node_modules (a Rust repository, a home folder), and it always matches the
-//   server that runs it.
+//   server that runs it. Which file a subpath is comes from the package's `exports`, read afresh
+//   on every resolve, so a part added to the package works without restarting the server.
 // - Reloading. Node evaluates a module once per URL; the config and every local module it imports
 //   get a version in their URL, and a new version imports them again. Modules in node_modules are
 //   left alone: they don't change while the server runs.
+import fs from 'node:fs'
 import { registerHooks } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const DIST = path.join(ENGINE_DIR, 'dist')
+const PACKAGE = '@bigmistqke/whiteboard/'
 
-const OWN = {
-  '@bigmistqke/whiteboard/config': 'define.js',
-  '@bigmistqke/whiteboard/template': 'markboard/types.js',
-  '@bigmistqke/whiteboard/markboard': 'markboard/index.js',
-  '@bigmistqke/whiteboard/solid': 'solid/index.js',
-  // plain JavaScript, run as it is: outside dist/
-  '@bigmistqke/whiteboard/terminal': '../terminal/index.js',
-  '@bigmistqke/whiteboard/claude-code': '../claude-code/index.js',
-  '@bigmistqke/whiteboard/forms': '../forms/index.js',
+/** The file `@bigmistqke/whiteboard/<part>` is, by the package's `exports`; null for none. */
+function ownFile(specifier) {
+  if (!specifier.startsWith(PACKAGE)) return null
+  let exports
+  try { exports = JSON.parse(fs.readFileSync(path.join(ENGINE_DIR, 'package.json'), 'utf8')).exports } catch { return null }
+  const target = exports?.[`./${specifier.slice(PACKAGE.length)}`]
+  const file = typeof target === 'string' ? target : target?.default
+  return file ? path.join(ENGINE_DIR, file) : null
 }
 
 const versionOf = url => new URL(url).searchParams.get('wb-v')
 
 registerHooks({
   resolve(specifier, context, next) {
-    if (specifier in OWN) {
-      const url = pathToFileURL(path.join(DIST, OWN[specifier])).href
+    const own = ownFile(specifier)
+    if (own) {
+      const url = pathToFileURL(own).href
       const v = context.parentURL && versionOf(context.parentURL)
       return { url: v ? `${url}?wb-v=${v}` : url, shortCircuit: true, format: 'module' }
     }
