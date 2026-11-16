@@ -59,6 +59,20 @@ a project the commands stop and point to `whiteboard init`. An agent working
 in the repository can start the server, write pages and read answers without
 access outside it.
 
+**Security: whiteboard runs with the rights of whoever started it, and
+adds none.** The server runs code from the project: it imports `config.ts`
+and the local templates and plugins that imports, and its plugins run more
+(the terminal runs a program). An agent can write all of that, since it is
+in the project, and the project's token is in the project too: it keeps
+other websites out, not agents. So the boundary is wherever the server was
+started, set from outside, where an agent can't change it. Start the server
+inside the sandbox the agents run in (an agent starting it with `whiteboard
+show` does), and everything it starts is boxed in the same way; then an
+agent driving the terminal or editing the config can do nothing it couldn't
+already do. A server started outside that sandbox lets an agent reach past
+it, through the config alone. No setting in the project can be the boundary,
+because an agent can change the project.
+
 Each project runs its own server. `whiteboard show` starts it in the
 background when it is not running: it takes the port it had last time, else
 4777 (`$WHITEBOARD_PORT`), else the next free one, and records it in

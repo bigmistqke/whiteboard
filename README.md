@@ -181,6 +181,14 @@ The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
 that is only sent from the project's own pages, and requests from another
 origin are refused. Any plugin can ask the core whether a request has it.
+
+The token keeps other websites out, not agents: it is in the project, and so
+is the config the server runs. **whiteboard runs with the rights of whoever
+started its server, and adds none**, so start the server where your agents
+run. If they run in a sandbox, start it from inside that sandbox (an agent
+running `whiteboard show` does); the terminal and everything else it starts
+are then boxed in the same way. A server started outside the sandbox lets an
+agent reach past it, through the terminal or simply by editing `config.ts`.
 It needs `node-pty`, an optional dependency; without it the drawer says what
 to install. The host listens on `.whiteboard/terminal/host.sock`, readable
 by its owner only, and leaves ten minutes after its program ended.
