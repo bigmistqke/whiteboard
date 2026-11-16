@@ -54,6 +54,11 @@ export interface Extension {
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>
   /**
+   * Markdown for whoever writes pages here, printed by `whiteboard docs` with the renderers' own:
+   * what the extension sends to the page's log, and how to answer it (comments say how to reply)
+   */
+  docs?(): string | Promise<string>
+  /**
    * The agent session the command line runs in, for an extension that knows how its agent says so
    * (Claude Code's reads `CLAUDE_CODE_SESSION_ID`); null when it doesn't run in one. `whiteboard
    * new` claims the page it makes for this session, and `whiteboard status` marks the session's

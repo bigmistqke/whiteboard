@@ -3,6 +3,7 @@
 //   dist/client/runtime.js     the core in the browser: events, live channel, hand-over to a renderer
 //   dist/terminal/client.js    the terminal drawer (xterm included), and style.css with xterm's styles
 //   dist/forms/client.js       named forms in the browser, and their style.css
+//   dist/comments/client.js    comments in the browser, and their style.css
 //   dist/define.js             ./config: defineConfig, defineRenderer
 //   dist/markboard/…               ./markboard (the renderer) and ./template, module for module, with
 //                              each template's style and readme
@@ -61,6 +62,12 @@ const builds = [
     platform: 'browser',
     output: { file: path.join(DIST, 'forms/client.js'), format: 'esm' },
   },
+  // comments in the browser
+  {
+    input: at('comments/client.ts'),
+    platform: 'browser',
+    output: { file: path.join(DIST, 'comments/client.js'), format: 'esm' },
+  },
   // markboard in the browser
   {
     input: at('markboard/client/main.ts'),
@@ -107,6 +114,8 @@ function copyAssets() {
     fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') + '\n' + fs.readFileSync(at('terminal/style.css'), 'utf8'))
   fs.mkdirSync(path.join(DIST, 'forms'), { recursive: true })
   fs.copyFileSync(at('forms/style.css'), path.join(DIST, 'forms/style.css'))
+  fs.mkdirSync(path.join(DIST, 'comments'), { recursive: true })
+  fs.copyFileSync(at('comments/style.css'), path.join(DIST, 'comments/style.css'))
   for (const e of fs.readdirSync(at('markboard'), { withFileTypes: true })) {
     if (!e.isDirectory()) continue  // client/ holds base.css
     for (const f of fs.readdirSync(at('markboard', e.name))) {

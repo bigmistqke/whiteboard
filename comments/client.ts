@@ -1,4 +1,5 @@
-// Comments on a page's text. The reader selects a passage, a "Comment" button appears next to it,
+// Comments on a page's text, on every page whatever renderer drew it. The reader selects a passage
+// of the page's content (its <main>, else all of it), a "Comment" button appears next to it,
 // and what they write goes into the page's log; the agent replies there too (`whiteboard append`),
 // or edits the page. Threads stay until the reader closes them.
 //
@@ -10,8 +11,8 @@
 // Passages are found again by their quote and the text around it, so they survive edits elsewhere
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
 // so updates and new-content marks don't see comments at all.
-import type { ClientApi, WbEvent } from '../types'
-import { html } from '../../src/html.js'
+import type { Api, ExtensionMount, PageHandle, WbEvent } from '../src/define'
+import { html } from '../src/html.js'
 
 interface Thread {
   id: string
@@ -22,8 +23,10 @@ interface Thread {
 
 const CONTEXT = 32
 
+let root: HTMLElement
+let api: Api
+// the page's content: its <main> when it has one. Looked up afresh, since a renderer may replace it
 let main: HTMLElement
-let api: ClientApi
 let threads: Thread[] = []
 let openThread: string | null = null
 
@@ -42,7 +45,7 @@ popover.hidden = true
 
 // ---- the page's text ---------------------------------------------------------------------------
 
-/** The text of #wb-main as one string, with where each text node starts in it. */
+/** The text of the page's content as one string, with where each text node starts in it. */
 function textIndex() {
   const nodes: { node: Text; start: number }[] = []
   let text = ''
@@ -160,8 +163,9 @@ function draw() {
 }
 
 /** Called after the page re-rendered, and whenever the log changed. */
-export function refreshComments() {
-  if (!main) return
+function refreshComments() {
+  if (!root) return
+  main = root.querySelector('main') ?? root
   threads = collect()
   if (openThread && !threads.some(t => t.id === openThread)) closePopover()
   else if (openThread) renderPopover()
@@ -221,6 +225,7 @@ let pending: { quote: string; before: string; after: string; block: number } | n
 
 /** A selection inside the page's text (not in a form) → where the Comment button goes. */
 function onSelection() {
+  main = root.querySelector('main') ?? root
   const sel = getSelection()
   if (!sel || sel.isCollapsed || !sel.rangeCount) { if (!startButton.matches(':focus')) startButton.hidden = true; return }
   const range = sel.getRangeAt(0)
@@ -269,9 +274,12 @@ function startComment() {
 
 // ---- entry -------------------------------------------------------------------------------------
 
-export function trackComments(root: HTMLElement, clientApi: ClientApi) {
-  main = root
-  api = clientApi
+const mount: ExtensionMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
+  // the overview and folders are lists, not text to comment on
+  if (handle.kind !== 'page' && handle.kind !== 'file') return
+  root = el
+  main = root.querySelector('main') ?? root
+  api = core
   document.body.append(layer, startButton, popover, composer)
 
   let selTimer = 0
@@ -321,7 +329,10 @@ export function trackComments(root: HTMLElement, clientApi: ClientApi) {
   })
 
   api.onEvents(refreshComments)
-  new ResizeObserver(() => draw()).observe(main)
+  api.onRendered(refreshComments)
+  new ResizeObserver(() => draw()).observe(root)
   addEventListener('resize', () => draw())
   refreshComments()
 }
+
+export default mount

@@ -180,11 +180,11 @@ arguments before its code runs.
   other.
 - **Move out until the core is small.** What is in the core or in markboard
   but isn't about pages, the log or markdown becomes an extension: the
-  terminal, the Claude Code hooks and named forms so far, then comments. If
-  the contract holds for those, it holds.
+  terminal, the Claude Code hooks, named forms and comments. The contract
+  held for all four; what's left in markboard is about markdown.
 - **Renderers stay their own kind for now.** A renderer could become an
-  extension that answers `render`; that waits until forms and comments have
-  tested the contract.
+  extension that answers `render`; forms and comments have now tested the
+  contract, so that is the next question, not yet decided.
 
 ### Named forms (`forms/`)
 
@@ -212,6 +212,19 @@ An extension, so that a `<form name>` works on a page of any renderer:
   read its own syntax.
 - **Its look** uses the renderer's theme variables when they are there
   (`--accent`, `--muted`, …), with fallbacks.
+
+### Comments (`comments/`)
+
+An extension too, so any page can be commented on. Selecting text in the
+page's content (its `<main>`, else all of it) shows a "Comment" button; a
+comment is an event (`comment`, with the quote and the text around it),
+and so are replies (`comment-reply`) and closing a thread
+(`comment-resolve`). Passages are found again by quote and context after
+edits, and highlighted with the CSS Highlight API, so the page's markup
+never changes for them. A badge in the margin opens each open thread; it
+is filled when the agent spoke last. How an agent answers is in its
+`docs()`, which `whiteboard docs` prints after the renderers': an
+extension can document what it sends to the log.
 
 ### Events
 
@@ -328,13 +341,8 @@ templates.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons in the
      page's corner jump to the nearest unseen block; the tab title gets a
      `(n)` badge.
-5. Comments: selecting text in the page shows a "Comment" button; a comment
-   is an event (`comment`, with the quote and the text around it), and so
-   are replies (`comment-reply`) and closing a thread (`comment-resolve`).
-   Passages are found again by quote and context after edits, and
-   highlighted with the CSS Highlight API, so the page's markup never
-   changes for them. A badge in the margin opens each open thread; it is
-   filled when the agent spoke last.
+5. Leaves comments to the comments extension, which works on its
+   `<main>`.
 6. Writes forms as markdown (the `form` template); sending them, drafts and
    what waits on whom are the forms extension's. The template adds a
    thread under each form:

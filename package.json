@@ -50,6 +50,9 @@
     "./forms": {
       "default": "./forms/index.js"
     },
+    "./comments": {
+      "default": "./comments/index.js"
+    },
     "./solid": {
       "types": "./solid/index.tsx",
       "default": "./dist/solid/index.js"
@@ -64,6 +67,7 @@
     "terminal",
     "claude-code",
     "forms",
+    "comments",
     "skills"
   ],
   "scripts": {

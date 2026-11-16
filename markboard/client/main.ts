@@ -1,12 +1,11 @@
 // markboard in the browser: mounts template islands, and patches the page in place when it changes
-// (named forms are the forms extension's). Framework-free: an island's client module exports
+// (named forms and comments are extensions of their own). Framework-free: an island's client module exports
 // mount(element, props, api) (see types.ts).
 import morphdom from 'morphdom'
 import type { Api, PageHandle, RendererMount } from '../../src/define'
 import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
-import { refreshComments, trackComments } from './comments'
 import { html } from '../../src/html.js'
 
 interface Island { template: string; client: string; props: unknown }
@@ -206,7 +205,6 @@ async function refresh() {
   await mountIslands()
   // islands that mounted just now can change the height of what is above the reader
   keepPlace(place, nextSigs)
-  refreshComments()
   tickTimes()
   // extensions put back what they add to the content
   api.rendered()
@@ -240,7 +238,6 @@ const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, coreA
   blockSigs = [...main.children].map(signature)
   if (!isDir) trackInitial(main, page, core)
   await mountIslands()
-  if (!isDir) trackComments(main, api)
   tickTimes()
 }
 

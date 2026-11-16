@@ -245,12 +245,13 @@ Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form
 import { defineConfig } from '@bigmistqke/whiteboard/config'
 import markboard from '@bigmistqke/whiteboard/markboard'
 import forms from '@bigmistqke/whiteboard/forms'
+import comments from '@bigmistqke/whiteboard/comments'
 
 export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
   renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
-  extensions: [forms()], // behaviour on every page, whatever the renderer: forms(), terminal({ command }), claudeCode()
+  extensions: [forms(), comments()], // behaviour on every page, whatever the renderer: also terminal({ command }), claudeCode()
 })
 ```
 
@@ -259,7 +260,8 @@ A page without a renderer shows as its raw text, live.
 `forms()` makes named forms work: a submit of a `<form name>` becomes an
 event, what you type is kept until you send it, and each form shows whether
 an agent is waiting for it. It works on a page of any renderer, and
-`whiteboard init` adds it. Without it, forms don't send.
+`whiteboard init` adds it. Without it, forms don't send. `comments()` lets
+you select any passage and comment on it; the agent replies in the thread.
 
 An extension (`defineExtension` from `@bigmistqke/whiteboard/config`)
 declares what it adds, and everything lives under its name, so two
@@ -272,6 +274,8 @@ extensions can't collide:
 - `commands` are `whiteboard <name>` and `whiteboard <name> <sub>`, with
   declared options that the core parses and checks.
 - `shell` adds markup at the end of every page's `<head>` and `<body>`.
+- `docs` is markdown that `whiteboard docs` prints after the renderers':
+  what the extension sends to the log, and how an agent answers it.
 - `client` is a browser module the page imports after the renderer's, with
   the page and the same api a renderer gets: events, listeners, a signal
   after the renderer patched the page, the page's corner for floating

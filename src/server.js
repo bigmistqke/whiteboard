@@ -323,12 +323,13 @@ async function docs() {
   const list = []
   for (const r of renderers) list.push({ name: r.name, docs: r.docs ? await r.docs(context()) : null })
   // what each extension declares: its routes (for an agent that wants to call them) and commands
-  const extensions = (await extensionHooks()).map(h => ({
+  const extensions = await Promise.all((await extensionHooks()).map(async h => ({
     name: h.name,
     error: h.error?.message ?? null,
+    docs: h.extension.docs ? await h.extension.docs() : null,
     routes: describeRoutes(h.table),
     commands: extensionCommands(h.extension).map(c => ({ name: c.name, usage: usage(c.command), description: c.command.description })),
-  }))
+  })))
   return { errors: errors.map(e => e.message), renderers: list, extensions }
 }
 

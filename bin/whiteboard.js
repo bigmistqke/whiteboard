@@ -205,13 +205,14 @@ function init(name) {
   fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard/config'
 import markboard from '@bigmistqke/whiteboard/markboard'
 import forms from '@bigmistqke/whiteboard/forms'
+import comments from '@bigmistqke/whiteboard/comments'
 
 export default defineConfig({
 ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  renderers: [
     markboard(),
   ],
-  // named forms: a submit becomes an event, and what an agent waits for shows
-  extensions: [forms()],
+  // named forms (a submit becomes an event, and what an agent waits for shows), and comments on any passage
+  extensions: [forms(), comments()],
 })
 `)
   fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git
@@ -342,6 +343,7 @@ switch (cmd) {
     for (const e of info.extensions ?? []) {
       console.log(`<!-- extension: ${e.name} -->\n# Extension: ${e.name}\n`)
       if (e.error) console.log(`It failed to load: ${e.error}\n`)
+      if (e.docs) console.log(`${e.docs.trim()}\n`)
       for (const c of e.commands) console.log(`- \`whiteboard ${[c.name, c.usage].filter(Boolean).join(' ')}\`: ${c.description}`)
       if (e.routes.length) console.log(`\nRoutes (\`auth\`: needs the project's token, header \`x-whiteboard-token\`):\n`)
       for (const r of e.routes) {

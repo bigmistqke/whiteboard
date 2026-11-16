@@ -216,27 +216,6 @@ form.wb-form[data-wb-folded] { padding: 1em 0; gap: 0; }
 
 .wb-code > pre { margin-top: 0; }
 
-/* ---- comments: highlights through the CSS Highlight API, badges and threads above the page ---- */
-::highlight(wb-comment) { background-color: color-mix(in srgb, var(--accent) 18%, transparent); }
-::highlight(wb-comment-active) { background-color: color-mix(in srgb, var(--accent) 34%, transparent); }
-.wb-comment-start, .wb-comment-badge, .wb-thread { position: absolute; z-index: 20; font-family: var(--sans); }
-.wb-comment-start[hidden], .wb-thread[hidden] { display: none; }
-.wb-comment-start { background: var(--accent); color: var(--accent-text); border-color: var(--accent); border-radius: 99px; font-size: .78rem; padding: 3px 10px; box-shadow: 0 2px 8px rgb(0 0 0 / .15); }
-.wb-comment-badge { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px 12px 12px 3px; font-size: .72rem; font-weight: 600; background: var(--bg); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); }
-.wb-comment-badge[data-agent] { background: var(--accent); color: var(--accent-text); }
-.wb-comment-badge[data-detached] { border-style: dashed; }
-.wb-thread { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 28px rgb(0 0 0 / .16); display: grid; gap: 10px; font-size: .9rem; }
-.wb-thread-quote { margin: 0; padding-left: 10px; border-left: 3px solid color-mix(in srgb, var(--accent) 50%, transparent); color: var(--muted); font-size: .85rem; max-height: 6.5em; overflow: auto; }
-.wb-thread-detached { margin: 0; color: var(--muted); font-size: .8rem; }
-.wb-thread-message { display: grid; gap: 2px; }
-.wb-thread-who { font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-.wb-thread-message[data-from=agent] .wb-thread-who { color: var(--accent); }
-.wb-thread-text { white-space: pre-wrap; line-height: 1.45; }
-.wb-thread textarea { width: 100%; resize: vertical; font: inherit; }
-.wb-thread-reply { display: grid; gap: 8px; margin: 0; }
-.wb-thread-actions { display: flex; gap: 8px; }
-.wb-thread .wb-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-
 /* the overview's list of the project's documents */
 .wb-documents { margin-top: 2.5em; }
 .wb-documents h2 { font-size: 1.1rem; margin-bottom: .4em; }
