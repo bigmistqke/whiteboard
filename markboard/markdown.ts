@@ -67,45 +67,6 @@ function rewriteLinks(tree: MdNode, file: string, linkFor?: LinkFor) {
   walk(tree)
 }
 
-/**
- * remark-directive needs an outer container fence to be longer than the ones inside it
- * (`::::details` around `:::callout`). Writers — agents especially — use `:::` everywhere, so pair
- * opening and closing fences by nesting and lengthen each one to 3 + the depth of what it contains.
- * Fences inside code blocks are left alone.
- */
-interface Pair { open: number; close?: number; children: Pair[]; height?: number }
-
-export function balanceContainers(source: string) {
-  const lines = source.split('\n')
-  const stack: Pair[] = []
-  const pairs: Pair[] = []
-  let fence: string | null = null
-  lines.forEach((line, i) => {
-    const code = /^\s{0,3}(`{3,}|~{3,})/.exec(line)
-    if (code) {
-      if (!fence) fence = code[1]
-      else if (code[1][0] === fence[0] && code[1].length >= fence.length && !line.trim().slice(code[1].length).trim()) fence = null
-      return
-    }
-    if (fence) return
-    if (/^:{3,}[\w-]/.test(line)) stack.push({ open: i, children: [] })
-    else if (/^:{3,}\s*$/.test(line) && stack.length) {
-      const pair = stack.pop()!
-      pair.close = i
-      ;(stack.length ? stack[stack.length - 1].children : pairs).push(pair)
-    }
-  })
-  const height = (p: Pair): number => (p.height ??= p.children.length ? 1 + Math.max(...p.children.map(height)) : 0)
-  const rewrite = (p: Pair) => {
-    const colons = ':'.repeat(3 + height(p))
-    lines[p.open] = lines[p.open].replace(/^:{3,}/, colons)
-    lines[p.close!] = lines[p.close!].replace(/^:{3,}/, colons)
-    p.children.forEach(rewrite)
-  }
-  pairs.forEach(rewrite)
-  return lines.join('\n')
-}
-
 /** Separate a directive's `[label]` (remark-directive stores it as a flagged first paragraph). */
 function splitLabel(node: MdNode): { label: MdNode[] | null; children: MdNode[] } {
   const [head, ...rest] = node.children ?? []
@@ -128,7 +89,7 @@ function literalDirective(node: MdNode, label: MdNode[] | null) {
  * an action. Parsed, so a form shown as an example inside a code block doesn't count.
  */
 export function formNames(source: string) {
-  const tree = parser.parse(balanceContainers(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, ''))) as MdNode
+  const tree = parser.parse(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')) as MdNode
   const names: string[] = []
   const walk = (node: MdNode) => {
     if (node.type === 'code' && node.lang === 'form') {
@@ -236,7 +197,7 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
   }
 
   const parse = (src: string) => {
-    const tree = parser.parse(balanceContainers(String(src ?? ''))) as MdNode
+    const tree = parser.parse(String(src ?? '')) as MdNode
     rewriteLinks(tree, file, linkFor)
     return tree
   }

@@ -69,6 +69,13 @@ Anything that is not a template (plain markdown, GFM tables, `<details>`, a raw
 `<form name="…">`) works without one. An unknown `:::name` block still renders
 its content, so a typo never breaks the page.
 
+**Nesting containers:** the outer fence needs more colons than anything
+inside it, `::::grid` around `:::details`. A `:::` closes the first open
+container whose fence is no longer than its own, so with equal colons the
+inner close ends the outer block too. This also counts lines of colons inside
+a code block within a container: a code example containing `::::` needs a
+container of at least five.
+
 ## Showing the page beside the conversation
 
 Open the page in a browser next to your pane instead of only printing the URL.
