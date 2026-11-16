@@ -1,4 +1,4 @@
-// The project's config: its renderers and whether it serves the repository's files. Node loads it
+// The project's config: its renderers, its extensions and whether it serves the repository's files. Node loads it
 // (see load.js), so it can be TypeScript and import renderer packages from the project's own
 // node_modules.
 import fs from 'node:fs'
@@ -46,14 +46,22 @@ export function createConfigLoader(configFile) {
       if (renderers.some(x => x.name === n.name)) throw new Error(`two renderers are named "${n.name}" in ${configFile}`)
       renderers.push(n)
     }
-    return { renderers, files: config?.files !== false }
+    const extensions = []
+    for (const e of [config?.extensions ?? []].flat(Infinity)) {
+      if (!e) continue
+      if (typeof e !== 'object' || !NAME.test(e.name ?? '') || typeof e.setup !== 'function')
+        throw new Error(`an extension in ${configFile} needs a name (letters, digits, - and _) and a setup function`)
+      if (extensions.some(x => x.name === e.name)) throw new Error(`two extensions are named "${e.name}" in ${configFile}`)
+      extensions.push(e)
+    }
+    return { renderers, extensions, files: config?.files !== false }
   }
 
-  /** @returns {Promise<{ renderers: object[], files: boolean, errors: Error[] }>} */
+  /** @returns {Promise<{ renderers: object[], extensions: object[], files: boolean, errors: Error[] }>} */
   function config() {
     cached ??= load().then(
       value => ({ ...value, errors: [] }),
-      error => ({ renderers: [], files: false, errors: [error] }),
+      error => ({ renderers: [], extensions: [], files: false, errors: [error] }),
     )
     return cached
   }

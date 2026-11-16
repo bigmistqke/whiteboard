@@ -146,6 +146,14 @@ agent can ask, do other work, and wait later.
 
 ## A terminal on every page
 
+The terminal is an extension: add it to the config.
+
+```ts
+import terminal from '@bigmistqke/whiteboard/terminal'
+
+export default defineConfig({ renderers: [markboard()], extensions: [terminal()] })
+```
+
 `whiteboard terminal` prints a link that unlocks a terminal drawer at the
 bottom of every page of the project, in that browser. Collapsed it's a bar;
 open, it runs `claude` in a pseudo-terminal, in a small host process of its
@@ -164,9 +172,9 @@ whiteboard terminal --restart          # replace the running session
 ```
 
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
-made on first use and gitignored. The link sets it as a cookie that is only
-sent from the project's own pages, and requests from another origin are
-refused. It needs `node-pty`, an optional dependency; without it the drawer
+made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
+that is only sent from the project's own pages, and requests from another
+origin are refused. Any extension can ask the core whether a request has it. It needs `node-pty`, an optional dependency; without it the drawer
 says what to install. The host listens on `.whiteboard/term.sock`, readable
 by its owner only, and leaves ten minutes after its program ended.
 
@@ -207,10 +215,17 @@ export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
   renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
+  extensions: [],        // behaviour on every page, whatever the renderer: terminal() for the drawer
 })
 ```
 
 A page without a renderer shows as its raw text, live.
+
+An extension (`defineExtension` from `@bigmistqke/whiteboard/config`) has a
+`setup` that returns what it adds: `handle` for its own routes, `shell` for
+markup at the end of every page's `<head>` and `<body>`, and `ownFiles` for
+files in `.whiteboard/` that are its own. It gets the project, whether a
+request has the token, and a way to serve its files.
 
 Set `files: false` for a project whose folder is not a repository, such as
 your home folder. Then only `.whiteboard/` is served and watched.

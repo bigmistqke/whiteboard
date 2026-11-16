@@ -1,21 +1,18 @@
-// The terminal drawer's server side: routes for the page, forwarded to the terminal's host.
+// The terminal's routes, forwarded to its host.
 //
-//   /_/terminal/auth?token=…   sets the cookie that unlocks the terminal in this browser, then goes to `to`
-//   /api/term/status           whether a session runs, and its command
-//   /api/term/stream           server-sent events: `screen` (the whole screen, first), then `data`, `exit`
-//   /api/term/input            POST { data }: keystrokes
-//   /api/term/resize           POST { cols, rows }
-//   /api/term/start            POST { args, restart }: start `claude` with these arguments
+//   /api/terminal/status       whether a session runs, and its command
+//   /api/terminal/stream       server-sent events: `screen` (the whole screen, first), then `data`, `exit`
+//   /api/terminal/input        POST { data }: keystrokes
+//   /api/terminal/resize       POST { cols, rows }
+//   /api/terminal/start        POST { args, restart }: start `claude` with these arguments
 //
-// The session itself runs in a process of its own (term-host.js), which this starts the first time a
-// session starts and reaches over a Unix socket. So the session outlives this server: a restarted
-// server connects to the same host and finds the session as it was. Each open drawer gets its own
-// connection to the host, which sends it the whole screen first and then follows the output.
+// The session itself runs in a process of its own (host.js), which this starts the first time a
+// session starts and reaches over a Unix socket. So the session outlives the page server: a
+// restarted server connects to the same host and finds the session as it was. Each open drawer gets
+// its own connection to the host, which sends it the whole screen first and then follows the output.
 //
-// Starting or driving a process runs code, so all of it needs the project's token: from a cookie set
-// by the auth link (`whiteboard terminal` prints it), or from the CLI's header. The cookie is
-// SameSite=Strict and requests from another origin are refused, so a website open in the same
-// browser can't use it. The host's socket is readable by its owner only.
+// A plain request handler with no whiteboard in it: give it the project folder, a folder for its
+// socket and log, and a function that says whether a request may run code.
 import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
@@ -26,19 +23,9 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
-const COOKIE = 'wb-terminal'
-const HOST = path.join(path.dirname(fileURLToPath(import.meta.url)), 'term-host.js')
+const HOST = path.join(path.dirname(fileURLToPath(import.meta.url)), 'host.js')
 
 const hasPty = () => { try { require.resolve('node-pty'); return true } catch { return false } }
-
-/** The project's token, made on first use; `.whiteboard/token`, readable by its owner only. */
-export function projectToken(wb) {
-  const file = path.join(wb, 'token')
-  try { return fs.readFileSync(file, 'utf8').trim() } catch {}
-  const token = crypto.randomBytes(24).toString('base64url')
-  fs.writeFileSync(file, token + '\n', { mode: 0o600 })
-  return token
-}
 
 /**
  * Where the host listens: `.whiteboard/term.sock`, or, when that path is too long for a Unix
@@ -49,22 +36,12 @@ export function hostSocket(wb) {
   return Buffer.byteLength(own) < 100 ? own : path.join('/tmp', `wb-term-${crypto.createHash('sha1').update(wb).digest('hex').slice(0, 12)}.sock`)
 }
 
-export function createTerminal({ dir, wb }) {
-  const token = projectToken(wb)
+/**
+ * @param {{ dir: string, wb: string, authorized: (req: import('node:http').IncomingMessage) => boolean }} options
+ *   `dir` the folder the session runs in, `wb` where the socket and log go
+ */
+export function createTerminal({ dir, wb, authorized }) {
   const socket = hostSocket(wb)
-
-  const cookieOf = req => Object.fromEntries((req.headers.cookie ?? '').split(';').map(c => c.trim().split('=')).filter(([k]) => k))[COOKIE]
-  const same = (a, b) => typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
-
-  /** Has this request the token, from this origin? */
-  function authorized(req) {
-    if (!same(cookieOf(req), token) && !same(req.headers['x-whiteboard-token'], token)) return false
-    const origin = req.headers.origin
-    if (origin && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return false
-    const site = req.headers['sec-fetch-site']
-    if (site && site !== 'same-origin' && site !== 'none') return false
-    return true
-  }
 
   // ---- the host -------------------------------------------------------------------------------
 
@@ -129,23 +106,13 @@ export function createTerminal({ dir, wb }) {
 
   const json = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(data)) }
 
-  /** Handle a terminal request; false when `p` is not one. */
-  async function handle(req, res, p, q) {
-    if (p === '/_/terminal/auth') {
-      if (!same(q.token, token)) { res.writeHead(403, { 'content-type': 'text/plain' }); res.end('wrong token'); return true }
-      const to = typeof q.to === 'string' && q.to.startsWith('/') && !q.to.startsWith('//') ? q.to : '/'
-      res.writeHead(302, {
-        'set-cookie': `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000`,
-        location: to + (q.open ? (to.includes('?') ? '&' : '?') + 'terminal=open' : ''),
-      })
-      res.end()
-      return true
-    }
-    if (!p.startsWith('/api/term/')) return false
-    if (!authorized(req)) { json(res, 403, { error: 'no terminal token: open the link `whiteboard terminal` prints' }); return true }
+  /** Handle a terminal request; false when `p` (the path) is not one. */
+  async function handle(req, res, p) {
+    if (!p.startsWith('/api/terminal/')) return false
+    if (!authorized(req)) { json(res, 403, { error: 'no token: open the link `whiteboard terminal` prints' }); return true }
 
-    if (p === '/api/term/status') { json(res, 200, await status()); return true }
-    if (p === '/api/term/start' && req.method === 'POST') {
+    if (p === '/api/terminal/status') { json(res, 200, await status()); return true }
+    if (p === '/api/terminal/start' && req.method === 'POST') {
       const body = await readJson(req)
       if (!hasPty()) { json(res, 500, { error: 'the terminal needs node-pty: npm install node-pty' }); return true }
       const request = { t: 'start', args: Array.isArray(body.args) ? body.args.map(String) : [], restart: !!body.restart }
@@ -158,19 +125,19 @@ export function createTerminal({ dir, wb }) {
       json(res, 200, { available: true, ...reply })
       return true
     }
-    if (p === '/api/term/input' && req.method === 'POST') {
+    if (p === '/api/terminal/input' && req.method === 'POST') {
       const { data } = await readJson(req)
       if (typeof data === 'string') await ask({ t: 'input', d: data })
       json(res, 200, { ok: true })
       return true
     }
-    if (p === '/api/term/resize' && req.method === 'POST') {
+    if (p === '/api/terminal/resize' && req.method === 'POST') {
       const { cols, rows } = await readJson(req)
       await ask({ t: 'resize', cols, rows })
       json(res, 200, { ok: true })
       return true
     }
-    if (p === '/api/term/stream') {
+    if (p === '/api/terminal/stream') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
       res.write(': terminal\n\n')
       const ping = setInterval(() => res.write(': ping\n\n'), 25000)
@@ -206,5 +173,5 @@ export function createTerminal({ dir, wb }) {
     return true
   }
 
-  return { handle, authorized, status, token, screenHtml }
+  return { handle, status, screenHtml }
 }

@@ -1,6 +1,6 @@
 // The contract between the core, a project's config and its renderers.
 //
-//   import { defineConfig, defineRenderer } from '@bigmistqke/whiteboard/config'
+//   import { defineConfig, defineRenderer, defineExtension } from '@bigmistqke/whiteboard/config'
 //
 // The core stores pages, keeps the event log and runs the live channel between them and a browser.
 // How a page looks and behaves is a renderer's: the core hands it the page as stored, and the
@@ -24,9 +24,54 @@ export interface Config {
    * then only `.whiteboard/` is served and watched.
    */
   files?: boolean
+  /**
+   * Extensions: behaviour on every page, whatever renderer draws it, such as the terminal drawer
+   * (`@bigmistqke/whiteboard/terminal`). Each adds routes to the server and markup to the page.
+   */
+  extensions?: Extension[]
 }
 
 export const defineConfig = (config: Config): Config => config
+
+// ---- extensions --------------------------------------------------------------------------------
+
+/**
+ * Behaviour on every page, next to what the renderer draws. `setup` runs once per loaded config,
+ * on the server, and returns what the extension adds; all of it is optional.
+ */
+export interface Extension {
+  name: string
+  setup(ctx: ExtensionContext): ExtensionHooks | Promise<ExtensionHooks>
+}
+
+export const defineExtension = (extension: Extension): Extension => extension
+
+export interface ExtensionContext {
+  project: { name: string; dir: string; wb: string }
+  /** whether a request carries the project's token (see `whiteboard terminal`): needed for anything that runs code */
+  authorized(req: import('node:http').IncomingMessage): boolean
+  /** the URL that serves a file of the extension (its browser module, a stylesheet) */
+  asset(file: URL | string): string
+}
+
+export interface ExtensionHooks {
+  /**
+   * Answer a request, before pages are looked up: return true when it was this extension's. Its
+   * own routes go under /api/<name>/ or /_/<name>/.
+   */
+  handle?(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, url: URL): boolean | Promise<boolean>
+  /**
+   * Markup for the page shell, outside the renderer's root: `head` at the end of <head>, `body` at
+   * the end of <body>. Called for every page; null adds nothing. The body is there for the first
+   * render, so an element in it can take part in the view transition between two pages.
+   */
+  shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
+  /**
+   * Files in `.whiteboard/` that are the extension's own (a socket, a log), by name: changes to
+   * them don't reload the config.
+   */
+  ownFiles?: string[]
+}
 
 // ---- renderers ---------------------------------------------------------------------------------
 

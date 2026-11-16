@@ -407,17 +407,18 @@ switch (cmd) {
     const token = fs.readFileSync(path.join(project.wb, 'token'), 'utf8').trim()
     const args = opts.resume ? ['--resume', opts.resume] : opts.continue ? ['--continue'] : null
     if (args || opts.restart) {
-      const res = await fetch(`${base}/api/term/start`, {
+      const res = await fetch(`${base}/api/terminal/start`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-whiteboard-token': token },
         body: JSON.stringify({ args: args ?? [], restart: !!opts.restart }),
       })
+      if (res.status === 404) throw new Error(`this project has no terminal: add terminal() from '@bigmistqke/whiteboard/terminal' to the extensions in ${path.relative(process.cwd(), project.configFile)}`)
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error ?? res.statusText)
       if (body.already) console.error(`whiteboard: a session runs already (${body.command}); --restart replaces it`)
     }
-    const to = `/${pageId(project, positionals[0] ?? '')}`
-    console.log(`${base}/_/terminal/auth?token=${encodeURIComponent(token)}&to=${encodeURIComponent(to)}&open=1`)
+    const to = `/${pageId(project, positionals[0] ?? '')}?terminal=open`
+    console.log(`${base}/_/auth?token=${encodeURIComponent(token)}&to=${encodeURIComponent(to)}`)
     break
   }
   case 'docs': {

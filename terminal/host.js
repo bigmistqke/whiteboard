@@ -3,7 +3,7 @@
 // starts, and talks to it over a Unix socket; a restarted server connects again and finds the session
 // as it was.
 //
-//   node src/term-host.js <project dir> <socket path>
+//   node terminal/host.js <project dir> <socket path>
 //
 // It runs one program in a pseudo-terminal (node-pty) and follows its output in a headless terminal,
 // which keeps the screen. One JSON object per line, each way. A connection sends one request:
@@ -25,7 +25,7 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const [dir, socket] = process.argv.slice(2)
-if (!dir || !socket) { console.error('usage: term-host.js <project dir> <socket path>'); process.exit(2) }
+if (!dir || !socket) { console.error('usage: host.js <project dir> <socket path>'); process.exit(2) }
 
 /** node-pty. Its prebuilt helper ships without execute permission (1.1.0): add it. */
 function loadPty() {
@@ -171,11 +171,11 @@ try {
     probe.on('error', () => resolve())
   })
   try { fs.unlinkSync(socket) } catch {}
-} catch { console.error('term-host: another host answers on', socket); process.exit(0) }
+} catch { console.error('terminal host: another host answers on', socket); process.exit(0) }
 
 server.listen(socket, () => {
   // only its owner may talk to it: the socket runs code
   try { fs.chmodSync(socket, 0o600) } catch {}
-  console.log(`term-host: ${process.pid} on ${socket}`)
+  console.log(`terminal host: ${process.pid} on ${socket}`)
 })
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, quit)

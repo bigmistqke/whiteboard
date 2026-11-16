@@ -1,5 +1,5 @@
 // The terminal drawer at the bottom of every page (for a browser with the project's token; see
-// src/terminal.js). The server writes its markup and sets its open state before the first render, so
+// server.js). The server writes its markup and sets its open state before the first render, so
 // the browser can morph it from the page before (a view transition across the page load). This module
 // connects it: an xterm that shows the session the server runs, keystrokes and size sent back.
 //
@@ -49,7 +49,7 @@ function init(drawer: HTMLElement) {
     const size = `${term.cols}x${term.rows}`
     if (size === sent) return
     sent = size
-    post('/api/term/resize', { cols: term.cols, rows: term.rows })
+    post('/api/terminal/resize', { cols: term.cols, rows: term.rows })
   }
   new ResizeObserver(() => refit()).observe(screen)
 
@@ -99,7 +99,7 @@ function init(drawer: HTMLElement) {
     if (!pending) queueMicrotask(() => {
       const data = pending
       pending = ''
-      chain = chain.then(() => post('/api/term/input', { data })).then(() => {}, () => {})
+      chain = chain.then(() => post('/api/terminal/input', { data })).then(() => {}, () => {})
     })
     pending += d
   })
@@ -118,7 +118,7 @@ function init(drawer: HTMLElement) {
 
   async function start(restart = false) {
     setStatus('starting…')
-    const res = await post('/api/term/start', { args: [], restart })
+    const res = await post('/api/terminal/start', { args: [], restart })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) return setStatus(body.error ?? 'could not start', [['Try again', () => start(restart)]])
     connect()
@@ -129,7 +129,7 @@ function init(drawer: HTMLElement) {
   let stream: EventSource | null = null
   function connect() {
     stream?.close()
-    stream = new EventSource('/api/term/stream')
+    stream = new EventSource('/api/terminal/stream')
     stream.addEventListener('none', () => {
       term.reset()
       screen.querySelector('.wb-term-placeholder')?.remove()

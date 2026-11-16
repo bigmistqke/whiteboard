@@ -41,6 +41,9 @@
       "types": "./markboard/index.ts",
       "default": "./dist/markboard/index.js"
     },
+    "./terminal": {
+      "default": "./terminal/index.js"
+    },
     "./solid": {
       "types": "./solid/index.tsx",
       "default": "./dist/solid/index.js"
@@ -52,6 +55,7 @@
     "dist",
     "markboard",
     "solid",
+    "terminal",
     "skills"
   ],
   "scripts": {

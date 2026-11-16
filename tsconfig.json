@@ -13,5 +13,5 @@
     "types": ["node"],
     "allowJs": true
   },
-  "include": ["src/**/*", "markboard/**/*", "solid/**/*"]
+  "include": ["src/**/*", "markboard/**/*", "solid/**/*", "terminal/**/*"]
 }
