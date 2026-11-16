@@ -24,7 +24,7 @@ import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage } from './
 import { createAuth } from './auth.js'
 
 const PROJECT = projectAt(findProjectDir())
-if (!PROJECT) throw new Error(`not inside a whiteboard project: no .whiteboard/config.ts in ${process.cwd()} or above it`)
+if (!PROJECT) throw new Error(`not inside a whiteboard project: no .whiteboard/ folder in ${process.cwd()} or above it`)
 
 const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 // the browser runtime, built by build.js
@@ -41,7 +41,7 @@ const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server
 const SKIP_DIRS = new Set(['node_modules', '.git'])
 
 
-const loader = createConfigLoader(PROJECT.configFile)
+const loader = createConfigLoader(PROJECT)
 const auth = createAuth(PROJECT.wb)
 
 // ---- plugins --------------------------------------------------------------------------------
@@ -481,7 +481,7 @@ async function resolve(id, requested) {
     const { renderers } = await docs()
     const source = renderers.length
       ? renderers.map(r => r.docs ?? `# ${r.name}\n\n_No documentation._\n`).join('\n\n---\n\n')
-      : `# Renderers\n\nThis project has none: add them to \`renderers\` in \`${PROJECT.configFile}\`. Pages show as their raw text until then.\n`
+      : `# Renderers\n\nThis project has none: its config sets \`renderers: []\` (\`${PROJECT.configFile}\`). Pages show as their raw text.\n`
     return { page: { kind: 'page', id, file: path.join(PROJECT.pagesDir, '_docs.md'), mtime: null, source, frontmatter: {} } }
   }
   const found = stored(id)

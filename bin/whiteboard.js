@@ -22,7 +22,7 @@ process.on('unhandledRejection', fail)
 
 const HELP = `whiteboard — markdown pages in the browser, what the reader does on them as events in an ndjson log
 
-  whiteboard init [name]           make this folder a project: .whiteboard/{config.ts,pages/}
+  whiteboard init [name]           make this folder a project: .whiteboard/pages/
   whiteboard root                  print where pages go (this project's .whiteboard/pages)
   whiteboard new <name>           create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
@@ -40,8 +40,9 @@ filters: --page <page|file> (includes pages below it)  --type <type>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
 events:  --since <iso time or event id>  --last <n>
 
-Every command works on the project of the current folder: the nearest folder upward with
-.whiteboard/config.ts. Each project runs its own server; its port is in .whiteboard/server.json.
+Every command works on the project of the current folder: the nearest folder upward with a
+.whiteboard/ folder. A project needs no config: .whiteboard/config.ts only says what differs from
+the defaults (markdown with markboard, no plugins). Each project runs its own server; its port is in .whiteboard/server.json.
 A page appends events {id, ts, page, type, action, data} to .whiteboard/events.ndjson;
 which types it sends is up to its renderer (\`whiteboard docs\` says). The project's plugins
 can add commands of their own; \`whiteboard help\` in a project lists them.`
@@ -62,7 +63,7 @@ const project = projectAt(findProjectDir())
 /** The current project, or exit with how to make one. */
 function needProject() {
   if (project) return project
-  console.error(`whiteboard: not inside a project (no .whiteboard/config.ts in ${process.cwd()} or above it).
+  console.error(`whiteboard: not inside a project (no .whiteboard/ folder in ${process.cwd()} or above it).
 Run \`whiteboard init\` in the folder that should become one.`)
   process.exit(1)
 }
@@ -194,20 +195,20 @@ function follow(onEvent, offset = logSize(needProject().eventsFile)) {
 function init(name) {
   const dir = process.cwd()
   const wb = path.join(dir, '.whiteboard')
-  if (configFileIn(wb)) {
-    console.log(`already a project: ${configFileIn(wb)}`)
+  if (fs.existsSync(wb)) {
+    console.log(`already a project: ${wb}`)
     return
   }
   // the home folder is no repository: serving and watching all of it would be slow and expose everything
   const home = dir === os.homedir()
+  // a name other than the folder's
+  const named = name && name !== path.basename(dir)
   fs.mkdirSync(path.join(wb, 'pages'), { recursive: true })
-  fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard/config'
-import comments from '@bigmistqke/whiteboard/comments'
+  // a config only for what differs from the defaults
+  if (named || home) fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard/config'
 
 export default defineConfig({
-${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  // comments on any passage of a page
-  plugins: [comments()],
-})
+${named ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}})
 `)
   fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git
 pages/
@@ -221,7 +222,7 @@ token
 `)
   console.log(`project: ${wb}
   pages:     ${path.join(wb, 'pages')} (gitignored); \`whiteboard show <page>\` starts the server
-  config:    ${path.join(wb, 'config.ts')}`)
+  config:    ${configFileIn(wb) ?? `none: the defaults (markdown with markboard, no plugins); add ${path.join(wb, 'config.ts')} to change them`}`)
 }
 
 // ---- status ------------------------------------------------------------------------------------
@@ -234,7 +235,7 @@ const relFile = file => path.relative(process.cwd(), file) || file
  */
 async function currentSession(proj) {
   try {
-    const { config } = createConfigLoader(proj.configFile)
+    const { config } = createConfigLoader(proj)
     for (const e of (await config()).plugins) {
       const session = typeof e.session === 'function' ? await e.session() : null
       if (session) return String(session)
@@ -328,7 +329,7 @@ switch (cmd) {
     // what each renderer says about writing pages for it: for markboard, the syntax of its templates
     const info = await api('/api/docs')
     for (const e of info.errors) console.error(`config error: ${e}`)
-    if (!info.renderers.length) console.log('This project has no renderers: pages show as their raw text. Add them to `renderers` in .whiteboard/config.ts.')
+    if (!info.renderers.length) console.log('This project has no renderers: pages show as their raw text. Its config sets `renderers: []`.')
     for (const r of info.renderers) {
       console.log(`<!-- renderer: ${r.name} -->`)
       console.log(r.docs ? r.docs.trim() : `# ${r.name}\n\n(no documentation)`)
@@ -460,7 +461,7 @@ switch (cmd) {
 
 /** The commands the project's plugins add: `whiteboard <plugin> [sub]`. */
 async function projectCommands(proj) {
-  const { config } = createConfigLoader(proj.configFile)
+  const { config } = createConfigLoader(proj)
   const { plugins, errors } = await config()
   for (const e of errors) console.error(`whiteboard: config error: ${e.message}`)
   return plugins.flatMap(pluginCommands)

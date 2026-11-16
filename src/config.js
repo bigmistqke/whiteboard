@@ -1,8 +1,8 @@
 // The project, its files, and page ids.
 //
-// A project is a folder (usually a repository root) with `.whiteboard/config.{ts,js,mjs}`.
-// Everything whiteboard keeps lives in that `.whiteboard/` folder:
-//   config.ts      templates and options
+// A project is a folder (usually a repository root) with a `.whiteboard/` folder in it.
+// Everything whiteboard keeps lives in that folder:
+//   config.ts      what the project changes from the defaults (optional)
 //   pages/         the pages, served at /<page>
 //   events.ndjson  form submits
 //   server.json    the port and process of this project's running server
@@ -24,11 +24,13 @@ export function configFileIn(whiteboardDir) {
   return null
 }
 
-/** The project folder a path is in: the nearest folder upward with `.whiteboard/config.*`. */
+const isDir = p => { try { return fs.statSync(p).isDirectory() } catch { return false } }
+
+/** The project folder a path is in: the nearest folder upward with a `.whiteboard/` folder. */
 export function findProjectDir(from = process.cwd()) {
   let dir = path.resolve(from)
   for (;;) {
-    if (configFileIn(path.join(dir, '.whiteboard'))) return dir
+    if (isDir(path.join(dir, '.whiteboard'))) return dir
     const up = path.dirname(dir)
     if (up === dir) return null
     dir = up
@@ -39,18 +41,21 @@ export function findProjectDir(from = process.cwd()) {
 export function project(dir) {
   if (!dir) return null
   const wb = path.join(dir, '.whiteboard')
-  const configFile = configFileIn(wb)
-  if (!configFile) return null
+  if (!isDir(wb)) return null
   return {
     dir,
-    configFile,
     wb,
+    /** the config file, or null: looked up each time, since one can be added or removed while a server runs */
+    get configFile() { return configFileIn(wb) },
     pagesDir: path.join(wb, 'pages'),
     eventsFile: path.join(wb, 'events.ndjson'),
     serverFile: path.join(wb, 'server.json'),
     logFile: path.join(wb, 'server.log'),
     /** shown in titles and the overview: `name` in the config if it is a plain literal, else the folder name */
-    name: (/\bname\s*:\s*['"]([^'"]+)['"]/.exec(fs.readFileSync(configFile, 'utf8')) ?? [])[1] ?? path.basename(dir),
+    get name() {
+      const file = configFileIn(wb)
+      return (file && (/\bname\s*:\s*['"]([^'"]+)['"]/.exec(fs.readFileSync(file, 'utf8')) ?? [])[1]) || path.basename(dir)
+    },
   }
 }
 

@@ -56,11 +56,13 @@ async function defaultRenderers() {
  * a config that fails to load leaves the project without renderers, so pages show as raw text,
  * and serves no repository files.
  */
-export function createConfigLoader(configFile) {
+export function createConfigLoader(proj) {
   let cached = null
 
   async function load() {
-    const mod = await importFresh(configFile)
+    // no config file: the defaults, the same as an empty config
+    const configFile = proj.configFile
+    const mod = configFile ? await importFresh(configFile) : { default: {} }
     let config = mod.default
     if (typeof config === 'function') config = await config()
     const renderers = []

@@ -34,13 +34,13 @@ conversation; the page holds overview, detail and decisions.
 
 ## Projects
 
-A project is a folder (usually a repository) with a `.whiteboard/config.ts`.
+A project is a folder (usually a repository) with a `.whiteboard/` folder.
 Everything whiteboard keeps is in that `.whiteboard/` folder; nothing lives
 outside the project:
 
 ```
 <repo>/.whiteboard/
-  config.ts     defineConfig({ name, renderers: [...], files })
+  config.ts     optional: defineConfig({ name, renderers, plugins, files }), only what differs
   pages/        the project's pages, served at /<page>
   events.ndjson the project's events: form submits, threads, comments, and what agents picked up
   server.json   the port and process of the project's running server
@@ -49,7 +49,12 @@ outside the project:
 ```
 
 `whiteboard init` creates it. Every command works on the project of the
-current folder: the nearest folder upward with `.whiteboard/config.ts`. Outside
+current folder: the nearest folder upward with a `.whiteboard/` folder.
+Without a config the project has the defaults: markboard as its renderer,
+no plugins, the folder's name. `init` writes a config only for what differs
+(a name, or `files: false` in the home folder); the config is looked up on
+every load, so one added or removed while the server runs counts at once.
+Outside
 a project the commands stop and point to `whiteboard init`. An agent working
 in the repository can start the server, write pages and read answers without
 access outside it.

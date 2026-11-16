@@ -90,7 +90,7 @@ whiteboard keeps is there; nothing is written outside the project.
 
 ```
 .whiteboard/
-  config.ts       renderers and options
+  config.ts       optional: what differs from the defaults (renderers, plugins, options)
   pages/          the pages: pages/plan.md is served at /plan
   events.ndjson   every form submit, one JSON object per line, and which ones an agent picked up
   server.json     the port and process of the running server
@@ -214,7 +214,7 @@ them ever blocks:
 ## Commands
 
 Every command works on the project of the current folder: the nearest folder
-upward with `.whiteboard/config.ts`.
+upward with a `.whiteboard/` folder.
 
 | command | does |
 | --- | --- |
@@ -237,6 +237,11 @@ Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form
 `events` takes `--since <time or event id>` and `--last <n>`.
 
 ## Configuration
+
+A project needs no config. Without one it has the defaults: markdown with
+markboard, no plugins, and the folder's name. Add `.whiteboard/config.ts`
+to change any of that; it takes effect at once, also while the server runs.
+Every field is optional:
 
 ```ts
 // .whiteboard/config.ts
