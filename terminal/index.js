@@ -5,8 +5,10 @@
 //   export default defineConfig({ renderers: [markboard()], extensions: [terminal()] })
 //
 // `whiteboard terminal` prints the link that gives a browser the project's token; only a browser
-// with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`. The parts are whiteboard-free: server.js is a request handler, host.js the
-// process that runs the session, client.js the drawer in the browser. This file wires them in.
+// with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`.
+//
+// The parts are whiteboard-free: server.js is a request handler, host.js the process that runs the
+// session, client.ts the drawer in the browser. This file wires them in.
 import { html, raw } from '../src/html.js'
 import { createTerminal } from './server.js'
 
@@ -32,16 +34,73 @@ export default function terminal() {
   return {
     name: 'terminal',
     setup(ctx) {
-      const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir, authorized: ctx.authorized })
+      const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir })
       const client = ctx.asset(CLIENT)
       const style = ctx.asset(STYLE)
       return {
-        handle: (req, res, url) => term.handle(req, res, url.pathname),
+        // all of them run code or show what runs, so all need the project's token
+        routes: {
+          'GET /status': { description: 'whether a session runs, its command and when it started', auth: true, run: () => term.status() },
+          'POST /start': {
+            description: 'start claude with these arguments; with restart, replace the running session',
+            auth: true,
+            body: { args: 'string[]?', restart: 'boolean?' },
+            run: ({ body }) => term.start(body),
+          },
+          'POST /input': { description: 'keystrokes, as the terminal sends them', auth: true, body: { data: 'string' }, run: ({ body }) => term.input(body.data) },
+          'POST /resize': { description: 'the size of the terminal in the page', auth: true, body: { cols: 'number', rows: 'number' }, run: ({ body }) => term.resize(body.cols, body.rows) },
+          'GET /stream': {
+            description: 'the whole screen, then the output as it comes (events screen, data, exit; none without a session)',
+            auth: true,
+            stream: true,
+            run: ({ req, res }) => term.stream(req, res),
+          },
+          'POST /stop': { description: 'end the session and its host', auth: true, run: () => term.stop() },
+        },
         async shell(req) {
           if (!ctx.authorized(req)) return null
           return { head: html`<link rel="stylesheet" href="${style}">`, body: drawer(await term.screenHtml(), client) }
         },
       }
     },
+    commands: {
+      '': {
+        description: "print a link that opens the terminal drawer in this browser (it gives the browser the project's token); start claude in it, or continue a session",
+        args: '[page]',
+        options: {
+          resume: { type: 'string?', value: 'id', description: 'continue this Claude Code session' },
+          continue: { type: 'boolean?', description: 'continue the latest session in this folder' },
+          restart: { type: 'boolean?', description: 'replace the running session' },
+        },
+        async run(ctx) {
+          const { resume, restart } = ctx.options
+          const args = resume ? ['--resume', resume] : ctx.options.continue ? ['--continue'] : null
+          if (args || restart) {
+            const body = await call(ctx, 'POST', '/start', { args: args ?? [], restart: !!restart })
+            if (body.already) console.error(`whiteboard: a session runs already (${body.command}); --restart replaces it`)
+          }
+          console.log(await ctx.authLink(`${ctx.pagePath(ctx.positionals[0])}?terminal=open`))
+        },
+      },
+      stop: {
+        description: 'end the session and its host',
+        async run(ctx) {
+          const { stopped } = await call(ctx, 'POST', '/stop')
+          console.log(stopped ? 'stopped' : 'no session ran')
+        },
+      },
+    },
   }
+}
+
+/** A request to one of the terminal's routes, from a command. */
+async function call(ctx, method, route, body) {
+  const res = await fetch(`${await ctx.server()}/api/terminal${route}`, {
+    method,
+    headers: { 'content-type': 'application/json', 'x-whiteboard-token': ctx.token },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const out = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(out.error ?? res.statusText)
+  return out
 }

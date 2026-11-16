@@ -5,10 +5,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { importFresh } from './load.js'
+import { extensionCommands } from './extensions.js'
 
 const NAME = /^[\w-]+$/
-// folders in .whiteboard/ that are the core's, so no extension can have them as its own
-const RESERVED = new Set(['pages', 'delivered'])
+/** The command line's own commands: an extension can't be named like one, since its commands are `whiteboard <name>`. */
+export const BUILTIN_COMMANDS = new Set(['serve', 'init', 'root', 'new', 'show', 'url', 'docs', 'events', 'wait', 'watch', 'append', 'status', 'hooks', 'skill', 'help'])
+// folders in .whiteboard/ that are the core's, and the built-in commands
+const RESERVED = new Set(['pages', 'delivered', ...BUILTIN_COMMANDS])
 
 /** An extension's own folder, `.whiteboard/<name>/`, made with a .gitignore that ignores all of it. */
 export function extensionDir(wb, name) {
@@ -61,9 +64,9 @@ export function createConfigLoader(configFile) {
     const extensions = []
     for (const e of [config?.extensions ?? []].flat(Infinity)) {
       if (!e) continue
-      if (typeof e !== 'object' || !NAME.test(e.name ?? '') || typeof e.setup !== 'function')
-        throw new Error(`an extension in ${configFile} needs a name (letters, digits, - and _) and a setup function`)
-      if (RESERVED.has(e.name)) throw new Error(`extension name "${e.name}" in ${configFile}: .whiteboard/${e.name}/ is the core's`)
+      if (typeof e !== 'object' || !NAME.test(e.name ?? '')) throw new Error(`an extension in ${configFile} needs a name: letters, digits, - and _`)
+      if (RESERVED.has(e.name)) throw new Error(`extension name "${e.name}" in ${configFile} is taken by the core (a folder in .whiteboard/ or a command)`)
+      extensionCommands(e) // checks them
       if (extensions.some(x => x.name === e.name)) throw new Error(`two extensions are named "${e.name}" in ${configFile}`)
       extensions.push(e)
     }

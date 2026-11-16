@@ -20,6 +20,7 @@ import { DEFAULT_PORT, findProjectDir, project as projectAt } from './config.js'
 import { appendEvent, readEvents, matches, pickedUp, CLAIM } from './events.js'
 import { html, raw } from './html.js'
 import { createConfigLoader, extensionDir, toPath } from './renderers.js'
+import { describeRoutes, dispatch, extensionCommands, mountRoutes, usage } from './extensions.js'
 import { createAuth } from './auth.js'
 
 const PROJECT = projectAt(findProjectDir())
@@ -58,11 +59,11 @@ async function extensionHooks() {
       try {
         extensionDirs.add(e.name)
         const dataDir = extensionDir(PROJECT.wb, e.name)
-        const hooks = (await e.setup({ project: { name: PROJECT.name, dir: PROJECT.dir, wb: PROJECT.wb }, dataDir, authorized: auth.authorized, asset })) ?? {}
-        return { name: e.name, ...hooks }
+        const hooks = (await e.setup?.({ project: { name: PROJECT.name, dir: PROJECT.dir, wb: PROJECT.wb }, dataDir, authorized: auth.authorized, asset })) ?? {}
+        return { name: e.name, ...hooks, table: mountRoutes(e.name, hooks.routes), extension: e }
       } catch (err) {
         console.error(`extension ${e.name}:`, err)
-        return { name: e.name }
+        return { name: e.name, table: [], extension: e, error: err }
       }
     })))
   }
@@ -303,7 +304,14 @@ async function docs() {
   const { renderers, errors } = await config()
   const list = []
   for (const r of renderers) list.push({ name: r.name, docs: r.docs ? await r.docs(context()) : null })
-  return { errors: errors.map(e => e.message), renderers: list }
+  // what each extension declares: its routes (for an agent that wants to call them) and commands
+  const extensions = (await extensionHooks()).map(h => ({
+    name: h.name,
+    error: h.error?.message ?? null,
+    routes: describeRoutes(h.table),
+    commands: extensionCommands(h.extension).map(c => ({ name: c.name, usage: usage(c.command), description: c.command.description })),
+  }))
+  return { errors: errors.map(e => e.message), renderers: list, extensions }
 }
 
 const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
@@ -469,7 +477,13 @@ httpServer().on('request', async (req, res) => {
     if (p === '/favicon.ico') { res.writeHead(204); return res.end() }
     if (p === '/_/runtime.js') return sendFile(res, RUNTIME)
     if (auth.handle(req, res, p, q)) return
-    for (const h of await extensionHooks()) if (h.handle && (await h.handle(req, res, url))) return
+    if (p.startsWith('/api/')) {
+      const hooks = await extensionHooks()
+      for (const h of hooks) if (await dispatch(h.table, req, res, url, auth.authorized)) return
+      // under an extension's name, but none of its routes
+      const owner = hooks.find(h => p.startsWith(`/api/${h.name}/`) || p === `/api/${h.name}`)
+      if (owner) return sendJson(res, 404, { error: `extension ${owner.name} has no route ${req.method} ${p}` })
+    }
     if (p.startsWith('/_/file/')) {
       const file = path.resolve(p.slice('/_/file'.length))
       if (!assetDirs.has(path.dirname(file)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')

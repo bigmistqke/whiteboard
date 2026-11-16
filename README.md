@@ -169,6 +169,7 @@ whiteboard terminal                    # the link; the drawer starts claude on d
 whiteboard terminal --continue         # continue the latest session of this folder in it
 whiteboard terminal --resume <id>      # or a given one (a session running elsewhere gets a copy)
 whiteboard terminal --restart          # replace the running session
+whiteboard terminal stop               # end the session and its host
 ```
 
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
@@ -221,12 +222,24 @@ export default defineConfig({
 
 A page without a renderer shows as its raw text, live.
 
-An extension (`defineExtension` from `@bigmistqke/whiteboard/config`) has a
-`setup` that returns what it adds: `handle` for its own routes, `shell` for
-markup at the end of every page's `<head>` and `<body>`. It gets the
-project, whether a request has the token, a way to serve its files, and a
-folder of its own, `.whiteboard/<name>/`, which git ignores and which
-reloads nothing when it changes.
+An extension (`defineExtension` from `@bigmistqke/whiteboard/config`)
+declares what it adds, and everything lives under its name, so two
+extensions can't collide:
+
+- `routes`, by method and path (`'POST /start'`), are mounted at
+  `/api/<name>/start`. Each says what it does, whether it needs the token
+  (`auth`), and the types of its body and query fields. The core checks all
+  of that before the route's code runs.
+- `commands` are `whiteboard <name>` and `whiteboard <name> <sub>`, with
+  declared options that the core parses and checks.
+- `shell` adds markup at the end of every page's `<head>` and `<body>`.
+- Its files go in `.whiteboard/<name>/`, which git ignores and which reloads
+  nothing when it changes.
+
+`whiteboard help` lists the commands and `whiteboard docs` the routes. An
+extension can't be named like a built-in command or a folder of the core.
+Something that covers the bottom of the window says how much in
+`--wb-inset-bottom`, and markboard keeps clear of it.
 
 Set `files: false` for a project whose folder is not a repository, such as
 your home folder. Then only `.whiteboard/` is served and watched.

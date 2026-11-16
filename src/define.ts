@@ -36,36 +36,54 @@ export const defineConfig = (config: Config): Config => config
 // ---- extensions --------------------------------------------------------------------------------
 
 /**
- * Behaviour on every page, next to what the renderer draws. `setup` runs once per loaded config,
- * on the server, and returns what the extension adds; all of it is optional.
+ * Behaviour on every page, next to what the renderer draws, and commands of its own. `setup` runs
+ * once per loaded config, on the server, and returns what the extension adds to it. Everything is
+ * optional but the name.
  *
- * Each extension has a folder of its own, `.whiteboard/<name>/`, for files it keeps (a socket, a
- * log): it ignores itself in git, and changes in it reload nothing.
+ * What an extension adds lives under its name, so two extensions can't collide:
+ * - its routes are mounted at `/api/<name>/…`,
+ * - its commands are `whiteboard <name>` and `whiteboard <name> <sub>`,
+ * - its files go in `.whiteboard/<name>/`, which ignores itself in git and reloads nothing.
+ * The core checks a route's token and arguments before its code runs, and lists routes and commands
+ * in `whiteboard help` and `whiteboard docs`.
  */
 export interface Extension {
-  /** letters, digits, - and _; not `pages` or `delivered` (folders of the core) */
+  /** letters, digits, - and _; not a folder of the core (`pages`, `delivered`) nor a built-in command */
   name: string
-  setup(ctx: ExtensionContext): ExtensionHooks | Promise<ExtensionHooks>
+  setup?(ctx: ExtensionContext): ExtensionHooks | Promise<ExtensionHooks>
+  /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
+  commands?: Record<string, Command>
 }
 
 export const defineExtension = (extension: Extension): Extension => extension
 
+export interface Project {
+  name: string
+  /** the project folder */
+  dir: string
+  /** its .whiteboard folder */
+  wb: string
+}
+
 export interface ExtensionContext {
-  project: { name: string; dir: string; wb: string }
+  project: Project
   /** the extension's own folder, `.whiteboard/<name>/` (made, and ignored in git) */
   dataDir: string
-  /** whether a request carries the project's token (see `whiteboard terminal`): needed for anything that runs code */
+  /** whether a request carries the project's token: for a check of its own, beyond a route's `auth` */
   authorized(req: import('node:http').IncomingMessage): boolean
   /** the URL that serves a file of the extension (its browser module, a stylesheet) */
   asset(file: URL | string): string
 }
 
+/**
+ * The type of a body or query field, or a command option: `string`, `number`, `boolean` or
+ * `string[]`, with `?` when it may be left out.
+ */
+export type FieldType = 'string' | 'number' | 'boolean' | 'string[]' | 'string?' | 'number?' | 'boolean?' | 'string[]?'
+
 export interface ExtensionHooks {
-  /**
-   * Answer a request, before pages are looked up: return true when it was this extension's. Its
-   * own routes go under /api/<name>/ or /_/<name>/.
-   */
-  handle?(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, url: URL): boolean | Promise<boolean>
+  /** by method and path, `'POST /start'`: mounted at `/api/<name>/start` */
+  routes?: Record<string, Route>
   /**
    * Markup for the page shell, outside the renderer's root: `head` at the end of <head>, `body` at
    * the end of <body>. Called for every page; null adds nothing. The body is there for the first
@@ -77,6 +95,58 @@ export interface ExtensionHooks {
    * of view (markboard does).
    */
   shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
+}
+
+export interface Route {
+  description: string
+  /** needs the project's token: for anything that runs code. The core refuses a request without it */
+  auth?: boolean
+  /** the JSON body's fields; any other field is refused */
+  body?: Record<string, FieldType>
+  /** the query's fields */
+  query?: Record<string, FieldType>
+  /** writes to `res` itself, for as long as it likes (server-sent events): `run` gets `res`, its result is ignored */
+  stream?: boolean
+  /**
+   * What the route does. Its result is sent as JSON (`{ ok: true }` for none); an error it throws is
+   * sent as `{ error }` with the error's `status` (default 500).
+   */
+  run(request: RouteRequest): unknown | Promise<unknown>
+}
+
+export interface RouteRequest {
+  body: Record<string, unknown>
+  query: Record<string, unknown>
+  req: import('node:http').IncomingMessage
+  /** only for a stream route */
+  res?: import('node:http').ServerResponse
+}
+
+/** `whiteboard <extension> [sub] …` */
+export interface Command {
+  description: string
+  /** the positional arguments, for the help: `[page]` */
+  args?: string
+  /** `--name`: its type, what it means, and for the help a word for its value (`<id>`) */
+  options?: Record<string, { type: FieldType; description?: string; value?: string; short?: string }>
+  run(ctx: CommandContext): void | Promise<void>
+}
+
+export interface CommandContext {
+  /** the options, parsed and checked by their declaration */
+  options: Record<string, unknown>
+  positionals: string[]
+  project: Project
+  /** the extension's own folder, `.whiteboard/<name>/` */
+  dataDir: string
+  /** the project's token, for the requests the command sends (header `x-whiteboard-token`) */
+  token: string
+  /** the base URL of the project's server, started when it isn't running */
+  server(): Promise<string>
+  /** the path of a page or file of the project, as the server serves it: `/plan` */
+  pagePath(page?: string): string
+  /** a link that gives a browser the project's token, then goes to `path` */
+  authLink(path: string): Promise<string>
 }
 
 // ---- renderers ---------------------------------------------------------------------------------

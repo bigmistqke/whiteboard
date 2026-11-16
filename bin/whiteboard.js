@@ -9,6 +9,9 @@ import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn } from '../src/config.js'
 import { appendEvent, parseLines, readEvents, matches, pickedUp, markPicked, CLAIM } from '../src/events.js'
+import { BUILTIN_COMMANDS, createConfigLoader, extensionDir } from '../src/renderers.js'
+import { extensionCommands, parseCommandArgs, usage } from '../src/extensions.js'
+import { projectToken } from '../src/auth.js'
 
 // a failing command prints its message, not a stack trace
 const fail = err => {
@@ -32,8 +35,6 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard append --page <p> --type <t> [--data <json>]   add an event to a page's log (e.g. a reply)
   whiteboard status [--page <p>]   per page: questions without an answer, answers no agent picked up, who listens
   whiteboard hooks install [--user]   add Claude Code hooks that report the status (this project, or all)
-  whiteboard terminal [page]       print a link that opens the terminal drawer in this browser (it unlocks it once)
-             [--resume <id> | --continue] [--restart]   start claude in it, or continue a session
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
@@ -44,17 +45,18 @@ events:  --since <iso time or event id>  --last <n>
 Every command works on the project of the current folder: the nearest folder upward with
 .whiteboard/config.ts. Each project runs its own server; its port is in .whiteboard/server.json.
 A page appends events {id, ts, page, type, action, data} to .whiteboard/events.ndjson;
-which types it sends is up to its renderer (\`whiteboard docs\` says).`
+which types it sends is up to its renderer (\`whiteboard docs\` says). The project's extensions
+can add commands of their own; \`whiteboard help\` in a project lists them.`
 
 const [cmd, ...rest] = process.argv.slice(2)
-const { values: opts, positionals } = parseArgs({
+// an extension's command parses its own arguments
+const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { values: {}, positionals: [] } : parseArgs({
   args: rest,
   allowPositionals: true,
   options: {
     page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
     since: { type: 'string' }, last: { type: 'string' }, help: { type: 'boolean', short: 'h' },
     hook: { type: 'string' }, user: { type: 'boolean' },
-    resume: { type: 'string' }, continue: { type: 'boolean' }, restart: { type: 'boolean' },
   },
 })
 
@@ -397,27 +399,6 @@ switch (cmd) {
     console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
     break
   }
-  case 'terminal': {
-    // the link carries the project's token once, which the server turns into a cookie: from then on
-    // every page of this project in that browser has the drawer
-    const base = await ensureServer()
-    const token = fs.readFileSync(path.join(project.wb, 'token'), 'utf8').trim()
-    const args = opts.resume ? ['--resume', opts.resume] : opts.continue ? ['--continue'] : null
-    if (args || opts.restart) {
-      const res = await fetch(`${base}/api/terminal/start`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-whiteboard-token': token },
-        body: JSON.stringify({ args: args ?? [], restart: !!opts.restart }),
-      })
-      if (res.status === 404) throw new Error(`this project has no terminal: add terminal() from '@bigmistqke/whiteboard/terminal' to the extensions in ${path.relative(process.cwd(), project.configFile)}`)
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error ?? res.statusText)
-      if (body.already) console.error(`whiteboard: a session runs already (${body.command}); --restart replaces it`)
-    }
-    const to = `/${pageId(project, positionals[0] ?? '')}?terminal=open`
-    console.log(`${base}/_/auth?token=${encodeURIComponent(token)}&to=${encodeURIComponent(to)}`)
-    break
-  }
   case 'docs': {
     // what each renderer says about writing pages for it: for markboard, the syntax of its templates
     const info = await api('/api/docs')
@@ -426,6 +407,17 @@ switch (cmd) {
     for (const r of info.renderers) {
       console.log(`<!-- renderer: ${r.name} -->`)
       console.log(r.docs ? r.docs.trim() : `# ${r.name}\n\n(no documentation)`)
+      console.log()
+    }
+    for (const e of info.extensions ?? []) {
+      console.log(`<!-- extension: ${e.name} -->\n# Extension: ${e.name}\n`)
+      if (e.error) console.log(`It failed to load: ${e.error}\n`)
+      for (const c of e.commands) console.log(`- \`whiteboard ${[c.name, c.usage].filter(Boolean).join(' ')}\`: ${c.description}`)
+      if (e.routes.length) console.log(`\nRoutes (\`auth\`: needs the project's token, header \`x-whiteboard-token\`):\n`)
+      for (const r of e.routes) {
+        const takes = [r.body && `body ${JSON.stringify(r.body)}`, r.query && `query ${JSON.stringify(r.query)}`, r.stream && 'server-sent events'].filter(Boolean).join(', ')
+        console.log(`- \`${r.method} ${r.path}\`${r.auth ? ' (auth)' : ''}: ${r.description}${takes ? ` (${takes})` : ''}`)
+      }
       console.log()
     }
     break
@@ -513,7 +505,40 @@ switch (cmd) {
     console.log(`linked: ${target} -> ${source}`)
     break
   }
-  default:
+  default: {
+    // `whiteboard <extension> [sub] …`: a command of one of the project's extensions
+    const commands = project ? await projectCommands(project) : []
+    const mine = commands.filter(c => c.extension === cmd)
+    const found = mine.find(c => c.sub && c.sub === rest[0]) ?? mine.find(c => !c.sub)
+    if (found) {
+      const args = found.sub ? rest.slice(1) : rest
+      const { options, positionals } = parseCommandArgs(found.command, args, found.name)
+      await found.command.run({
+        options,
+        positionals,
+        project: { name: project.name, dir: project.dir, wb: project.wb },
+        dataDir: extensionDir(project.wb, found.extension),
+        token: projectToken(project.wb),
+        server: ensureServer,
+        pagePath: page => `/${pageId(project, page ?? '')}`,
+        authLink: async to => `${await ensureServer()}/_/auth?token=${encodeURIComponent(projectToken(project.wb))}&to=${encodeURIComponent(to)}`,
+      })
+      break
+    }
     console.log(HELP)
+    if (commands.length) {
+      console.log(`\nfrom this project's extensions:\n`)
+      for (const c of commands) console.log(`  whiteboard ${[c.name, usage(c.command)].filter(Boolean).join(' ')}\n      ${c.command.description}`)
+    }
+    if (mine.length) console.error(`\nwhiteboard: ${cmd} has no command ${JSON.stringify(rest[0] ?? '')}`)
     if (cmd && cmd !== 'help' && !opts.help) process.exit(1)
+  }
+}
+
+/** The commands the project's extensions add: `whiteboard <extension> [sub]`. */
+async function projectCommands(proj) {
+  const { config } = createConfigLoader(proj.configFile)
+  const { extensions, errors } = await config()
+  for (const e of errors) console.error(`whiteboard: config error: ${e.message}`)
+  return extensions.flatMap(extensionCommands)
 }
