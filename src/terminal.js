@@ -1,4 +1,4 @@
-// A terminal session on the server, shown in a drawer at the bottom of every page.
+// The terminal drawer's server side: routes for the page, forwarded to the terminal's host.
 //
 //   /_/terminal/auth?token=…   sets the cookie that unlocks the terminal in this browser, then goes to `to`
 //   /api/term/status           whether a session runs, and its command
@@ -7,32 +7,29 @@
 //   /api/term/resize           POST { cols, rows }
 //   /api/term/start            POST { args, restart }: start `claude` with these arguments
 //
-// The process runs in a pseudo-terminal (node-pty, an optional dependency) and lives as long as the
-// server, not as long as a tab: a page that loads (a reload, another page, a second tab) connects again
-// and first gets the screen as it is, from a headless terminal on the server that follows the output.
+// The session itself runs in a process of its own (term-host.js), which this starts the first time a
+// session starts and reaches over a Unix socket. So the session outlives this server: a restarted
+// server connects to the same host and finds the session as it was. Each open drawer gets its own
+// connection to the host, which sends it the whole screen first and then follows the output.
 //
 // Starting or driving a process runs code, so all of it needs the project's token: from a cookie set
 // by the auth link (`whiteboard terminal` prints it), or from the CLI's header. The cookie is
 // SameSite=Strict and requests from another origin are refused, so a website open in the same
-// browser can't use it.
+// browser can't use it. The host's socket is readable by its owner only.
 import fs from 'node:fs'
+import net from 'node:net'
+import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const COOKIE = 'wb-terminal'
+const HOST = path.join(path.dirname(fileURLToPath(import.meta.url)), 'term-host.js')
 
-/** node-pty, or null when it is not installed. Its prebuilt helper ships without execute permission (1.1.0). */
-function loadPty() {
-  try {
-    const pty = require('node-pty')
-    const dir = path.join(path.dirname(require.resolve('node-pty/package.json')), 'prebuilds', `${process.platform}-${process.arch}`)
-    const helper = path.join(dir, 'spawn-helper')
-    try { if (fs.existsSync(helper) && !(fs.statSync(helper).mode & 0o111)) fs.chmodSync(helper, 0o755) } catch {}
-    return pty
-  } catch { return null }
-}
+const hasPty = () => { try { require.resolve('node-pty'); return true } catch { return false } }
 
 /** The project's token, made on first use; `.whiteboard/token`, readable by its owner only. */
 export function projectToken(wb) {
@@ -43,9 +40,18 @@ export function projectToken(wb) {
   return token
 }
 
+/**
+ * Where the host listens: `.whiteboard/term.sock`, or, when that path is too long for a Unix
+ * socket (about 100 bytes), a name in /tmp made from it.
+ */
+export function hostSocket(wb) {
+  const own = path.join(wb, 'term.sock')
+  return Buffer.byteLength(own) < 100 ? own : path.join('/tmp', `wb-term-${crypto.createHash('sha1').update(wb).digest('hex').slice(0, 12)}.sock`)
+}
+
 export function createTerminal({ dir, wb }) {
   const token = projectToken(wb)
-  let session = null
+  const socket = hostSocket(wb)
 
   const cookieOf = req => Object.fromEntries((req.headers.cookie ?? '').split(';').map(c => c.trim().split('=')).filter(([k]) => k))[COOKIE]
   const same = (a, b) => typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
@@ -60,68 +66,57 @@ export function createTerminal({ dir, wb }) {
     return true
   }
 
-  async function start(args = []) {
-    const pty = loadPty()
-    if (!pty) throw new Error('the terminal needs node-pty: npm install node-pty')
-    const { Terminal } = (await import('@xterm/headless')).default
-    const { SerializeAddon } = (await import('@xterm/addon-serialize')).default
-    const cols = session?.cols ?? 100, rows = session?.rows ?? 30
-    stop()
-    const screen = new Terminal({ cols, rows, scrollback: 2000, allowProposedApi: true })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
-    const proc = pty.spawn('claude', args, {
-      name: 'xterm-256color', cols, rows, cwd: dir,
-      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+  // ---- the host -------------------------------------------------------------------------------
+
+  /** A connection to the host, or null when none runs. */
+  function connect() {
+    return new Promise(resolve => {
+      const conn = net.connect(socket)
+      conn.once('connect', () => resolve(conn))
+      conn.once('error', () => resolve(null))
     })
-    const s = { proc, screen, serializer, args, cols, rows, clients: new Set(), exited: null, started: new Date().toISOString() }
-    proc.onData(data => {
-      screen.write(data)
-      for (const c of s.clients) send(c, 'data', { d: data })
+  }
+
+  /** Send one request; its one reply, or null when no host runs. */
+  async function ask(req, timeout = 2000) {
+    const conn = await connect()
+    if (!conn) return null
+    return new Promise(resolve => {
+      let buf = ''
+      const done = value => { clearTimeout(timer); conn.destroy(); resolve(value) }
+      const timer = setTimeout(() => done(null), timeout)
+      conn.setEncoding('utf8')
+      conn.on('data', c => { buf += c; const nl = buf.indexOf('\n'); if (nl >= 0) { try { done(JSON.parse(buf.slice(0, nl))) } catch { done(null) } } })
+      conn.on('error', () => done(null))
+      conn.on('end', () => done(null))
+      conn.write(JSON.stringify(req) + '\n')
     })
-    proc.onExit(({ exitCode }) => {
-      s.exited = exitCode
-      for (const c of s.clients) send(c, 'exit', { code: exitCode })
-    })
-    session = s
-    return s
   }
 
-  function stop() {
-    if (!session) return
-    try { if (session.exited == null) session.proc.kill() } catch {}
-    for (const c of session.clients) send(c, 'exit', { code: null })
-    session.screen.dispose()
-    session = null
+  /** Start the host (detached: it outlives this server) and wait until it answers. */
+  async function startHost() {
+    const log = fs.openSync(path.join(wb, 'term.log'), 'a')
+    const child = spawn(process.execPath, [HOST, dir, socket], { cwd: dir, detached: true, stdio: ['ignore', log, log], env: process.env })
+    child.unref()
+    fs.closeSync(log)
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 100))
+      if (await ask({ t: 'status' }, 500)) return true
+    }
+    return false
   }
 
-  /** Write one event to a stream; a stream that is still catching up queues it. */
-  function send(client, event, data) {
-    if (client.queue) return client.queue.push([event, data])
-    client.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-  }
-
-  /**
-   * The screen as HTML, for the page to show before its terminal connects: rows of styled spans,
-   * text escaped by the serializer. Empty without a session.
-   */
-  function screenHtml() {
-    if (!session) return ''
-    try {
-      const page = session.serializer.serializeAsHTML()
-      // the rows, without the wrapper that sets the serializer's own colors and font
-      const m = /<pre><div style='[^']*'>([\s\S]*)<\/div><\/pre>/.exec(page)
-      return m ? m[1] : ''
-    } catch { return '' }
-  }
-
-  const status = () => ({
-    available: !!loadPty(),
-    running: !!session && session.exited == null,
-    exited: session?.exited ?? null,
-    command: session ? ['claude', ...session.args].join(' ') : null,
-    started: session?.started ?? null,
+  const status = async () => ({
+    available: hasPty(),
+    ...((await ask({ t: 'status' })) ?? { running: false, exited: null, command: null, started: null }),
   })
+
+  /** The screen as HTML rows, for a page's first render; empty without a session. */
+  async function screenHtml() {
+    return (await ask({ t: 'html' }, 300))?.html ?? ''
+  }
+
+  // ---- routes ---------------------------------------------------------------------------------
 
   function readJson(req) {
     return new Promise((resolve, reject) => {
@@ -149,55 +144,67 @@ export function createTerminal({ dir, wb }) {
     if (!p.startsWith('/api/term/')) return false
     if (!authorized(req)) { json(res, 403, { error: 'no terminal token: open the link `whiteboard terminal` prints' }); return true }
 
-    if (p === '/api/term/status') { json(res, 200, status()); return true }
+    if (p === '/api/term/status') { json(res, 200, await status()); return true }
     if (p === '/api/term/start' && req.method === 'POST') {
       const body = await readJson(req)
-      if (session && session.exited == null && !body.restart) { json(res, 200, { ...status(), already: true }); return true }
-      try { await start(Array.isArray(body.args) ? body.args.map(String) : []) } catch (e) { json(res, 500, { error: e.message }); return true }
-      json(res, 200, status())
+      if (!hasPty()) { json(res, 500, { error: 'the terminal needs node-pty: npm install node-pty' }); return true }
+      const request = { t: 'start', args: Array.isArray(body.args) ? body.args.map(String) : [], restart: !!body.restart }
+      let reply = await ask(request)
+      if (!reply) {
+        if (!(await startHost())) { json(res, 500, { error: `the terminal's host did not start; see ${path.join(wb, 'term.log')}` }); return true }
+        reply = await ask(request)
+      }
+      if (!reply || reply.error) { json(res, 500, { error: reply?.error ?? 'no answer from the terminal host' }); return true }
+      json(res, 200, { available: true, ...reply })
       return true
     }
     if (p === '/api/term/input' && req.method === 'POST') {
       const { data } = await readJson(req)
-      if (session && session.exited == null && typeof data === 'string') session.proc.write(data)
+      if (typeof data === 'string') await ask({ t: 'input', d: data })
       json(res, 200, { ok: true })
       return true
     }
     if (p === '/api/term/resize' && req.method === 'POST') {
       const { cols, rows } = await readJson(req)
-      if (session && Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1 && cols < 1000 && rows < 500) {
-        session.cols = cols; session.rows = rows
-        session.screen.resize(cols, rows)
-        if (session.exited == null) session.proc.resize(cols, rows)
-      }
+      await ask({ t: 'resize', cols, rows })
       json(res, 200, { ok: true })
       return true
     }
     if (p === '/api/term/stream') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
       res.write(': terminal\n\n')
-      const s = session
-      if (!s) { res.write(`event: none\ndata: {}\n\n`) }
-      else {
-        // the screen as it is once the headless terminal has parsed everything written so far; what
-        // arrives meanwhile is queued for this client and follows the screen
-        const client = { res, queue: [] }
-        s.clients.add(client)
-        s.screen.write('', () => {
-          res.write(`event: screen\ndata: ${JSON.stringify({ d: s.serializer.serialize(), cols: s.cols, rows: s.rows, exited: s.exited })}\n\n`)
-          const queued = client.queue
-          client.queue = null
-          for (const [event, data] of queued) send(client, event, data)
-        })
-        req.on('close', () => s.clients.delete(client))
-      }
       const ping = setInterval(() => res.write(': ping\n\n'), 25000)
-      req.on('close', () => clearInterval(ping))
+      const conn = await connect()
+      if (!conn) {
+        res.write('event: none\ndata: {}\n\n')
+        req.on('close', () => clearInterval(ping))
+        return true
+      }
+      // the host's messages, one per line, as server-sent events of the same name
+      let buf = ''
+      conn.setEncoding('utf8')
+      conn.on('data', chunk => {
+        buf += chunk
+        let nl
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl)
+          buf = buf.slice(nl + 1)
+          try {
+            const { t, ...data } = JSON.parse(line)
+            res.write(`event: ${t}\ndata: ${JSON.stringify(data)}\n\n`)
+          } catch { /* not a message */ }
+        }
+      })
+      // the host went away (stopped, or its program ended and it left): the page shows it as stopped
+      conn.on('close', () => { if (!res.writableEnded) res.write('event: exit\ndata: {"code":null}\n\n') })
+      conn.on('error', () => {})
+      req.on('close', () => { clearInterval(ping); conn.destroy() })
+      conn.write(JSON.stringify({ t: 'attach' }) + '\n')
       return true
     }
     json(res, 404, { error: 'unknown terminal request' })
     return true
   }
 
-  return { handle, authorized, status, stop, token, screenHtml }
+  return { handle, authorized, status, token, screenHtml }
 }

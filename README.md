@@ -148,11 +148,13 @@ agent can ask, do other work, and wait later.
 
 `whiteboard terminal` prints a link that unlocks a terminal drawer at the
 bottom of every page of the project, in that browser. Collapsed it's a bar;
-open, it runs `claude` in a pseudo-terminal on the server, so the session
-outlives the tab: switching pages, reloading or opening a second tab shows
-the same session. The browser morphs the drawer from one page into the next
-(a view transition across the page load), and the server writes the current
-screen into each page, so it never shows empty. Ctrl+\` opens and closes it.
+open, it runs `claude` in a pseudo-terminal, in a small host process of its
+own that the server starts. So the session outlives the tab (switching pages,
+reloading or opening a second tab shows the same session) and the server: a
+restarted server finds the session where it was. The browser morphs the
+drawer from one page into the next (a view transition across the page load),
+and the server writes the current screen into each page, so it never shows
+empty. Ctrl+\` opens and closes it.
 
 ```sh
 whiteboard terminal                    # the link; the drawer starts claude on demand
@@ -165,7 +167,8 @@ The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link sets it as a cookie that is only
 sent from the project's own pages, and requests from another origin are
 refused. It needs `node-pty`, an optional dependency; without it the drawer
-says what to install. The session ends with the server.
+says what to install. The host listens on `.whiteboard/term.sock`, readable
+by its owner only, and leaves ten minutes after its program ended.
 
 ## Commands
 

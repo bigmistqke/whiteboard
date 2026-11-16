@@ -221,6 +221,9 @@ server.log
 server.lock
 # the secret that unlocks the terminal drawer
 token
+# the terminal's host: its socket and output
+term.sock
+term.log
 `)
   console.log(`project: ${wb}
   pages:     ${path.join(wb, 'pages')} (gitignored); \`whiteboard show <page>\` starts the server
