@@ -132,9 +132,11 @@ interface Renderer {
 ```
 
 - **Which one.** The config lists the renderers; the first is the default.
-  A page picks another in its frontmatter (`renderer: slides`). With none,
-  or when the one a page names is missing, the page shows as its raw text,
-  with a note saying why.
+  A page picks another in its frontmatter (`renderer: slides`). A config
+  that leaves `renderers` out gets `[markboard()]`: the config loader fills
+  that in, so the server never imports markboard itself. With an empty
+  list, or when the one a page names is missing, the page shows as its raw
+  text, with a note saying why.
 - **Server.** `render` returns the page's first HTML, put into
   `<div id="wb-root">`, its `<head>` additions and `data` for the client.
   `ctx.asset(file)` gives the URL a file is served at (a client module, a

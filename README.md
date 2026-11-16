@@ -153,7 +153,6 @@ session starts. Without `command` it starts your shell.
 import terminal from '@bigmistqke/whiteboard/terminal'
 
 export default defineConfig({
-  renderers: [markboard()],
   plugins: [terminal({ command: 'claude' })],   // or ['npm', 'run', 'dev'], with arguments
 })
 ```
@@ -195,7 +194,6 @@ from outside the agent, so a forgotten wait gets noticed:
 import claudeCode from '@bigmistqke/whiteboard/claude-code'
 
 export default defineConfig({
-  renderers: [markboard()],
   plugins: [claudeCode()],
 })
 ```
@@ -248,7 +246,7 @@ import comments from '@bigmistqke/whiteboard/comments'
 
 export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
-  renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
+  renderers: [markboard()],  // the default; the first is a page's renderer unless it picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
   plugins: [comments()], // behaviour on every page, whatever the renderer: also terminal({ command }), claudeCode()
 })

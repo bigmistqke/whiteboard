@@ -15,7 +15,8 @@ export interface Config {
   name?: string
   /**
    * The renderers this project can use. The first is the default; a page picks another by name in
-   * its frontmatter (`renderer: slides`). Without any, pages show as their raw text.
+   * its frontmatter (`renderer: slides`). Left out, it is `[markboard()]`; an empty list shows
+   * pages as their raw text.
    */
   renderers?: Renderer[]
   /**

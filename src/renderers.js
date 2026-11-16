@@ -43,6 +43,15 @@ function normalize(r, source) {
 }
 
 /**
+ * The renderers of a config that names none: markboard, the one this package ships. A config that
+ * lists renderers gets only those, so `renderers: []` still shows every page as its raw text.
+ */
+async function defaultRenderers() {
+  const { default: markboard } = await import('@bigmistqke/whiteboard/markboard')
+  return [markboard()]
+}
+
+/**
  * The config, cached until invalidate() (which loads it afresh). Errors are returned, not thrown:
  * a config that fails to load leaves the project without renderers, so pages show as raw text,
  * and serves no repository files.
@@ -55,7 +64,7 @@ export function createConfigLoader(configFile) {
     let config = mod.default
     if (typeof config === 'function') config = await config()
     const renderers = []
-    for (const r of [config?.renderers ?? []].flat(Infinity)) {
+    for (const r of [config?.renderers ?? await defaultRenderers()].flat(Infinity)) {
       if (!r) continue
       const n = normalize(r, configFile)
       if (renderers.some(x => x.name === n.name)) throw new Error(`two renderers are named "${n.name}" in ${configFile}`)

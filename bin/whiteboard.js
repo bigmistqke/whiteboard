@@ -200,17 +200,12 @@ function init(name) {
   }
   // the home folder is no repository: serving and watching all of it would be slow and expose everything
   const home = dir === os.homedir()
-  // the markboard set ships in this package, and the server resolves its imports, so it always works
   fs.mkdirSync(path.join(wb, 'pages'), { recursive: true })
   fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard/config'
-import markboard from '@bigmistqke/whiteboard/markboard'
 import comments from '@bigmistqke/whiteboard/comments'
 
 export default defineConfig({
-${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  renderers: [
-    markboard(),
-  ],
-  // comments on any passage of a page
+${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  // comments on any passage of a page
   plugins: [comments()],
 })
 `)
