@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
 import { html, raw, type Html } from '../src/html.js'
 import type { RenderContext, Rendered, StoredPage } from '../src/define.ts'
-import type { ResolvedTemplates } from './templates.ts'
+import type { ResolvedTemplate, ResolvedTemplates } from './templates.ts'
 
 type PagesPage = Extract<StoredPage, { kind: 'pages' }>
 type FolderPage = Extract<StoredPage, { kind: 'folder' }>
@@ -196,10 +196,19 @@ append, so you don't hear your own replies.`
 /** The syntax of every template, from their readmes: what `whiteboard docs` prints. */
 export function createDocs(templates: () => ResolvedTemplates) {
   return function docs(ctx: RenderContext) {
-    const list = [...templates().templates.values()].sort((a, b) => a.name.localeCompare(b.name))
+    const all = [...templates().templates.values()]
+    // templates that share a readme are documented together, under the first of them (a form and its inputs)
+    const groups = new Map<string, ResolvedTemplate[]>()
+    for (const t of all) {
+      const key = t.readme ?? `\0${t.name}`
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(t)
+    }
+    const list = [...groups.values()].map(g => g[0]).sort((a, b) => a.name.localeCompare(b.name))
     const parts = list.map(t => {
       const what = [t.code && 'code blocks', t.client && 'client', t.html && 'html', t.props && 'props'].filter(Boolean).join(' · ')
-      const where = html`<p class="wb-meta">from <code>${t.source}</code>${what && ` · ${what}`}</p>`
+      const also = groups.get(t.readme ?? `\0${t.name}`)!.slice(1).map(o => o.name)
+      const where = html`<p class="wb-meta">from <code>${t.source}</code>${what && ` · ${what}`}${also.length ? html` · with ${also.map((n, i) => html`${i ? ', ' : ''}<code>${n}</code>`)}` : ''}</p>`
       const readme = t.readme ? fs.readFileSync(t.readme, 'utf8') : `# ${t.name}\n\n_No readme._\n`
       return readme.replace(/^(#\s.*)$/m, `$1\n\n${where}\n`)
     })
