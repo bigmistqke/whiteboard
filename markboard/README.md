@@ -34,12 +34,14 @@ Rewritten, all tests pass.
 Not started.
 :::
 
-```form ship
-radio: when | When do we ship?
-- *This week | The docs are small; ship and follow up.
-- Next week | Ship with the docs complete.
-submit: Send
-```
+:::form{name=ship}
+**When do we ship?**
+
+- :radio[This week]{name=when recommended}
+  The docs are small; ship and follow up.
+- :radio[Next week]{name=when}
+  Ship with the docs complete.
+:::
 ````
 
 Plain markdown and GFM work as they are (tables, task lists, `<details>`,
@@ -56,8 +58,8 @@ from the same log, so nothing depends on the agent remembering to say it.
 
 A named form records each submit: its name is the event's `type`, the
 button pressed its `action`, the fields its `data`. The `form` template
-writes forms from a short syntax, and options can carry their meaning
-beside them, so you decide where you read:
+writes a form as markdown with its inputs inline, so a question sits with
+everything that explains it, and each option with what it means:
 
 - **A send is a choice.** The writer's recommended option is tagged, never
   preselected: a choice is only made by picking it.
@@ -126,7 +128,7 @@ new: it's for the agent echoing your answer or updating a status line.
 
 | template | for |
 | --- | --- |
-| `form` | forms from a short syntax, with explained options and a thread |
+| `form` | a named form written as markdown, with inline inputs (`:radio`, `:check`, `:text`, …) and a thread |
 | `grid` | cards in a grid, with status badges |
 | `gallery` | images with a lightbox |
 | `details` | a collapsible section |

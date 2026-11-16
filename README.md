@@ -59,11 +59,11 @@ Rewritten, all tests pass.
 Not started.
 :::
 
-```form ship
-Ship it this week?
-radio: when | When | *this week, next week
-submit: Decide
-```
+:::form{name=ship}
+Ship it this week? :radio[this week]{name=when} :radio[next week]{name=when}
+
+:button[Decide]
+:::
 EOF
 npx whiteboard show plan           # starts the server, prints http://localhost:4777/plan
 ````
@@ -126,7 +126,8 @@ A form with a `name` and no `action` attribute is recorded when submitted:
 `type` is the form's name, `action` is the button that was pressed and
 `data` holds the fields. The log is an event stream: a template can append
 events of other types too, through `api.append(type, data)`. The
-`form` template (in `markboard()`) writes forms from a short syntax; a
+`form` template (in `markboard()`) writes them as markdown with inputs inline
+(`:::form{name=ship}` … `:radio[this week]{name=when}` … `:::`); a
 hand-written `<form name="…">` works without it.
 
 Reading answers:

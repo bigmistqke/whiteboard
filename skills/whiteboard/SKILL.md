@@ -47,10 +47,11 @@ Write for a reader who comes back later:
 - Update your page rather than starting a new one for the same topic; changed
   blocks are highlighted for the user, unchanged ones stay quiet.
 - Put the things you need from the user in forms, one form per decision, each
-  with a distinct name. When the options need explaining, explain them in
-  the form, each option with its meaning (`- label | what it means`, see the
-  form template's docs), not in a section above it: the user decides where
-  they read. Keep `:::details` for real depth, not for the options.
+  with a distinct name. A form is markdown with its inputs inline (see the
+  form template's docs). When the options need explaining, explain them in
+  the form, each option with its meaning right under it, not in a section
+  above it: the user decides where they read. Keep `:::details` for real
+  depth, not for the options.
 - A send is a choice, and only that. Questions and remarks about a form go
   in its thread (`thread` events, see the form template's docs): answer them
   there, and never read a thread message, or a note sent along with a
@@ -201,7 +202,7 @@ that no agent is listening. So:
   then. Don't poll `whiteboard events` in a loop instead: the user can't see
   that you are waiting.
 - When you need the user to read something before you go on, put a form with
-  just a button under it (`submit: Read it`) and wait for it. Then
+  just a button in it (`:button[Read it]`) and wait for it. Then
   everything you wait for is a form the page can point to.
 
 ### Status and hooks

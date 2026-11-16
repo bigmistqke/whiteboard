@@ -4,33 +4,41 @@
   display: grid; gap: 20px;
 }
 .wb-form-pending { min-height: 72px; }
-/* a flex column, not a grid: WebKit lays out the legend of a grid fieldset once and keeps that
-   width when the fieldset widens (the form mounts into a narrow placeholder), one word per line */
-.wb-form-field { display: flex; flex-direction: column; gap: 7px; border: 0; padding: 0; margin: 0; min-width: 0; }
-.wb-form-field :is(input:not([type=checkbox], [type=radio]), textarea, select) { width: 100%; }
-.wb-form-field textarea { resize: vertical; }
-.wb-form-label { font: 600 .78rem/1.4 var(--sans); color: var(--muted); padding: 0; letter-spacing: .01em; }
-.wb-form-options { display: flex; flex-wrap: wrap; gap: 6px 18px; }
-.wb-form-check { display: inline-flex; gap: 7px; align-items: center; cursor: pointer; white-space: nowrap; font: .92rem/1.4 var(--sans); }
-.wb-form-help { font-size: 1rem; }
-.wb-form-help > :last-child { margin-bottom: 0; }
-.wb-form-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
-.wb-form button.wb-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-.wb-form button.wb-chosen { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ok); }
-.wb-form-status { font: .8rem/1.4 var(--sans); color: var(--ok); }
-.wb-card .wb-form { padding: 0; border: 0; margin: .6em 0 0; }
+/* the form's body is markdown: its first and last blocks sit flush with the rules */
+.wb-form > :first-child { margin-top: 0; }
+.wb-form > :last-child { margin-bottom: 0; }
+.wb-form > :is(p, ul, ol, table, .wb-grid, div) { margin-top: 0; margin-bottom: 0; }
 
-/* options with explanations: one row each, the whole row picks it */
-.wb-form-choices { display: grid; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-.wb-form-choice { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 11px 14px; cursor: pointer; }
-.wb-form-choice + .wb-form-choice { border-top: 1px solid var(--border); }
-.wb-form-choice:hover { background: var(--tint); }
-.wb-form-choice:has(input:checked) { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.wb-form-choice input { margin: .3em 0 0; }
-.wb-form-choice-text { display: grid; gap: 3px; min-width: 0; }
-.wb-form-choice-title { font: 600 .95rem/1.4 var(--sans); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.wb-form-recommended { font: 500 .7rem/1.4 var(--sans); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-.wb-form-choice-description { font-size: .95rem; line-height: 1.5; color: var(--text); }
+/* an inline option, :radio[…] or :check[…]: the input and its label read as one */
+.wb-form-option { display: inline-flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.wb-form-option + .wb-form-option { margin-left: 18px; }
+.wb-form-option input { margin: 0; translate: 0 .1em; }
+.wb-form-option-label { font-weight: 600; }
+.wb-form-recommended { font: 500 .7rem/1.4 var(--sans); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin-left: 10px; }
+
+/* a list item that starts with an option is a row to pick: no bullet, the picked one tinted, and
+   the rest of the item reads as what the option means */
+.wb-form li:has(> p:first-child > .wb-form-option:first-child),
+.wb-form li:has(> .wb-form-option:first-child) { list-style: none; margin-left: -1.2em; padding: 6px 10px; border-radius: 6px; }
+.wb-form li:has(> p:first-child > .wb-form-option:first-child):hover,
+.wb-form li:has(> .wb-form-option:first-child):hover { background: var(--tint); }
+.wb-form li:has(> p:first-child > .wb-form-option:first-child input:checked),
+.wb-form li:has(> .wb-form-option:first-child input:checked) { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.wb-form li > p:first-child { margin-bottom: .2em; }
+.wb-form li > p:first-child > .wb-form-option:first-child,
+.wb-form li > .wb-form-option:first-child { display: flex; margin-bottom: .15em; }
+
+/* fields: the label above the input */
+.wb-form-field { display: flex; flex-direction: column; gap: 7px; margin: 0; min-width: 0; }
+.wb-form-field :is(input:not([type=range]), textarea, select) { width: 100%; }
+.wb-form-field textarea { resize: vertical; }
+.wb-form-label { font: 600 .78rem/1.4 var(--sans); color: var(--muted); letter-spacing: .01em; }
+.wb-form-label:empty { display: none; }
+
+/* buttons: the first one of a form is its primary one */
+.wb-form button[name=action] + button[name=action] { margin-left: 8px; }
+.wb-form button.wb-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.wb-card .wb-form { padding: 0; border: 0; margin: .6em 0 0; }
 
 /* the form's thread, as a chat: the reader's messages on the right, the agent's on the left; never
    part of the answer */

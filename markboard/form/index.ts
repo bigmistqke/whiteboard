@@ -1,91 +1,107 @@
-// ```form <name>  — a line-based shorthand for a named form. See README.md for the syntax.
-import type { FenceContext, Template } from '@bigmistqke/whiteboard/template'
+// :::form{name=…} — a named form whose body is ordinary markdown, with inputs written inline anywhere in
+// it: `:radio[This **week**]{name=when}`, `:check[…]`, `:text[…]`, `:button[Send]` and so on. See
+// README.md.
+//
+// Everything here renders on the server as plain HTML: a `<form name>` the page's client already
+// looks after (it sends a submit as an event, keeps drafts, puts the last answer back and marks what
+// waits for the reader). Only the thread under the form is a client island.
+import { html, raw, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
 
-export interface Option {
-  /** what is sent: the label as plain text */
-  value: string
-  /** the label as HTML (inline markdown); for an option with a description */
-  label: string
-  /** preselected (a plain option marked with `*`) */
-  checked: boolean
-  /** the writer's recommendation (an option with a description marked with `*`): tagged, never
-   * preselected, so a send without a pick leaves the choice open */
-  recommended: boolean
-  /** what choosing it means, as HTML; empty for a plain option */
-  description: string
-}
-export interface Field {
-  type: 'text' | 'textarea' | 'number' | 'date' | 'range' | 'select' | 'radio' | 'checkbox' | 'hidden' | 'help'
-  name: string
-  /** HTML */
-  label: string
-  placeholder: string
-  options: Option[]
-}
-export interface FormProps { name: string; fields: Field[]; buttons: string[] }
+const style = new URL('./style.css', import.meta.url)
+const readme = new URL('./README.md', import.meta.url)
 
-/** HTML from inline markdown → its text: what an option sends. */
-const plain = (html: string) => html.replace(/<[^>]*>/g, '')
-  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+/** What the thread needs to know of its form: the names of its choices, whose values are never a remark. */
+export interface ThreadProps { form: string; choices: string[] }
 
-const FIELD = /^(text|textarea|number|date|range|select|radio|checkbox|hidden|submit):\s*(.*)$/
+const CHOICES = new Set(['radio', 'check', 'select', 'hidden'])
 
-export async function props(ctx: FenceContext): Promise<FormProps> {
-  const bare = Object.keys(ctx.attrs).find(k => ctx.attrs[k] === '')
-  const name = ctx.attrs.name || bare || 'form'
-  const inline = ctx.inline
-  const fields: Field[] = []
-  let buttons: string[] | null = null
-  for (const raw of ctx.text.split('\n')) {
-    const line = raw.trim()
-    if (!line) continue
-    // `- label | what it means` under a select, radio or checkbox: an option with its explanation
-    const choice = /^[-*]\s+(.*)$/.exec(line)
-    const owner = fields.at(-1)
-    if (choice && owner && ['select', 'radio', 'checkbox'].includes(owner.type)) {
-      const [label, ...rest] = choice[1].split('|')
-      const value = label.trim()
-      const recommended = value.startsWith('*')
-      const html = await inline(recommended ? value.slice(1).trim() : value)
-      owner.options.push({ value: plain(html), label: html, checked: false, recommended, description: rest.length ? await inline(rest.join('|').trim()) : '' })
-      continue
-    }
-    const m = FIELD.exec(line)
-    if (!m) {
-      fields.push({ type: 'help', name: '', label: await inline(line), placeholder: '', options: [] })
-      continue
-    }
-    const type = m[1] as Field['type'] | 'submit'
-    const seg = m[2].split('|').map(s => s.trim())
-    if (type === 'submit') {
-      buttons = seg[0].split(',').map(s => s.trim()).filter(Boolean)
-      continue
-    }
-    const [fieldName, label = fieldName, extra = ''] = seg
-    const options = ['select', 'radio', 'checkbox'].includes(type)
-      ? extra.split(',').map(s => s.trim()).filter(Boolean).map(o => (o.startsWith('*') ? { value: o.slice(1).trim(), label: '', checked: true, recommended: false, description: '' } : { value: o, label: '', checked: false, recommended: false, description: '' }))
-      : []
-    fields.push({
-      type,
-      name: fieldName,
-      label: type === 'hidden' ? label : await inline(label),
-      placeholder: options.length ? '' : extra,
-      options,
-    })
+interface Node { type: string; name?: string; attributes?: Record<string, string>; children?: Node[] }
+
+/** The inputs written inside a form's markdown (forms inside it excluded: forms don't nest). */
+function inputsOf(nodes: Node[]) {
+  const found: { name: string; attrs: Record<string, string> }[] = []
+  const walk = (node: Node) => {
+    if ((node.type === 'textDirective' || node.type === 'leafDirective') && node.name) found.push({ name: node.name, attrs: node.attributes ?? {} })
+    if (node.type === 'containerDirective' && node.name === 'form') return
+    for (const child of node.children ?? []) walk(child)
   }
-  return { name, fields, buttons: buttons ?? ['Send'] }
+  nodes.forEach(walk)
+  return found
 }
 
-/** Shown until the component mounts. */
-export function html() {
-  return '<div class="wb-form wb-form-pending"></div>'
-}
+const recommendedTag = html`<span class="wb-form-recommended">recommended</span>`
 
-export default {
+const form: Template = {
   name: 'form',
-  props,
-  html,
+  style,
+  readme,
+  async html(ctx) {
+    const c = ctx as DirectiveContext
+    const name = c.attrs.name || c.attrs.id || 'form'
+    const inputs = inputsOf(c.children as Node[])
+    const choices = [...new Set(inputs.filter(i => CHOICES.has(i.name) && i.attrs.name).map(i => i.attrs.name))]
+    const hasButton = inputs.some(i => i.name === 'button')
+    // the first button is the form's primary one; the markup is the button template's own
+    const body = (await c.toHtml(c.children)).replace('<button name="action"', '<button class="wb-primary" name="action"')
+    const thread = await c.markdown(`::form-thread{form="${name.replace(/"/g, '&quot;')}" choices="${choices.join(' ')}"}`)
+    return html`<form name="${name}" class="wb-form">${raw(body)}${!hasButton && html`<p><button class="wb-primary">Send</button></p>`}${raw(thread)}</form>`
+  },
+}
+
+/** The label of an inline input as HTML, else its fallback. */
+const labelOf = (c: DirectiveContext, fallback = '') => (c.label ? raw(c.label) : fallback)
+
+/** :radio[label]{name=… value=… recommended checked} and :check[…]{…} */
+const option = (type: 'radio' | 'checkbox'): Template['html'] => (ctx) => {
+  const c = ctx as DirectiveContext
+  const value = c.attrs.value ?? c.labelText ?? ''
+  return html`<label class="wb-form-option"><input type="${type}" name="${c.attrs.name}" value="${value}"${'checked' in c.attrs && raw(' checked')}><span class="wb-form-option-label">${labelOf(c, value)}</span>${'recommended' in c.attrs && recommendedTag}</label>`
+}
+
+/** :text[label]{name=… placeholder=…}, and number, date, range */
+const field = (type: string): Template['html'] => (ctx) => {
+  const c = ctx as DirectiveContext
+  const extra = ['placeholder', 'min', 'max', 'step', 'value'].filter(k => k in c.attrs).map(k => html` ${raw(k)}="${c.attrs[k]}"`)
+  return html`<label class="wb-form-field"><span class="wb-form-label">${labelOf(c)}</span><input type="${type}" name="${c.attrs.name}"${extra}></label>`
+}
+
+const input = (name: string, render: Template['html']): Template => ({ name, html: render, style, readme })
+
+const inputs: Template[] = [
+  input('radio', option('radio')),
+  input('check', option('checkbox')),
+  input('text', field('text')),
+  input('number', field('number')),
+  input('date', field('date')),
+  input('range', field('range')),
+  input('textarea', (ctx) => {
+    const c = ctx as DirectiveContext
+    return html`<label class="wb-form-field"><span class="wb-form-label">${labelOf(c)}</span><textarea name="${c.attrs.name}" rows="3" placeholder="${c.attrs.placeholder ?? ''}">${c.attrs.value ?? ''}</textarea></label>`
+  }),
+  input('select', (ctx) => {
+    const c = ctx as DirectiveContext
+    const options = (c.attrs.options ?? '').split(',').map(s => s.trim()).filter(Boolean)
+    return html`<label class="wb-form-field"><span class="wb-form-label">${labelOf(c)}</span><select name="${c.attrs.name}">${options.map(o => html`<option${o === c.attrs.value && raw(' selected')}>${o}</option>`)}</select></label>`
+  }),
+  input('hidden', (ctx) => {
+    const c = ctx as DirectiveContext
+    return html`<input type="hidden" name="${c.attrs.name}" value="${c.attrs.value ?? ''}">`
+  }),
+  input('button', (ctx) => {
+    const c = ctx as DirectiveContext
+    const value = c.labelText ?? 'Send'
+    return html`<button name="action" value="${value}">${labelOf(c, 'Send')}</button>`
+  }),
+]
+
+/** The thread under every form: what the reader asks about it, and the agent's answers. */
+const thread: Template<ThreadProps> = {
+  name: 'form-thread',
+  style,
+  readme,
+  props: ctx => ({ form: ctx.attrs.form ?? '', choices: (ctx.attrs.choices ?? '').split(' ').filter(Boolean) }),
+  html: () => '',
   client: new URL('./client.js', import.meta.url),
-  style: new URL('./style.css', import.meta.url),
-  readme: new URL('./README.md', import.meta.url),
-} satisfies Template
+}
+
+export default [form, ...inputs, thread]

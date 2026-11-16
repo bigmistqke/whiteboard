@@ -84,17 +84,17 @@ function literalDirective(node: MdNode, label: MdNode[] | null) {
 }
 
 /**
- * The forms a page asks the reader to answer, by name: fenced `form` blocks (named like the form
- * template names them: `name=…`, else the first bare word) and hand-written <form name="…"> without
- * an action. Parsed, so a form shown as an example inside a code block doesn't count.
+ * The forms a page asks the reader to answer, by name: `:::form{name=…}` containers and
+ * hand-written <form name="…"> without an action. Parsed, so a form shown as an example inside a
+ * code block doesn't count.
  */
 export function formNames(source: string) {
   const tree = parser.parse(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')) as MdNode
   const names: string[] = []
   const walk = (node: MdNode) => {
-    if (node.type === 'code' && node.lang === 'form') {
-      const attrs = parseAttrs(node.meta)
-      names.push(attrs.name || Object.keys(attrs).find(k => attrs[k] === '') || 'form')
+    if (node.type === 'containerDirective' && node.name === 'form') {
+      const attrs = node.attributes ?? {}
+      names.push(attrs.name || attrs.id || 'form')
     } else if (node.type === 'html') {
       for (const m of (node.value ?? '').matchAll(/<form\b([^>]*)>/gi)) {
         if (/\baction\s*=/i.test(m[1])) continue

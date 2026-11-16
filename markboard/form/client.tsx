@@ -1,23 +1,12 @@
-// Renders a plain <form name=…>. Submitting it is the engine's job; this component only
-// pre-fills the last submission and shows which button was used and when.
-//
-// Each form has a thread under it: the reader asks about the question, the agent answers
-// (`whiteboard append --type thread --data '{"form":"<name>","text":"…"}'`). A message is a
-// `thread` event of its own, never a submit of the form, so talking about a choice never makes it.
-import { createMemo, For, Match, Show, Switch, untrack } from 'solid-js'
+// The thread under a form (rendered by the form template as plain HTML around this island): the
+// reader asks about the question, the agent answers
+// (`whiteboard append --type thread --data '{"form":"<name>","text":"…"}'`). A message is a `thread`
+// event of its own, never a submit of the form, so talking about a choice never makes it.
+import { createMemo, For } from 'solid-js'
 import { solid, useWhiteboard } from '@bigmistqke/whiteboard/solid'
-import type { Field, FormProps, Option } from './index'
+import type { ThreadProps } from './index'
 import type { WbEvent } from '@bigmistqke/whiteboard/template'
 import { autosize } from './autosize'
-
-type Data = Record<string, unknown>
-
-function isChecked(data: Data, field: Field, option?: Option) {
-  if (!(field.name in data)) return option ? option.checked : false
-  const v = data[field.name]
-  if (!option) return !!v
-  return Array.isArray(v) ? v.includes(option.value) : v === option.value
-}
 
 interface Message { id: string; from: 'you' | 'agent'; text: string }
 
@@ -25,15 +14,15 @@ interface Message { id: string; from: 'you' | 'agent'; text: string }
  * What the reader wrote in a submit of the form: every text in it that is not one of the form's
  * choices (also from a field the form no longer has).
  */
-function written(submit: WbEvent, fields: Field[]) {
-  const choices = new Set(fields.filter(f => ['radio', 'checkbox', 'select', 'hidden'].includes(f.type)).map(f => f.name))
+function written(submit: WbEvent, choiceNames: string[]) {
+  const choices = new Set(choiceNames)
   return Object.entries(submit.data)
     .filter(([k, v]) => !choices.has(k) && typeof v === 'string' && v.trim())
     .map(([, v]) => String(v).trim())
     .join('\n\n')
 }
 
-function Thread(props: { form: string; fields: Field[] }) {
+function Thread(props: ThreadProps) {
   const wb = useWhiteboard()
   // The thread's messages in order. A message can answer something the reader wrote in a submit of
   // the form (`replyTo` its id): that text shows as theirs, right before the answer. A message can
@@ -46,7 +35,7 @@ function Thread(props: { form: string; fields: Field[] }) {
     for (const e of own) {
       if (replaced.has(e.id)) continue
       const to = e.data.replyTo ? events.find(x => x.id === e.data.replyTo && x.type === props.form) : undefined
-      const asked = to ? written(to, props.fields) : ''
+      const asked = to ? written(to, props.choices) : ''
       if (to && asked && !out.some(m => m.id === to.id)) out.push({ id: to.id, from: 'you', text: asked })
       out.push({ id: e.id, from: e.from === 'cli' ? 'agent' : 'you', text: String(e.data.text ?? '') })
     }
@@ -87,109 +76,4 @@ function Thread(props: { form: string; fields: Field[] }) {
   )
 }
 
-function Form(props: FormProps) {
-  const wb = useWhiteboard()
-  const last = createMemo(() => wb.last(props.name))
-  // fields start from the last submission; later submits never overwrite what is being typed
-  const initial = untrack((): Data => last()?.data ?? {})
-  const text = (f: Field) => (f.name in initial ? String(initial[f.name] ?? '') : '')
-
-  return (
-    <form name={props.name} class={['wb-form', { 'wb-form-answered': !!last() }]}>
-      <For each={props.fields}>
-        {f => (
-          <Switch>
-            <Match when={f.type === 'help'}>
-              <div class="wb-form-help" innerHTML={f.label} />
-            </Match>
-            <Match when={f.type === 'hidden'}>
-              <input type="hidden" name={f.name} value={f.label} />
-            </Match>
-            <Match when={f.type === 'textarea'}>
-              <label class="wb-form-field">
-                <span class="wb-form-label" innerHTML={f.label} />
-                <textarea name={f.name} rows={3} placeholder={f.placeholder} value={text(f)} />
-              </label>
-            </Match>
-            <Match when={f.type === 'select'}>
-              <label class="wb-form-field">
-                <span class="wb-form-label" innerHTML={f.label} />
-                <select name={f.name}>
-                  <For each={f.options}>{o => <option value={o.value} selected={isChecked(initial, f, o)}>{o.value}</option>}</For>
-                </select>
-              </label>
-            </Match>
-            <Match when={f.type === 'checkbox' && !f.options.length}>
-              <label class="wb-form-check">
-                <input type="checkbox" name={f.name} checked={isChecked(initial, f)} />
-                <span innerHTML={f.label} />
-              </label>
-            </Match>
-            <Match when={(f.type === 'radio' || f.type === 'checkbox' || f.type === 'select') && f.options.some(o => o.description)}>
-              {/* options with explanations: each one a row to choose, its meaning right beside it */}
-              <fieldset class="wb-form-field">
-                <legend class="wb-form-label" innerHTML={f.label} />
-                <div class="wb-form-choices">
-                  <For each={f.options}>
-                    {o => (
-                      <label class="wb-form-choice">
-                        <input type={f.type === 'checkbox' ? 'checkbox' : 'radio'} name={f.name} value={o.value} checked={isChecked(initial, f, o)} />
-                        <span class="wb-form-choice-text">
-                          <span class="wb-form-choice-title">
-                            <span innerHTML={o.label} />
-                            <Show when={o.recommended}><span class="wb-form-recommended">recommended</span></Show>
-                          </span>
-                          <Show when={o.description}><span class="wb-form-choice-description" innerHTML={o.description} /></Show>
-                        </span>
-                      </label>
-                    )}
-                  </For>
-                </div>
-              </fieldset>
-            </Match>
-            <Match when={f.type === 'radio' || f.type === 'checkbox'}>
-              <fieldset class="wb-form-field">
-                <legend class="wb-form-label" innerHTML={f.label} />
-                <div class="wb-form-options">
-                  <For each={f.options}>
-                    {o => (
-                      <label class="wb-form-check">
-                        <input type={f.type} name={f.name} value={o.value} checked={isChecked(initial, f, o)} />
-                        {o.value}
-                      </label>
-                    )}
-                  </For>
-                </div>
-              </fieldset>
-            </Match>
-            <Match when={true}>
-              <label class="wb-form-field">
-                <span class="wb-form-label" innerHTML={f.label} />
-                <input type={f.type} name={f.name} placeholder={f.placeholder} value={text(f)} />
-              </label>
-            </Match>
-          </Switch>
-        )}
-      </For>
-      <div class="wb-form-actions">
-        <For each={props.buttons}>
-          {(b, i) => (
-            <button type="submit" name="action" value={b} class={{ 'wb-primary': i() === 0, 'wb-chosen': last()?.action === b }}>
-              {b}
-            </button>
-          )}
-        </For>
-      </div>
-      <Show when={last()}>
-        {l => (
-          <div class="wb-form-status">
-            ✓ sent <Show when={l().action}><b>{l().action}</b></Show> · {new Date(l().ts).toLocaleString()}
-          </div>
-        )}
-      </Show>
-      <Thread form={props.name} fields={props.fields} />
-    </form>
-  )
-}
-
-export default solid(Form)
+export default solid(Thread)
