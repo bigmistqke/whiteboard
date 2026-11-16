@@ -21,6 +21,7 @@ const OWN = {
   '@bigmistqke/whiteboard/solid': 'solid/index.js',
   // plain JavaScript, run as it is: outside dist/
   '@bigmistqke/whiteboard/terminal': '../terminal/index.js',
+  '@bigmistqke/whiteboard/claude-code': '../claude-code/index.js',
 }
 
 const versionOf = url => new URL(url).searchParams.get('wb-v')

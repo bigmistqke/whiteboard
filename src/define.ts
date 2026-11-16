@@ -53,6 +53,13 @@ export interface Extension {
   setup?(ctx: ExtensionContext): ExtensionHooks | Promise<ExtensionHooks>
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>
+  /**
+   * The agent session the command line runs in, for an extension that knows how its agent says so
+   * (Claude Code's reads `CLAUDE_CODE_SESSION_ID`); null when it doesn't run in one. `whiteboard
+   * new` claims the page it makes for this session, and `whiteboard status` marks the session's
+   * pages. The first extension that names a session wins.
+   */
+  session?(): string | null | undefined | Promise<string | null | undefined>
 }
 
 export const defineExtension = (extension: Extension): Extension => extension
@@ -151,6 +158,29 @@ export interface CommandContext {
   pagePath(page?: string): string
   /** a link that gives a browser the project's token, then goes to `path` */
   authLink(path: string): Promise<string>
+  /** what is open on each page (or on `page` and the pages below it), as `whiteboard status` reports it */
+  status(page?: string): Promise<PageStatus[]>
+  /** record that `event` was handed to an agent, as a wait does: from then on it counts as picked up */
+  pickUp(event: WbEvent): void
+}
+
+/** What is open on one page. */
+export interface PageStatus {
+  page: string
+  /** the page's file */
+  file: string
+  /** the session that claimed the page with `whiteboard new`, if one did */
+  owner: string | null
+  /** the event types the page waits on the reader for (its renderer's `expects`) */
+  asks: string[]
+  /** those no event from the reader answered yet */
+  open: string[]
+  /** the open ones no running wait or watch listens for */
+  unheard: string[]
+  /** the reader's events on the page that no wait, watch or hook handed out */
+  unpicked: WbEvent[]
+  /** the running waits and watches that cover the page */
+  listeners: Listener[]
 }
 
 // ---- renderers ---------------------------------------------------------------------------------

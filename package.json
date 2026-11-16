@@ -44,6 +44,9 @@
     "./terminal": {
       "default": "./terminal/index.js"
     },
+    "./claude-code": {
+      "default": "./claude-code/index.js"
+    },
     "./solid": {
       "types": "./solid/index.tsx",
       "default": "./dist/solid/index.js"
@@ -56,6 +59,7 @@
     "markboard",
     "solid",
     "terminal",
+    "claude-code",
     "skills"
   ],
   "scripts": {

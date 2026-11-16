@@ -188,18 +188,25 @@ agent forgetting a wait is caught from outside it:
   returns their event types. A question is open while no event of its type
   came from the reader.
 - **Claims.** `whiteboard new` appends a `whiteboard:claim` event with the
-  session that made the page (`CLAUDE_CODE_SESSION_ID`); the colon keeps it
-  apart from form names.
+  agent session that made the page; the colon keeps it apart from form
+  names. Which session runs a command is something only the agent's tooling
+  knows, so the core asks the project's extensions (`session()`), and
+  records no claim when none names one.
 - **Status.** `/api/status` and `whiteboard status` give, per page: its open
   questions, those no listener covers (unheard), the reader's events no wait
   or watch picked up, its listeners and its claim.
-- **Hooks.** `whiteboard status --hook stop|prompt|session` is what Claude
-  Code runs (`whiteboard hooks install` adds them; `init` asks). None blocks.
-  `stop` shows the reader what on the session's pages nobody listens for.
-  `prompt` and `session` give the agent, as context, the answers on its
-  pages nobody picked up, and count them as picked up (a `whiteboard:picked`
-  event each); `session` also lists what is open on other sessions' pages,
-  without handing it over.
+- **Hooks.** Reporting the status to an agent is an extension, since how is
+  particular to each agent, and the core has no agent-specific code. The
+  Claude Code extension (`claude-code/`) names the session from
+  `CLAUDE_CODE_SESSION_ID`, and adds `whiteboard claude-code hook
+  stop|prompt|session`, which Claude Code runs (`whiteboard claude-code
+  install` adds them). None blocks. `stop` shows the reader what on the
+  session's pages nobody listens for. `prompt` and `session` give the agent,
+  as context, the answers on its pages nobody picked up, and count them as
+  picked up (a `whiteboard:picked` event each); `session` also lists what is
+  open on other sessions' pages, without handing it over. An extension's
+  command gets the status and the pick-up from the core (`ctx.status()`,
+  `ctx.pickUp()`).
 
 ### Loading and reloading
 

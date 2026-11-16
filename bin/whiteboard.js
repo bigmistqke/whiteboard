@@ -2,8 +2,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { spawn, spawnSync } from 'node:child_process'
-import readline from 'node:readline/promises'
+import { spawn } from 'node:child_process'
 import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
@@ -34,7 +33,6 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard watch [filters]       like wait, but never exits: print each matching event once
   whiteboard append --page <p> --type <t> [--data <json>]   add an event to a page's log (e.g. a reply)
   whiteboard status [--page <p>]   per page: questions without an answer, answers no agent picked up, who listens
-  whiteboard hooks install [--user]   add Claude Code hooks that report the status (this project, or all)
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
 
@@ -56,7 +54,6 @@ const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { valu
   options: {
     page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
     since: { type: 'string' }, last: { type: 'string' }, help: { type: 'boolean', short: 'h' },
-    hook: { type: 'string' }, user: { type: 'boolean' },
   },
 })
 
@@ -229,118 +226,50 @@ token
   config:    ${path.join(wb, 'config.ts')}`)
 }
 
-/**
- * Claude Code hooks that report `whiteboard status`, none of which ever blocks: when a turn ends,
- * the reader sees what nobody listens for; a message the reader sends, and a new session, bring in
- * the answers no agent picked up. Added to the project's .claude/settings.json, or the user's.
- */
-function installHooks(user, dir = user ? null : needProject().dir) {
-  const file = user ? path.join(os.homedir(), '.claude', 'settings.json') : path.join(dir, '.claude', 'settings.json')
-  let settings = {}
-  if (fs.existsSync(file)) {
-    try { settings = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { throw new Error(`${file} is not valid JSON; fix it first`) }
-  }
-  // the hooks run outside any project folder's node_modules/.bin, so name the command that works here
-  const onPath = spawnSync('sh', ['-c', 'command -v whiteboard'], { encoding: 'utf8' }).status === 0
-  const bin = onPath ? 'whiteboard' : 'npx whiteboard'
-  const added = []
-  settings.hooks ??= {}
-  for (const [event, mode] of [['Stop', 'stop'], ['UserPromptSubmit', 'prompt'], ['SessionStart', 'session']]) {
-    const groups = (settings.hooks[event] ??= [])
-    if (groups.some(g => g.hooks?.some(h => /\bwhiteboard status --hook\b/.test(h.command ?? '')))) continue
-    groups.push({ hooks: [{ type: 'command', command: `${bin} status --hook ${mode}` }] })
-    added.push(event)
-  }
-  if (!added.length) { console.log(`hooks already installed: ${file}`); return }
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(`${file}.tmp`, JSON.stringify(settings, null, 2) + '\n')
-  fs.renameSync(`${file}.tmp`, file)
-  console.log(`hooks added to ${file}: ${added.join(', ')}`)
-}
-
-/** Ask a yes/no question on the terminal; no terminal (an agent running the command) means no. */
-async function confirm(question) {
-  if (!process.stdin.isTTY) return false
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-  const answer = await rl.question(`${question} [y/N] `)
-  rl.close()
-  return /^y(es)?$/i.test(answer.trim())
-}
-
 // ---- status ------------------------------------------------------------------------------------
 
-const SESSION = process.env.CLAUDE_CODE_SESSION_ID ?? null
 const relFile = file => path.relative(process.cwd(), file) || file
 
+/**
+ * The agent session this command runs in, as the project's extensions know it (Claude Code's
+ * extension reads it from the environment): the first one that names one. Null without any.
+ */
+async function currentSession(proj) {
+  try {
+    const { config } = createConfigLoader(proj.configFile)
+    for (const e of (await config()).extensions) {
+      const session = typeof e.session === 'function' ? await e.session() : null
+      if (session) return String(session)
+    }
+  } catch (err) { console.error(`whiteboard: which session runs this: ${err.message}`) }
+  return null
+}
+
 /** What is open on a page, one line each; the command that picks it up comes last, once. */
-function statusLines(p, { waiting = true } = {}) {
+function statusLines(p) {
   const lines = []
   if (p.unpicked.length) lines.push(`${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent picked up (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`)
   if (p.unheard.length) lines.push(`nobody listens for ${p.unheard.join(', ')}`)
   if (lines.length) lines.push(`→ whiteboard wait --page ${relFile(p.file)}`)
   const heard = p.open.filter(t => !p.unheard.includes(t))
-  if (waiting && heard.length) lines.push(`waiting for the reader: ${heard.join(', ')}`)
+  if (heard.length) lines.push(`waiting for the reader: ${heard.join(', ')}`)
   return lines
 }
 
 const whose = (p, session) => (p.owner && p.owner === session ? 'yours' : p.owner ? `session ${p.owner.slice(0, 8)}` : 'no session')
 
-/** stdin of a hook: the JSON Claude Code passes it, or nothing. */
-function hookInput() {
-  if (process.stdin.isTTY) return {}
-  try { return JSON.parse(fs.readFileSync(0, 'utf8') || '{}') } catch { return {} }
-}
-
 async function status() {
-  const hook = opts.hook
-  if (hook && !['stop', 'prompt', 'session'].includes(hook)) throw new Error('--hook is one of: stop, prompt, session')
-  // a hook runs in every folder Claude Code works in: outside a project it has nothing to say
-  if (hook && !project) return
   const proj = needProject()
-  const input = hook ? hookInput() : {}
-  const session = input.session_id ?? SESSION
-  const pages = await api(`/api/status${opts.page ? `?page=${encodeURIComponent(pageId(proj, opts.page))}` : ''}`)
+  const [pages, session] = await Promise.all([
+    api(`/api/status${opts.page ? `?page=${encodeURIComponent(pageId(proj, opts.page))}` : ''}`),
+    currentSession(proj),
+  ])
   const busy = pages.filter(p => p.unpicked.length || p.open.length)
-  const mine = busy.filter(p => session && p.owner === session)
-
-  if (!hook) {
-    if (!busy.length) { console.log('nothing open: every question is answered, and every answer picked up'); return }
-    for (const p of busy) {
-      console.log(`${p.page} (${whose(p, session)})`)
-      for (const l of statusLines(p)) console.log(`  ${l}`)
-    }
-    return
+  if (!busy.length) { console.log('nothing open: every question is answered, and every answer picked up'); return }
+  for (const p of busy) {
+    console.log(`${p.page} (${whose(p, session)})`)
+    for (const l of statusLines(p)) console.log(`  ${l}`)
   }
-
-  if (hook === 'stop') {
-    // shown to the reader when a turn ends, never blocking it: what on this session's pages nobody listens for
-    const loose = mine.filter(p => p.unheard.length || p.unpicked.length)
-    if (!loose.length) return
-    const said = p => { const l = statusLines(p, { waiting: false }); return `${l.slice(0, -1).join('; ')} ${l.at(-1)}` }
-    console.log(JSON.stringify({ systemMessage: `whiteboard: ${loose.map(p => `${p.page}: ${said(p)}`).join(' · ')}` }))
-    return
-  }
-
-  // prompt and session: what is printed becomes context for the agent. Answers on its own pages
-  // that no wait picked up are handed over here, and count as picked up from then on.
-  const out = []
-  for (const p of mine) {
-    if (p.unpicked.length) {
-      out.push(`Answers on your page ${p.page} (${relFile(p.file)}) that no wait picked up; they count as picked up now:`)
-      for (const e of p.unpicked) out.push(JSON.stringify(e))
-      for (const e of p.unpicked) markPicked(proj.eventsFile, e)
-    }
-    if (p.unheard.length) out.push(`Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}: run \`whiteboard wait --page ${relFile(p.file)}\` in the background.`)
-  }
-  if (hook === 'session') {
-    // a new session may carry on work another one started: say what is open elsewhere, without handing it over
-    const others = busy.filter(p => !mine.includes(p))
-    if (others.length) {
-      out.push('Other pages in this whiteboard project with something open (not this session\'s; their answers stay for whoever waits on them):')
-      for (const p of others) out.push(`- ${p.page} (${whose(p, session)}): ${statusLines(p).join(' ')}`)
-    }
-  }
-  if (out.length) console.log(out.join('\n'))
 }
 
 switch (cmd) {
@@ -353,10 +282,7 @@ switch (cmd) {
     break
   }
   case 'init': {
-    const before = configFileIn(path.join(process.cwd(), '.whiteboard'))
     init(positionals[0])
-    if (!before && await confirm('Add Claude Code hooks that tell you and the agent what is unanswered or unheard (.claude/settings.json)?')) installHooks(false, process.cwd())
-    else if (!before) console.log('  hooks:     not added; `whiteboard hooks install` adds them later')
     break
   }
   case 'root': {
@@ -382,8 +308,9 @@ switch (cmd) {
       fs.mkdirSync(path.dirname(file), { recursive: true })
       try {
         fs.writeFileSync(file, '', { flag: 'wx' })
-        // the session that made the page: the hooks report a page to the session it belongs to
-        if (SESSION) appendEvent(proj.eventsFile, { page: id, type: CLAIM, data: { session: SESSION } }, 'cli')
+        // the session that made the page: what is open on it is reported to that session
+        const session = await currentSession(proj)
+        if (session) appendEvent(proj.eventsFile, { page: id, type: CLAIM, data: { session } }, 'cli')
         console.log(file)
         break
       } catch (err) {
@@ -474,17 +401,8 @@ switch (cmd) {
     break
   }
   case 'status':
-    // a hook that fails must not get in the way of the session it runs in: say why, and exit cleanly
-    try { await status() } catch (err) {
-      if (!opts.hook) throw err
-      console.error(`whiteboard status: ${err.message}`)
-    }
+    await status()
     break
-  case 'hooks': {
-    if (positionals[0] !== 'install') throw new Error('usage: whiteboard hooks install [--user]')
-    installHooks(!!opts.user)
-    break
-  }
   case 'skill': {
     // the agent skill ships in this package; link it into whatever folder an agent reads skills from
     const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'whiteboard')
@@ -522,17 +440,22 @@ switch (cmd) {
         token: projectToken(project.wb),
         server: ensureServer,
         pagePath: page => `/${pageId(project, page ?? '')}`,
+        status: async page => api(`/api/status${page ? `?page=${encodeURIComponent(pageId(project, page))}` : ''}`),
+        pickUp: event => { markPicked(project.eventsFile, event) },
         authLink: async to => `${await ensureServer()}/_/auth?token=${encodeURIComponent(projectToken(project.wb))}&to=${encodeURIComponent(to)}`,
       })
       break
     }
-    console.log(HELP)
+    // asked for, the help goes to standard output; after a command it doesn't know, to standard error
+    const asked = !cmd || cmd === 'help' || opts.help
+    const print = asked ? console.log : console.error
+    print(HELP)
     if (commands.length) {
-      console.log(`\nfrom this project's extensions:\n`)
-      for (const c of commands) console.log(`  whiteboard ${[c.name, usage(c.command)].filter(Boolean).join(' ')}\n      ${c.command.description}`)
+      print(`\nfrom this project's extensions:\n`)
+      for (const c of commands) print(`  whiteboard ${[c.name, usage(c.command)].filter(Boolean).join(' ')}\n      ${c.command.description}`)
     }
     if (mine.length) console.error(`\nwhiteboard: ${cmd} has no command ${JSON.stringify(rest[0] ?? '')}`)
-    if (cmd && cmd !== 'help' && !opts.help) process.exit(1)
+    if (!asked) process.exit(1)
   }
 }
 

@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "whiteboard status --hook stop"
+            "command": "whiteboard claude-code hook stop"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "whiteboard status --hook prompt"
+            "command": "whiteboard claude-code hook prompt"
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "whiteboard status --hook session"
+            "command": "whiteboard claude-code hook session"
           }
         ]
       }

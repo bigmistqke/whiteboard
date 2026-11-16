@@ -178,6 +178,33 @@ whiteboard terminal stop               # end the session and its host
 With `command: 'claude'`, `whiteboard terminal --restart -- --resume <id>`
 continues a Claude Code session in the drawer.
 
+## Claude Code hooks
+
+The Claude Code extension tells an agent session what is open on its pages,
+from outside the agent, so a forgotten wait gets noticed:
+
+```ts
+import claudeCode from '@bigmistqke/whiteboard/claude-code'
+
+export default defineConfig({
+  renderers: [markboard()],
+  extensions: [claudeCode()],
+})
+```
+
+With it, `whiteboard new` claims the page it makes for the Claude Code
+session that ran it, and `whiteboard status` marks that session's pages.
+`whiteboard claude-code install` adds three hooks to the project's
+`.claude/settings.json`, and replaces the ones older versions added. None of
+them ever blocks:
+
+- when a turn ends with something on the session's pages nobody listens for,
+  you see a one-line warning;
+- when you send a message, answers on the session's pages that no wait
+  picked up come with it, and count as picked up from then on;
+- a new session starts with the same, plus what is open on other sessions'
+  pages (not handed over: those answers stay for whoever waits on them).
+
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
 that is only sent from the project's own pages, and requests from another
@@ -204,7 +231,6 @@ upward with `.whiteboard/config.ts`.
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
 | `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent picked up, who is listening |
-| `whiteboard hooks install [--user]` | add Claude Code hooks that report the status: a warning when a turn ends with something unheard, unpicked answers brought into the next message and into new sessions; none blocks |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 
