@@ -13,5 +13,5 @@
     "types": ["node"],
     "allowJs": true
   },
-  "include": ["src/**/*", "markboard/**/*", "solid/**/*", "terminal/**/*", "forms/**/*", "comments/**/*", "claude-code/**/*"]
+  "include": ["src/**/*", "markboard/**/*", "solid/**/*", "terminal/**/*", "comments/**/*", "claude-code/**/*"]
 }

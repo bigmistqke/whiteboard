@@ -178,40 +178,21 @@ arguments before its code runs.
   buttons go in `api.corner()` and counts in the title through
   `api.badge()`, so a renderer and extensions never need to know about each
   other.
-- **Move out until the core is small.** What is in the core or in markboard
-  but isn't about pages, the log or markdown becomes an extension: the
-  terminal, the Claude Code hooks, named forms and comments. The contract
-  held for all four; what's left in markboard is about markdown.
-- **Renderers stay their own kind for now.** A renderer could become an
-  extension that answers `render`; forms and comments have now tested the
-  contract, so that is the next question, not yet decided.
-
-### Named forms (`forms/`)
-
-An extension, so that a `<form name>` works on a page of any renderer:
-
-- **Submits.** Every `<form name="…">` without an `action` attribute that
-  is submitted appends an event: its name as `type`, the button as
-  `action`, the fields as `data`. What the reader types is kept as a draft
-  in localStorage until it is sent, so it survives a re-render and a
-  reload. A plain form gets its last answer back; one inside a template
-  island looks after that itself.
-- **What waits on whom.** A form is marked "waiting for you" when a
-  listener asks for it by name (also when it was answered before: the agent
-  wants a new answer), or when a listener takes any answer on the page and
-  the form has none yet. An unanswered form nobody listens for says so, so
-  the reader knows an answer would go unheard for now. An answered form is
-  "waiting for the agent" until a `wait` or `watch` hands its answer out
-  (the core marks such events `pickedUp`, from the `whiteboard:picked`
-  events in the log), and then decided: it folds into one line quoting the
-  answer, and a click opens it again to change it. A line before the
-  page's `<main>` counts the four states and jumps through each, a button
-  in the corner jumps from one waiting form to the next, and the title gets
-  a `(!n)` badge.
-- **Which forms a page asks** stays the renderer's (`expects`): only it can
-  read its own syntax.
-- **Its look** uses the renderer's theme variables when they are there
-  (`--accent`, `--muted`, …), with fallbacks.
+- **An extension owns a whole feature.** Its event types, what it draws
+  and what it tells agents, end to end, so taking it out of the config
+  removes the feature and breaks nothing else: the terminal, the Claude
+  Code hooks, comments. A behaviour that is half a core protocol and half
+  a renderer's look is neither: named forms are the core's protocol, and
+  how they look is the renderer's.
+- **Renderers stay their own kind.** A renderer is chosen (one per page:
+  the first, or the one the page names), an extension is added (all of
+  them, on every page). One list of plugins would not remove that choice,
+  only turn it into a rule about the list, so the config keeps saying
+  plainly what renders and what is added. The two already share their
+  shape where it overlaps: a name, a `client` with the same `mount`, and
+  `docs()`. When a renderer needs routes, commands or a folder of its own,
+  it gets `setup` and `commands` the way an extension does; until one does,
+  that stays unbuilt.
 
 ### Comments (`comments/`)
 
@@ -225,6 +206,38 @@ never changes for them. A badge in the margin opens each open thread; it
 is filled when the agent spoke last. How an agent answers is in its
 `docs()`, which `whiteboard docs` prints after the renderers': an
 extension can document what it sends to the log.
+
+### Named forms
+
+Whiteboard's one interaction primitive, so the core's, on every page
+whatever renderer drew it (`src/client/forms.ts`). It draws nothing; how
+it looks is the renderer's.
+
+- **Submits.** A `<form name="…">` without an `action` attribute (one with
+  an action submits normally) is a question. Submitting it appends an
+  event: its name as `type`, the button as `action`, the fields as `data`.
+  `data-wb-state` says how sending went (sending, sent, failed).
+- **Drafts and the last answer.** What the reader types is kept in
+  localStorage until it is sent, so it survives a re-render and a reload;
+  the last answer goes back into the form, its button in `data-wb-sent`. A
+  form marked `data-wb-self` (or inside an element that is) keeps its own
+  fields, for a renderer's component that shows them itself.
+- **Where each stands.** Every form gets one of four attributes, from the
+  log and the listeners: `data-wb-waiting` when a listener asks for it by
+  name (also when it was answered before: the agent wants a new answer) or
+  takes any answer and it has none; `data-wb-unheard` when it has no answer
+  and nobody listens; `data-wb-pending` when it is answered but no `wait`
+  or `watch` handed the answer out (the core marks such events `pickedUp`,
+  from the `whiteboard:picked` events in the log); `data-wb-decided` once
+  one did, with `data-wb-outcome` quoting the answer in one line. The
+  states are marked again when the log, the listeners or the page change,
+  and `api.forms()` / `api.onForms()` give them to the renderer, for
+  drawing more than the attributes allow.
+- **Which forms a page asks** is the renderer's (`expects`): only it can
+  read its own syntax.
+
+An earlier version made this an extension. It held half of a core
+protocol and half of markboard's look, so it was split between the two.
 
 ### Events
 
@@ -325,7 +338,7 @@ templates.
    block added above one keeps it open), the reader's place on the page,
    and mounted islands whose props did not change all survive (islands
    carry a `data-wb-key` hashed from template + props), and so do the
-   `data-wb-*` marks an extension set (the forms extension's states).
+   `data-wb-*` marks set in the browser (the core's form states).
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab
@@ -343,15 +356,21 @@ templates.
      `(n)` badge.
 5. Leaves comments to the comments extension, which works on its
    `<main>`.
-6. Writes forms as markdown (the `form` template); sending them, drafts and
-   what waits on whom are the forms extension's. The template adds a
+6. Writes forms as markdown (the `form` template); sending them and
+   drafts are the core's. The template adds a
    thread under each form:
    messages are `thread` events (`{ form, text }`, from the reader or the
    agent), never submits, so asking about a choice never makes it. An agent
    message can name the submit whose typed text it answers (`replyTo`),
    shown as the reader's message before it, and can take the place of an
    earlier one (`replaces`), since the log only grows.
-7. Marks, on the overview, the pages an agent waits on.
+7. Shows what waits on whom, from the core's form states: a form waiting
+   for the reader is outlined and says so, one nobody listens for says
+   that, a decided one folds into one line quoting its answer (a click
+   opens it again to change it). A line above the page counts the four
+   states and jumps through each, a button in the page's corner jumps from
+   one waiting form to the next, the tab title gets a `(!n)` badge, and the
+   overview marks the pages an agent waits on.
 
 Nested containers may all use `:::`. markboard pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence

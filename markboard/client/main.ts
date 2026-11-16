@@ -1,11 +1,13 @@
-// markboard in the browser: mounts template islands, and patches the page in place when it changes
-// (named forms and comments are extensions of their own). Framework-free: an island's client module exports
+// markboard in the browser: mounts template islands, patches the page in place when it changes, and
+// shows what an agent waits for on the page's named forms (the core sends them and marks their
+// state). Comments are a plugin of their own. Framework-free: an island's client module exports
 // mount(element, props, api) (see types.ts).
 import morphdom from 'morphdom'
 import type { Api, PageHandle, RendererMount } from '../../src/define'
 import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
+import { trackWaiting } from './waiting'
 import { html } from '../../src/html.js'
 
 interface Island { template: string; client: string; props: unknown }
@@ -237,6 +239,7 @@ const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, coreA
 
   blockSigs = [...main.children].map(signature)
   if (!isDir) trackInitial(main, page, core)
+  if (!isDir) trackWaiting(main, core)
   await mountIslands()
   tickTimes()
 }

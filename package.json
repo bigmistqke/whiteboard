@@ -47,9 +47,6 @@
     "./claude-code": {
       "default": "./claude-code/index.js"
     },
-    "./forms": {
-      "default": "./forms/index.js"
-    },
     "./comments": {
       "default": "./comments/index.js"
     },
@@ -66,7 +63,6 @@
     "solid",
     "terminal",
     "claude-code",
-    "forms",
     "comments",
     "skills"
   ],

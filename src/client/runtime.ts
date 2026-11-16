@@ -3,6 +3,7 @@
 // does the rest. A page without a renderer client shows the server's HTML, replaced when it changes.
 import type { Api, ExtensionMount, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
 import { html } from '../html.js'
+import { formsApi, trackForms } from './forms'
 
 interface Handoff {
   id: string; kind: StoredPage['kind']; renderer: string | null; client: string | null; data: unknown
@@ -82,6 +83,7 @@ const api: Api = {
     writeTitle()
   },
   title(title) { baseTitle = title; writeTitle() },
+  ...formsApi,
 }
 
 // ---- the page ----------------------------------------------------------------------------------
@@ -151,6 +153,8 @@ if (handoff.client) {
     root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">renderer "${handoff.renderer}" failed to start: ${(err as Error).message}</pre>`))
   }
 }
+// named forms, once the renderer has put them on the page
+trackForms(root, page, api)
 // the extensions after the renderer, so that what they work on is on the page; one failing leaves the others
 await Promise.all((handoff.extensions ?? []).map(async ext => {
   try {

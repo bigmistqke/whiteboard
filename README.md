@@ -244,24 +244,22 @@ Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form
 // .whiteboard/config.ts
 import { defineConfig } from '@bigmistqke/whiteboard/config'
 import markboard from '@bigmistqke/whiteboard/markboard'
-import forms from '@bigmistqke/whiteboard/forms'
 import comments from '@bigmistqke/whiteboard/comments'
 
 export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
   renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
-  extensions: [forms(), comments()], // behaviour on every page, whatever the renderer: also terminal({ command }), claudeCode()
+  extensions: [comments()], // behaviour on every page, whatever the renderer: also terminal({ command }), claudeCode()
 })
 ```
 
 A page without a renderer shows as its raw text, live.
 
-`forms()` makes named forms work: a submit of a `<form name>` becomes an
-event, what you type is kept until you send it, and each form shows whether
-an agent is waiting for it. It works on a page of any renderer, and
-`whiteboard init` adds it. Without it, forms don't send. `comments()` lets
-you select any passage and comment on it; the agent replies in the thread.
+Named forms need nothing in the config: the core sends a submit of any
+`<form name>` as an event, on a page of any renderer. `comments()` lets you
+select any passage and comment on it; the agent replies in the thread.
+`whiteboard init` adds it.
 
 An extension (`defineExtension` from `@bigmistqke/whiteboard/config`)
 declares what it adds, and everything lives under its name, so two

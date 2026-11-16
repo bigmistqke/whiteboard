@@ -204,15 +204,14 @@ function init(name) {
   fs.mkdirSync(path.join(wb, 'pages'), { recursive: true })
   fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard/config'
 import markboard from '@bigmistqke/whiteboard/markboard'
-import forms from '@bigmistqke/whiteboard/forms'
 import comments from '@bigmistqke/whiteboard/comments'
 
 export default defineConfig({
 ${name ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}  renderers: [
     markboard(),
   ],
-  // named forms (a submit becomes an event, and what an agent waits for shows), and comments on any passage
-  extensions: [forms(), comments()],
+  // comments on any passage of a page
+  extensions: [comments()],
 })
 `)
   fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git

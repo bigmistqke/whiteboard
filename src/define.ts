@@ -379,4 +379,31 @@ export interface Api {
   badge(key: string, text: string | null, order?: number): void
   /** the page's own title, behind the badges: for a renderer whose page changes its title */
   title(title: string): void
+  /**
+   * The page's named forms and where each stands. The core looks after every `<form name>` without
+   * an `action`: it sends a submit as an event, keeps drafts, puts the last answer back, and marks
+   * each form with its state (`data-wb-waiting`, `-unheard`, `-pending`, `-decided`). How that
+   * looks is the renderer's; this is for drawing more than the attributes allow (a summary, a count)
+   */
+  forms(): FormStatus[]
+  /** called after the forms were marked again: the log, the listeners or the page changed */
+  onForms(fn: (forms: FormStatus[]) => void): () => void
+}
+
+/**
+ * Where a named form stands:
+ * - waiting: an agent is listening and wants its answer
+ * - unheard: no answer, and no agent is listening
+ * - pending: answered, but no agent has picked the answer up yet
+ * - decided: an agent picked up its latest answer
+ */
+export type FormState = 'waiting' | 'unheard' | 'pending' | 'decided'
+
+export interface FormStatus {
+  form: HTMLFormElement
+  /** the form's name: the type of its answers */
+  name: string
+  state: FormState
+  /** its latest answer */
+  last: WbEvent | undefined
 }
