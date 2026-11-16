@@ -175,9 +175,6 @@ button {
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
 }
 button:hover { border-color: var(--muted); }
-form[data-wb-state=sending] { opacity: .7; }
-form[data-wb-sent]:not(.wb-form)::after { content: "✓ sent " attr(data-wb-sent); display: block; margin-top: 6px; color: var(--ok); font: .8rem var(--sans); }
-form[data-wb-state=failed]:not(.wb-form)::after { content: "failed to send"; color: var(--bad); }
 
 /* new content since the reader last saw the page */
 #wb-main > * { scroll-margin-top: 72px; }
@@ -191,32 +188,14 @@ form[data-wb-state=failed]:not(.wb-form)::after { content: "failed to send"; col
 .wb-fresh button { display: inline-flex; align-items: center; gap: 8px; }
 .wb-fresh-close { display: inline-block; margin-right: -4px; padding: 0 4px; border-left: 1px solid rgb(255 255 255 / .35); opacity: .75; }
 .wb-fresh-close:hover { opacity: 1; }
-/* above anything the core puts at the bottom of the window (the terminal drawer) */
-.wb-dock { position: fixed; right: 16px; bottom: calc(16px + var(--wb-inset-bottom, 0px)); z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .wb-fresh { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.wb-waiting-next { background: var(--accent); color: var(--accent-text); border-color: var(--accent); border-radius: 99px; font-size: .8rem; }
-.wb-waiting-next[hidden] { display: none; }
 
-/* what an agent is waiting for: a running `whiteboard wait` or `watch` covers the form */
-form[data-wb-waiting] { outline: 2px solid var(--accent); outline-offset: 10px; border-radius: 2px; }
-form[data-wb-waiting]::before { content: "waiting for you"; display: block; margin-bottom: 8px; color: var(--accent); font: 600 .75rem/1.4 var(--sans); letter-spacing: .04em; text-transform: uppercase; }
-form[data-wb-unheard]::before { content: "no agent is listening for this right now"; display: block; margin-bottom: 8px; color: var(--muted); font: .75rem/1.4 var(--sans); }
-form[data-wb-pending]::before { content: "sent · waiting for the agent to pick it up"; display: block; margin-bottom: 8px; color: var(--muted); font: .75rem/1.4 var(--sans); }
-/* decided: the agent picked up the latest answer; the form folds into one line quoting it */
-form[data-wb-folded] { cursor: pointer; }
-form[data-wb-folded] > * { display: none !important; }
-form[data-wb-folded]::before { content: "✓ " attr(data-wb-outcome); display: block; white-space: pre-line; color: var(--text); font: .95rem/1.5 var(--sans); }
-form[data-wb-folded]::after { content: "decided · click to change the answer"; display: block; margin-top: 4px; color: var(--muted); font: .75rem/1.4 var(--sans); }
-form[data-wb-folded]:hover::after { color: var(--accent); }
 form.wb-form[data-wb-folded] { padding: 1em 0; gap: 0; }
 .wb-index .wb-waiting { color: var(--accent); font-weight: 600; }
-.wb-summary { max-width: calc(var(--measure) + var(--indent, 34px) + 32px); margin: 0 auto; padding: 96px 16px 0; box-sizing: border-box; color: var(--muted); font: .8rem/1.5 var(--sans); }
+/* the forms extension's summary line, placed in this layout */
+.wb-summary { max-width: calc(var(--measure) + var(--indent, 34px) + 32px); margin: 0 auto; padding: 96px 16px 0; box-sizing: border-box; }
 /* the summary takes the space above the title that the page would otherwise start with */
 .wb-summary:not([hidden]) + main { padding-top: 20px; }
-.wb-summary[hidden] { display: none; }
-.wb-summary button { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
-.wb-summary button:hover { color: var(--text); }
-.wb-summary button[data-state=waiting] { color: var(--accent); font-weight: 600; }
 .wb-fresh[hidden], .wb-fresh button[hidden] { display: none; }
 .wb-fresh button { background: var(--bad); color: #fff; border-color: var(--bad); border-radius: 99px; font-size: .8rem; }
 

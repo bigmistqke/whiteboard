@@ -4,6 +4,7 @@
 // have been in view for a moment with the tab visible. Floating buttons jump to unseen blocks.
 
 import { html } from '../../src/html.js'
+import type { Api } from '../../src/define'
 import { viewBottom } from './view'
 
 const DWELL_MS = 600
@@ -13,7 +14,8 @@ const sigOf = new WeakMap<Element, string>()
 const unseen = new Set<Element>()
 const timers = new WeakMap<Element, number>()
 let storeKey = ''
-let baseTitle = document.title
+// set by trackInitial: a page that tracks nothing (the overview) has no bubbles
+let core: Api | undefined
 
 /**
  * FNV-1a over the block's HTML, ignoring per-render attributes and anything quiet: content inside
@@ -109,20 +111,10 @@ function markNew(el: Element) {
 
 // ---- navigator ---------------------------------------------------------------------------------
 
-/** The floating buttons at the bottom right: what waits for the reader, then what is new. */
-export const dock = document.createElement('div')
-dock.className = 'wb-dock'
-
-let titlePrefix = ''
-/** A prefix for the tab title, in front of the new-content count: what waits for the reader. */
-export function setTitlePrefix(prefix: string) {
-  titlePrefix = prefix
-  update()
-}
-
+// the "new" bubbles, in the page's corner (the core's), and their count in the tab title
 const nav = document.createElement('div')
 nav.className = 'wb-fresh'
-dock.append(nav)
+
 nav.innerHTML = String(html`${['up', 'down'].map(dir =>
   html`<button type="button" data-dir="${dir}"><span class="wb-fresh-label"></span><span class="wb-fresh-close" title="Mark everything new as seen" aria-label="Mark everything new as seen">✕</span></button>`)}`)
 const [upBtn, downBtn] = nav.querySelectorAll('button')
@@ -154,7 +146,7 @@ function update() {
     upBtn.querySelector('.wb-fresh-label')!.textContent = `↑ new (${above.length})`
     downBtn.querySelector('.wb-fresh-label')!.textContent = `↓ new (${below.length})`
     nav.hidden = !above.length && !below.length
-    document.title = `${titlePrefix}${unseen.size ? `(${unseen.size}) ` : ''}${baseTitle}`
+    core?.badge('new', unseen.size ? String(unseen.size) : null)
   })
 }
 
@@ -179,11 +171,11 @@ const RECOGNISED_MIN = 0.25
  * when so little is recognised that the page is effectively a different one (a rewrite, say),
  * nothing is marked: marking every block tells the reader nothing.
  */
-export function trackInitial(main: HTMLElement, page: string) {
+export function trackInitial(main: HTMLElement, page: string, api: Api) {
+  core = api
+  api.corner().append(nav)
   mainEl = main
   storeKey = `wb-seen:${page}`
-  baseTitle = document.title
-  document.body.append(dock)
   const blocks = [...main.children]
   const sigs = blocks.map(signature)
   blocks.forEach((el, i) => sigOf.set(el, sigs[i]))
@@ -196,8 +188,7 @@ export function trackInitial(main: HTMLElement, page: string) {
 }
 
 /** After a live update: blocks whose content was not on the page before are new. */
-export function trackUpdate(main: HTMLElement, previous: string[], next: string[], title: string) {
-  baseTitle = title
+export function trackUpdate(main: HTMLElement, previous: string[], next: string[]) {
   const before = new Map<string, number>()
   for (const s of previous) before.set(s, (before.get(s) ?? 0) + 1)
   const blocks = [...main.children]

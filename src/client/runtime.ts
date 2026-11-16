@@ -1,10 +1,14 @@
 // The core in the browser: the page's events, the live channel, and handing the page to its
 // renderer. Framework-free, and it draws nothing: the renderer's client gets the root element and
 // does the rest. A page without a renderer client shows the server's HTML, replaced when it changes.
-import type { Api, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
+import type { Api, ExtensionMount, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
 import { html } from '../html.js'
 
-interface Handoff { id: string; kind: StoredPage['kind']; renderer: string | null; client: string | null; data: unknown }
+interface Handoff {
+  id: string; kind: StoredPage['kind']; renderer: string | null; client: string | null; data: unknown
+  /** the extensions' browser modules */
+  extensions: { name: string; client: string }[]
+}
 
 const handoff: Handoff = JSON.parse(document.getElementById('wb-page')!.textContent!)
 const root = document.getElementById('wb-root')!
@@ -46,6 +50,20 @@ async function loadListeners() {
   for (const fn of listenerListeners) fn(listeners)
 }
 
+const renderedListeners = new Set<() => void>()
+
+// ---- the corner and the title ------------------------------------------------------------------
+
+// the server puts it in the page; a page from a server older than this runtime has none
+const corner = document.getElementById('wb-dock') ?? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'wb-dock' }))
+let baseTitle = document.title
+const badges = new Map<string, { text: string; order: number; since: number }>()
+let badgeCount = 0
+function writeTitle() {
+  const list = [...badges.values()].sort((a, b) => a.order - b.order || a.since - b.since)
+  document.title = `${list.map(b => `(${b.text}) `).join('')}${baseTitle}`
+}
+
 const api: Api = {
   page,
   events: () => events,
@@ -55,6 +73,15 @@ const api: Api = {
   append,
   listeners: () => listeners,
   onListeners(fn) { listenerListeners.add(fn); return () => listenerListeners.delete(fn) },
+  rendered() { for (const fn of renderedListeners) fn() },
+  onRendered(fn) { renderedListeners.add(fn); return () => renderedListeners.delete(fn) },
+  corner: () => corner,
+  badge(key, text, order = 0) {
+    if (text == null) badges.delete(key)
+    else badges.set(key, { text, order, since: badges.get(key)?.since ?? badgeCount++ })
+    writeTitle()
+  },
+  title(title) { baseTitle = title; writeTitle() },
 }
 
 // ---- the page ----------------------------------------------------------------------------------
@@ -77,7 +104,7 @@ const handle: PageHandle = {
 }
 
 // without a renderer client, the server's HTML is the page: replace it when the page changes
-if (!handoff.client) handle.onChange(async () => { root.innerHTML = (await handle.render()).html })
+if (!handoff.client) handle.onChange(async () => { root.innerHTML = (await handle.render()).html; api.rendered() })
 
 // ---- live channel ------------------------------------------------------------------------------
 
@@ -124,4 +151,15 @@ if (handoff.client) {
     root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">renderer "${handoff.renderer}" failed to start: ${(err as Error).message}</pre>`))
   }
 }
+// the extensions after the renderer, so that what they work on is on the page; one failing leaves the others
+await Promise.all((handoff.extensions ?? []).map(async ext => {
+  try {
+    const mount: ExtensionMount = (await import(ext.client)).default
+    if (typeof mount !== 'function') throw new Error('the client module must export a mount(root, page, api) function as default')
+    await mount(root, handle, api)
+  } catch (err) {
+    console.error(`extension ${ext.name}:`, err)
+    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">extension "${ext.name}" failed in the browser: ${(err as Error).message}</pre>`))
+  }
+}))
 connect()

@@ -178,6 +178,14 @@ whiteboard terminal stop               # end the session and its host
 With `command: 'claude'`, `whiteboard terminal --restart -- --resume <id>`
 continues a Claude Code session in the drawer.
 
+The terminal runs code, so it needs the project's token: `.whiteboard/token`,
+made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
+that is only sent from the project's own pages, and requests from another
+origin are refused. Any extension can ask the core whether a request has it.
+It needs `node-pty`, an optional dependency; without it the drawer says what
+to install. The host listens on `.whiteboard/terminal/host.sock`, readable
+by its owner only, and leaves ten minutes after its program ended.
+
 ## Claude Code hooks
 
 The Claude Code extension tells an agent session what is open on its pages,
@@ -204,14 +212,6 @@ them ever blocks:
   picked up come with it, and count as picked up from then on;
 - a new session starts with the same, plus what is open on other sessions'
   pages (not handed over: those answers stay for whoever waits on them).
-
-The terminal runs code, so it needs the project's token: `.whiteboard/token`,
-made on first use and gitignored. The link (`/_/auth`) sets it as a cookie
-that is only sent from the project's own pages, and requests from another
-origin are refused. Any extension can ask the core whether a request has it.
-It needs `node-pty`, an optional dependency; without it the drawer says what
-to install. The host listens on `.whiteboard/terminal/host.sock`, readable
-by its owner only, and leaves ten minutes after its program ended.
 
 ## Commands
 
@@ -244,16 +244,22 @@ Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form
 // .whiteboard/config.ts
 import { defineConfig } from '@bigmistqke/whiteboard/config'
 import markboard from '@bigmistqke/whiteboard/markboard'
+import forms from '@bigmistqke/whiteboard/forms'
 
 export default defineConfig({
   name: 'my-project',    // shown in titles (default: the folder name)
   renderers: [markboard()],  // the first is the default; a page picks another with `renderer: <name>` in its frontmatter
   files: true,           // serve and watch the rest of the project at /-/ (default: true)
-  extensions: [],        // behaviour on every page, whatever the renderer: terminal({ command }) for the drawer
+  extensions: [forms()], // behaviour on every page, whatever the renderer: forms(), terminal({ command }), claudeCode()
 })
 ```
 
 A page without a renderer shows as its raw text, live.
+
+`forms()` makes named forms work: a submit of a `<form name>` becomes an
+event, what you type is kept until you send it, and each form shows whether
+an agent is waiting for it. It works on a page of any renderer, and
+`whiteboard init` adds it. Without it, forms don't send.
 
 An extension (`defineExtension` from `@bigmistqke/whiteboard/config`)
 declares what it adds, and everything lives under its name, so two
@@ -266,6 +272,10 @@ extensions can't collide:
 - `commands` are `whiteboard <name>` and `whiteboard <name> <sub>`, with
   declared options that the core parses and checks.
 - `shell` adds markup at the end of every page's `<head>` and `<body>`.
+- `client` is a browser module the page imports after the renderer's, with
+  the page and the same api a renderer gets: events, listeners, a signal
+  after the renderer patched the page, the page's corner for floating
+  buttons, and counts in the tab title.
 - Its files go in `.whiteboard/<name>/`, which git ignores and which reloads
   nothing when it changes.
 

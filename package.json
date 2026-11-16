@@ -47,6 +47,9 @@
     "./claude-code": {
       "default": "./claude-code/index.js"
     },
+    "./forms": {
+      "default": "./forms/index.js"
+    },
     "./solid": {
       "types": "./solid/index.tsx",
       "default": "./dist/solid/index.js"
@@ -60,6 +63,7 @@
     "solid",
     "terminal",
     "claude-code",
+    "forms",
     "skills"
   ],
   "scripts": {

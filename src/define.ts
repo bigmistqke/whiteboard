@@ -102,6 +102,13 @@ export interface ExtensionHooks {
    * of view (markboard does).
    */
   shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
+  /**
+   * A browser module whose default export is an `ExtensionMount`: on every page, the core imports
+   * it once the renderer has mounted, and hands it the page and the api a renderer gets. For
+   * behaviour on the page's own content (its forms, say); markup of the extension's own can come
+   * from `shell` instead. Serve it with `ctx.asset`.
+   */
+  client?: URL | string
 }
 
 export interface Route {
@@ -284,6 +291,9 @@ export interface RenderContext {
 /** Default export of a renderer's `client` module. Return a cleanup, or nothing. */
 export type RendererMount = (root: HTMLElement, page: PageHandle, api: Api) => void | (() => void) | Promise<void | (() => void)>
 
+/** The default export of an extension's browser module: the same arguments as a renderer's mount. */
+export type ExtensionMount = (root: HTMLElement, page: PageHandle, api: Api) => void | Promise<void>
+
 /** The page, in the browser. */
 export interface PageHandle {
   id: string
@@ -343,4 +353,25 @@ export interface Api {
   /** the agents waiting for answers on this page right now */
   listeners(): Listener[]
   onListeners(fn: (listeners: Listener[]) => void): () => void
+  /**
+   * Say that the page's content changed in place: a renderer that patches the page on an update
+   * (markboard morphs it) calls this after each patch, so that extensions working on the content
+   * can put back what they add to it. A renderer that leaves its content alone never needs to.
+   */
+  rendered(): void
+  /** called after each `rendered()`; returns an unsubscribe */
+  onRendered(fn: () => void): () => void
+  /**
+   * The page's corner: a column at the bottom right, above whatever covers the bottom of the
+   * window (`--wb-inset-bottom`), for floating buttons. The renderer and the extensions each add
+   * their own; the core draws nothing in it.
+   */
+  corner(): HTMLElement
+  /**
+   * A count in the tab title, under `key`: `(text)` in front of the page's title; null removes it.
+   * Lower `order` comes first (default 0), so what waits for the reader can lead.
+   */
+  badge(key: string, text: string | null, order?: number): void
+  /** the page's own title, behind the badges: for a renderer whose page changes its title */
+  title(title: string): void
 }

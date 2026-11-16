@@ -1,12 +1,11 @@
-// markboard in the browser: mounts template islands, records named form submits, and patches the page
-// in place when it changes. Framework-free: an island's client module exports
+// markboard in the browser: mounts template islands, and patches the page in place when it changes
+// (named forms are the forms extension's). Framework-free: an island's client module exports
 // mount(element, props, api) (see types.ts).
 import morphdom from 'morphdom'
 import type { Api, PageHandle, RendererMount } from '../../src/define'
 import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
-import { applyWaiting, trackWaiting } from './waiting'
 import { refreshComments, trackComments } from './comments'
 import { html } from '../../src/html.js'
 
@@ -55,95 +54,6 @@ function disposeWithin(node: Node) {
   }
 }
 
-
-// ---- forms -------------------------------------------------------------------------------------
-
-type FormData = Record<string, unknown>
-
-function readForm(form: HTMLFormElement): FormData {
-  const data: FormData = {}
-  const elements = [...form.elements] as HTMLInputElement[]
-  const boxes: Record<string, number> = {}
-  for (const el of elements) if (el.name && el.type === 'checkbox') boxes[el.name] = (boxes[el.name] ?? 0) + 1
-  for (const el of elements) {
-    if (!el.name || el.type === 'submit' || el.type === 'button' || el.type === 'reset' || el.type === 'file') continue
-    if (el.type === 'checkbox') {
-      if (boxes[el.name] > 1) { const list = (data[el.name] ??= []) as string[]; if (el.checked) list.push(el.value) }
-      else data[el.name] = el.checked
-    } else if (el.type === 'radio') {
-      if (el.checked) data[el.name] = el.value
-      else data[el.name] ??= null
-    } else if (el instanceof HTMLSelectElement && el.multiple) data[el.name] = [...el.selectedOptions].map(o => o.value)
-    else data[el.name] = el.value
-  }
-  return data
-}
-
-function writeForm(form: HTMLFormElement, data: FormData) {
-  for (const el of [...form.elements] as HTMLInputElement[]) {
-    if (!el.name || !(el.name in data) || ['submit', 'button', 'hidden', 'file'].includes(el.type)) continue
-    const v = data[el.name]
-    if (el.type === 'checkbox') el.checked = Array.isArray(v) ? v.includes(el.value) : !!v
-    else if (el.type === 'radio') el.checked = v === el.value
-    else el.value = v == null ? '' : String(v)
-  }
-}
-
-/** Forms this runtime looks after: named, no action attribute (those submit normally). */
-const managed = (form: HTMLFormElement) => !!form.getAttribute('name') && !form.hasAttribute('action')
-
-// ---- drafts ------------------------------------------------------------------------------------
-// What the reader typed and has not sent yet survives a reload of the page and a re-render of the
-// form: it is kept per page and form in localStorage until the form is sent.
-
-const draftKey = (form: HTMLFormElement) => `wb-draft:${page}:${form.getAttribute('name')}`
-
-function saveDraft(e: Event) {
-  const form = (e.target as Element | null)?.closest?.('form')
-  if (!form || !managed(form)) return
-  try { localStorage.setItem(draftKey(form), JSON.stringify(readForm(form))) } catch { /* storage unavailable */ }
-}
-
-/** Put unsent drafts back into their forms; a form being typed in is left alone. */
-function restoreDrafts() {
-  for (const form of main.querySelectorAll('form')) {
-    if (!managed(form) || form.contains(document.activeElement)) continue
-    let draft: FormData | null = null
-    try { draft = JSON.parse(localStorage.getItem(draftKey(form)) ?? 'null') } catch { /* storage unavailable */ }
-    if (draft) writeForm(form, draft)
-  }
-}
-
-const dropDraft = (form: HTMLFormElement) => { try { localStorage.removeItem(draftKey(form)) } catch { /* storage unavailable */ } }
-
-/** Plain HTML forms get their last submission back; template forms handle this themselves. */
-function restorePlainForms(prefill: boolean) {
-  for (const form of main.querySelectorAll('form')) {
-    if (!managed(form) || form.closest('[data-wb-island]')) continue
-    const last = api.last(form.getAttribute('name')!)
-    if (!last) continue
-    form.dataset.wbSent = last.action ?? ''
-    if (prefill) writeForm(form, last.data)
-  }
-}
-
-async function onSubmit(e: SubmitEvent) {
-  const form = e.target as HTMLFormElement
-  if (!managed(form)) return
-  e.preventDefault()
-  const button = e.submitter as HTMLButtonElement | null
-  const action = button ? button.value || button.textContent?.trim() || null : null
-  form.dataset.wbState = 'sending'
-  try {
-    await api.append(form.getAttribute('name')!, readForm(form), action)
-    dropDraft(form)
-    form.dataset.wbState = 'sent'
-    form.dataset.wbSent = action ?? ''
-  } catch (err) {
-    form.dataset.wbState = 'failed'
-    console.error(err)
-  }
-}
 
 // ---- theme -------------------------------------------------------------------------------------
 
@@ -231,9 +141,10 @@ function morph(html: string) {
         if (from instanceof HTMLInputElement) (to as HTMLInputElement).checked = from.checked
       }
       // <details> open state was set on the new tree by detailsKeys(), matched by identity, not position
-      if (from instanceof HTMLFormElement) {
-        for (const k of ['wbSent', 'wbState', 'wbWaiting', 'wbUnheard', 'wbPending', 'wbDecided', 'wbFolded', 'wbOutcome']) if (from.dataset[k] != null) to.dataset[k] = from.dataset[k]
-      }
+      // what an extension marked on an element (`data-wb-*`) stays, unless the new render sets it;
+      // data-wb-mounted is markboard's own, and a replaced island must mount afresh
+      for (const { name, value } of [...from.attributes])
+        if (name.startsWith('data-wb-') && name !== 'data-wb-mounted' && !to.hasAttribute(name)) to.setAttribute(name, value)
       for (const c of KEEP_CLASSES) if (from.classList.contains(c)) to.classList.add(c)
       return true
     },
@@ -289,22 +200,24 @@ async function refresh() {
   keepPlace(place, nextSigs)
   const updated = document.getElementById('wb-updated')
   if (updated && data.mtime) updated.dataset.ts = String(data.mtime)
-  trackUpdate(main, blockSigs, nextSigs, next.title || document.title)
+  if (next.title) core.title(next.title)
+  trackUpdate(main, blockSigs, nextSigs)
   blockSigs = nextSigs
   await mountIslands()
   // islands that mounted just now can change the height of what is above the reader
   keepPlace(place, nextSigs)
-  restorePlainForms(false)
-  restoreDrafts()
-  applyWaiting()
   refreshComments()
   tickTimes()
+  // extensions put back what they add to the content
+  api.rendered()
 }
 
 let currentPage: PageHandle
+let core: Api
 
-const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, core: Api) => {
+const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, coreApi: Api) => {
   currentPage = handle
+  core = coreApi
   page = handle.id
   main = root.querySelector<HTMLElement>('#wb-main')!
   islands = (handle.data as Data).islands
@@ -312,9 +225,6 @@ const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, core:
   const isDir = handle.kind === 'pages' || handle.kind === 'folder'
 
   themeToggle(root)
-  document.addEventListener('input', saveDraft)
-  document.addEventListener('change', saveDraft)
-  document.addEventListener('submit', onSubmit)
   setInterval(tickTimes, 15000)
   // islands rendered later (after async loading inside a component) still get mounted
   new MutationObserver(() => {
@@ -322,17 +232,14 @@ const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, core:
   }).observe(main, { childList: true, subtree: true })
 
   handle.onChange(() => refresh())
-  // the overview shows when pages were last answered; a page shows its forms' last answers
-  core.onEvents(() => (isDir ? refresh() : restorePlainForms(false)))
+  // the overview shows when pages were last answered
+  if (isDir) core.onEvents(() => refresh())
   // the overview shows which pages an agent is waiting on
   if (isDir) core.onListeners(() => refresh())
 
   blockSigs = [...main.children].map(signature)
-  if (!isDir) trackInitial(main, page)
+  if (!isDir) trackInitial(main, page, core)
   await mountIslands()
-  restorePlainForms(true)
-  restoreDrafts()
-  if (!isDir) trackWaiting(main, api)
   if (!isDir) trackComments(main, api)
   tickTimes()
 }

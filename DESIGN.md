@@ -145,10 +145,73 @@ interface Renderer {
   renderer's `client` and calls `mount(root, page, api)`. `page` has the
   page's id, kind and `data`, `onChange(fn)`, `render()` (the server render,
   afresh) and `stored()` (the stored page, afresh). `api` has the page's
-  events, `onEvents`, `last(type)` and `append(type, data, action)`.
+  events, `onEvents`, `last(type)` and `append(type, data, action)`, the
+  listeners, and three things the page's parts share: `rendered()` (a
+  renderer that patched its content says so, and extensions listening with
+  `onRendered` put back what they add to it), `corner()` (an empty column at
+  the bottom right, the one element the core puts on every page, for
+  floating buttons) and `badge(key, text, order)` with `title(title)` (counts
+  in the tab title, in front of the page's own title).
 - **Changes.** The core only signals that a page changed; the renderer
   fetches what it needs. That keeps how an update looks the renderer's
   choice: markboard morphs it in place.
+
+### Extensions
+
+Behaviour on every page, whatever renderer draws it (`Extension` in
+`src/define.ts`): an object in the config's `extensions`, with a name and
+optional parts. Its routes are mounted at `/api/<name>/…`, its commands are
+`whiteboard <name> [sub]`, its files go in `.whiteboard/<name>/`, and
+`shell(req)` adds markup to every page. The core checks a route's token and
+arguments before its code runs.
+
+- **One contract, portable parts inside.** The object is the only thing the
+  core knows. Inside it, a behaviour is built from pieces with no whiteboard
+  in them where it can be: the terminal's server half is a plain request
+  handler and its host a process of its own, so taking it elsewhere means
+  dropping the ten lines that wire them in.
+- **In the browser.** `client` is a module the runtime imports after the
+  renderer has mounted, with the same `mount(root, page, api)` arguments.
+  An extension that works on the page's content puts back what it adds
+  after `api.onRendered`; a renderer that patches its content keeps the
+  `data-wb-*` attributes an extension set (markboard does). Floating
+  buttons go in `api.corner()` and counts in the title through
+  `api.badge()`, so a renderer and extensions never need to know about each
+  other.
+- **Move out until the core is small.** What is in the core or in markboard
+  but isn't about pages, the log or markdown becomes an extension: the
+  terminal, the Claude Code hooks and named forms so far, then comments. If
+  the contract holds for those, it holds.
+- **Renderers stay their own kind for now.** A renderer could become an
+  extension that answers `render`; that waits until forms and comments have
+  tested the contract.
+
+### Named forms (`forms/`)
+
+An extension, so that a `<form name>` works on a page of any renderer:
+
+- **Submits.** Every `<form name="…">` without an `action` attribute that
+  is submitted appends an event: its name as `type`, the button as
+  `action`, the fields as `data`. What the reader types is kept as a draft
+  in localStorage until it is sent, so it survives a re-render and a
+  reload. A plain form gets its last answer back; one inside a template
+  island looks after that itself.
+- **What waits on whom.** A form is marked "waiting for you" when a
+  listener asks for it by name (also when it was answered before: the agent
+  wants a new answer), or when a listener takes any answer on the page and
+  the form has none yet. An unanswered form nobody listens for says so, so
+  the reader knows an answer would go unheard for now. An answered form is
+  "waiting for the agent" until a `wait` or `watch` hands its answer out
+  (the core marks such events `pickedUp`, from the `whiteboard:picked`
+  events in the log), and then decided: it folds into one line quoting the
+  answer, and a click opens it again to change it. A line before the
+  page's `<main>` counts the four states and jumps through each, a button
+  in the corner jumps from one waiting form to the next, and the title gets
+  a `(!n)` badge.
+- **Which forms a page asks** stays the renderer's (`expects`): only it can
+  read its own syntax.
+- **Its look** uses the renderer's theme variables when they are there
+  (`--accent`, `--muted`, …), with fallbacks.
 
 ### Events
 
@@ -248,9 +311,8 @@ templates.
    typed values, open `<details>` (found by their heading and summary, so a
    block added above one keeps it open), the reader's place on the page,
    and mounted islands whose props did not change all survive (islands
-   carry a `data-wb-key` hashed from template + props). What the reader
-   types into a form is kept as a draft until it is sent, so it also
-   survives a reload.
+   carry a `data-wb-key` hashed from template + props), and so do the
+   `data-wb-*` marks an extension set (the forms extension's states).
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab
@@ -263,8 +325,9 @@ templates.
      writes one) does not count: it can appear, change or go without
      marking its block, and a block that is quiet as a whole is never
      marked. It is for what changes without being news to the reader.
-   - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons jump to the
-     nearest unseen block; the tab title gets a `(n)` prefix.
+   - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons in the
+     page's corner jump to the nearest unseen block; the tab title gets a
+     `(n)` badge.
 5. Comments: selecting text in the page shows a "Comment" button; a comment
    is an event (`comment`, with the quote and the text around it), and so
    are replies (`comment-reply`) and closing a thread (`comment-resolve`).
@@ -272,26 +335,15 @@ templates.
    highlighted with the CSS Highlight API, so the page's markup never
    changes for them. A badge in the margin opens each open thread; it is
    filled when the agent spoke last.
-6. Appends an event for every `<form name="…">` without an `action`
-   attribute that is submitted: its name as `type`, the button as `action`,
-   the fields as `data`. The `form` template adds a thread under each form:
+6. Writes forms as markdown (the `form` template); sending them, drafts and
+   what waits on whom are the forms extension's. The template adds a
+   thread under each form:
    messages are `thread` events (`{ form, text }`, from the reader or the
    agent), never submits, so asking about a choice never makes it. An agent
    message can name the submit whose typed text it answers (`replyTo`),
    shown as the reader's message before it, and can take the place of an
    earlier one (`replaces`), since the log only grows.
-7. Shows what an agent is waiting for. A form is marked "waiting for you"
-   when a listener asks for it by name (also when it was answered before:
-   the agent wants a new answer), or when a listener takes any answer on
-   the page and the form has none yet. A button jumps from one waiting form
-   to the next, the tab title gets a `(!n)` prefix, and the overview marks
-   pages an agent waits on. An unanswered form nobody listens for says so,
-   so the reader knows an answer would go unheard for now. An answered form
-   is "waiting for the agent" until a `wait` or `watch` hands its answer out
-   (the core marks such events `pickedUp`, from the `whiteboard:picked` events in the log), and then
-   decided: it folds into one line quoting the answer, and a click opens it
-   again to change it. A line above the page counts the four states and
-   jumps through each.
+7. Marks, on the overview, the pages an agent waits on.
 
 Nested containers may all use `:::`. markboard pairs the fences and lengthens
 the outer ones before parsing, because remark-directive needs an outer fence

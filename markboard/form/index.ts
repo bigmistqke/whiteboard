@@ -2,8 +2,8 @@
 // it: `:radio[This **week**]{name=when}`, `:check[…]`, `:text[…]`, `:button[Send]` and so on. See
 // README.md.
 //
-// Everything here renders on the server as plain HTML: a `<form name>` the page's client already
-// looks after (it sends a submit as an event, keeps drafts, puts the last answer back and marks what
+// Everything here renders on the server as plain HTML: a `<form name>` the forms extension looks
+// after (it sends a submit as an event, keeps drafts, puts the last answer back and marks what
 // waits for the reader). Only the thread under the form is a client island.
 import { html, raw, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
 

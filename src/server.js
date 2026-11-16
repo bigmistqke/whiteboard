@@ -85,7 +85,9 @@ async function shellExtras(req) {
       return null
     }
   }))
-  return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), notices }
+  // their browser modules, which the runtime imports after the renderer's
+  const clients = hooks.filter(h => h.client && !h.error).map(h => ({ name: h.name, client: asset(h.client) }))
+  return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), clients, notices }
 }
 
 /** A page with what the extensions add, their notices among the page's. */
@@ -332,16 +334,22 @@ async function docs() {
 
 const json = s => JSON.stringify(s).replace(/</g, '\\u003c')
 
+// the page's corner (api.corner()): the one thing the core puts on every page, empty, for the
+// renderer's and the extensions' floating buttons; above what covers the bottom of the window
+const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
+
 /** `extras`: what extensions add to <head> and <body> (see shellExtras). */
-function shell(page, { renderer, out, notices }, extras = { head: [], body: [] }) {
-  const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null }
+function shell(page, { renderer, out, notices }, extras = { head: [], body: [], clients: [] }) {
+  const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null, extensions: extras.clients }
   // the renderer's head and html are HTML already; the handoff is JSON made safe for a script tag
   return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${out.title || page.id || PROJECT.name}</title>
+<style>${DOCK_STYLE}</style>
 ${raw(out.head ?? '')}${extras.head}</head>
 <body data-page="${page.id}" data-kind="${page.kind}">
 ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
 <div id="wb-root">${raw(out.html)}</div>
+<div id="wb-dock"></div>
 <script type="application/json" id="wb-page">${raw(json(handoff))}</script>
 <script type="module" src="/_/runtime.js"></script>${extras.body}</body></html>`)
 }

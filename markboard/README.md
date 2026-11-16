@@ -69,11 +69,14 @@ everything that explains it, and each option with what it means:
   as a chat, your messages on one side and the agent's on the other. Enter
   sends, Shift+Enter starts a new line, and the box grows with your text.
 - **Drafts survive.** What you type into a form is kept until you send it,
-  across live updates and reloads.
+  across live updates and reloads (with the forms extension, below).
 
 ### What waits on whom
 
-A form is in one of four states, read from the log and from who is
+Sending a form, its drafts and these marks come from the forms extension
+(`@bigmistqke/whiteboard/forms`, in the config's `extensions`; `whiteboard
+init` adds it), so they work on a page of any renderer. A form is in one of
+four states, read from the log and from who is
 listening right now (a running `whiteboard wait` or `watch`):
 
 | state | means |
