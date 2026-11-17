@@ -19,6 +19,7 @@
 // marked `data-wb-self` (or inside an element that is) keeps its own fields: no drafts and no last
 // answer are written into it, for a renderer's component that shows them itself.
 import type { Api, FormState, FormStatus } from '../define'
+import { STATES, questionState } from '../status.ts'
 
 type Data = Record<string, unknown>
 
@@ -116,7 +117,6 @@ async function onSubmit(e: SubmitEvent) {
 
 // ---- where each form stands --------------------------------------------------------------------
 
-const ORDER: FormState[] = ['waiting', 'unheard', 'pending', 'decided']
 const ATTR: Record<FormState, string> = { waiting: 'data-wb-waiting', unheard: 'data-wb-unheard', pending: 'data-wb-pending', decided: 'data-wb-decided' }
 
 /** One line quoting an answer: what was chosen, then what was written. */
@@ -140,15 +140,8 @@ function mark() {
   const waitingFor = api.listeners()
   current = forms().map(form => {
     const name = form.getAttribute('name')!
-    const last = api.last(name)
-    const asked = waitingFor.some(l => l.type === name)
-    const any = waitingFor.some(l => l.type === null)
-    const state: FormState =
-      asked || (any && !last) ? 'waiting'
-      : !last ? 'unheard'
-      : api.pickedUp(last.id) ? 'decided'
-      : 'pending'
-    for (const st of ORDER) form.toggleAttribute(ATTR[st], st === state)
+    const { state, last } = questionState(name, api.events(), waitingFor, api.pickedUp)
+    for (const st of STATES) form.toggleAttribute(ATTR[st], st === state)
     if (state === 'decided') form.dataset.wbOutcome = outcome(last!.data, last!.action)
     else delete form.dataset.wbOutcome
     return { form, name, state, last }

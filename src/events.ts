@@ -9,6 +9,9 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import type { WbEvent } from './define.ts'
+import { fromReader } from './status.ts'
+
+export { fromReader }
 
 /** What is appended: the id and time are added. */
 export interface EventInput {
@@ -113,12 +116,6 @@ export function matches(event: WbEvent, { page, type, exact }: EventFilter = {})
   if (type && event.type !== type) return false
   return true
 }
-
-/**
- * Was this event written by the reader (a form submit, a comment), not by an agent? Agents write
- * through the command line, which marks its events `from: 'cli'`: an agent's reply, a claim, a pick.
- */
-export const fromReader = (event: WbEvent): boolean => event.from !== 'cli'
 
 // When an event is handed to an agent, a `whiteboard:picked` event naming it is appended. The log
 // is the only record: a wait that starts hands out the matching events nobody picked up yet,

@@ -195,7 +195,9 @@ export interface PageStatus {
   owner: string | null
   /** the event types the page waits on the reader for (its renderer's `expects`) */
   asks: string[]
-  /** those no event from the reader answered yet */
+  /** where each of them stands, as the page shows it: waiting, unheard, pending or decided */
+  questions: { name: string; state: FormState }[]
+  /** those waiting for the reader: no answer yet, or a running wait asks for a new one */
   open: string[]
   /** the open ones no running wait or watch listens for */
   unheard: string[]

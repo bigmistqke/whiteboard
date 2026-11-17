@@ -19,6 +19,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import type { CommandContext, PageStatus, Plugin, WbEvent } from '../src/define.ts'
+import { statusLines, whose } from '../src/status.ts'
+
+/** What is open on a page, in short phrases; the command that picks it up comes last, once. */
+const openOn = (p: PageStatus, options?: { waiting?: boolean }) => statusLines(p, relFile(p.file), options)
 
 type Mode = 'stop' | 'prompt' | 'session'
 
@@ -62,19 +66,6 @@ function hookInput(): { session_id?: string } {
 }
 
 const relFile = (file: string) => path.relative(process.cwd(), file) || file
-const whose = (p: PageStatus, session: string | null) => (p.owner && p.owner === session ? 'yours' : p.owner ? `session ${p.owner.slice(0, 8)}` : 'no session')
-
-/** What is open on a page, in short phrases; the command that picks it up comes last, once. */
-function openOn(p: PageStatus, { waiting = true } = {}): string[] {
-  const lines: string[] = []
-  if (p.unpicked.length) lines.push(`${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent picked up (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`)
-  if (p.unheard.length) lines.push(`nobody listens for ${p.unheard.join(', ')}`)
-  if (lines.length) lines.push(`→ whiteboard wait --page ${relFile(p.file)}`)
-  const heard = p.open.filter(t => !p.unheard.includes(t))
-  if (waiting && heard.length) lines.push(`waiting for the reader: ${heard.join(', ')}`)
-  return lines
-}
-
 async function hook(ctx: CommandContext, mode: Mode) {
   const session = hookInput().session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
   const pages = await ctx.status()

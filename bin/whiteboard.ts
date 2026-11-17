@@ -12,6 +12,7 @@ import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/renderer
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { packagePath } from '../src/package.ts'
+import { statusLines, whose } from '../src/status.ts'
 import type { PageStatus, WbEvent } from '../src/define.ts'
 
 // a failing command prints its message, not a stack trace
@@ -212,18 +213,6 @@ async function currentSession(proj: Project): Promise<string | null> {
   return null
 }
 
-/** What is open on a page, one line each; the command that picks it up comes last, once. */
-function statusLines(p: PageStatus): string[] {
-  const lines: string[] = []
-  if (p.unpicked.length) lines.push(`${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent picked up (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`)
-  if (p.unheard.length) lines.push(`nobody listens for ${p.unheard.join(', ')}`)
-  if (lines.length) lines.push(`→ whiteboard wait --page ${relFile(p.file)}`)
-  const heard = p.open.filter(t => !p.unheard.includes(t))
-  if (heard.length) lines.push(`waiting for the reader: ${heard.join(', ')}`)
-  return lines
-}
-
-const whose = (p: PageStatus, session: string | null) => (p.owner && p.owner === session ? 'yours' : p.owner ? `session ${p.owner.slice(0, 8)}` : 'no session')
 
 async function status() {
   const proj = needProject()
@@ -235,7 +224,7 @@ async function status() {
   if (!busy.length) { console.log('nothing open: every question is answered, and every answer picked up'); return }
   for (const p of busy) {
     console.log(`${p.page} (${whose(p, session)})`)
-    for (const l of statusLines(p)) console.log(`  ${l}`)
+    for (const l of statusLines(p, relFile(p.file))) console.log(`  ${l}`)
   }
 }
 

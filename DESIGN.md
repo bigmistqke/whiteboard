@@ -304,8 +304,12 @@ agent forgetting a wait is caught from outside it:
 
 - **Questions.** A question exists only in a renderer's syntax (for markboard,
   a named form), so the renderer says which a page asks: `expects(page)`
-  returns their event types. A question is open while no event of its type
-  came from the reader.
+  returns their event types. Where each stands (waiting, unheard, pending,
+  decided; see Named forms) is one function, `questionState` in
+  `src/status.ts`, which the server and the page both use, so `whiteboard
+  status` and the page never disagree. A question is open while it waits
+  for the reader: it has no answer, or a running wait asks for it by name
+  (the agent wants a new answer). Only the reader's events answer it.
 - **Claims.** `whiteboard new` appends a `whiteboard:claim` event with the
   agent session that made the page; the colon keeps it apart from form
   names. Which session runs a command is something only the agent's tooling

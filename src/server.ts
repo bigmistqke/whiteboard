@@ -22,6 +22,7 @@ import { createConfigLoader, pluginDir, toPath, type LoadedConfig, type LoadedRe
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth } from './auth.ts'
 import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
+import { questionState } from './status.ts'
 import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
 
 const PROJECT: Project = projectAt(findProjectDir()) ?? (() => {
@@ -329,15 +330,16 @@ async function status(only: string | null): Promise<PageStatus[]> {
     const renderer = pick(page, renderers, [])
     let asks: string[] = []
     try { asks = renderer?.expects ? [...(await renderer.expects(page, context()))] : [] } catch (err) { console.error(`renderer ${renderer!.name}: expects:`, err) }
-    const sent = all.filter(e => e.page === p.id && fromReader(e))
-    const answered = new Set(sent.map(e => e.type))
-    const open = asks.filter(t => !answered.has(t))
+    const events = all.filter(e => e.page === p.id)
     const listening = listenersFor(p.id)
-    const heard = (t: string) => listening.some(l => l.type === null || l.type === t)
+    // where each question stands, as the page shows it (see status.ts)
+    const questions = asks.map(name => ({ name, state: questionState(name, events, listening, id => picked.has(id)).state }))
+    const named = (...states: string[]) => questions.filter(q => states.includes(q.state)).map(q => q.name)
     out.push({
-      page: p.id, file: p.file, owner: owner.get(p.id) ?? null, asks, open,
-      unheard: open.filter(t => !heard(t)),
-      unpicked: sent.filter(e => !picked.has(e.id)),
+      page: p.id, file: p.file, owner: owner.get(p.id) ?? null, asks, questions,
+      open: named('waiting', 'unheard'),
+      unheard: named('unheard'),
+      unpicked: events.filter(e => fromReader(e) && !picked.has(e.id)),
       listeners: listening,
     })
   }

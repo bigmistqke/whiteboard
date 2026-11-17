@@ -5,8 +5,9 @@
 // the waiting ones in the tab title.
 import type { Api, FormState, FormStatus } from '../../src/define'
 import { viewBottom } from './view'
+import { STATES } from '../../src/status.ts'
 
-const ORDER: FormState[] = ['waiting', 'unheard', 'pending', 'decided']
+const ORDER = STATES
 const LABEL: Record<FormState, (n: number) => string> = {
   waiting: n => `${n} waiting for you`,
   unheard: n => `${n} nobody listening`,
