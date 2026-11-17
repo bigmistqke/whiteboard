@@ -363,7 +363,10 @@ Don't use `npm link` for this: it links `whiteboard` to the build, which
 changes only when you run `npm run build`. Without a global command,
 `node bin/whiteboard.ts <command>` works from inside the clone.
 
-- `npm test`: the tests (`node:test`)
+- `npm test`: the unit tests (`node:test`)
+- `npm run test:browser`: forms, comments and the terminal in a real browser
+  (Playwright; `npx playwright install chromium` once). Each test runs a
+  throwaway project with its own server, from source
 - `npm run check`: type-check everything
 - `npm run build`: build `dist/`, what the package ships; `node
   dist/bin/whiteboard.js` runs it as an installed copy would

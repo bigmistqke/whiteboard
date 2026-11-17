@@ -1,5 +1,5 @@
 // The event log and handing out, on a log in a temporary folder.
-import { test as nodeTest } from 'node:test'
+import { after, test as nodeTest } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -13,9 +13,12 @@ const FAST = { interval: 5 }
 const test = (name: string, fn: () => void | Promise<void>) => nodeTest(name, { timeout: 2000 }, fn)
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-/** A fresh log file in a folder of its own. */
+/** A fresh log file in a folder of its own, removed once the tests are done. */
+const folders: string[] = []
+after(() => { for (const dir of folders) fs.rmSync(dir, { recursive: true, force: true }) })
 function tempLog(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-events-'))
+  folders.push(dir)
   return path.join(dir, 'events.ndjson')
 }
 

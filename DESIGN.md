@@ -504,8 +504,10 @@ itself, so a config in a repository without npm can import
 
 Everything is TypeScript, written so that Node can run it by stripping
 its types (`erasableSyntaxOnly`: no enums, no namespaces), and `npm run
-check` type-checks all of it; `npm test` runs the tests
-(`node:test`, next to the code as `*.test.ts`). Node runs TypeScript, but not inside
+check` type-checks all of it; `npm test` runs the unit tests
+(`node:test`, next to the code as `*.test.ts`), and `npm run test:browser`
+runs forms, comments and the terminal in a browser (Playwright, in
+`test/browser/`), each in a throwaway project with its own server. Node runs TypeScript, but not inside
 `node_modules`, where an installed package lives; so everything the package
 runs ships built in `dist/`, the engine and its plugins included, and its
 `exports` and its `bin` point there. To work on whiteboard without
