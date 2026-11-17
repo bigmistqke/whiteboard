@@ -4,7 +4,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { importFresh } from './load.ts'
+import { importFresh, installHooks } from './load.ts'
 import { pluginCommands } from './plugins.ts'
 import type { Config, Plugin, RenderContext, Renderer, StoredPage } from './define.ts'
 import type { Project } from './config.ts'
@@ -66,6 +66,7 @@ function normalize(r: Renderer, source: string | null): LoadedRenderer {
  * lists renderers gets only those, so `renderers: []` still shows every page as its raw text.
  */
 async function defaultRenderers(): Promise<Renderer[]> {
+  installHooks()
   const { default: markboard } = await import('@bigmistqke/whiteboard/markboard')
   return [markboard()]
 }
@@ -74,8 +75,11 @@ async function defaultRenderers(): Promise<Renderer[]> {
  * The config, cached until invalidate() (which loads it afresh). Errors are returned, not thrown:
  * a config that fails to load leaves the project without renderers, so pages show as raw text,
  * and serves no repository files.
+ *
+ * `renderers: false` leaves out the default renderer when the config names none, for the command
+ * line, which only needs the plugins: then markboard is loaded only if the config imports it.
  */
-export function createConfigLoader(proj: Project) {
+export function createConfigLoader(proj: Project, { renderers: withRenderers = true } = {}) {
   let cached: Promise<LoadedConfig> | null = null
 
   async function load(): Promise<Omit<LoadedConfig, 'errors'>> {
@@ -86,7 +90,7 @@ export function createConfigLoader(proj: Project) {
     const exported: Config | (() => Config | Promise<Config>) = mod.default
     const config: Config & { extensions?: unknown } = typeof exported === 'function' ? await exported() : exported
     const renderers: LoadedRenderer[] = []
-    for (const r of [config?.renderers ?? await defaultRenderers()].flat(Infinity) as Renderer[]) {
+    for (const r of [config?.renderers ?? (withRenderers ? await defaultRenderers() : [])].flat(Infinity) as Renderer[]) {
       if (!r) continue
       const n = normalize(r, configFile)
       if (renderers.some(x => x.name === n.name)) throw new Error(`two renderers are named "${n.name}" in ${configFile}`)

@@ -30,28 +30,37 @@ function ownFile(specifier: string): string | null {
 
 const versionOf = (url: string) => new URL(url).searchParams.get('wb-v')
 
-registerHooks({
-  resolve(specifier, context, next) {
-    const own = ownFile(specifier)
-    if (own) {
-      const url = pathToFileURL(own).href
-      const v = context.parentURL && versionOf(context.parentURL)
-      return { url: v ? `${url}?wb-v=${v}` : url, shortCircuit: true, format: moduleFormat(own) ?? 'module' }
-    }
-    const resolved = next(specifier, context)
-    if (!resolved.url.startsWith('file:') || resolved.url.includes('/node_modules/')) return resolved
-    const v = versionOf(resolved.url) ?? (context.parentURL?.startsWith('file:') && versionOf(context.parentURL))
-    if (!v) return resolved
-    const url = new URL(resolved.url)
-    url.searchParams.set('wb-v', v)
-    // A .whiteboard folder has no package.json of its own to say these are ES modules, so Node goes
-    // by the nearest one above it: in a repository whose package.json is CommonJS (no "type"), it
-    // would load the config as CommonJS and fail on its imports. What is in .whiteboard/ is always
-    // a module, by its extension; other local files keep the format their package gives them.
-    const inProject = url.pathname.split('/').includes('.whiteboard')
-    return { ...resolved, url: url.href, format: inProject ? moduleFormat(url.pathname) : resolved.format ?? moduleFormat(url.pathname) }
-  },
-})
+/**
+ * Install the hooks, once: the first time something loads a config or the package's own parts, not
+ * on import, so a command that loads nothing leaves the process's module loading alone.
+ */
+let installed = false
+export function installHooks() {
+  if (installed) return
+  installed = true
+  registerHooks({
+    resolve(specifier, context, next) {
+      const own = ownFile(specifier)
+      if (own) {
+        const url = pathToFileURL(own).href
+        const v = context.parentURL && versionOf(context.parentURL)
+        return { url: v ? `${url}?wb-v=${v}` : url, shortCircuit: true, format: moduleFormat(own) ?? 'module' }
+      }
+      const resolved = next(specifier, context)
+      if (!resolved.url.startsWith('file:') || resolved.url.includes('/node_modules/')) return resolved
+      const v = versionOf(resolved.url) ?? (context.parentURL?.startsWith('file:') && versionOf(context.parentURL))
+      if (!v) return resolved
+      const url = new URL(resolved.url)
+      url.searchParams.set('wb-v', v)
+      // A .whiteboard folder has no package.json of its own to say these are ES modules, so Node goes
+      // by the nearest one above it: in a repository whose package.json is CommonJS (no "type"), it
+      // would load the config as CommonJS and fail on its imports. What is in .whiteboard/ is always
+      // a module, by its extension; other local files keep the format their package gives them.
+      const inProject = url.pathname.split('/').includes('.whiteboard')
+      return { ...resolved, url: url.href, format: inProject ? moduleFormat(url.pathname) : resolved.format ?? moduleFormat(url.pathname) }
+    },
+  })
+}
 
 function moduleFormat(file: string): ModuleFormat | undefined {
   if (/\.[mc]?ts$/.test(file)) return file.endsWith('.cts') ? 'commonjs-typescript' : 'module-typescript'
@@ -63,5 +72,6 @@ let version = 0
 
 /** Import `file` and everything local it imports afresh. */
 export function importFresh(file: string): Promise<any> {
+  installHooks()
   return import(`${pathToFileURL(file).href}?wb-v=${++version}`)
 }

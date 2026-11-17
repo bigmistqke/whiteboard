@@ -191,13 +191,19 @@ token
 const relFile = (file: string) => path.relative(process.cwd(), file) || file
 
 /**
+ * The project's config, as the command line needs it: for its plugins (their commands, the
+ * session), so without the default renderer. Loaded once per command.
+ */
+let loaded: ReturnType<ReturnType<typeof createConfigLoader>['config']> | null = null
+const projectConfig = (proj: Project) => (loaded ??= createConfigLoader(proj, { renderers: false }).config())
+
+/**
  * The agent session this command runs in, as the project's plugins know it (Claude Code's
  * plugin reads it from the environment): the first one that names one. Null without any.
  */
 async function currentSession(proj: Project): Promise<string | null> {
   try {
-    const { config } = createConfigLoader(proj)
-    for (const e of (await config()).plugins) {
+    for (const e of (await projectConfig(proj)).plugins) {
       const session = typeof e.session === 'function' ? await e.session() : null
       if (session) return String(session)
     }
@@ -411,8 +417,7 @@ switch (cmd) {
 
 /** The commands the project's plugins add: `whiteboard <plugin> [sub]`. */
 async function projectCommands(proj: Project) {
-  const { config } = createConfigLoader(proj)
-  const { plugins, errors } = await config()
+  const { plugins, errors } = await projectConfig(proj)
   for (const e of errors) console.error(`whiteboard: config error: ${(e as Error).message}`)
   return plugins.flatMap(pluginCommands)
 }
