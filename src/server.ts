@@ -41,6 +41,8 @@ const MIME: Record<string, string> = {
 // files in .whiteboard/ that are the server's own bookkeeping, not content
 const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server.lock', 'token'])
 const SKIP_DIRS = new Set(['node_modules', '.git'])
+// a page's frontmatter: `---` lines around `key: value` lines, at the very start
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
 
 
 /** A project's server: its request handler, and what it knows. */
@@ -180,7 +182,7 @@ export function createServer(project: Project): WhiteboardServer {
   const isRepoId = (id: string) => id === '-' || id.startsWith('-/')
 
   function frontmatter(source: string): Record<string, string> {
-    const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(source)
+    const m = FRONTMATTER.exec(source)
     const out: Record<string, string> = {}
     if (m) for (const line of m[1]!.split(/\r?\n/)) {
       const kv = /^([\w-]+)\s*:\s*(.*)$/.exec(line)
@@ -191,7 +193,7 @@ export function createServer(project: Project): WhiteboardServer {
 
   function pageSource(id: string, file: string): PageSource {
     const source = fs.readFileSync(file, 'utf8')
-    return { kind: 'page', id, file, mtime: fs.statSync(file).mtimeMs, source, frontmatter: frontmatter(source) }
+    return { kind: 'page', id, file, mtime: fs.statSync(file).mtimeMs, source, body: source.replace(FRONTMATTER, ''), frontmatter: frontmatter(source) }
   }
 
   /** The pages in a folder of the pages folder, newest first, with when each was last answered. */
@@ -541,7 +543,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       const source = renderers.length
         ? renderers.map(r => r.docs ?? `# ${r.name}\n\n_No documentation._\n`).join('\n\n---\n\n')
         : `# Renderers\n\nThis project has none: its config sets \`renderers: []\` (\`${project.configFile}\`). Pages show as their raw text.\n`
-      return { page: { kind: 'page', id, file: path.join(project.pagesDir, '_docs.md'), mtime: null, source, frontmatter: {} } }
+      return { page: { kind: 'page', id, file: path.join(project.pagesDir, '_docs.md'), mtime: null, source, body: source, frontmatter: {} } }
     }
     const found = stored(id)
     if (!found) return { notFound: `${isRepoId(id) ? id.slice(2) : id} does not exist${isRepoId(id) ? '' : ' yet. This page loads as soon as it does'}.` }
@@ -625,7 +627,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       if ('redirect' in r) { res.writeHead(302, { location: r.redirect + url.search }); res.end(); return }
       if ('raw' in r) return sendFile(res, r.raw)
       if ('notFound' in r) {
-        const missing: PageSource = { kind: 'page', id, file: '', mtime: null, source: r.notFound, frontmatter: {} }
+        const missing: PageSource = { kind: 'page', id, file: '', mtime: null, source: r.notFound, body: r.notFound, frontmatter: {} }
         return send(res, 404, await page(req, missing, { renderer: null, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }))
       }
       return send(res, 200, await page(req, r.page, await render(r.page)))

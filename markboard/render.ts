@@ -191,7 +191,7 @@ export function createDocs(templates: () => ResolvedTemplates) {
       const readme = t.readme ? fs.readFileSync(t.readme, 'utf8') : `# ${t.name}\n\n_No readme._\n`
       return readme.replace(/^(#\s.*)$/m, `$1\n\n${where}\n`)
     })
-    const intro = `# Templates\n\nThe markboard renderer: markdown, with these templates in **${ctx.project.name}**: ${list.map(t => `[${t.name}](#${t.name})`).join(' · ')}\n\nPlain markdown, GFM tables, \`<details>\` and raw HTML \`<form name="…">\` work without templates.\n\n---\n\n`
+    const intro = `# Templates\n\nThe markboard renderer: markdown, with these templates in this project (${ctx.project.name}): ${list.map(t => `[${t.name}](#${t.name})`).join(' · ')}\n\nPlain markdown, GFM tables, \`<details>\` and raw HTML \`<form name="…">\` work without templates.\n\n---\n\n`
     return intro + parts.join('\n\n---\n\n')
   }
 }

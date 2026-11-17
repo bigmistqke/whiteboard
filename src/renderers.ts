@@ -29,8 +29,9 @@ export interface LoadedConfig {
 const NAME = /^[\w-]+$/
 /** The command line's own commands: a plugin can't be named like one, since its commands are `whiteboard <name>`. */
 export const BUILTIN_COMMANDS = new Set(['serve', 'init', 'root', 'new', 'show', 'url', 'docs', 'events', 'wait', 'watch', 'append', 'pick', 'status', 'skill', 'help'])
-// folders in .whiteboard/ that are the core's, and the built-in commands
-const RESERVED = new Set(['pages', 'delivered', ...BUILTIN_COMMANDS])
+// folders in .whiteboard/ that are the core's or meant for the project's own code (plugins,
+// templates, renderers: a plugin's folder holds its data, ignored by git), and the built-in commands
+const RESERVED = new Set(['pages', 'plugins', 'templates', 'renderers', ...BUILTIN_COMMANDS])
 
 /** A plugin's own folder, `.whiteboard/<name>/`, made with a .gitignore that ignores all of it. */
 export function pluginDir(wb: string, name: string): string {

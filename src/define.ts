@@ -8,6 +8,9 @@
 // for types, so a renderer package needs nothing from the core at runtime.
 import type { Html } from './html.ts'
 
+// HTML from a template literal, escaped by default: for a renderer, a plugin's `shell`, a template
+export { html, raw, escape, Html } from './html.ts'
+
 // ---- config ------------------------------------------------------------------------------------
 
 export interface Config {
@@ -49,13 +52,14 @@ export const defineConfig = (config: Config): Config => config
  * in `whiteboard help` and `whiteboard docs`.
  */
 export interface Plugin {
-  /** letters, digits, - and _; not a folder of the core (`pages`, `delivered`) nor a built-in command */
+  /** letters, digits, - and _; not a folder of the core (`pages`, and `plugins`, `templates`, `renderers` for local code) nor a built-in command */
   name: string
   setup?(ctx: PluginContext): PluginHooks | Promise<PluginHooks>
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>
   /**
-   * Markdown for whoever writes pages here, printed by `whiteboard docs` with the renderers' own:
+   * Markdown for whoever writes pages here, printed by `whiteboard docs` with the renderers' own,
+   * under a heading the core adds (`# Plugin: <name>`), so start below it (`##`):
    * what the plugin sends to the page's log, and how to answer it (comments say how to reply)
    */
   docs?(): string | Promise<string>
@@ -147,7 +151,7 @@ export interface Command {
   description: string
   /** the positional arguments, for the help: `[page]` */
   args?: string
-  /** `--name`: its type, what it means, and for the help a word for its value (`<id>`) */
+  /** `--name`: its type, what it means, and for the help a word for its value (`value: 'id'` shows as `--name <id>`) */
   options?: Record<string, { type: FieldType; description?: string; value?: string; short?: string }>
   /** takes arguments after `--`, passed on untouched (`ctx.rest`); for the help, what they are */
   rest?: string
@@ -161,6 +165,8 @@ export interface CommandContext {
   /** what followed `--`, untouched (only for a command that declares `rest`) */
   rest: string[]
   project: Project
+  /** the project's event log, for `@bigmistqke/whiteboard/log` (`read(ctx.eventsFile)`, …) */
+  eventsFile: string
   /** the plugin's own folder, `.whiteboard/<name>/` */
   dataDir: string
   /** the project's token, for the requests the command sends (header `x-whiteboard-token`) */
@@ -266,6 +272,8 @@ interface StoredBase {
 export interface PageSource extends StoredBase {
   kind: 'page'
   source: string
+  /** `source` without its frontmatter: the page's content */
+  body: string
   /** the frontmatter's fields, when the file starts with one (`source` keeps it) */
   frontmatter: Record<string, string>
 }
@@ -305,10 +313,16 @@ export interface RenderContext {
   urlFor(file: string): string | null
 }
 
-/** Default export of a renderer's `client` module. Return a cleanup, or nothing. */
-export type RendererMount = (root: HTMLElement, page: PageHandle, api: Api) => void | (() => void) | Promise<void | (() => void)>
+/**
+ * Default export of a renderer's `client` module. It runs once per page load and is never unmounted:
+ * going to another page loads a new one. When the stored page changes, `page.onChange` says so.
+ */
+export type RendererMount = (root: HTMLElement, page: PageHandle, api: Api) => void | Promise<void>
 
-/** The default export of a plugin's browser module: the same arguments as a renderer's mount. */
+/**
+ * The default export of a plugin's browser module: the same arguments as a renderer's mount. Like
+ * it, it runs once per page load, and is never unmounted: going to another page loads a new one.
+ */
 export type PluginMount = (root: HTMLElement, page: PageHandle, api: Api) => void | Promise<void>
 
 /** The page, in the browser. */

@@ -31,7 +31,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard new <name>           create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
-  whiteboard docs                  how to write pages here (for markboard: its templates) — read before writing one
+  whiteboard docs [name]           how to write pages here (for markboard: its templates) — read before writing one;
+                                   with a name, only that renderer's or plugin's
   whiteboard events [filters]      print recorded events as ndjson; --follow: then each new one as it comes
   whiteboard wait [filters]        block until the next matching event, print it, exit
   whiteboard watch [filters]       like wait, but never exits: print each matching event once
@@ -278,16 +279,21 @@ switch (cmd) {
     break
   }
   case 'docs': {
-    // what each renderer says about writing pages for it: for markboard, the syntax of its templates
+    // what each renderer says about writing pages for it (for markboard, the syntax of its
+    // templates), then each plugin; `whiteboard docs <name>` prints only that renderer or plugin
     const info = await api('/api/docs')
     for (const e of info.errors) console.error(`config error: ${e}`)
-    if (!info.renderers.length) console.log('This project has no renderers: pages show as their raw text. Its config sets `renderers: []`.')
-    for (const r of info.renderers) {
+    const only = positionals[0]
+    const names = [...info.renderers, ...(info.plugins ?? [])].map((x: { name: string }) => x.name)
+    if (only && !names.includes(only)) throw new Error(`no renderer or plugin named "${only}" here: ${names.join(', ')}`)
+    const shown = (x: { name: string }) => !only || x.name === only
+    if (!info.renderers.length && !only) console.log('This project has no renderers: pages show as their raw text. Its config sets `renderers: []`.')
+    for (const r of info.renderers.filter(shown)) {
       console.log(`<!-- renderer: ${r.name} -->`)
       console.log(r.docs ? r.docs.trim() : `# ${r.name}\n\n(no documentation)`)
       console.log()
     }
-    for (const e of info.plugins ?? []) {
+    for (const e of (info.plugins ?? []).filter(shown)) {
       console.log(`<!-- plugin: ${e.name} -->\n# Plugin: ${e.name}\n`)
       if (e.error) console.log(`It failed to load: ${e.error}\n`)
       if (e.docs) console.log(`${e.docs.trim()}\n`)
@@ -389,6 +395,7 @@ switch (cmd) {
         positionals,
         rest: after,
         project: { name: project.name, dir: project.dir, wb: project.wb },
+        eventsFile: project.eventsFile,
         dataDir: pluginDir(project.wb, found.plugin),
         token: projectToken(project.wb),
         server: ensureServer,
