@@ -5,17 +5,18 @@ templates, and each page is a conversation between you and the agent that
 writes it: forms you answer, a thread under each form, comments on any
 passage, and a page that shows at a glance what waits on whom.
 
+It is the default renderer: a project without a config, or whose config
+names no renderers, uses it. To pass it options, name it:
+
 ```ts
 // .whiteboard/config.ts
 import { defineConfig } from '@bigmistqke/whiteboard/config'
 import markboard from '@bigmistqke/whiteboard/markboard'
 
 export default defineConfig({
-  renderers: [markboard()],
+  renderers: [markboard({ /* options, below */ })],
 })
 ```
-
-`whiteboard init` writes this config.
 
 ## A page
 
@@ -90,8 +91,8 @@ jumps from one form waiting for you to the next, and the tab title gets a
 
 ### Comments
 
-With the comments plugin (`@bigmistqke/whiteboard/comments`; `whiteboard
-init` adds it), select any passage and a "Comment" button appears. A comment
+With the comments plugin (`comments()` from `@bigmistqke/whiteboard/comments`
+in the config's `plugins`), select any passage and a "Comment" button appears. A comment
 opens a thread in the margin, and the agent replies there or edits the page. Passages are
 found again by their quote and its surroundings after edits, and
 highlighted without touching the page's markup. A thread stays until you
