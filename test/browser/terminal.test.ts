@@ -71,8 +71,8 @@ test('terminal: command, shell, tabs, reload, close, exit', { timeout: 90000, sk
 
 test('terminal: two windows of different widths, the one in use decides the size', { timeout: 90000, skip: !hasPty && 'node-pty is not installed' }, async t => {
   const proj = await project({ config: CONFIG.replace("{ command: './prog.sh' }", ''), pages: { q: '# Test\n' } })
-  const { browser: b, page: narrow, errors } = await browser()
-  const wide = await narrow.context().newPage()
+  const { browser: b, page: narrow, errors, newPage } = await browser()
+  const wide = await newPage()
   t.after(async () => { await b.close(); await proj.close() })
   await narrow.setViewportSize({ width: 700, height: 800 })
   await wide.setViewportSize({ width: 1400, height: 800 })

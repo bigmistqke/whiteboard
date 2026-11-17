@@ -93,13 +93,18 @@ export async function project({ config, pages = {}, files = {} }: { config?: str
 }
 
 /** A browser page that records console errors. */
-export async function browser(): Promise<{ browser: Browser; page: Page; errors: string[] }> {
+export async function browser(): Promise<{ browser: Browser; page: Page; errors: string[]; newPage(): Promise<Page> }> {
   const b = await chromium.launch()
-  const page = await b.newPage()
+  // one context for all pages: they share cookies (the project's token), like windows of one browser
+  const context = await b.newContext()
   const errors: string[] = []
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
-  page.on('pageerror', e => errors.push(String(e)))
-  return { browser: b, page, errors }
+  const newPage = async () => {
+    const page = await context.newPage()
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+    page.on('pageerror', e => errors.push(String(e)))
+    return page
+  }
+  return { browser: b, page: await newPage(), errors, newPage }
 }
 
 /** Wait until `check` returns something truthy (polled), and return it; throw after `timeout` ms. */
