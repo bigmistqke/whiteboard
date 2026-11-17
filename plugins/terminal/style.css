@@ -36,8 +36,10 @@ body:has(> #wb-terminal) { padding-bottom: var(--wb-inset-bottom); }
 .wb-term-status { color: #8b93a3; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-term-actions { display: flex; gap: 4px; }
 
-/* the tabs: one per session, the current one lit; "+" opens a shell next to them */
-.wb-term-tabs { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+/* the tabs: one per session, the current one lit */
+/* the bar: the toggle, what the current tab says (status, actions), then the tabs and "+" at the right */
+.wb-term-tabs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; }
+.wb-term-bar .wb-term-add { flex: none; }
 .wb-term-tab { display: inline-flex; align-items: center; flex: none; border-radius: 5px; }
 .wb-term-bar .wb-term-tab button { padding: 5px 4px 5px 8px; }
 .wb-term-bar .wb-term-tab .wb-term-tab-close { padding: 5px 7px 5px 3px; opacity: .45; }

@@ -6,9 +6,9 @@
 // connects to the same host and finds them as they were. Each open drawer gets its own connection to
 // the host, which sends it the whole screen of its tab first and then follows the output.
 //
-// A session runs in the user's shell: the configured command first, and when it exits, the shell
-// takes over in the same tab (`$SHELL -c '"$@"; exec "$0" -l' $SHELL <command>`), so leaving the
-// program leaves a prompt, not a dead tab. A new tab can also start the shell alone.
+// A session is the user's shell. A tab started with a program runs it in the shell, and when it
+// exits the shell takes over in the same tab (`$SHELL -c '"$@"; exec "$0" -l' $SHELL <program>`),
+// so leaving the program leaves a prompt, not a dead tab.
 //
 // No whiteboard in it: give it the folder the session runs in and a folder for its socket and log.
 // It doesn't check who asks; whoever mounts it must (it runs code).
@@ -38,10 +38,12 @@ export interface Sessions {
 }
 
 export interface StartOptions {
+  /** the session to start in; a new tab without one */
   id?: string
-  args?: string[]
+  /** a program to run in the shell, with its arguments; the shell alone without one */
+  program?: string[]
+  /** start again in `id`, running what it ran before, even when it still runs */
   restart?: boolean
-  shell?: boolean
 }
 
 /** A reply from the host: one JSON object, its fields by request (see host.ts). */
@@ -61,11 +63,8 @@ export function hostSocket(home: string): string {
   return Buffer.byteLength(own) < 100 ? own : path.join('/tmp', `wb-term-${crypto.createHash('sha1').update(home).digest('hex').slice(0, 12)}.sock`)
 }
 
-/**
- * `dir` the folder the session runs in, `home` where the socket and log go, `command` the program a
- * session starts, with its first arguments
- */
-export function createTerminal({ dir, home, command }: { dir: string; home: string; command: string[] }) {
+/** `dir` the folder the sessions run in, `home` where the socket and log go */
+export function createTerminal({ dir, home }: { dir: string; home: string }) {
   const own = hostSocket(home)
   const log = path.join(home, 'host.log')
 
@@ -110,7 +109,6 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
   }
 
   const shell = process.env.SHELL || '/bin/sh'
-  const label = path.basename(command[0]!)
 
   /** The sessions, as tabs: `{ id, label, running, exited, started }` each. */
   async function sessions(): Promise<Sessions> {
@@ -130,16 +128,16 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
   const failure = (message: string, status = 500) => Object.assign(new Error(message), { status })
 
   /**
-   * Start the command, with `args` after its own, in the session `id` (a new tab without one), or
-   * report the running session (`already`) unless `restart`. With `shell`, the shell alone.
+   * Start a tab: the shell, or `program` in it (a new tab without `id`). In a running session it
+   * reports it (`already`) unless `restart`; restarting without a program runs what it ran before.
    */
-  async function start({ id, args = [], restart = false, shell: plain = false }: StartOptions = {}) {
+  async function start({ id, program = [], restart = false }: StartOptions = {}) {
     if (!hasPty()) throw failure('the terminal needs node-pty: npm install node-pty')
-    const program = [...command, ...args]
-    const isShell = plain || path.basename(program[0]!) === path.basename(shell)
-    const request = isShell
-      ? { t: 'start', id, command: shell, args: ['-l'], label: path.basename(shell), restart }
-      : { t: 'start', id, command: shell, args: ['-c', '"$@"; exec "$0" -l', shell, ...program], label, restart }
+    const request = program.length
+      ? { t: 'start', id, command: shell, args: ['-c', '"$@"; exec "$0" -l', shell, ...program], label: path.basename(program[0]!), restart }
+      : restart && id != null
+        ? { t: 'start', id, restart }
+        : { t: 'start', id, command: shell, args: ['-l'], label: path.basename(shell), restart }
     let reply = await ask(request)
     if (!reply) {
       if (!(await startHost())) throw failure(`the terminal's host did not start; see ${log}`)
@@ -169,8 +167,10 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
     const ping = setInterval(() => res.write(': ping\n\n'), 25000)
     const conn = await connect()
     if (!conn) {
-      res.write('event: none\ndata: {}\n\n')
-      req.on('close', () => clearInterval(ping))
+      // no host runs yet: say so, and have the browser ask again shortly, so that a tab started
+      // meanwhile (from the command line, say) shows up
+      clearInterval(ping)
+      res.end('retry: 2000\nevent: none\ndata: {}\n\n')
       return
     }
     // the host's messages, one per line, as server-sent events of the same name
@@ -211,5 +211,5 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
     return { shown: Number(reply.shown ?? 0) }
   }
 
-  return { sessions, screens, start, input, resize, close, open, stream, stop, label }
+  return { sessions, screens, start, input, resize, close, open, stream, stop }
 }

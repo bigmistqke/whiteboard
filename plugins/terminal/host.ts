@@ -10,9 +10,10 @@
 // object per line, each way. A connection sends one request:
 //
 //   { t: 'list' }                          → { sessions: [{ id, label, running, exited, started }] }
-//   { t: 'start', id?, command, args, label?, restart }
+//   { t: 'start', id?, command?, args, label?, restart }
 //                                          → { session, already? }: in the session `id` (a new one
-//                                            without), unless it runs and restart is false (`already`)
+//                                            without), unless it runs and restart is false (`already`);
+//                                            without a command, it starts again as it was
 //   { t: 'input', id, d }                  → { ok }
 //   { t: 'resize', id, viewer, cols, rows, active? }
 //                                          → { ok }: the size that fits drawer `viewer`; `active`:
@@ -64,6 +65,9 @@ const { SerializeAddon } = (await import('@xterm/addon-serialize')).default
 interface Session extends Sizes {
   id: string
   label: string
+  /** what it runs, for starting it again */
+  command: string
+  args: string[]
   proc: IPty
   screen: HeadlessTerminal
   serializer: Serializer
@@ -118,7 +122,7 @@ function start(id: string, command: string, args: string[], label: string): Sess
     // WHITEBOARD_TERMINAL: which tab a program runs in, so it can show a page where its drawer is (`open`)
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', WHITEBOARD_TERMINAL: id },
   })
-  const s: Session = { id, label, proc, screen, serializer, mouseEncoding, cols, rows, attached, viewers, active, exited: null, started: new Date().toISOString() }
+  const s: Session = { id, label, command, args, proc, screen, serializer, mouseEncoding, cols, rows, attached, viewers, active, exited: null, started: new Date().toISOString() }
   proc.onData(d => {
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
@@ -227,12 +231,15 @@ function handle(conn: Conn, req: Record<string, any>) {
   switch (req.t) {
     case 'list': return reply({ sessions: list() })
     case 'start': {
-      if (typeof req.command !== 'string' || !req.command) return reply({ error: 'start needs a command' })
       const id = req.id != null ? String(req.id) : String(nextId)
       const running = sessions.get(id)
       if (running && running.exited == null && !req.restart) return reply({ session: id, already: true })
-      const label = String(req.label ?? path.basename(req.command))
-      try { start(id, req.command, Array.isArray(req.args) ? req.args.map(String) : [], label) } catch (e) { return reply({ error: (e as Error).message }) }
+      // without a command: start it again as it was (restarting a tab)
+      const command = typeof req.command === 'string' && req.command ? req.command : running?.command
+      if (!command) return reply({ error: 'start needs a command' })
+      const args = typeof req.command === 'string' && req.command ? (Array.isArray(req.args) ? req.args.map(String) : []) : running!.args
+      const label = String(req.label ?? (req.command ? path.basename(req.command) : running!.label))
+      try { start(id, command, args, label) } catch (e) { return reply({ error: (e as Error).message }) }
       log(`tab ${id} (${label}) ${running ? 'restarted' : 'started'}`)
       // ids are never reused while the host runs, so a closed tab's id can't come back as another
       if (Number(id) >= nextId) nextId = Number(id) + 1

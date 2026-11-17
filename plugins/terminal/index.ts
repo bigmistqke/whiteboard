@@ -2,12 +2,11 @@
 // a session that outlives the browser tab and the page server. In a config:
 //
 //   import terminal from '@bigmistqke/whiteboard/terminal'
-//   export default defineConfig({ plugins: [terminal({ command: 'claude' })] })
+//   export default defineConfig({ plugins: [terminal()] })
 //
-// `command` is the program a new tab starts: a name or path, or an array with its first arguments
-// (`['npm', 'run', 'dev']`). It runs in the user's shell, which takes over when it exits, so a tab
-// ends at a prompt. Without `command`, a tab is just the shell. "+" in the drawer opens a shell
-// next to the others.
+// Every tab is the user's shell; "+" in the drawer opens one. `whiteboard terminal -- <program>`
+// runs a program in a new tab, in the shell, which takes over when it exits, so a tab ends at a
+// prompt.
 //
 // `whiteboard terminal` prints the link that gives a browser the project's token; only a browser
 // with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`. What the
@@ -30,37 +29,30 @@ const STYLE = packagePath('dist/plugins/terminal/style.css')
  * render, and each session's screen is in it as HTML, so a page shows it from its first render on;
  * client.js puts the live terminal in its place.
  */
-const drawer = (state: Sessions, screens: Record<string, string>, client: string, label: string) => html`<aside id="wb-terminal" aria-label="Terminal" data-command="${label}" data-sessions="${JSON.stringify(state)}">
+const drawer = (state: Sessions, screens: Record<string, string>, client: string) => html`<aside id="wb-terminal" aria-label="Terminal" data-sessions="${JSON.stringify(state)}">
 <div class="wb-term-grip" title="drag to resize"></div>
-<div class="wb-term-bar"><button type="button" class="wb-term-toggle" title="Toggle the terminal (Ctrl+\`)"><span class="wb-term-chevron"></span>terminal</button><span class="wb-term-tabs">${state.sessions.map(s => html`<button type="button" class="wb-term-tab" data-id="${s.id}">${s.label}</button>`)}</span><span class="wb-term-status"></span><span class="wb-term-actions"></span></div>
+<div class="wb-term-bar"><button type="button" class="wb-term-toggle" title="Toggle the terminal (Ctrl+\`)"><span class="wb-term-chevron"></span>terminal</button><span class="wb-term-status"></span><span class="wb-term-actions"></span><span class="wb-term-tabs">${state.sessions.map(s => html`<button type="button" class="wb-term-tab" data-id="${s.id}">${s.label}</button>`)}</span></div>
 <div class="wb-term-screen">${state.sessions.map(s => screens[s.id] && html`<div class="wb-term-placeholder" data-id="${s.id}" aria-hidden="true">${raw(screens[s.id])}</div>`)}</div>
 </aside>
 <script>try{const t=document.getElementById('wb-terminal'),s=sessionStorage,o=new URLSearchParams(location.search).get('terminal')==='open'||s.getItem('wb-terminal-open')==='1';t.dataset.state=o?'open':'collapsed';const h=+s.getItem('wb-terminal-height');if(h)document.documentElement.style.setProperty('--wb-term-h',h+'px');const tabs=[...t.querySelectorAll('.wb-term-tab')],k=s.getItem('wb-terminal-tab'),a=tabs.find(b=>b.dataset.id===k)??tabs[0];if(a){t.dataset.tab=a.dataset.id;a.classList.add('wb-current');t.querySelector('.wb-term-placeholder[data-id="'+a.dataset.id+'"]')?.classList.add('wb-current')}}catch{}</script>
 <script type="module" src="${client}"></script>`
 
-export interface TerminalOptions {
-  /** the program a new tab starts, with its first arguments; the shell without one */
-  command?: string | string[]
-}
-
-export default function terminal(options: TerminalOptions = {}): Plugin {
-  const command = [options.command ?? process.env.SHELL ?? '/bin/sh'].flat().map(String)
-  if (!command[0]) throw new Error('terminal: command is empty')
+export default function terminal(): Plugin {
   return {
     name: 'terminal',
     // the drawer's look: on every page, since every page can have the drawer
     style: STYLE,
     setup(ctx) {
-      const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir, command })
+      const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir })
       const client = ctx.asset(CLIENT)
       return {
         // all of them run code or show what runs, so all need the project's token
         routes: {
           'GET /sessions': { description: 'the sessions (the drawer\'s tabs): id, label, whether each runs', auth: true, run: () => term.sessions() },
           'POST /start': {
-            description: `start ${command.join(' ')} (or the shell alone, with shell) in session id, a new tab without one; with restart, replace a running session`,
+            description: 'start a tab: the shell, or program (with its arguments) in it; in session id, a new tab without one; with restart, start it again as it was',
             auth: true,
-            body: { id: 'string?', args: 'string[]?', restart: 'boolean?', shell: 'boolean?' },
+            body: { id: 'string?', program: 'string[]?', restart: 'boolean?' },
             run: ({ body }) => term.start(body as StartOptions),
           },
           'POST /input': { description: 'keystrokes for a session, as the terminal sends them', auth: true, body: { id: 'string', data: 'string' }, run: ({ body }) => term.input(body.id as string, body.data as string) },
@@ -89,22 +81,21 @@ export default function terminal(options: TerminalOptions = {}): Plugin {
         async shell(req) {
           if (!ctx.authorized(req)) return null
           const state = await term.sessions()
-          return { body: drawer(state, await term.screens(state.sessions), client, term.label) }
+          return { body: drawer(state, await term.screens(state.sessions), client) }
         },
       }
     },
     commands: {
       '': {
-        description: `print a link that opens the terminal drawer in this browser (it gives the browser the project's token); with --new or arguments after --, start ${command.join(' ')} in a new tab`,
+        description: 'print a link that opens the terminal drawer in this browser (it gives the browser the project\'s token); with --new, open a tab with the shell; with a program after --, run it in a new tab',
         args: '[page]',
         options: {
-          new: { type: 'boolean?', description: 'start it in a new tab' },
-          shell: { type: 'boolean?', description: 'with --new: the shell alone' },
+          new: { type: 'boolean?', description: 'open a new tab with the shell' },
         },
-        rest: `<arguments for ${command[0]}>`,
+        rest: '<program> [arguments]',
         async run(ctx) {
           if (ctx.options.new || ctx.rest.length) {
-            const body = await call(ctx, 'POST', '/start', { args: ctx.rest, shell: !!ctx.options.shell }) as { session: string }
+            const body = await call(ctx, 'POST', '/start', { program: ctx.rest }) as { session: string }
             console.error(`whiteboard: started in tab ${body.session}`)
           }
           console.log(await ctx.authLink(`${ctx.pagePath(ctx.positionals[0])}?terminal=open`))

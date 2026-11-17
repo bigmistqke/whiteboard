@@ -23,8 +23,6 @@ function init(drawer: HTMLElement) {
   const actions = drawer.querySelector<HTMLElement>('.wb-term-actions')!
   const toggle = drawer.querySelector<HTMLButtonElement>('.wb-term-toggle')!
   const grip = drawer.querySelector<HTMLElement>('.wb-term-grip')!
-  // the program a new tab runs, by name, as the plugin's config says
-  const label = drawer.dataset.command || 'terminal'
   // the sessions as the server wrote them into the page, and the tab this browser tab shows
   let sessions: Session[] = []
   try { ({ sessions } = JSON.parse(drawer.dataset.sessions ?? '{}')); sessions ??= [] } catch { /* none */ }
@@ -191,21 +189,24 @@ function init(drawer: HTMLElement) {
       tab.append(close)
       return tab
     }))
-    const add = document.createElement('button')
-    add.type = 'button'
-    add.className = 'wb-term-add'
-    add.title = 'A new tab with a shell'
-    add.textContent = '+'
-    add.addEventListener('click', () => start({ shell: true }))
-    tabs.append(add)
     showStatus()
   }
 
+  // "+" at the bar's right end, after the tabs, outside them so it stays in view when they scroll
+  const add = document.createElement('button')
+  add.type = 'button'
+  add.className = 'wb-term-add'
+  add.title = 'A new tab with a shell'
+  add.textContent = '+'
+  add.addEventListener('click', () => start({}))
+  tabs.after(add)
+
   function showStatus() {
     const x = sessions.find(y => y.id === current)
-    if (!x) return setStatus(sessions.length ? '' : 'no session', sessions.length ? [] : [[`Start ${label}`, () => start({})]])
+    // no tab yet: "+" opens one
+    if (!x) return setStatus('', [])
     if (x.running) return setStatus('', [])
-    setStatus(x.exited == null ? 'stopped' : `exited (${x.exited})`, [['Start again', () => start({ id: x.id, restart: true, shell: x.label !== label })]])
+    setStatus(x.exited == null ? 'stopped' : `exited (${x.exited})`, [['Start again', () => start({ id: x.id, restart: true })]])
   }
 
   function select(id: string | null) {
@@ -225,9 +226,10 @@ function init(drawer: HTMLElement) {
     else drawTabs()
   }
 
-  async function start(body: { id?: string; restart?: boolean; shell?: boolean }) {
+  /** Open a tab with the shell, or start tab `id` again as it was. */
+  async function start(body: { id?: string; restart?: boolean }) {
     setStatus('starting…')
-    const res = await post('/api/terminal/start', { args: [], ...body })
+    const res = await post('/api/terminal/start', body)
     const reply = await res.json().catch(() => ({}))
     if (!res.ok) return setStatus(reply.error ?? 'could not start', [['Try again', () => start(body)]])
     await loadSessions()
@@ -249,11 +251,13 @@ function init(drawer: HTMLElement) {
     stream?.close()
     term.reset()
     sent = ''
-    if (!current) { stream = null; return showStatus() }
-    stream = new EventSource(`/api/terminal/stream?id=${encodeURIComponent(current)}&viewer=${viewer}`)
+    if (!current) showStatus()
+    // without a tab too: the host tells it when one appears (started from the command line, say)
+    stream = new EventSource(`/api/terminal/stream?${current ? `id=${encodeURIComponent(current)}&` : ''}viewer=${viewer}`)
     stream.addEventListener('sessions', e => {
       sessions = JSON.parse((e as MessageEvent).data).sessions
-      if (current && !sessions.some(x => x.id === current)) return select(sessions.at(-1)?.id ?? null)
+      // the current tab is gone, or there was none and one appeared: show the last
+      if (current ? !sessions.some(x => x.id === current) : sessions.length) return select(sessions.at(-1)?.id ?? null)
       drawTabs()
     })
     stream.addEventListener('none', () => {

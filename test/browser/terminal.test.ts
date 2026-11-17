@@ -1,5 +1,5 @@
-// The terminal drawer in the browser: starting the command, the shell taking over, tabs, a reload,
-// a tab from the command line, closing one, and a tab whose shell exits.
+// The terminal drawer in the browser: a program run in a tab, the shell taking over, tabs, a
+// reload, a tab from the command line, closing one, and a tab whose shell exits.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
@@ -7,12 +7,12 @@ import { browser, project, until } from './project.ts'
 
 const CONFIG = `import { defineConfig } from '@bigmistqke/whiteboard'
 import terminal from '@bigmistqke/whiteboard/terminal'
-export default defineConfig({ plugins: [terminal({ command: './prog.sh' })] })
+export default defineConfig({ plugins: [terminal()] })
 `
 
 const hasPty = (() => { try { createRequire(import.meta.url).resolve('node-pty'); return true } catch { return false } })()
 
-test('terminal: command, shell, tabs, reload, close, exit', { timeout: 90000, skip: !hasPty && 'node-pty is not installed' }, async t => {
+test('terminal: a program, the shell, tabs, reload, close, exit', { timeout: 90000, skip: !hasPty && 'node-pty is not installed' }, async t => {
   const proj = await project({
     config: CONFIG,
     pages: { q: '# Test\n\nHello.\n' },
@@ -29,9 +29,18 @@ test('terminal: command, shell, tabs, reload, close, exit', { timeout: 90000, sk
   // the link gives this browser the project's token and opens the drawer
   await page.goto(proj.cli('terminal', 'q').trim())
   await page.waitForSelector('#wb-terminal', { state: 'visible' })
-  await until('no session yet', async () => (await page.textContent('.wb-term-actions'))!.includes('Start prog.sh'))
+  // no tab yet: nothing to start but "+", at the bar's right end, after the tabs
+  await page.waitForSelector('#wb-terminal .wb-term-add')
+  assert.equal(await page.textContent('.wb-term-actions'), '')
+  assert.deepEqual(await page.$$eval('.wb-term-bar > *', els => els.map(e => e.className).slice(-2)), ['wb-term-tabs', 'wb-term-add'])
+  const bar = await page.$eval('.wb-term-bar', e => e.getBoundingClientRect().right)
+  const plus = await page.$eval('.wb-term-add', e => e.getBoundingClientRect().right)
+  assert.ok(bar - plus < 20, `"+" sits at the right end (${bar - plus}px from it)`)
 
-  await page.click('.wb-term-actions button')
+  // a program run in a new tab from the command line
+  proj.cli('terminal', '--', './prog.sh')
+  await until('its tab', async () => (await tabs()).some(x => x.includes('prog.sh')))
+  await page.click('.wb-term-tab[data-id="1"] .wb-term-tab-name')
   await shows('PROG-RAN')
   // the program exited, and the shell took over in the same tab
   await until('one tab, still running', async () => JSON.stringify(await tabs()) === '["*prog.sh"]')
@@ -52,25 +61,27 @@ test('terminal: command, shell, tabs, reload, close, exit', { timeout: 90000, sk
   await until('after a reload: both tabs, the current one shown', async () =>
     (await tabs()).length === 2 && (await text()).includes('42'))
 
-  // a tab started from the command line shows up by itself
-  proj.cli('terminal', '--new', '--shell')
+  // a shell tab started from the command line shows up by itself
+  proj.cli('terminal', '--new')
   await until('the tab from the command line', async () => (await tabs()).length === 3)
 
   await page.click('.wb-term-tab[data-id="2"] .wb-term-tab-close')
   await until('the tab is closed', async () => (await tabs()).length === 2 && !(await page.$('.wb-term-tab[data-id="2"]')))
 
-  // leaving the shell ends the tab, which then offers to start again
+  // leaving the shell ends the tab, which then offers to start again: it runs the program again
   await page.click('.wb-term-tab[data-id="1"] .wb-term-tab-name')
   await page.waitForTimeout(500)
   await page.keyboard.type('exit\n')
   await until('the tab ended: Start again', async () =>
     (await tabs()).some(x => x.includes('prog.sh(x)')) && (await page.textContent('.wb-term-actions'))!.includes('Start again'), 8000)
+  await page.click('.wb-term-actions button')
+  await until('started again as it was', async () => JSON.stringify(await tabs()).includes('*prog.sh"') && (await text()).includes('PROG-RAN'), 8000)
 
   assert.deepEqual(errors, [], 'no console errors')
 })
 
 test('terminal: two windows of different widths, the one in use decides the size', { timeout: 90000, skip: !hasPty && 'node-pty is not installed' }, async t => {
-  const proj = await project({ config: CONFIG.replace("{ command: './prog.sh' }", ''), pages: { q: '# Test\n' } })
+  const proj = await project({ config: CONFIG, pages: { q: '# Test\n' } })
   const { browser: b, page: narrow, errors, newPage } = await browser()
   const wide = await newPage()
   t.after(async () => { await b.close(); await proj.close() })
@@ -78,7 +89,7 @@ test('terminal: two windows of different widths, the one in use decides the size
   await wide.setViewportSize({ width: 1400, height: 800 })
 
   // a shell in tab 1, then both windows open the drawer on it
-  proj.cli('terminal', '--new', '--shell')
+  proj.cli('terminal', '--new')
   const link = proj.cli('terminal', 'q').trim()
   await narrow.goto(link)
   await wide.goto(link)
@@ -112,10 +123,10 @@ test('terminal: two windows of different widths, the one in use decides the size
 })
 
 test('terminal: a program in a tab opens a page where its drawer is', { timeout: 60000, skip: !hasPty && 'node-pty is not installed' }, async t => {
-  const proj = await project({ config: CONFIG.replace("{ command: './prog.sh' }", ''), pages: { q: '# Q\n', other: '# Other page\n' } })
+  const proj = await project({ config: CONFIG, pages: { q: '# Q\n', other: '# Other page\n' } })
   const { browser: b, page, errors } = await browser()
   t.after(async () => { await b.close(); await proj.close() })
-  proj.cli('terminal', '--new', '--shell')
+  proj.cli('terminal', '--new')
   await page.goto(proj.cli('terminal', 'q').trim())
   await page.waitForSelector('#wb-terminal .xterm-screen')
   await page.click('#wb-terminal .xterm-screen')

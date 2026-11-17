@@ -169,14 +169,13 @@ The same pieces are a module, `@bigmistqke/whiteboard/log`: `read`,
 
 ## A terminal on every page
 
-The terminal is a plugin: add it to the config, with the program a new tab
-starts. Without `command`, a tab is just your shell.
+The terminal is a plugin: add it to the config.
 
 ```ts
 import terminal from '@bigmistqke/whiteboard/terminal'
 
 export default defineConfig({
-  plugins: [terminal({ command: 'claude' })],   // or ['npm', 'run', 'dev'], with arguments
+  plugins: [terminal()],
 })
 ```
 
@@ -196,22 +195,19 @@ size of the window you used last (opened the drawer, clicked or typed in
 it); the others show it at that size, with a margin or cut off at the right,
 until you use them.
 
-A tab runs the command inside your shell, and the shell takes over when the
-command exits: leaving `claude` leaves a prompt in the same tab, not a dead
-one. "+" opens a tab with just the shell, "×" closes a tab and ends what
-runs in it, and a tab whose shell exited offers to start again.
+Every tab is your shell. The tabs sit at the bar's right, "+" at its end
+opens one, and "×" closes a tab and ends what runs in it. A tab started with
+a program runs it inside your shell, and the shell takes over when it exits:
+leaving `claude` leaves a prompt in the same tab, not a dead one. A tab whose
+shell exited offers to start it again, as it was.
 
 ```sh
-whiteboard terminal [page]             # the link; the drawer starts the command on demand
-whiteboard terminal --new              # start the command in a new tab
-whiteboard terminal -- <arguments>     # the same, with these arguments after its own
-whiteboard terminal --new --shell      # a new tab with just the shell
-whiteboard terminal open <page>        # from inside a tab: show a page where its drawer is
+whiteboard terminal [page]             # the link that opens the drawer in this browser
+whiteboard terminal --new              # a new tab with the shell
+whiteboard terminal -- <program> …     # run a program in a new tab: -- claude --resume <id>
+whiteboard terminal open <page>        # show a page where the drawer you used last is
 whiteboard terminal stop               # end every tab and their host
 ```
-
-With `command: 'claude'`, `whiteboard terminal -- --resume <id>` continues
-a Claude Code session in a new tab.
 
 An agent can show you a page: `whiteboard terminal open <page>` takes the
 browser tab whose drawer you used last to that page, and the drawer comes
@@ -303,7 +299,7 @@ import code from '@bigmistqke/whiteboard/code'
 export default defineConfig({
   name: 'my-project',            // shown in titles (default: the folder name)
   plugins: [                     // added to the built-in ones
-    terminal({ command: 'claude' }),
+    terminal(),
     code({ themes: { light: 'github-light', dark: 'github-dark' } }),   // same name: replaces the built-in
   ],
   style: new URL('./site.css', import.meta.url),   // a stylesheet on every page, after the others
