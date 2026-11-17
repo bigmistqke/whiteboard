@@ -84,7 +84,7 @@
     "prepare": "node build.ts",
     "start": "node bin/whiteboard.ts serve",
     "check": "tsc -p tsconfig.json",
-    "test": "node --test --test-force-exit 'src/**/*.test.ts'",
+    "test": "node --test --test-force-exit 'src/**/*.test.ts' 'terminal/**/*.test.ts'",
     "test:browser": "node --test --test-force-exit --test-concurrency=1 'test/browser/*.test.ts'"
   },
   "engines": {

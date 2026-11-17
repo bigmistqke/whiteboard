@@ -32,6 +32,7 @@ import { createRequire } from 'node:module'
 import type { IPty } from 'node-pty'
 import type { Terminal as HeadlessTerminal } from '@xterm/headless'
 import type { SerializeAddon as Serializer } from '@xterm/addon-serialize'
+import { followMouseEncoding } from './modes.ts'
 
 const require = createRequire(import.meta.url)
 const [dir, socket] = process.argv.slice(2)
@@ -55,6 +56,8 @@ interface Session {
   proc: IPty
   screen: HeadlessTerminal
   serializer: Serializer
+  /** what the serializer leaves out: the mouse encoding the program asked for (see modes.ts) */
+  mouseEncoding: () => string
   cols: number
   rows: number
   /** the connections following it */
@@ -94,11 +97,12 @@ function start(id: string, command: string, args: string[], label: string): Sess
   const screen = new Terminal({ cols, rows, scrollback: 2000, allowProposedApi: true })
   const serializer = new SerializeAddon()
   screen.loadAddon(serializer)
+  const mouseEncoding = followMouseEncoding(screen)
   const proc = pty.spawn(command, args, {
     name: 'xterm-256color', cols, rows, cwd: dir,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
   })
-  const s: Session = { id, label, proc, screen, serializer, cols, rows, attached, exited: null, started: new Date().toISOString() }
+  const s: Session = { id, label, proc, screen, serializer, mouseEncoding, cols, rows, attached, exited: null, started: new Date().toISOString() }
   proc.onData(d => {
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
@@ -148,7 +152,7 @@ function send(conn: Conn, msg: unknown) {
 function sendScreen(conn: Conn, s: Session) {
   conn.queue = []
   s.screen.write('', () => {
-    conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize(), cols: s.cols, rows: s.rows, exited: s.exited }) + '\n')
+    conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize() + s.mouseEncoding(), cols: s.cols, rows: s.rows, exited: s.exited }) + '\n')
     const queued = conn.queue ?? []
     conn.queue = null
     for (const msg of queued) send(conn, msg)
