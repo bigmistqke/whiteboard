@@ -15,3 +15,10 @@ pre.shiki { background: var(--code-bg); }
   color: var(--shiki-dark); font-style: var(--shiki-dark-font-style);
   font-weight: var(--shiki-dark-font-weight); text-decoration: var(--shiki-dark-text-decoration);
 }
+
+/* a diff: whole lines tinted by what they are, from the page's own colours */
+.shiki .line[data-diff] { display: inline-block; min-width: 100%; }
+.shiki .line[data-diff=add] { background: color-mix(in srgb, #16a34a 14%, transparent); }
+.shiki .line[data-diff=del] { background: color-mix(in srgb, #dc2626 14%, transparent); }
+.shiki .line[data-diff=hunk] { background: color-mix(in srgb, var(--accent, #1d5bbf) 10%, transparent); }
+.shiki .line[data-diff=meta] { font-weight: 600; }

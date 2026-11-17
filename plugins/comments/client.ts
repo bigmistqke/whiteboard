@@ -1,12 +1,17 @@
 // Comments on a page's text, on every page. The reader selects a passage
 // of the page's content (its <main>, else all of it), a "Comment" button appears next to it,
 // and what they write goes into the page's log; the agent replies there too (`whiteboard append`),
-// or edits the page. Threads stay until the reader closes them.
+// or edits the page. Threads stay until the reader closes them. In a code block, the reader can
+// also comment on whole lines: a "+" beside the line, pressed, or dragged over several.
 //
 // Everything is an event on the page, its type named after the plugin:
-//   comments:new      { quote, before, after, block, text }   the event's id is the thread's id
+//   comments:new      { quote, before, after, block, at?, text }   the event's id is the thread's id
 //   comments:reply    { replyTo, text }                       from the reader, or from the command line
 //   comments:resolve  { replyTo }                             the reader closed the thread
+//
+// A block can say where its parts are from with `data-wb-at` (a diff's lines: `src/a.ts:12`); a
+// comment records those of the passage as `at` (the first, and the last when it differs), so the
+// agent knows what it is about.
 //
 // Passages are found again by their quote and the text around it, so they survive edits elsewhere
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
@@ -186,6 +191,7 @@ function renderPopover() {
   const draft = popover.querySelector('textarea')?.value ?? ''
   popover.innerHTML = String(html`
     <blockquote class="wb-thread-quote">${t.comment.data.quote ?? ''}</blockquote>
+    ${t.comment.data.at && html`<p class="wb-thread-at">${t.comment.data.at}</p>`}
     ${!t.range && html`<p class="wb-thread-detached">This passage is no longer on the page.</p>`}
     ${[t.comment, ...t.replies].map(message)}
     <form class="wb-thread-reply">
@@ -223,7 +229,7 @@ function closePopover() {
 
 // ---- starting a comment ------------------------------------------------------------------------
 
-let pending: { quote: string; before: string; after: string; block: number } | null = null
+let pending: { quote: string; before: string; after: string; block: number; at?: string } | null = null
 
 /** A selection inside the page's text (not in a form) → where the Comment button goes. */
 function onSelection() {
@@ -233,11 +239,19 @@ function onSelection() {
   const range = sel.getRangeAt(0)
   const inPage = (n: Node) => main.contains(n) && !(n instanceof Element ? n : n.parentElement)?.closest('form, input, textarea, select, button')
   if (!inPage(range.startContainer) || !inPage(range.endContainer)) { startButton.hidden = true; return }
+  startButton.hidden = !prepare(range)
+}
+
+/**
+ * What a comment on `range` records (`pending`), and the Comment button put under its end. False
+ * when there is nothing to comment on.
+ */
+function prepare(range: Range): boolean {
   const quote = range.toString().trim()
-  if (!quote) { startButton.hidden = true; return }
+  if (!quote) return false
   const index = textIndex()
   const at = offsetsOf(index, range)
-  if (!at) { startButton.hidden = true; return }
+  if (!at) return false
   // the quote as it appears in the page's text, trimmed of the whitespace the selection had around it
   const start = index.text.indexOf(quote, at.start)
   const s = start >= 0 && start <= at.end ? start : at.start
@@ -249,11 +263,71 @@ function onSelection() {
     after: index.text.slice(s + quote.length, s + quote.length + CONTEXT),
     block: block ? [...main.children].indexOf(block) : -1,
   }
+  // where the passage is from, when its block says (see the top of this file)
+  const places = [...main.querySelectorAll<HTMLElement>('[data-wb-at]')].filter(el => range.intersectsNode(el) && el.textContent).map(el => el.dataset.wbAt!)
+  if (places.length) pending.at = places.length > 1 && places.at(-1) !== places[0] ? `${places[0]} – ${places.at(-1)}` : places[0]
   const rects = range.getClientRects()
   const last = rects[rects.length - 1] ?? range.getBoundingClientRect()
   startButton.style.top = `${last.bottom + scrollY + 6}px`
   startButton.style.left = `${Math.min(last.right + scrollX - 40, document.documentElement.clientWidth - 110 + scrollX)}px`
-  startButton.hidden = false
+  return true
+}
+
+// ---- comments on lines of code -----------------------------------------------------------------
+
+// A code block's lines (Shiki writes each as a .line): hovering one shows "+" at its left; pressing
+// it comments on the line, dragging it down or up takes the lines it passes over.
+const lineButton = document.createElement('button')
+lineButton.type = 'button'
+lineButton.className = 'wb-line-comment'
+lineButton.textContent = '+'
+lineButton.title = 'Comment on this line (drag for several)'
+lineButton.hidden = true
+
+let hovered: HTMLElement | null = null
+let drag: { pre: HTMLElement; from: HTMLElement; to: HTMLElement } | null = null
+
+const codeLine = (el: EventTarget | null) => {
+  const line = el instanceof Element ? el.closest<HTMLElement>('pre .line') : null
+  return line && main.contains(line) && !line.closest('form') ? line : null
+}
+
+/** The lines from `a` to `b`, either way round, as one range. */
+function linesRange(a: HTMLElement, b: HTMLElement): Range {
+  const [first, last] = a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING ? [b, a] : [a, b]
+  const range = document.createRange()
+  range.setStart(first, 0)
+  range.setEnd(last, last.childNodes.length)
+  return range
+}
+
+function showLineButton(line: HTMLElement) {
+  hovered = line
+  const rect = line.getBoundingClientRect()
+  const pre = line.closest('pre')!.getBoundingClientRect()
+  lineButton.style.top = `${rect.top + scrollY + rect.height / 2 - 10}px`
+  lineButton.style.left = `${Math.max(scrollX + 2, pre.left + scrollX - 24)}px`
+  lineButton.hidden = false
+}
+
+function onLinePointer(e: MouseEvent) {
+  if (drag) {
+    // the line at the pointer's height, inside the block the drag started in
+    const pre = drag.pre.getBoundingClientRect()
+    const x = drag.from.getBoundingClientRect().left + 4
+    const line = codeLine(document.elementFromPoint(x, Math.min(Math.max(e.clientY, pre.top + 1), pre.bottom - 1)))
+    if (line && drag.pre.contains(line) && line !== drag.to) {
+      drag.to = line
+      const highlights = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights
+      const HighlightCtor = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight
+      if (highlights && HighlightCtor) highlights.set('wb-comment-active', new HighlightCtor(linesRange(drag.from, drag.to)))
+    }
+    return
+  }
+  if (e.target === lineButton) return
+  const line = codeLine(e.target)
+  if (line) showLineButton(line)
+  else if (!lineButton.hidden) { lineButton.hidden = true; hovered = null }
 }
 
 const composer = document.createElement('form')
@@ -264,7 +338,7 @@ composer.innerHTML = String(html`<blockquote class="wb-thread-quote"></blockquot
 
 function startComment() {
   if (!pending) return
-  composer.querySelector('blockquote')!.textContent = pending.quote
+  composer.querySelector('blockquote')!.textContent = pending.at ? `${pending.at}\n${pending.quote}` : pending.quote
   composer.style.top = startButton.style.top
   const width = Math.min(360, document.documentElement.clientWidth - 32)
   composer.style.width = `${width}px`
@@ -282,7 +356,25 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   root = el
   main = root.querySelector('main') ?? root
   api = core
-  document.body.append(layer, startButton, popover, composer)
+  document.body.append(layer, startButton, lineButton, popover, composer)
+
+  document.addEventListener('mousemove', onLinePointer)
+  lineButton.addEventListener('mousedown', e => {
+    if (!hovered || e.button !== 0) return
+    e.preventDefault()
+    const highlights = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights
+    const HighlightCtor = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight
+    if (highlights && HighlightCtor) highlights.set('wb-comment-active', new HighlightCtor(linesRange(hovered, hovered)))
+    drag = { pre: hovered.closest('pre')!, from: hovered, to: hovered }
+  })
+  document.addEventListener('mouseup', () => {
+    if (!drag) return
+    const { from, to } = drag
+    drag = null
+    lineButton.hidden = true
+    if (prepare(linesRange(from, to))) startComment()
+    else draw()
+  })
 
   let selTimer = 0
   document.addEventListener('selectionchange', () => { clearTimeout(selTimer); selTimer = window.setTimeout(onSelection, 150) })

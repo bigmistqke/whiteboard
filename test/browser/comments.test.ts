@@ -65,3 +65,51 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
 
   assert.deepEqual(errors, [], 'no console errors')
 })
+
+const DIFF_PAGE = `# Review
+
+\`\`\`\`diff
+diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1,3 +1,4 @@
+ const a = 1
+-const b = 2
++const b = 3
++const c = 4
+ export { a }
+\`\`\`\`
+`
+
+test('comments on lines of a diff: tinted lines, a drag over two, and where they are', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { q: DIFF_PAGE } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+
+  await page.goto(proj.url('q'))
+  await page.waitForSelector('pre .line[data-diff]')
+  assert.deepEqual(await page.$$eval('pre .line', ls => ls.map(l => (l as HTMLElement).dataset.diff)),
+    ['meta', 'meta', 'meta', 'hunk', 'context', 'del', 'add', 'add', 'context'])
+
+  // hover "const b = 3", press its "+", drag down to "const c = 4"
+  const line = (text: string) => page.locator('pre .line', { hasText: text })
+  await line('const b = 3').hover()
+  const plus = page.locator('.wb-line-comment')
+  await plus.waitFor({ state: 'visible' })
+  const from = (await plus.boundingBox())!
+  const to = (await line('const c = 4').boundingBox())!
+  await page.mouse.move(from.x + 10, from.y + 10)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 10, to.y + to.height / 2, { steps: 4 })
+  await page.mouse.up()
+
+  await page.waitForSelector('.wb-comment-new', { state: 'visible' })
+  await page.fill('.wb-comment-new textarea', 'why 3?')
+  await page.click('.wb-comment-new button[type=submit]')
+  const comment = await until('the comment is in the log', () => proj.events().find(e => e.type === 'comments:new'))
+  assert.equal(comment.data.quote, '+const b = 3\n+const c = 4')
+  assert.equal(comment.data.at, 'src/a.ts:2 – src/a.ts:3')
+  await until('its badge', async () => (await page.$$eval('.wb-comment-badge:not([data-detached])', b => b.length)) === 1)
+  assert.match(await page.textContent('.wb-thread:not(.wb-comment-new)') ?? '', /src\/a\.ts:2 – src\/a\.ts:3/)
+  assert.deepEqual(errors, [], 'no console errors')
+})

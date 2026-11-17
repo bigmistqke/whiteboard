@@ -10,10 +10,14 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Every token carries both a light and a dark colour as CSS variables (--shiki-light,
 // --shiki-dark); style.css picks one per theme, so highlighting follows the theme toggle without
 // re-rendering. The block's background stays the page's own code background.
+//
+// A `diff` fence marks each line with what it is (`data-diff`: add, del, context, hunk, meta) and,
+// in a hunk, where it is (`data-wb-at="file:line"`), which comments on the line record.
 // shiki loads the first time a page has code, not with the plugin: the command line loads the
 // built-in plugins too, for their declarations
 import type { BundledTheme, Highlighter } from 'shiki'
 import type { FenceContext } from '@bigmistqke/whiteboard'
+import { diffLines } from './diff.ts'
 
 export interface Options {
   /** Shiki theme names for each page theme (default: GitHub light and dark) */
@@ -49,7 +53,18 @@ export default function code(options: Options = {}): Plugin {
         loaded.add(language)
       }
     } else language = 'text'
-    return h.codeToHtml(code, { lang: language, themes, defaultColor: false, colorReplacements })
+    const diff = language === 'diff' ? diffLines(code) : null
+    return h.codeToHtml(code, {
+      lang: language, themes, defaultColor: false, colorReplacements,
+      transformers: diff ? [{
+        line(node, n) {
+          const info = diff[n - 1]
+          if (!info) return
+          node.properties['data-diff'] = info.kind
+          if (info.at) node.properties['data-wb-at'] = info.at
+        },
+      }] : [],
+    })
   }
 
   return definePlugin({

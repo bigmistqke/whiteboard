@@ -253,8 +253,32 @@ its config, and `whiteboard claude-code install`. None of them ever blocks:
 So when a message arrives with answers from the hook, act on them as on
 answers from a wait, and start a wait when it says nobody listens.
 
-The user can also select text on a page and comment on it: a `wait` or
-`watch` on the whole page hands you those as `comments:new` events. `whiteboard docs` says how to reply
-(by editing the page, or in the thread with `whiteboard append`).
+The user can also select text on a page and comment on it, or comment on
+lines of a code block: a `wait` or `watch` on the whole page hands you those
+as `comments:new` events. `whiteboard docs` says how to reply (by editing the
+page, or in the thread with `whiteboard append`).
 
 After acting on an answer, update the page to say what you did with it.
+
+## Putting changes up for review
+
+To have the user review code you changed, write the diff into a page as a
+`diff` fence. Its lines are coloured, and the user can comment on any of
+them: each comment's `at` says which file and line (`src/a.ts:12`, or
+`src/a.ts (old):9` for a removed line). End with a form for the verdict.
+
+```sh
+git add -N .   # new files show in the diff too
+{ printf '# Review: <what changed>\n\n<why, in a few lines>\n\n````diff\n'
+  git diff HEAD
+  printf '````\n\n:::form{name=review}\n:textarea[Anything else]{name=note}\n\n:button[Approve] :button[Request changes]\n:::\n'
+} > .whiteboard/pages/review.md
+```
+
+Then `whiteboard wait --page review`: it hands you the comments and the
+verdict. For a comment, change the code or reply in its thread; after
+changing code, write the page again the same way, so the diff shows what
+it is now (comments whose lines are gone stay open, marked as no longer on
+the page). Use four backticks for the fence, since a diff can hold three.
+A big change reads better as one fence per file or per part, each with a
+line of explanation above it.
