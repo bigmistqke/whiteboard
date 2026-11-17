@@ -68,3 +68,45 @@ test('terminal: command, shell, tabs, reload, close, exit', { timeout: 90000, sk
 
   assert.deepEqual(errors, [], 'no console errors')
 })
+
+test('terminal: two windows of different widths, the one in use decides the size', { timeout: 90000, skip: !hasPty && 'node-pty is not installed' }, async t => {
+  const proj = await project({ config: CONFIG.replace("{ command: './prog.sh' }", ''), pages: { q: '# Test\n' } })
+  const { browser: b, page: narrow, errors } = await browser()
+  const wide = await narrow.context().newPage()
+  t.after(async () => { await b.close(); await proj.close() })
+  await narrow.setViewportSize({ width: 700, height: 800 })
+  await wide.setViewportSize({ width: 1400, height: 800 })
+
+  // a shell in tab 1, then both windows open the drawer on it
+  proj.cli('terminal', '--new', '--shell')
+  const link = proj.cli('terminal', 'q').trim()
+  await narrow.goto(link)
+  await wide.goto(link)
+  for (const p of [narrow, wide]) await p.waitForSelector('#wb-terminal .xterm-screen')
+  // how wide the terminal is drawn, and how wide the space for it is
+  const widths = (p: typeof narrow) => p.evaluate(() => ({
+    term: Math.round(document.querySelector('#wb-terminal .xterm-screen')!.getBoundingClientRect().width),
+    room: Math.round(document.querySelector('#wb-terminal .wb-term-screen')!.getBoundingClientRect().width),
+  }))
+
+  // the narrow window is used: the session takes its size, and the wide one shows it with a margin
+  await narrow.click('#wb-terminal .xterm-screen')
+  await narrow.keyboard.type('echo NARROW\n')
+  await until('the wide window follows the narrow one', async () => {
+    const [n, w] = [await widths(narrow), await widths(wide)]
+    return n.term === w.term && w.term < w.room - 100
+  }, 8000)
+
+  // now the wide one is used: it takes the session, and the narrow one shows it cut off
+  await wide.click('#wb-terminal .xterm-screen')
+  await wide.keyboard.type('echo WIDE\n')
+  await until('the narrow window follows the wide one', async () => {
+    const [n, w] = [await widths(narrow), await widths(wide)]
+    return n.term === w.term && n.term > n.room
+  }, 8000)
+  // both show the same session
+  await until('what was typed in one shows in the other', () => narrow.evaluate(() =>
+    (document.querySelector('#wb-terminal .xterm-rows') as HTMLElement).innerText.includes('WIDE')), 8000)
+
+  assert.deepEqual(errors, [], 'no console errors')
+})

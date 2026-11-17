@@ -56,16 +56,50 @@ function init(drawer: HTMLElement) {
   }
 
   // ---- size ----------------------------------------------------------------------------------
+  // A session has one size for every drawer showing it (every browser window): the size of the
+  // drawer the reader used last, its active viewer (see host.ts). This drawer reports the size that
+  // fits it, claims the session when the reader uses it (opening it, focus, a keystroke), and
+  // otherwise shows the session at the session's size: with a margin, or cut off at the right.
+  const viewer = crypto.randomUUID()
+  // the session's active viewer and size, as the host last said
+  let active: string | null = null
+  let session: { cols: number; rows: number } | null = null
+  // this browser tab was the one in use: its next page claims the session again
+  let claim = store.get('wb-terminal-active') === '1'
   let sent = ''
+  const mine = () => active === viewer
+
+  /** Tell the host the size that fits this drawer, and whether the reader uses it now. */
   function refit() {
-    if (!isOpen()) return
-    try { fit.fit() } catch { return }
-    const size = `${term.cols}x${term.rows}`
-    if (size === sent) return
-    sent = size
-    if (current) post('/api/terminal/resize', { id: current, cols: term.cols, rows: term.rows })
+    if (!isOpen() || !current) return
+    const dims = fit.proposeDimensions()
+    if (!dims?.cols || !dims?.rows) return
+    const key = `${current} ${dims.cols}x${dims.rows} ${claim}`
+    if (key !== sent) {
+      sent = key
+      post('/api/terminal/resize', { id: current, viewer, cols: dims.cols, rows: dims.rows, active: claim })
+      // it is ours from now on; the host confirms with a `size`
+      if (claim) { active = viewer; claim = false }
+    }
+    show()
   }
+
+  /** The terminal at the size it has here: its own when this drawer is the active one, else the session's. */
+  function show() {
+    const dims = fit.proposeDimensions()
+    const size = mine() || !session ? dims : session
+    if (size?.cols && size?.rows && (size.cols !== term.cols || size.rows !== term.rows)) term.resize(size.cols, size.rows)
+  }
+
+  /** The reader uses this drawer: the session takes its size. */
+  function use() {
+    if (mine() || !current) return
+    claim = true
+    refit()
+  }
+
   new ResizeObserver(() => refit()).observe(screen)
+  term.textarea?.addEventListener('focus', use)
 
   // ---- open and closed -----------------------------------------------------------------------
   function setOpen(open: boolean) {
@@ -77,7 +111,7 @@ function init(drawer: HTMLElement) {
     const vt = (document as any).startViewTransition
     if (vt && !matchMedia('(prefers-reduced-motion: reduce)').matches) vt.call(document, apply)
     else apply()
-    requestAnimationFrame(() => { refit(); if (open) term.focus() })
+    requestAnimationFrame(() => { if (open) use(); refit(); if (open) term.focus() })
   }
   toggle.addEventListener('click', () => setOpen(!isOpen()))
   addEventListener('keydown', e => {
@@ -111,6 +145,7 @@ function init(drawer: HTMLElement) {
   let chain = Promise.resolve()
   term.onData(d => {
     if (!current) return
+    use()
     const id = current
     if (!pending) queueMicrotask(() => {
       const data = pending
@@ -215,7 +250,7 @@ function init(drawer: HTMLElement) {
     term.reset()
     sent = ''
     if (!current) { stream = null; return showStatus() }
-    stream = new EventSource(`/api/terminal/stream?id=${encodeURIComponent(current)}`)
+    stream = new EventSource(`/api/terminal/stream?id=${encodeURIComponent(current)}&viewer=${viewer}`)
     stream.addEventListener('sessions', e => {
       sessions = JSON.parse((e as MessageEvent).data).sessions
       if (current && !sessions.some(x => x.id === current)) return select(sessions.at(-1)?.id ?? null)
@@ -227,11 +262,12 @@ function init(drawer: HTMLElement) {
       showStatus()
     })
     stream.addEventListener('screen', e => {
-      const { d, cols, rows } = JSON.parse((e as MessageEvent).data)
+      const { d, cols, rows, active: a } = JSON.parse((e as MessageEvent).data)
       term.reset()
-      // the screen as the server has it, at its size; then this tab's own size, if it differs
-      if (cols && rows) term.resize(cols, rows)
-      sent = `${cols}x${rows}`
+      // the screen as the host has it, at the session's size; then the size this drawer shows it at
+      session = cols && rows ? { cols, rows } : null
+      active = a ?? null
+      if (session) term.resize(session.cols, session.rows)
       term.write(d, () => {
         refit()
         // the live terminal takes over from the screens the server wrote into the page
@@ -241,6 +277,14 @@ function init(drawer: HTMLElement) {
       if (isOpen() && store.get('wb-terminal-focus') === '1') term.focus()
     })
     stream.addEventListener('data', e => term.write(JSON.parse((e as MessageEvent).data).d))
+    // the session's size changed, or another drawer became the active one
+    stream.addEventListener('size', e => {
+      const { cols, rows, active: a } = JSON.parse((e as MessageEvent).data)
+      session = { cols, rows }
+      active = a ?? null
+      store.set('wb-terminal-active', mine() ? '1' : '0')
+      show()
+    })
     stream.addEventListener('exit', e => {
       const code = JSON.parse((e as MessageEvent).data).code
       const x = sessions.find(y => y.id === current)

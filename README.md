@@ -186,6 +186,11 @@ from one page into the next (a view transition across the page load), and
 the server writes the current screens into each page, so it never shows
 empty. Ctrl+\` opens and closes it.
 
+Several browser windows can show the same tab. A tab has one size, the
+size of the window you used last (opened the drawer, clicked or typed in
+it); the others show it at that size, with a margin or cut off at the right,
+until you use them.
+
 A tab runs the command inside your shell, and the shell takes over when the
 command exits: leaving `claude` leaves a prompt in the same tab, not a dead
 one. "+" opens a tab with just the shell, "×" closes a tab and ends what

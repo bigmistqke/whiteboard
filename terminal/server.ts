@@ -150,7 +150,8 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
   }
 
   const input = async (id: string, data: string) => { await ask({ t: 'input', id, d: data }) }
-  const resize = async (id: string, cols: number, rows: number) => { await ask({ t: 'resize', id, cols, rows }) }
+  /** The size that fits drawer `viewer`; `active`: the reader is using that drawer now (see host.ts, Sizes). */
+  const resize = async (id: string, viewer: string, cols: number, rows: number, active = false) => { await ask({ t: 'resize', id, viewer, cols, rows, active }) }
 
   /** End one session and drop its tab. */
   async function close(id: string) {
@@ -162,7 +163,7 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
    * Follow a session as server-sent events on `res`: `sessions` (the tabs) and `screen` first, then
    * `data`, `exit` and `sessions` as they come.
    */
-  async function stream(req: IncomingMessage, res: ServerResponse, id: string | undefined) {
+  async function stream(req: IncomingMessage, res: ServerResponse, id: string | undefined, viewer?: string) {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
     res.write(': terminal\n\n')
     const ping = setInterval(() => res.write(': ping\n\n'), 25000)
@@ -191,7 +192,7 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
     conn.on('close', () => { if (!res.writableEnded) res.write('event: exit\ndata: {"code":null}\n\n') })
     conn.on('error', () => {})
     req.on('close', () => { clearInterval(ping); conn.destroy() })
-    conn.write(JSON.stringify({ t: 'attach', id }) + '\n')
+    conn.write(JSON.stringify({ t: 'attach', id, viewer }) + '\n')
   }
 
   /** End the session and its host. */

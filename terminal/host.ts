@@ -14,15 +14,22 @@
 //                                          → { session, already? }: in the session `id` (a new one
 //                                            without), unless it runs and restart is false (`already`)
 //   { t: 'input', id, d }                  → { ok }
-//   { t: 'resize', id, cols, rows }        → { ok }
+//   { t: 'resize', id, viewer, cols, rows, active? }
+//                                          → { ok }: the size that fits drawer `viewer`; `active`:
+//                                            the reader is using that drawer now. A session takes
+//                                            the size of its active viewer (see sizes.ts)
 //   { t: 'html', id? }                     → { html }: a screen as HTML rows (the first session's
 //                                            without an id), for a page's first render
 //   { t: 'close', id }                     → { ok }: end the session and drop its tab
 //   { t: 'stop' }                          → { ok }, and the host exits
-//   { t: 'attach', id }                    → { t: 'sessions', sessions }, then { t: 'none' } or
-//                                            { t: 'screen', d, cols, rows, exited }, and then
-//                                            { t: 'data', d }, { t: 'exit', code } and
+//   { t: 'attach', id, viewer }            → { t: 'sessions', sessions }, then { t: 'none' } or
+//                                            { t: 'screen', d, cols, rows, active, exited }, and then
+//                                            { t: 'data', d }, { t: 'exit', code },
+//                                            { t: 'size', cols, rows, active } and
 //                                            { t: 'sessions', sessions } for as long as it stays open
+//
+// A session has one size for every drawer showing it: whose, is sizes.ts. Every drawer is told of
+// each change (`size`), and shows the session at that size.
 //
 // It exits on `stop`, and after ten minutes without a program running.
 import fs from 'node:fs'
@@ -33,6 +40,7 @@ import type { IPty } from 'node-pty'
 import type { Terminal as HeadlessTerminal } from '@xterm/headless'
 import type { SerializeAddon as Serializer } from '@xterm/addon-serialize'
 import { followMouseEncoding } from './modes.ts'
+import { handOver, leave, report, type Sizes } from './sizes.ts'
 
 const require = createRequire(import.meta.url)
 const [dir, socket] = process.argv.slice(2)
@@ -50,7 +58,7 @@ const { Terminal } = (await import('@xterm/headless')).default
 const { SerializeAddon } = (await import('@xterm/addon-serialize')).default
 
 /** A program in a pseudo-terminal, and the headless terminal that keeps its screen. */
-interface Session {
+interface Session extends Sizes {
   id: string
   label: string
   proc: IPty
@@ -70,6 +78,8 @@ interface Session {
 interface Conn {
   socket: net.Socket
   queue: unknown[] | null
+  /** the drawer it follows a session for (attach) */
+  viewer?: string
 }
 
 /** the sessions by id, in the order they were made */
@@ -93,6 +103,8 @@ function start(id: string, command: string, args: string[], label: string): Sess
   const before = sessions.get(id)
   const cols = before?.cols ?? 100, rows = before?.rows ?? 30
   const attached = before?.attached ?? new Set<Conn>()
+  const viewers = before?.viewers ?? new Map()
+  const active = before?.active ?? null
   if (before) endProcess(before)
   const screen = new Terminal({ cols, rows, scrollback: 2000, allowProposedApi: true })
   const serializer = new SerializeAddon()
@@ -102,7 +114,7 @@ function start(id: string, command: string, args: string[], label: string): Sess
     name: 'xterm-256color', cols, rows, cwd: dir,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
   })
-  const s: Session = { id, label, proc, screen, serializer, mouseEncoding, cols, rows, attached, exited: null, started: new Date().toISOString() }
+  const s: Session = { id, label, proc, screen, serializer, mouseEncoding, cols, rows, attached, viewers, active, exited: null, started: new Date().toISOString() }
   proc.onData(d => {
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
@@ -151,6 +163,34 @@ function quit(reason: string) {
   process.exit(0)
 }
 
+// ---- sizes (see sizes.ts) ----------------------------------------------------------------------
+
+/** Give a session a size, and tell the drawers showing it. */
+function resize(s: Session, cols: number, rows: number) {
+  if (cols !== s.cols || rows !== s.rows) {
+    s.cols = cols; s.rows = rows
+    s.screen.resize(cols, rows)
+    if (s.exited == null) s.proc.resize(cols, rows)
+  }
+  sendSize(s)
+}
+
+function sendSize(s: Session) {
+  for (const c of s.attached) send(c, { t: 'size', cols: s.cols, rows: s.rows, active: s.active })
+}
+
+/** A drawer stopped showing a session. If it was the active one, pass the session on, after a moment. */
+function leaveSession(s: Session, viewer: string) {
+  // the same drawer may still show it through another connection
+  if ([...s.attached].some(c => c.viewer === viewer)) return
+  if (!leave(s, viewer)) return
+  setTimeout(() => {
+    if (sessions.get(s.id) !== s) return
+    const size = handOver(s, viewer)
+    if (size) resize(s, size.cols, size.rows)
+  }, 1500)
+}
+
 /** Write a message to a connection; one that is still waiting for its screen queues it. */
 function send(conn: Conn, msg: unknown) {
   if (conn.queue) return void conn.queue.push(msg)
@@ -161,7 +201,7 @@ function send(conn: Conn, msg: unknown) {
 function sendScreen(conn: Conn, s: Session) {
   conn.queue = []
   s.screen.write('', () => {
-    conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize() + s.mouseEncoding(), cols: s.cols, rows: s.rows, exited: s.exited }) + '\n')
+    conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize() + s.mouseEncoding(), cols: s.cols, rows: s.rows, active: s.active, exited: s.exited }) + '\n')
     const queued = conn.queue ?? []
     conn.queue = null
     for (const msg of queued) send(conn, msg)
@@ -199,10 +239,10 @@ function handle(conn: Conn, req: Record<string, any>) {
       return reply({ ok: true })
     case 'resize': {
       const { cols, rows } = req
-      if (s && Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1 && cols < 1000 && rows < 500) {
-        s.cols = cols; s.rows = rows
-        s.screen.resize(cols, rows)
-        if (s.exited == null) s.proc.resize(cols, rows)
+      const viewer = String(req.viewer ?? '')
+      if (s && viewer && Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1 && cols < 1000 && rows < 500) {
+        const size = report(s, viewer, cols, rows, !!req.active)
+        resize(s, size.cols, size.rows)
       }
       return reply({ ok: true })
     }
@@ -211,7 +251,11 @@ function handle(conn: Conn, req: Record<string, any>) {
     case 'stop': reply({ ok: true }); return void setTimeout(() => quit('asked to stop (whiteboard terminal stop)'), 50)
     case 'attach': {
       watchers.add(conn)
-      conn.socket.on('close', () => { watchers.delete(conn); for (const x of sessions.values()) x.attached.delete(conn) })
+      if (req.viewer) conn.viewer = String(req.viewer)
+      conn.socket.on('close', () => {
+        watchers.delete(conn)
+        for (const x of sessions.values()) if (x.attached.delete(conn) && conn.viewer) leaveSession(x, conn.viewer)
+      })
       send(conn, { t: 'sessions', sessions: list() })
       if (!s) return send(conn, { t: 'none' })
       s.attached.add(conn)
