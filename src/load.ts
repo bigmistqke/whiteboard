@@ -43,8 +43,12 @@ registerHooks({
     if (!v) return resolved
     const url = new URL(resolved.url)
     url.searchParams.set('wb-v', v)
-    // a .whiteboard folder has no package.json of its own to say these are ES modules
-    return { ...resolved, url: url.href, format: resolved.format ?? moduleFormat(url.pathname) }
+    // A .whiteboard folder has no package.json of its own to say these are ES modules, so Node goes
+    // by the nearest one above it: in a repository whose package.json is CommonJS (no "type"), it
+    // would load the config as CommonJS and fail on its imports. What is in .whiteboard/ is always
+    // a module, by its extension; other local files keep the format their package gives them.
+    const inProject = url.pathname.split('/').includes('.whiteboard')
+    return { ...resolved, url: url.href, format: inProject ? moduleFormat(url.pathname) : resolved.format ?? moduleFormat(url.pathname) }
   },
 })
 
