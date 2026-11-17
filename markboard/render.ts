@@ -60,8 +60,8 @@ function readmeOf(page: FolderPage) {
 function stylePath(ref: URL | string | undefined) {
   if (ref == null) return null
   const file = ref instanceof URL || String(ref).startsWith('file:') ? fileURLToPath(ref) : String(ref)
-  if (!path.isAbsolute(file)) throw new Error(`markboard({ style }): use a URL, e.g. new URL('./style.css', import.meta.url)`)
-  if (!fs.existsSync(file)) throw new Error(`markboard({ style }): file not found: ${file}`)
+  if (!path.isAbsolute(file)) throw new Error(`style: use a URL, e.g. new URL('./style.css', import.meta.url)`)
+  if (!fs.existsSync(file)) throw new Error(`style: file not found: ${file}`)
   return file
 }
 
@@ -107,8 +107,9 @@ function documentList(ctx: RenderContext) {
   return html`<section class="wb-documents"><h2>Documents</h2><ul class="wb-index">${rows}</ul></section>`
 }
 
-export function createRender(templates: () => ResolvedTemplates, style?: URL | string) {
+export function createRender(templates: () => ResolvedTemplates, style?: URL | string, pluginStyles: (URL | string)[] = []) {
   const STYLE = stylePath(style)
+  const PLUGIN_STYLES = pluginStyles.map(stylePath).filter((f): f is string => !!f)
   async function markdown(source: string, page: string, file: string, ctx: RenderContext) {
     const { templates: set, code } = templates()
     return renderMarkdown(body(source), { page, file, resolve: name => set.get(name) ?? null, code, linkFor: ctx.urlFor })
@@ -159,7 +160,8 @@ export function createRender(templates: () => ResolvedTemplates, style?: URL | s
     const islands = Object.fromEntries(Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]))
     const styles = out.styles.map(s => ctx.asset(s))
     const nav = html`<nav class="wb-nav"><span>${crumbs(page.id, ctx.project.name)}</span>${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark">auto</button><span class="wb-live" title="live reload"></span></nav>`
-    const links = [ctx.asset(BASE_CSS), ...styles, ...(STYLE ? [ctx.asset(STYLE)] : [])]
+    // markboard's own, the plugins' (every page), the blocks' on this page, then the project's
+    const links = [ctx.asset(BASE_CSS), ...PLUGIN_STYLES.map(f => ctx.asset(f)), ...styles, ...(STYLE ? [ctx.asset(STYLE)] : [])]
     return {
       title: out.title || page.id || ctx.project.name,
       head: html`${THEME_SCRIPT}
@@ -172,26 +174,23 @@ ${links.map(href => html`<link rel="stylesheet" href="${href}">`)}`,
   }
 }
 
-/** The syntax of every template, from their readmes: what `whiteboard docs` prints. */
+/**
+ * What `whiteboard docs` prints first: how pages are written, and which blocks the project's plugins
+ * bring. Each plugin's own docs, printed after it, say how to write its blocks.
+ */
 export function createDocs(templates: () => ResolvedTemplates) {
-  return function docs(ctx: RenderContext) {
-    const all = [...templates().templates.values()]
-    // templates that share a readme are documented together, under the first of them (a form and its inputs)
-    const groups = new Map<string, ResolvedTemplate[]>()
-    for (const t of all) {
-      const key = t.readme ?? `\0${t.name}`
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(t)
-    }
-    const list = [...groups.values()].map(g => g[0]).sort((a, b) => a.name.localeCompare(b.name))
-    const parts = list.map(t => {
-      const what = [t.code && 'code blocks', t.client && 'client', t.html && 'html', t.props && 'props'].filter(Boolean).join(' · ')
-      const also = groups.get(t.readme ?? `\0${t.name}`)!.slice(1).map(o => o.name)
-      const where = html`<p class="wb-meta">from <code>${t.source}</code>${what && ` · ${what}`}${also.length ? html` · with ${also.map((n, i) => html`${i ? ', ' : ''}<code>${n}</code>`)}` : ''}</p>`
-      const readme = t.readme ? fs.readFileSync(t.readme, 'utf8') : `# ${t.name}\n\n_No readme._\n`
-      return readme.replace(/^(#\s.*)$/m, `$1\n\n${where}\n`)
-    })
-    const intro = `# Templates\n\nThe markboard renderer: markdown, with these templates in this project (${ctx.project.name}): ${list.map(t => `[${t.name}](#${t.name})`).join(' · ')}\n\nPlain markdown, GFM tables, \`<details>\` and raw HTML \`<form name="…">\` work without templates.\n\n---\n\n`
-    return intro + parts.join('\n\n---\n\n')
+  return function docs(_ctx: RenderContext) {
+    const byPlugin = new Map<string, string[]>()
+    for (const t of templates().templates.values()) byPlugin.set(t.source, [...(byPlugin.get(t.source) ?? []), t.code ? `${t.name} (every other code fence)` : t.name])
+    const list = [...byPlugin].sort(([a], [b]) => a.localeCompare(b))
+      .map(([plugin, blocks]) => `- **${plugin}**: ${blocks.map(b => `\`${b}\``).join(', ')}`)
+    return `# Pages
+
+A page is markdown: GFM tables, \`<details>\`, raw HTML and a hand-written \`<form name="…">\` work as they are. Plugins add blocks to it: \`:::name\` around content, \`::name\` on a line, \`:name\` inside a line, and code fences (\`\`\`\` \`\`\`name \`\`\`\`). A block nobody brings renders its content, so a typo never breaks a page.
+
+The blocks here, by the plugin that brings them (each plugin's section below says how to write them):
+
+${list.join('\n')}
+`
   }
 }

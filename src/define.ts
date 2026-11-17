@@ -7,6 +7,7 @@
 // renderer turns it into whatever it likes. Both functions only return their argument; they exist
 // for types, so a renderer package needs nothing from the core at runtime.
 import type { Html } from './html.ts'
+import type { Block } from '../markboard/types.ts'
 
 // HTML from a template literal, escaped by default: for a renderer, a plugin's `shell`, a template
 export { html, raw, escape, Html } from './html.ts'
@@ -17,22 +18,19 @@ export interface Config {
   /** shown in page titles and the overview (default: the folder name) */
   name?: string
   /**
-   * The renderers this project can use. The first is the default; a page picks another by name in
-   * its frontmatter (`renderer: slides`). Left out, it is `[markboard()]`; an empty list shows
-   * pages as their raw text.
-   */
-  renderers?: Renderer[]
-  /**
    * Serve the project's other files at /-/<path> and watch them for changes (default: true).
    * Set it to false for a project whose folder is not a repository, such as your home folder:
    * then only `.whiteboard/` is served and watched.
    */
   files?: boolean
   /**
-   * Plugins: behaviour on every page, whatever renderer draws it, such as the terminal drawer
-   * (`@bigmistqke/whiteboard/terminal`). Each adds routes to the server and markup to the page.
+   * Plugins, added to the built-in ones (form, chat, code, comments and the rest); one with a
+   * built-in's name replaces it (`code({ themes })`). Such as the terminal drawer
+   * (`@bigmistqke/whiteboard/terminal`).
    */
   plugins?: Plugin[]
+  /** a stylesheet linked on every page, after the built-in ones: the project's own look */
+  style?: URL | string
 }
 
 export const defineConfig = (config: Config): Config => config
@@ -54,6 +52,13 @@ export const defineConfig = (config: Config): Config => config
 export interface Plugin {
   /** letters, digits, - and _; not a folder of the core (`pages`, and `plugins`, `templates`, `renderers` for local code) nor a built-in command */
   name: string
+  /**
+   * Syntax: the blocks it adds to pages, by name: `:::name`, `::name`, `:name` and ```` ```name ````
+   * go to the block of that name. Block names are unique across a project's plugins.
+   */
+  blocks?: Record<string, Block<any>>
+  /** a stylesheet linked on every page (for blocks, their own `style` links it only where they're used) */
+  style?: URL | string
   setup?(ctx: PluginContext): PluginHooks | Promise<PluginHooks>
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>

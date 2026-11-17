@@ -29,9 +29,7 @@
     "build.ts",
     "markboard/**/*",
     "solid/**/*",
-    "terminal/**/*",
-    "comments/**/*",
-    "claude-code/**/*",
-    "test/**/*"
+    "test/**/*",
+    "plugins/**/*"
   ]
 }

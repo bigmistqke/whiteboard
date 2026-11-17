@@ -135,3 +135,31 @@ test('a served file opens up its folder only for browser assets, never the token
   assert.equal((await fetch(at('helper.js'))).status, 200, 'a module beside it, which it imports')
   for (const file of ['token', 'events.ndjson', 'config.ts']) assert.equal((await fetch(at(file))).status, 404, file)
 })
+
+test('the built-in plugins bring their blocks without any config', async () => {
+  const { base, dir } = await serve()
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'blocks.md'), ':::callout[Hi]\nThere.\n:::\n\n:::chat{name=talk}\n:::\n')
+  const page = await (await fetch(`${base}/blocks`)).text()
+  assert.match(page, /class="wb-callout"/)
+  assert.match(page, /data-chat="talk"/)
+})
+
+test('a config plugin with a built-in\'s name replaces it; a plugin\'s style is on every page', async () => {
+  const { base, dir } = await serve({
+    'config.ts': `export default { plugins: [{ name: 'callout', style: new URL('./every.css', import.meta.url), blocks: { callout: { html: () => '<p class="mine">mine</p>' } } }] }\n`,
+    'every.css': 'p { color: red }\n',
+  })
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'c.md'), ':::callout\nThere.\n:::\n')
+  const page = await (await fetch(`${base}/c`)).text()
+  assert.match(page, /class="mine"/)
+  assert.doesNotMatch(page, /class="wb-callout"/)
+  assert.match(page, /every\.css/)
+})
+
+test('two plugins bringing the same block is a config error, shown on the page', async () => {
+  const { base, dir } = await serve({
+    'config.ts': `export default { plugins: [{ name: 'other', blocks: { grid: { html: () => '' } } }] }\n`,
+  })
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'g.md'), '# G\n')
+  assert.match(await (await fetch(`${base}/g`)).text(), /block &quot;grid&quot; comes from two plugins: grid and other/)
+})

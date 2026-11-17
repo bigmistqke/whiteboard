@@ -193,7 +193,7 @@ const relFile = (file: string) => path.relative(process.cwd(), file) || file
  * session), so without the default renderer. Loaded once per command.
  */
 let loaded: ReturnType<ReturnType<typeof createConfigLoader>['config']> | null = null
-const projectConfig = (proj: Project) => (loaded ??= createConfigLoader(proj, { renderers: false }).config())
+const projectConfig = (proj: Project) => (loaded ??= createConfigLoader(proj, { builtins: false }).config())
 
 /**
  * The agent session this command runs in, as the project's plugins know it (Claude Code's

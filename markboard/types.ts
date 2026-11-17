@@ -1,11 +1,11 @@
-// The template contract of the markboard renderer: how its markdown is extended.
+// Blocks: how a plugin extends a page's markdown.
 //
-//   import { defineTemplate, type Template } from '@bigmistqke/whiteboard/template'
+//   definePlugin({ name: 'callout', blocks: { callout: { html: ctx => … } } })
 //
-// markboard turns markdown into HTML and hands its extension points (`:::name`, `::name`, `:name` and
-// ```` ```name ````) to templates. `defineTemplate` only returns its argument.
+// A page's markdown hands its extension points (`:::name`, `::name`, `:name` and ```` ```name ````) to
+// the block of that name, from whichever plugin brings it. `defineBlock` only returns its argument.
 //
-// Templates build their HTML with `html`, which escapes every value unless it is HTML already
+// Blocks build their HTML with `html`, which escapes every value unless it is HTML already
 // (`raw()`, or what `html` returned): `html`<li>${title}</li>``. The context's `label`, `toHtml()`,
 // `markdown()`, `inline()` and a section's `title` and `html` are HTML: pass them through `raw()`.
 import type { Api, WbEvent } from '../src/define.ts'
@@ -14,26 +14,23 @@ import type { Html } from '../src/html.ts'
 export type { Api, WbEvent, Html }
 export { html, raw, escape } from '../src/html.ts'
 
-/** Templates may be nested in arrays (a set returns several); falsy entries are skipped. */
-export type TemplateEntry = Template | null | false | undefined | readonly TemplateEntry[]
-
-// ---- templates ---------------------------------------------------------------------------------
+// ---- blocks ------------------------------------------------------------------------------------
 
 /**
- * A template handles the directive or fence with its `name`: `:::name`, `::name`, `:name` and
- * ```` ```name ````. Server functions run while the page renders; `client` runs in the browser.
+ * A block handles the directive or fence with its name (its key in a plugin's `blocks`): `:::name`,
+ * `::name`, `:name` and ```` ```name ````. Server functions run while the page renders; `client`
+ * runs in the browser.
  *
- * File references are URLs relative to the template module, so they work wherever it is installed:
+ * File references are URLs relative to the plugin's module, so they work wherever it is installed:
  *   client: new URL('./client.js', import.meta.url)
  */
-export interface Template<Props = unknown> {
-  name: string
+export interface Block<Props = unknown> {
   /**
-   * Also render every fence that no template claims by name, and the code view of repository
-   * files: the template for code blocks in general, such as a syntax highlighter. When several
-   * templates set it, the last one in config order wins.
+   * `'any'`: also render every fence no block claims by name, and the code view of repository
+   * files: the block for code in general, such as a syntax highlighter. When several blocks set it,
+   * the last plugin's wins.
    */
-  code?: boolean
+  fence?: 'any'
   /** props for the client; JSON-serialisable. Without it a client gets the defaults (see DirectiveProps / FenceProps). */
   props?(ctx: ServerContext): Props | Promise<Props>
   /**
@@ -43,15 +40,17 @@ export interface Template<Props = unknown> {
   html?(ctx: ServerContext): string | Html | null | Promise<string | Html | null>
   /** a browser module whose default export is a `Mount` */
   client?: URL | string
-  /** a stylesheet linked on every page that uses the template */
+  /** a stylesheet linked on every page that uses the block */
   style?: URL | string
-  /** markdown documentation: syntax and examples, rendered live at /_/docs */
-  readme?: URL | string
 }
 
-export const defineTemplate = <Props = unknown>(template: Template<Props>): Template<Props> => template
+/** A block with typed props, for one written apart from its plugin. */
+export const defineBlock = <Props = unknown>(block: Block<Props>): Block<Props> => block
 
-/** Default export of a template's `client` module. Return a cleanup, or nothing. */
+/**
+ * Default export of a block's `client` module: mounted once per block, again with new props when
+ * the block changes. Return a cleanup, or nothing: it runs when the block is replaced or removed.
+ */
 export type Mount<Props = unknown> = (
   element: HTMLElement,
   props: Props,
@@ -77,14 +76,14 @@ interface BaseContext {
   name: string
   attrs: Record<string, string>
   parseAttrs(s: string): Record<string, string>
-  /** render mdast nodes to HTML; nested directives and fences go through their templates */
+  /** render mdast nodes to HTML; nested directives and fences go through their blocks */
   toHtml(nodes: unknown[]): Promise<string>
   toString(node: unknown): string
-  /** render a markdown string to HTML (templates included) */
+  /** render a markdown string to HTML (blocks included) */
   markdown(src: string): Promise<string>
   /** like markdown(), without the wrapping <p> for a single paragraph */
   inline(src: string): Promise<string>
-  /** what a client gets when the template has no props() */
+  /** what a client gets when the block has no props() */
   defaults(): Promise<Record<string, unknown>>
 }
 

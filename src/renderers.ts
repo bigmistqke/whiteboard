@@ -62,25 +62,30 @@ function normalize(r: Renderer, source: string | null): LoadedRenderer {
   }
 }
 
-/**
- * The renderers of a config that names none: markboard, the one this package ships. A config that
- * lists renderers gets only those, so `renderers: []` still shows every page as its raw text.
- */
-async function defaultRenderers(): Promise<Renderer[]> {
-  // afresh with every load of the config, like what a config imports itself, so it reloads too
-  const { default: markboard } = await importOwn('markboard')
-  return [markboard()]
+/** The built-in plugins, afresh with every load of the config, like what a config imports itself. */
+async function builtinPlugins(): Promise<Plugin[]> {
+  const { builtins } = await importOwn('plugins')
+  return builtins()
+}
+
+/** Check a plugin, as the config gives it. */
+function checkPlugin(e: Plugin, where: string | null) {
+  if (typeof e !== 'object' || !NAME.test(e?.name ?? '')) throw new Error(`a plugin in ${where} needs a name: letters, digits, - and _`)
+  if (RESERVED.has(e.name)) throw new Error(`plugin name "${e.name}" in ${where} is taken by the core (a folder in .whiteboard/ or a command)`)
+  pluginCommands(e) // checks them
 }
 
 /**
  * The config, cached until invalidate() (which loads it afresh). Errors are returned, not thrown:
- * a config that fails to load leaves the project without renderers, so pages show as raw text,
+ * a config that fails to load leaves the project without its plugins, so pages show as raw text,
  * and serves no repository files.
  *
- * `renderers: false` leaves out the default renderer when the config names none, for the command
- * line, which only needs the plugins: then markboard is loaded only if the config imports it.
+ * The project's plugins are the built-in ones, then the config's: one with a built-in's name
+ * replaces it. Their blocks make the markdown renderer. `builtins: false` leaves the built-ins and
+ * the renderer out, for the command line, which only needs the config's plugins (their commands, the
+ * session), so it doesn't load the highlighter and the rest.
  */
-export function createConfigLoader(proj: Project, { renderers: withRenderers = true } = {}) {
+export function createConfigLoader(proj: Project, { builtins: withBuiltins = true } = {}) {
   let cached: Promise<LoadedConfig> | null = null
 
   async function load(): Promise<Omit<LoadedConfig, 'errors'>> {
@@ -90,21 +95,24 @@ export function createConfigLoader(proj: Project, { renderers: withRenderers = t
     // a config can also be a function that returns one
     const exported: Config | (() => Config | Promise<Config>) = mod.default
     const config: Config = typeof exported === 'function' ? await exported() : exported
-    const renderers: LoadedRenderer[] = []
-    for (const r of [config?.renderers ?? (withRenderers ? await defaultRenderers() : [])].flat(Infinity) as Renderer[]) {
-      if (!r) continue
-      const n = normalize(r, configFile)
-      if (renderers.some(x => x.name === n.name)) throw new Error(`two renderers are named "${n.name}" in ${configFile}`)
-      renderers.push(n)
-    }
-    const plugins: Plugin[] = []
+    const plugins: Plugin[] = withBuiltins ? await builtinPlugins() : []
+    const builtin = new Set(plugins.map(p => p.name))
+    const added = new Set<string>()
     for (const e of [config?.plugins ?? []].flat(Infinity) as Plugin[]) {
       if (!e) continue
-      if (typeof e !== 'object' || !NAME.test(e.name ?? '')) throw new Error(`a plugin in ${configFile} needs a name: letters, digits, - and _`)
-      if (RESERVED.has(e.name)) throw new Error(`plugin name "${e.name}" in ${configFile} is taken by the core (a folder in .whiteboard/ or a command)`)
-      pluginCommands(e) // checks them
-      if (plugins.some(x => x.name === e.name)) throw new Error(`two plugins are named "${e.name}" in ${configFile}`)
-      plugins.push(e)
+      checkPlugin(e, configFile)
+      if (added.has(e.name)) throw new Error(`two plugins are named "${e.name}" in ${configFile}`)
+      added.add(e.name)
+      // one with a built-in's name replaces it, in its place
+      if (builtin.has(e.name)) plugins[plugins.findIndex(p => p.name === e.name)] = e
+      else plugins.push(e)
+    }
+    const renderers: LoadedRenderer[] = []
+    if (withBuiltins) {
+      const { default: markboard } = await importOwn('markboard')
+      const blocks = plugins.flatMap(p => Object.entries(p.blocks ?? {}).map(([name, block]) => ({ name, block, plugin: p.name })))
+      const styles = plugins.map(p => p.style).filter((s): s is URL | string => !!s)
+      renderers.push(normalize(markboard({ blocks, style: config?.style, styles }), configFile))
     }
     return { renderers, plugins, files: config?.files !== false }
   }

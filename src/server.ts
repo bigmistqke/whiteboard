@@ -510,7 +510,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
   // too (markboard and the plugins), and the browser code from its build (npm run dev). A change to
   // either reloads what it is made of, like a project's own files.
   const ENGINE_BUILD = path.join(ENGINE_DIR, 'dist')
-  const ENGINE_WATCHED = !FROM_SOURCE ? [] : [ENGINE_BUILD, ...['markboard', 'terminal', 'comments', 'claude-code'].map(d => path.join(ENGINE_DIR, d))]
+  const ENGINE_WATCHED = !FROM_SOURCE ? [] : [ENGINE_BUILD, ...['markboard', 'plugins'].map(d => path.join(ENGINE_DIR, d))]
   for (const dir of ENGINE_WATCHED) watch(dir, { recursive: true }, name => onSourceChange(path.join(dir, name)))
 
   // ---- http --------------------------------------------------------------------------------------
@@ -539,10 +539,12 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
     await config()
     if (isRepoId(id) && !FILES) return { notFound: 'This project does not serve its files: its config sets files: false.' }
     if (id === '_/docs') {
-      const { renderers } = await docs()
-      const source = renderers.length
-        ? renderers.map(r => r.docs ?? `# ${r.name}\n\n_No documentation._\n`).join('\n\n---\n\n')
-        : `# Renderers\n\nThis project has none: its config sets \`renderers: []\` (\`${project.configFile}\`). Pages show as their raw text.\n`
+      // how pages are written, then each plugin's own docs, with their examples rendered live
+      const { renderers, plugins } = await docs()
+      const source = [
+        ...renderers.map(r => r.docs ?? ''),
+        ...plugins.filter(p => p.docs).map(p => `<a id="plugin-${p.name}"></a>\n\n${p.docs}`),
+      ].join('\n\n---\n\n')
       return { page: { kind: 'page', id, file: path.join(project.pagesDir, '_docs.md'), mtime: null, source, body: source, frontmatter: {} } }
     }
     const found = stored(id)

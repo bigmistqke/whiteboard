@@ -1,16 +1,14 @@
 // Builds what the package ships as JavaScript, into dist/:
 //
-//   dist/client/runtime.js     the core in the browser: events, live channel, hand-over to a renderer
-//   dist/terminal/client.js    the terminal drawer (xterm included), and style.css with xterm's styles
-//   dist/comments/client.js    comments in the browser, and their style.css
-//   dist/define.js             the package's entry: defineConfig, definePlugin, defineRenderer
-//   dist/bin/, dist/src/       the engine: the command line and the server, module for module
-//   dist/terminal/, dist/comments/, dist/claude-code/   the plugins' server side, and the terminal's host
-//   dist/markboard/…               ./markboard (the renderer) and ./template, module for module, with
-//                              each template's style and readme
-//   dist/markboard/client/main.js  markboard in the browser, one module (morphdom included)
-//   dist/markboard/<t>/client.js   a template's browser code: one module with Solid included
-//   dist/solid/index.js        ./solid, for template packages that bundle it themselves
+//   dist/client/runtime.js         the core in the browser: events, live channel, hand-over to the page
+//   dist/define.js                 the package's entry: defineConfig, definePlugin
+//   dist/bin/, dist/src/           the engine: the command line and the server, module for module
+//   dist/markboard/…               the markdown engine, module for module
+//   dist/markboard/client/main.js  the page in the browser, one module (morphdom included)
+//   dist/plugins/<name>/…          each plugin, module for module, with its styles and readme; its
+//                                  browser code as one module (Solid included for a client.tsx)
+//   dist/plugins/terminal/         also the terminal's host, and its style.css with xterm's styles
+//   dist/solid/index.js            ./solid, for plugins that bundle it themselves
 //
 // Node runs TypeScript of its own, but not inside node_modules, which is where an installed package
 // lives: so everything the package runs is built, the engine included. In this repository everything
@@ -40,10 +38,12 @@ const solidJsx = (): Plugin => ({
 
 const bare = (id: string) => !id.startsWith('.') && !path.isAbsolute(id)
 
-const templateDirs = fs.readdirSync(at('markboard'), { withFileTypes: true })
-  .filter(e => e.isDirectory() && fs.existsSync(at('markboard', e.name, 'index.ts')))
+const pluginDirs = fs.readdirSync(at('plugins'), { withFileTypes: true })
+  .filter(e => e.isDirectory() && fs.existsSync(at('plugins', e.name, 'index.ts')))
   .map(e => e.name)
-const clients = templateDirs.filter(name => fs.existsSync(at('markboard', name, 'client.tsx')))
+// browser code written as Solid components (a block's client), and as plain modules (a page module)
+const solidClients = pluginDirs.filter(name => fs.existsSync(at('plugins', name, 'client.tsx')))
+const plainClients = pluginDirs.filter(name => fs.existsSync(at('plugins', name, 'client.ts')))
 
 const builds: BuildOptions[] = [
   // the core in the browser
@@ -52,19 +52,13 @@ const builds: BuildOptions[] = [
     platform: 'browser',
     output: { file: path.join(DIST, 'client/runtime.js'), format: 'esm' },
   },
-  // the terminal drawer
-  {
-    input: at('terminal/client.ts'),
+  // plugins' browser modules written as plain modules (the terminal drawer, comments)
+  ...plainClients.map((name): BuildOptions => ({
+    input: at('plugins', name, 'client.ts'),
     platform: 'browser',
-    output: { file: path.join(DIST, 'terminal/client.js'), format: 'esm', minify: true },
-  },
-  // comments in the browser
-  {
-    input: at('comments/client.ts'),
-    platform: 'browser',
-    output: { file: path.join(DIST, 'comments/client.js'), format: 'esm' },
-  },
-  // markboard in the browser
+    output: { file: path.join(DIST, 'plugins', name, 'client.js'), format: 'esm', minify: true },
+  })),
+  // the page in the browser
   {
     input: at('markboard/client/main.ts'),
     platform: 'browser',
@@ -77,13 +71,11 @@ const builds: BuildOptions[] = [
       define: at('src/define.ts'),
       'markboard/index': at('markboard/index.ts'),
       'markboard/types': at('markboard/types.ts'),
-      ...Object.fromEntries(templateDirs.map(name => [`markboard/${name}/index`, at('markboard', name, 'index.ts')])),
       // the engine, and the plugins that ship with it; the terminal's host is started by its path
       'bin/whiteboard': at('bin/whiteboard.ts'),
-      'terminal/index': at('terminal/index.ts'),
-      'terminal/host': at('terminal/host.ts'),
-      'comments/index': at('comments/index.ts'),
-      'claude-code/index': at('claude-code/index.ts'),
+      'plugins/index': at('plugins/index.ts'),
+      ...Object.fromEntries(pluginDirs.map(name => [`plugins/${name}/index`, at('plugins', name, 'index.ts')])),
+      'plugins/terminal/host': at('plugins/terminal/host.ts'),
     },
     platform: 'node',
     // the helpers the compiler adds (a tagged template holding </script> is rewritten with one) are
@@ -91,14 +83,14 @@ const builds: BuildOptions[] = [
     external: (id: string) => (bare(id) && !id.startsWith('@oxc-project/runtime')) || id.startsWith('node:'),
     output: { dir: DIST, format: 'esm', preserveModules: true, preserveModulesRoot: ROOT, entryFileNames: '[name].js' },
   },
-  // each template's browser code as one module: Solid and the adapter included, so it needs
-  // nothing from the page to run
-  ...clients.map((name): BuildOptions => ({
-    input: at('markboard', name, 'client.tsx'),
+  // a block's browser code written in Solid, as one module: Solid and the adapter included, so it
+  // needs nothing from the page to run
+  ...solidClients.map((name): BuildOptions => ({
+    input: at('plugins', name, 'client.tsx'),
     platform: 'browser',
     resolve: { alias: { '@bigmistqke/whiteboard/solid': at('solid/index.tsx') } },
     plugins: [solidJsx()],
-    output: { file: path.join(DIST, 'markboard', name, 'client.js'), format: 'esm', minify: true },
+    output: { file: path.join(DIST, 'plugins', name, 'client.js'), format: 'esm', minify: true },
   })),
   // the Solid adapter, for template packages: Solid stays theirs to bundle
   {
@@ -110,22 +102,20 @@ const builds: BuildOptions[] = [
   },
 ]
 
-/** Styles and readmes sit next to the template modules that point at them. */
+/** Styles and readmes sit next to the modules that point at them. */
 function copyAssets() {
-  // the drawer's styles after xterm's own
-  fs.mkdirSync(path.join(DIST, 'terminal'), { recursive: true })
-  fs.writeFileSync(path.join(DIST, 'terminal/style.css'),
-    fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') + '\n' + fs.readFileSync(at('terminal/style.css'), 'utf8'))
-  fs.mkdirSync(path.join(DIST, 'comments'), { recursive: true })
-  fs.copyFileSync(at('comments/style.css'), path.join(DIST, 'comments/style.css'))
-  for (const e of fs.readdirSync(at('markboard'), { withFileTypes: true })) {
-    if (!e.isDirectory()) continue  // client/ holds base.css
-    for (const f of fs.readdirSync(at('markboard', e.name))) {
+  const copyDir = (from: string, to: string) => {
+    for (const f of fs.readdirSync(at(from))) {
       if (!/\.(css|md)$/.test(f)) continue
-      fs.mkdirSync(path.join(DIST, 'markboard', e.name), { recursive: true })
-      fs.copyFileSync(at('markboard', e.name, f), path.join(DIST, 'markboard', e.name, f))
+      fs.mkdirSync(path.join(DIST, to), { recursive: true })
+      fs.copyFileSync(at(from, f), path.join(DIST, to, f))
     }
   }
+  copyDir('markboard/client', 'markboard/client')
+  for (const name of pluginDirs) copyDir(`plugins/${name}`, `plugins/${name}`)
+  // the drawer's styles after xterm's own
+  fs.writeFileSync(path.join(DIST, 'plugins/terminal/style.css'),
+    fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') + '\n' + fs.readFileSync(at('plugins/terminal/style.css'), 'utf8'))
 }
 
 /** Remove files under `dir` older than `since` (left from an earlier build), and folders left empty. */

@@ -1,78 +1,64 @@
-// markboard's templates: its own and those passed to markboard({ templates }), checked and resolved into
-// what the markdown renderer uses.
+// The blocks of a project's plugins, checked and resolved into what the markdown renderer uses.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Html } from '../src/html.ts'
+import type { BlockEntry } from './index.ts'
 
 const NAME = /^[\w-]+$/
 
-/** A template as the renderer uses it: checked, with its files as absolute paths. */
+/** A block as the renderer uses it: checked, with its files as absolute paths. */
 export interface ResolvedTemplate {
   name: string
-  /** the template for code blocks in general */
+  /** the block for code in general (`fence: 'any'`) */
   code: boolean
   props: ((ctx: any) => unknown) | null
   html: ((ctx: any) => string | Html | null | Promise<string | Html | null>) | null
   client: string | null
   style: string | null
-  readme: string | null
-  /** where it came from: `markboard`, or `markboard({ templates })` */
+  /** the plugin it comes from */
   source: string
 }
 
 export interface ResolvedTemplates { templates: Map<string, ResolvedTemplate>; code: ResolvedTemplate | null }
 
-/** A template file reference (URL, file: URL string, or absolute path) → absolute path. */
-function toPath(ref: unknown, field: string, template: string): string | null {
+/** A block's file reference (URL, file: URL string, or absolute path) → absolute path. */
+function toPath(ref: unknown, field: string, block: string): string | null {
   if (ref == null) return null
   if (ref instanceof URL || (typeof ref === 'string' && ref.startsWith('file:'))) return fileURLToPath(ref)
   if (typeof ref === 'string' && path.isAbsolute(ref)) return ref
-  throw new Error(`template "${template}": ${field} must be a URL, e.g. new URL('./${field}.js', import.meta.url)`)
+  throw new Error(`block "${block}": ${field} must be a URL, e.g. new URL('./${field}.js', import.meta.url)`)
 }
 
-function flatten(entries: unknown, out: any[] = []): any[] {
-  for (const e of (entries as unknown[]) ?? []) {
-    if (!e) continue
-    if (Array.isArray(e)) flatten(e, out)
-    else out.push(e)
-  }
-  return out
-}
-
-/** Check and resolve one template object into what the renderer uses. */
-function normalize(t: any, source: string): ResolvedTemplate {
-  if (typeof t !== 'object' || !t) throw new Error(`a template entry in ${source} is not an object`)
-  if (!NAME.test(t.name ?? '')) throw new Error(`template name ${JSON.stringify(t.name)} in ${source}: use letters, digits, - and _`)
-  const files = {
-    client: toPath(t.client, 'client', t.name),
-    style: toPath(t.style, 'style', t.name),
-    readme: toPath(t.readme, 'readme', t.name),
-  }
+/** Check and resolve one block into what the renderer uses. */
+function normalize({ name, block: b, plugin }: BlockEntry): ResolvedTemplate {
+  if (typeof b !== 'object' || !b) throw new Error(`plugin ${plugin}: block "${name}" is not an object`)
+  if (!NAME.test(name)) throw new Error(`plugin ${plugin}: block name ${JSON.stringify(name)}: use letters, digits, - and _`)
+  const files = { client: toPath(b.client, 'client', name), style: toPath(b.style, 'style', name) }
   for (const [field, file] of Object.entries(files))
-    if (file && !fs.existsSync(file)) throw new Error(`template "${t.name}": ${field} file not found: ${file}`)
+    if (file && !fs.existsSync(file)) throw new Error(`plugin ${plugin}, block "${name}": ${field} file not found: ${file}`)
   return {
-    name: t.name,
-    code: t.code === true,
-    props: typeof t.props === 'function' ? t.props.bind(t) : null,
-    html: typeof t.html === 'function' ? t.html.bind(t) : null,
+    name,
+    code: b.fence === 'any',
+    props: typeof b.props === 'function' ? b.props.bind(b) : null,
+    html: typeof b.html === 'function' ? b.html.bind(b) : null,
     ...files,
-    source,
+    source: plugin,
   }
 }
 
 /**
- * Resolve groups of template entries, `source` naming where they came from. Later entries replace
- * earlier ones with the same name. `code` is the template for code blocks no template claims by
- * name: the last one with `code: true`.
+ * Resolve the plugins' blocks. A block name is one plugin's: two plugins bringing the same block is
+ * an error. `code` is the block for code fences no block claims by name: the last one with
+ * `fence: 'any'`.
  */
-export function resolveTemplates(groups: { entries: unknown; source: string }[]): ResolvedTemplates {
+export function resolveBlocks(entries: BlockEntry[]): ResolvedTemplates {
   const templates = new Map<string, ResolvedTemplate>()
-  for (const { entries, source } of groups) {
-    for (const t of flatten(entries)) {
-      const n = normalize(t, source)
-      templates.set(n.name, n)
-    }
+  for (const entry of entries) {
+    const n = normalize(entry)
+    const other = templates.get(n.name)
+    if (other) throw new Error(`block "${n.name}" comes from two plugins: ${other.source} and ${n.source}`)
+    templates.set(n.name, n)
   }
   return { templates, code: [...templates.values()].findLast(t => t.code) ?? null }
 }

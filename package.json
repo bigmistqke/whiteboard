@@ -47,23 +47,28 @@
       "default": "./dist/markboard/index.js"
     },
     "./terminal": {
-      "source": "./terminal/index.ts",
-      "types": "./terminal/index.ts",
-      "default": "./dist/terminal/index.js"
+      "source": "./plugins/terminal/index.ts",
+      "types": "./plugins/terminal/index.ts",
+      "default": "./dist/plugins/terminal/index.js"
     },
     "./claude-code": {
-      "source": "./claude-code/index.ts",
-      "types": "./claude-code/index.ts",
-      "default": "./dist/claude-code/index.js"
+      "source": "./plugins/claude-code/index.ts",
+      "types": "./plugins/claude-code/index.ts",
+      "default": "./dist/plugins/claude-code/index.js"
     },
     "./comments": {
-      "source": "./comments/index.ts",
-      "types": "./comments/index.ts",
-      "default": "./dist/comments/index.js"
+      "source": "./plugins/comments/index.ts",
+      "types": "./plugins/comments/index.ts",
+      "default": "./dist/plugins/comments/index.js"
     },
     "./solid": {
       "types": "./solid/index.tsx",
       "default": "./dist/solid/index.js"
+    },
+    "./plugins": {
+      "source": "./plugins/index.ts",
+      "types": "./plugins/index.ts",
+      "default": "./dist/plugins/index.js"
     }
   },
   "files": [
@@ -71,10 +76,8 @@
     "src",
     "dist",
     "markboard",
+    "plugins",
     "solid",
-    "terminal",
-    "claude-code",
-    "comments",
     "skills",
     "!**/*.test.ts"
   ],
@@ -84,7 +87,7 @@
     "prepare": "node build.ts",
     "start": "node bin/whiteboard.ts serve",
     "check": "tsc -p tsconfig.json",
-    "test": "node --test --test-force-exit 'src/**/*.test.ts' 'terminal/**/*.test.ts'",
+    "test": "node --test --test-force-exit 'src/**/*.test.ts' 'plugins/**/*.test.ts'",
     "test:browser": "node --test --test-force-exit --test-concurrency=1 'test/browser/*.test.ts'"
   },
   "engines": {
