@@ -23,12 +23,12 @@
 //   { t: 'close', id }                     → { ok }: end the session and drop its tab
 //   { t: 'open', id, path }                → { shown }: show the page at `path` in the browser tab
 //                                            whose drawer the reader used last for the session
-//                                            (an `open` to its attach); how many were told
+//                                            (a `navigate` to its attach); how many were told
 //   { t: 'stop' }                          → { ok }, and the host exits
 //   { t: 'attach', id, viewer }            → { t: 'sessions', sessions }, then { t: 'none' } or
 //                                            { t: 'screen', d, cols, rows, active, exited }, and then
 //                                            { t: 'data', d }, { t: 'exit', code },
-//                                            { t: 'size', cols, rows, active }, { t: 'open', path } and
+//                                            { t: 'size', cols, rows, active }, { t: 'navigate', path } and
 //                                            { t: 'sessions', sessions } for as long as it stays open
 //
 // A session has one size for every drawer showing it: whose, is sizes.ts. Every drawer is told of
@@ -258,7 +258,8 @@ function handle(conn: Conn, req: Record<string, any>) {
       if (!s || typeof req.path !== 'string') return reply({ shown: 0 })
       const mine = [...s.attached].filter(c => c.viewer && c.viewer === s.active)
       const to = mine.length ? mine : [...s.attached]
-      for (const c of to) send(c, { t: 'open', path: req.path })
+      // not `open`: a browser's EventSource has an event of that name already
+      for (const c of to) send(c, { t: 'navigate', path: req.path })
       return reply({ shown: to.length })
     }
     case 'stop': reply({ ok: true }); return void setTimeout(() => quit('asked to stop (whiteboard terminal stop)'), 50)

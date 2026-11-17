@@ -278,7 +278,7 @@ function init(drawer: HTMLElement) {
     })
     stream.addEventListener('data', e => term.write(JSON.parse((e as MessageEvent).data).d))
     // a program in this tab asked to show a page here (`whiteboard terminal open`): the drawer comes along
-    stream.addEventListener('open', e => {
+    stream.addEventListener('navigate', e => {
       const { path } = JSON.parse((e as MessageEvent).data)
       if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) location.assign(path)
     })

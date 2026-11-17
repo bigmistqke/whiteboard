@@ -70,7 +70,7 @@ export default function terminal(options: TerminalOptions = {}): Plugin {
             run: ({ body }) => term.resize(body.id as string, body.viewer as string, body.cols as number, body.rows as number, !!body.active),
           },
           'GET /stream': {
-            description: 'the tabs and a session\'s whole screen, then its output as it comes (events sessions, screen, data, size, exit; none without that session)',
+            description: 'the tabs and a session\'s whole screen, then its output as it comes (events sessions, screen, data, size, navigate, exit; none without that session)',
             auth: true,
             stream: true,
             query: { id: 'string?', viewer: 'string?' },
