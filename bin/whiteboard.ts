@@ -122,9 +122,6 @@ async function ensureServer(): Promise<string> {
 
 async function api(route: string): Promise<any> {
   const res = await fetch(`${await ensureServer()}${route}`)
-  // a server started from an older version of this package doesn't know newer routes
-  if (!(res.headers.get('content-type') ?? '').includes('application/json'))
-    throw new Error(`the running server doesn't know ${route.split('?')[0]}: it is older than this command; restart it (stop the process in .whiteboard/server.json, then run whiteboard show)`)
   const body = await res.json()
   if (!res.ok) throw new Error(body.error ?? res.statusText)
   return body

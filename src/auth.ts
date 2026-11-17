@@ -20,8 +20,6 @@ import crypto from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 const COOKIE = 'wb-token'
-// the cookie's name before plugins had the token from the core
-const OLD_COOKIES = ['wb-terminal']
 
 /** The project's token, made on first use. */
 export function projectToken(wb: string): string {
@@ -41,7 +39,7 @@ export function createAuth(wb: string) {
   /** Has this request the token, from this origin? */
   function authorized(req: IncomingMessage): boolean {
     const jar = cookies(req)
-    const has = [COOKIE, ...OLD_COOKIES].some(name => same(jar[name], token)) || same(req.headers['x-whiteboard-token'], token)
+    const has = same(jar[COOKIE], token) || same(req.headers['x-whiteboard-token'], token)
     if (!has) return false
     const origin = req.headers.origin
     if (origin && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return false
@@ -59,9 +57,7 @@ export function createAuth(wb: string) {
     if (p !== '/_/auth') return false
     if (!same(q.token, token)) { res.writeHead(403, { 'content-type': 'text/plain' }); res.end('wrong token'); return true }
     const to = typeof q.to === 'string' && q.to.startsWith('/') && !q.to.startsWith('//') ? q.to : '/'
-    // the cookies of older versions were SameSite=Strict, and a tab opened from outside never sends those: drop them
-    const expired = OLD_COOKIES.map(name => `${name}=; Path=/; Max-Age=0`)
-    res.writeHead(302, { 'set-cookie': [`${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`, ...expired], location: to })
+    res.writeHead(302, { 'set-cookie': `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`, location: to })
     res.end()
     return true
   }

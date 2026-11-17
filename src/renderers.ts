@@ -88,7 +88,7 @@ export function createConfigLoader(proj: Project, { renderers: withRenderers = t
     const mod = configFile ? await importFresh(configFile) : { default: {} }
     // a config can also be a function that returns one
     const exported: Config | (() => Config | Promise<Config>) = mod.default
-    const config: Config & { extensions?: unknown } = typeof exported === 'function' ? await exported() : exported
+    const config: Config = typeof exported === 'function' ? await exported() : exported
     const renderers: LoadedRenderer[] = []
     for (const r of [config?.renderers ?? (withRenderers ? await defaultRenderers() : [])].flat(Infinity) as Renderer[]) {
       if (!r) continue
@@ -97,7 +97,6 @@ export function createConfigLoader(proj: Project, { renderers: withRenderers = t
       renderers.push(n)
     }
     const plugins: Plugin[] = []
-    if (config?.extensions) throw new Error(`\`extensions\` is called \`plugins\` now: rename it in ${configFile}`)
     for (const e of [config?.plugins ?? []].flat(Infinity) as Plugin[]) {
       if (!e) continue
       if (typeof e !== 'object' || !NAME.test(e.name ?? '')) throw new Error(`a plugin in ${configFile} needs a name: letters, digits, - and _`)

@@ -31,10 +31,9 @@ export interface Session {
   started: string
 }
 
-/** The tabs; `legacy`: the host is one from before tabs, shown as one tab. */
+/** The tabs, and whether the terminal can run (node-pty is installed). */
 export interface Sessions {
   available: boolean
-  legacy: boolean
   sessions: Session[]
 }
 
@@ -68,10 +67,6 @@ export function hostSocket(home: string): string {
  */
 export function createTerminal({ dir, home, command }: { dir: string; home: string; command: string[] }) {
   const own = hostSocket(home)
-  // a host started before the terminal had a folder of its own listens on .whiteboard/term.sock;
-  // it is used until it leaves, so that its session isn't lost
-  const legacy = path.join(path.dirname(home), 'term.sock')
-  const socketPath = () => (fs.existsSync(legacy) ? legacy : own)
   const log = path.join(home, 'host.log')
 
   // ---- the host -------------------------------------------------------------------------------
@@ -79,7 +74,7 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
   /** A connection to the host, or null when none runs. */
   function connect(): Promise<net.Socket | null> {
     return new Promise(resolve => {
-      const conn = net.connect(socketPath())
+      const conn = net.connect(own)
       conn.once('connect', () => resolve(conn))
       conn.once('error', () => resolve(null))
     })
@@ -109,7 +104,7 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
     fs.closeSync(out)
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 100))
-      if (await ask({ t: 'status' }, 500)) return true
+      if (await ask({ t: 'list' }, 500)) return true
     }
     return false
   }
@@ -117,17 +112,10 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
   const shell = process.env.SHELL || '/bin/sh'
   const label = path.basename(command[0]!)
 
-  /**
-   * The sessions, as tabs: `{ id, label, running, exited, started }` each. `legacy`: the host is
-   * one from before tabs, running a single session until it leaves; it is shown as one tab.
-   */
+  /** The sessions, as tabs: `{ id, label, running, exited, started }` each. */
   async function sessions(): Promise<Sessions> {
     const reply = await ask({ t: 'list' })
-    if (!reply) return { available: hasPty(), legacy: false, sessions: [] }
-    if (!reply.error) return { available: hasPty(), legacy: false, sessions: reply.sessions }
-    const old = await ask({ t: 'status' })
-    const one = old && (old.running || old.exited != null) ? [{ id: '1', label: path.basename(String(old.command ?? label).split(' ')[0]), running: old.running, exited: old.exited, started: old.started }] : []
-    return { available: hasPty(), legacy: true, sessions: one }
+    return { available: hasPty(), sessions: reply?.sessions ?? [] }
   }
 
   /** The screens as HTML rows by session id, for a page's first render. */
@@ -152,12 +140,6 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
     const request = isShell
       ? { t: 'start', id, command: shell, args: ['-l'], label: path.basename(shell), restart }
       : { t: 'start', id, command: shell, args: ['-c', '"$@"; exec "$0" -l', shell, ...program], label, restart }
-    const state = await sessions()
-    if (state.legacy) {
-      // an old host runs one session: it can only be started again as it was
-      if (id == null || plain) throw failure('tabs come once the current session has ended (its host is from before tabs)', 409)
-      Object.assign(request, { command: command[0], args: program.slice(1) })
-    }
     let reply = await ask(request)
     if (!reply) {
       if (!(await startHost())) throw failure(`the terminal's host did not start; see ${log}`)
@@ -172,8 +154,7 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
 
   /** End one session and drop its tab. */
   async function close(id: string) {
-    const reply = await ask({ t: 'close', id })
-    if (reply?.error) throw failure('this host is from before tabs: stop it to end its session', 409)
+    await ask({ t: 'close', id })
     return { ok: true }
   }
 

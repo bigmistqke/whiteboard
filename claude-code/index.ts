@@ -33,8 +33,8 @@ interface Settings {
 
 const MODES: Record<Mode, string> = { stop: 'Stop', prompt: 'UserPromptSubmit', session: 'SessionStart' }
 
-/** A hook command this plugin installs, or one an older version of the package installed. */
-const OURS = /\bwhiteboard (claude-code hook|status --hook)\b/
+/** A hook command this plugin installs. */
+const OURS = /\bwhiteboard claude-code hook\b/
 
 export default function claudeCode(): Plugin {
   return {
@@ -52,7 +52,7 @@ export default function claudeCode(): Plugin {
         },
       },
       install: {
-        description: 'add the hooks to this project\'s .claude/settings.json (replacing ones an older version added)',
+        description: 'add the hooks to this project\'s .claude/settings.json',
         run: ctx => install(ctx.project.dir),
       },
     },
@@ -105,7 +105,7 @@ async function hook(ctx: CommandContext, mode: Mode) {
   if (out.length) console.log(out.join('\n'))
 }
 
-/** Add the hooks to the project's .claude/settings.json, replacing ones an older version added. */
+/** Add the hooks to the project's .claude/settings.json, replacing ours that run another command. */
 function install(dir: string) {
   const file = path.join(dir, '.claude', 'settings.json')
   let settings: Settings = {}

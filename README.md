@@ -217,7 +217,7 @@ export default defineConfig({
 With it, `whiteboard new` claims the page it makes for the Claude Code
 session that ran it, and `whiteboard status` marks that session's pages.
 `whiteboard claude-code install` adds three hooks to the project's
-`.claude/settings.json`, and replaces the ones older versions added. None of
+`.claude/settings.json`. None of
 them ever blocks:
 
 - when a turn ends with something on the session's pages nobody listens for,

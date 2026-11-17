@@ -27,8 +27,7 @@ function init(drawer: HTMLElement) {
   const label = drawer.dataset.command || 'terminal'
   // the sessions as the server wrote them into the page, and the tab this browser tab shows
   let sessions: Session[] = []
-  let legacy = false
-  try { ({ sessions, legacy } = JSON.parse(drawer.dataset.sessions ?? '{}')); sessions ??= [] } catch { /* none */ }
+  try { ({ sessions } = JSON.parse(drawer.dataset.sessions ?? '{}')); sessions ??= [] } catch { /* none */ }
   let current: string | null = drawer.dataset.tab ?? sessions[0]?.id ?? null
 
   const term = new Terminal({
@@ -148,26 +147,22 @@ function init(drawer: HTMLElement) {
       name.title = x.running ? x.label : `${x.label}: exited (${x.exited})`
       name.addEventListener('click', () => select(x.id))
       tab.append(name)
-      if (!legacy) {
-        const close = document.createElement('button')
-        close.type = 'button'
-        close.className = 'wb-term-tab-close'
-        close.title = 'Close this tab (ends its program)'
-        close.textContent = '×'
-        close.addEventListener('click', () => closeTab(x.id))
-        tab.append(close)
-      }
+      const close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'wb-term-tab-close'
+      close.title = 'Close this tab (ends its program)'
+      close.textContent = '×'
+      close.addEventListener('click', () => closeTab(x.id))
+      tab.append(close)
       return tab
     }))
-    if (!legacy) {
-      const add = document.createElement('button')
-      add.type = 'button'
-      add.className = 'wb-term-add'
-      add.title = 'A new tab with a shell'
-      add.textContent = '+'
-      add.addEventListener('click', () => start({ shell: true }))
-      tabs.append(add)
-    }
+    const add = document.createElement('button')
+    add.type = 'button'
+    add.className = 'wb-term-add'
+    add.title = 'A new tab with a shell'
+    add.textContent = '+'
+    add.addEventListener('click', () => start({ shell: true }))
+    tabs.append(add)
     showStatus()
   }
 
@@ -209,7 +204,7 @@ function init(drawer: HTMLElement) {
   async function loadSessions() {
     try {
       const res = await fetch('/api/terminal/sessions')
-      if (res.ok) ({ sessions, legacy } = await res.json())
+      if (res.ok) ({ sessions } = await res.json())
     } catch { /* the server is away: the stream reconnects */ }
     drawTabs()
   }
@@ -221,8 +216,6 @@ function init(drawer: HTMLElement) {
     sent = ''
     if (!current) { stream = null; return showStatus() }
     stream = new EventSource(`/api/terminal/stream?id=${encodeURIComponent(current)}`)
-    // an old host sends no list of its own
-    stream.addEventListener('open', () => { if (legacy) loadSessions() })
     stream.addEventListener('sessions', e => {
       sessions = JSON.parse((e as MessageEvent).data).sessions
       if (current && !sessions.some(x => x.id === current)) return select(sessions.at(-1)?.id ?? null)
