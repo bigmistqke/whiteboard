@@ -12,7 +12,7 @@
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
 // so updates and new-content marks don't see comments at all.
 import type { Api, PluginMount, PageHandle, WbEvent } from '../src/define'
-import { html } from '../src/html.js'
+import { html } from '../src/html.ts'
 
 interface Thread {
   id: string

@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
-import { html, raw, type Html } from '../src/html.js'
+import { html, raw, type Html } from '../src/html.ts'
 import type { RenderContext, Rendered, StoredPage } from '../src/define.ts'
 import type { ResolvedTemplate, ResolvedTemplates } from './templates.ts'
 

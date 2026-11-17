@@ -13,13 +13,15 @@
 // with it gets the drawer. The host's socket and log are in `.whiteboard/terminal/`. What the
 // terminal can do is what the server can: it runs with the rights of whoever started the server.
 //
-// The parts are whiteboard-free: server.js is a request handler, host.js the process that runs the
+// The parts are whiteboard-free: server.ts is a request handler, host.ts the process that runs the
 // sessions, client.ts the drawer in the browser. This file wires them in.
-import { html, raw } from '../src/html.js'
-import { createTerminal } from './server.js'
+import { html, raw } from '../src/html.ts'
+import { packagePath } from '../src/package.ts'
+import { createTerminal, type Sessions, type StartOptions } from './server.ts'
+import type { CommandContext, Plugin } from '../src/define.ts'
 
-const CLIENT = new URL('../dist/terminal/client.js', import.meta.url)
-const STYLE = new URL('../dist/terminal/style.css', import.meta.url)
+const CLIENT = packagePath('dist/terminal/client.js')
+const STYLE = packagePath('dist/terminal/style.css')
 
 /**
  * The drawer's markup, written by the server so that it is there when the page first renders and
@@ -28,7 +30,7 @@ const STYLE = new URL('../dist/terminal/style.css', import.meta.url)
  * render, and each session's screen is in it as HTML, so a page shows it from its first render on;
  * client.js puts the live terminal in its place.
  */
-const drawer = (state, screens, client, label) => html`<aside id="wb-terminal" aria-label="Terminal" data-command="${label}" data-sessions="${JSON.stringify(state)}">
+const drawer = (state: Sessions, screens: Record<string, string>, client: string, label: string) => html`<aside id="wb-terminal" aria-label="Terminal" data-command="${label}" data-sessions="${JSON.stringify(state)}">
 <div class="wb-term-grip" title="drag to resize"></div>
 <div class="wb-term-bar"><button type="button" class="wb-term-toggle" title="Toggle the terminal (Ctrl+\`)"><span class="wb-term-chevron"></span>terminal</button><span class="wb-term-tabs">${state.sessions.map(s => html`<button type="button" class="wb-term-tab" data-id="${s.id}">${s.label}</button>`)}</span><span class="wb-term-status"></span><span class="wb-term-actions"></span></div>
 <div class="wb-term-screen">${state.sessions.map(s => screens[s.id] && html`<div class="wb-term-placeholder" data-id="${s.id}" aria-hidden="true">${raw(screens[s.id])}</div>`)}</div>
@@ -36,8 +38,12 @@ const drawer = (state, screens, client, label) => html`<aside id="wb-terminal" a
 <script>try{const t=document.getElementById('wb-terminal'),s=sessionStorage,o=new URLSearchParams(location.search).get('terminal')==='open'||s.getItem('wb-terminal-open')==='1';t.dataset.state=o?'open':'collapsed';const h=+s.getItem('wb-terminal-height');if(h)document.documentElement.style.setProperty('--wb-term-h',h+'px');const tabs=[...t.querySelectorAll('.wb-term-tab')],k=s.getItem('wb-terminal-tab'),a=tabs.find(b=>b.dataset.id===k)??tabs[0];if(a){t.dataset.tab=a.dataset.id;a.classList.add('wb-current');t.querySelector('.wb-term-placeholder[data-id="'+a.dataset.id+'"]')?.classList.add('wb-current')}}catch{}</script>
 <script type="module" src="${client}"></script>`
 
-/** @param {{ command?: string | string[] }} [options] */
-export default function terminal(options = {}) {
+export interface TerminalOptions {
+  /** the program a new tab starts, with its first arguments; the shell without one */
+  command?: string | string[]
+}
+
+export default function terminal(options: TerminalOptions = {}): Plugin {
   const command = [options.command ?? process.env.SHELL ?? '/bin/sh'].flat().map(String)
   if (!command[0]) throw new Error('terminal: command is empty')
   return {
@@ -54,18 +60,18 @@ export default function terminal(options = {}) {
             description: `start ${command.join(' ')} (or the shell alone, with shell) in session id, a new tab without one; with restart, replace a running session`,
             auth: true,
             body: { id: 'string?', args: 'string[]?', restart: 'boolean?', shell: 'boolean?' },
-            run: ({ body }) => term.start(body),
+            run: ({ body }) => term.start(body as StartOptions),
           },
-          'POST /input': { description: 'keystrokes for a session, as the terminal sends them', auth: true, body: { id: 'string', data: 'string' }, run: ({ body }) => term.input(body.id, body.data) },
-          'POST /resize': { description: 'the size of the terminal in the page', auth: true, body: { id: 'string', cols: 'number', rows: 'number' }, run: ({ body }) => term.resize(body.id, body.cols, body.rows) },
+          'POST /input': { description: 'keystrokes for a session, as the terminal sends them', auth: true, body: { id: 'string', data: 'string' }, run: ({ body }) => term.input(body.id as string, body.data as string) },
+          'POST /resize': { description: 'the size of the terminal in the page', auth: true, body: { id: 'string', cols: 'number', rows: 'number' }, run: ({ body }) => term.resize(body.id as string, body.cols as number, body.rows as number) },
           'GET /stream': {
             description: 'the tabs and a session\'s whole screen, then its output as it comes (events sessions, screen, data, exit; none without that session)',
             auth: true,
             stream: true,
             query: { id: 'string?' },
-            run: ({ req, res, query }) => term.stream(req, res, query.id),
+            run: ({ req, res, query }) => term.stream(req, res!, query.id as string | undefined),
           },
-          'POST /close': { description: 'end a session and drop its tab', auth: true, body: { id: 'string' }, run: ({ body }) => term.close(body.id) },
+          'POST /close': { description: 'end a session and drop its tab', auth: true, body: { id: 'string' }, run: ({ body }) => term.close(body.id as string) },
           'POST /stop': { description: 'end every session and their host', auth: true, run: () => term.stop() },
         },
         async shell(req) {
@@ -86,7 +92,7 @@ export default function terminal(options = {}) {
         rest: `<arguments for ${command[0]}>`,
         async run(ctx) {
           if (ctx.options.new || ctx.rest.length) {
-            const body = await call(ctx, 'POST', '/start', { args: ctx.rest, shell: !!ctx.options.shell })
+            const body = await call(ctx, 'POST', '/start', { args: ctx.rest, shell: !!ctx.options.shell }) as { session: string }
             console.error(`whiteboard: started in tab ${body.session}`)
           }
           console.log(await ctx.authLink(`${ctx.pagePath(ctx.positionals[0])}?terminal=open`))
@@ -95,7 +101,7 @@ export default function terminal(options = {}) {
       stop: {
         description: 'end every session and their host',
         async run(ctx) {
-          const { stopped } = await call(ctx, 'POST', '/stop')
+          const { stopped } = await call(ctx, 'POST', '/stop') as { stopped: boolean }
           console.log(stopped ? 'stopped' : 'no session ran')
         },
       },
@@ -104,7 +110,7 @@ export default function terminal(options = {}) {
 }
 
 /** A request to one of the terminal's routes, from a command. */
-async function call(ctx, method, route, body) {
+async function call(ctx: CommandContext, method: string, route: string, body?: unknown): Promise<unknown> {
   const res = await fetch(`${await ctx.server()}/api/terminal${route}`, {
     method,
     headers: { 'content-type': 'application/json', 'x-whiteboard-token': ctx.token },

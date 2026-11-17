@@ -6,10 +6,12 @@
 //
 // A thread is events on the page (see client.ts), so the server has nothing to do but serve the
 // browser module and the styles, and tell agents how to answer (`whiteboard docs`).
-import { html } from '../src/html.js'
+import { html } from '../src/html.ts'
+import { packagePath } from '../src/package.ts'
+import type { Plugin } from '../src/define.ts'
 
-const CLIENT = new URL('../dist/comments/client.js', import.meta.url)
-const STYLE = new URL('../dist/comments/style.css', import.meta.url)
+const CLIENT = packagePath('dist/comments/client.js')
+const STYLE = packagePath('dist/comments/style.css')
 
 const DOCS = `## Comments
 
@@ -32,7 +34,7 @@ page until the reader closes it. Answer a comment the way it asks:
 Your replies show as the agent's, and \`wait\` and \`watch\` skip what you
 append, so you don't hear your own replies.`
 
-export default function comments() {
+export default function comments(): Plugin {
   return {
     name: 'comments',
     docs: () => DOCS,

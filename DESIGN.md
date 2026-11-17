@@ -321,7 +321,7 @@ agent forgetting a wait is caught from outside it:
 ### Loading and reloading
 
 The config is loaded by Node itself, which runs its TypeScript
-(`src/load.js`). Two resolve hooks help it: `@bigmistqke/whiteboard/*`
+(`src/load.ts`). Two resolve hooks help it: `@bigmistqke/whiteboard/*`
 always means the engine's own build, so a project needs no `node_modules`;
 and the config and the local files it imports get a version in their URL,
 so a change loads them afresh. Nothing compiles browser code: a renderer's
@@ -351,7 +351,7 @@ templates.
    toggle (light, dark or the system's) and the live indicator; the overview
    (the pages, then every markdown document in the project), folder listings
    with their README on top, and repository files as code. Its HTML is built
-   with `html` tagged templates (`markboard/html.js`), which escape every
+   with `html` tagged templates (`src/html.ts`), which escape every
    value unless it is marked as HTML (`raw()`, for markdown's output); the
    comment popover in the browser uses the same.
 4. Patches the page in place when it changes, with morphdom: focus, caret,
@@ -472,11 +472,11 @@ and re-renders.
 ```
 src/              the core; ./config (and the types of ./client)
 src/client/       the core in the browser
-bin/whiteboard.js the `whiteboard` command
+bin/              the `whiteboard` command
 markboard/            ./markboard: the markboard renderer and its templates; ./template: their contract
 markboard/client/     markboard in the browser: morphing, islands, forms, new-content marks, theme
 solid/            ./solid: write template clients as Solid 2 components
-build.js          builds dist/: what the package ships as JavaScript (`npm run dev` watches)
+build.ts          builds dist/: what the package ships as JavaScript (`npm run dev` watches)
 skills/whiteboard the agent skill: where to write pages, how to wait for input
 .whiteboard/      this repository as a whiteboard project (dogfooding)
 ```
@@ -487,9 +487,16 @@ imports markboard; a config does. The server resolves the package's own exports
 itself, so a config in a repository without npm can import
 `@bigmistqke/whiteboard/markboard`.
 
-Node runs TypeScript, but not inside `node_modules`, where an installed
-package lives; so what a project imports from this one ships built in
-`dist/`. The engine's own server code is plain JavaScript and runs as it is.
+Everything is TypeScript, written so that Node can run it by stripping
+its types (`erasableSyntaxOnly`: no enums, no namespaces), and `npm run
+check` type-checks all of it. Node runs TypeScript, but not inside
+`node_modules`, where an installed package lives; so everything the package
+runs ships built in `dist/`, the engine and its plugins included, and its
+`exports` point there. `bin/whiteboard.js`, the one JavaScript file, picks:
+in an installed package it runs the build, anywhere else (this repository,
+or a link to it) the source, so a change to the engine needs no build here.
+Paths into the package are found from its root (`src/package.ts`), since a
+module in `dist/` sits at another depth than its source.
 
 ## Files
 

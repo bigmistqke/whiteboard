@@ -6,7 +6,7 @@
 // How a page looks and behaves is a renderer's: the core hands it the page as stored, and the
 // renderer turns it into whatever it likes. Both functions only return their argument; they exist
 // for types, so a renderer package needs nothing from the core at runtime.
-import type { Html } from './html.js'
+import type { Html } from './html.ts'
 
 // ---- config ------------------------------------------------------------------------------------
 

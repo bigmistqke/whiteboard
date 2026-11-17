@@ -11,12 +11,26 @@
 import path from 'node:path'
 import fs from 'node:fs'
 
+/** A project: its folders and files. */
+export interface Project {
+  /** the project folder */
+  dir: string
+  /** its .whiteboard folder */
+  wb: string
+  readonly configFile: string | null
+  pagesDir: string
+  eventsFile: string
+  serverFile: string
+  logFile: string
+  readonly name: string
+}
+
 export const CONFIG_NAMES = ['config.ts', 'config.mts', 'config.js', 'config.mjs']
 /** the port a project's server tries first; it takes the next free one when that is taken */
 export const DEFAULT_PORT = Number(process.env.WHITEBOARD_PORT || 4777)
 
 /** The config file in a `.whiteboard` folder, or null. */
-export function configFileIn(whiteboardDir) {
+export function configFileIn(whiteboardDir: string): string | null {
   for (const name of CONFIG_NAMES) {
     const f = path.join(whiteboardDir, name)
     if (fs.existsSync(f)) return f
@@ -24,10 +38,10 @@ export function configFileIn(whiteboardDir) {
   return null
 }
 
-const isDir = p => { try { return fs.statSync(p).isDirectory() } catch { return false } }
+const isDir = (p: string) => { try { return fs.statSync(p).isDirectory() } catch { return false } }
 
 /** The project folder a path is in: the nearest folder upward with a `.whiteboard/` folder. */
-export function findProjectDir(from = process.cwd()) {
+export function findProjectDir(from: string = process.cwd()): string | null {
   let dir = path.resolve(from)
   for (;;) {
     if (isDir(path.join(dir, '.whiteboard'))) return dir
@@ -38,7 +52,7 @@ export function findProjectDir(from = process.cwd()) {
 }
 
 /** Everything about the project in `dir`, or null when `dir` is not one. */
-export function project(dir) {
+export function project(dir: string | null | undefined): Project | null {
   if (!dir) return null
   const wb = path.join(dir, '.whiteboard')
   if (!isDir(wb)) return null
@@ -61,7 +75,7 @@ export function project(dir) {
 
 // ---- page ids ----------------------------------------------------------------------------------
 
-const strip = p => p.replace(/\\/g, '/').replace(/\.md$/, '').replace(/^\/+|\/+$/g, '')
+const strip = (p: string) => p.replace(/\\/g, '/').replace(/\.md$/, '').replace(/^\/+|\/+$/g, '')
 
 /**
  * A file path or page name → the page id used in URLs and events.
@@ -69,7 +83,7 @@ const strip = p => p.replace(/\\/g, '/').replace(/\.md$/, '').replace(/^\/+|\/+$
  * - any other file inside the project folder → "-/<path>" (shown from the repository)
  * - anything else → the name as given, without .md
  */
-export function pageId(proj, input, cwd = process.cwd()) {
+export function pageId(proj: Project | null, input: unknown, cwd: string = process.cwd()): string {
   if (!input) return ''
   const s = String(input)
   const looksLikeFile = path.isAbsolute(s) || s.startsWith('.') || /\.\w+$/.test(s)

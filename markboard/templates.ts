@@ -3,7 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Html } from '../src/html.js'
+import type { Html } from '../src/html.ts'
 
 const NAME = /^[\w-]+$/
 

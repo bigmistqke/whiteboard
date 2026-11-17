@@ -9,24 +9,25 @@
 //   get a version in their URL, and a new version imports them again. Modules in node_modules are
 //   left alone: they don't change while the server runs.
 import fs from 'node:fs'
-import { registerHooks } from 'node:module'
+import { registerHooks, type ModuleFormat } from 'node:module'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
+import { PACKAGE_DIR } from './package.ts'
 
-const ENGINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const ENGINE_DIR = PACKAGE_DIR
 const PACKAGE = '@bigmistqke/whiteboard/'
 
 /** The file `@bigmistqke/whiteboard/<part>` is, by the package's `exports`; null for none. */
-function ownFile(specifier) {
+function ownFile(specifier: string): string | null {
   if (!specifier.startsWith(PACKAGE)) return null
-  let exports
+  let exports: Record<string, string | { default?: string }> | undefined
   try { exports = JSON.parse(fs.readFileSync(path.join(ENGINE_DIR, 'package.json'), 'utf8')).exports } catch { return null }
   const target = exports?.[`./${specifier.slice(PACKAGE.length)}`]
   const file = typeof target === 'string' ? target : target?.default
   return file ? path.join(ENGINE_DIR, file) : null
 }
 
-const versionOf = url => new URL(url).searchParams.get('wb-v')
+const versionOf = (url: string) => new URL(url).searchParams.get('wb-v')
 
 registerHooks({
   resolve(specifier, context, next) {
@@ -47,7 +48,7 @@ registerHooks({
   },
 })
 
-function moduleFormat(file) {
+function moduleFormat(file: string): ModuleFormat | undefined {
   if (/\.[mc]?ts$/.test(file)) return file.endsWith('.cts') ? 'commonjs-typescript' : 'module-typescript'
   if (/\.c?js$/.test(file)) return file.endsWith('.cjs') ? 'commonjs' : 'module'
   return undefined
@@ -56,6 +57,6 @@ function moduleFormat(file) {
 let version = 0
 
 /** Import `file` and everything local it imports afresh. */
-export function importFresh(file) {
+export function importFresh(file: string): Promise<any> {
   return import(`${pathToFileURL(file).href}?wb-v=${++version}`)
 }

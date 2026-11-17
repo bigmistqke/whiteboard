@@ -9,10 +9,10 @@
 // (`raw()`, or what `html` returned): `html`<li>${title}</li>``. The context's `label`, `toHtml()`,
 // `markdown()`, `inline()` and a section's `title` and `html` are HTML: pass them through `raw()`.
 import type { Api, WbEvent } from '../src/define.ts'
-import type { Html } from '../src/html.js'
+import type { Html } from '../src/html.ts'
 
 export type { Api, WbEvent, Html }
-export { html, raw, escape } from '../src/html.js'
+export { html, raw, escape } from '../src/html.ts'
 
 /** Templates may be nested in arrays (a set returns several); falsy entries are skipped. */
 export type TemplateEntry = Template | null | false | undefined | readonly TemplateEntry[]

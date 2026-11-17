@@ -3,7 +3,7 @@
 // and talks to it over a Unix socket; a restarted server connects again and finds the sessions as
 // they were.
 //
-//   node terminal/host.js <project dir> <socket path>
+//   node terminal/host.ts <project dir> <socket path>
 //
 // Each session is a program in a pseudo-terminal (node-pty), followed by a headless terminal that
 // keeps its screen; the drawer shows them as tabs. A session has an id ('1', '2', …). One JSON
@@ -29,13 +29,16 @@ import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
 import { createRequire } from 'node:module'
+import type { IPty } from 'node-pty'
+import type { Terminal as HeadlessTerminal } from '@xterm/headless'
+import type { SerializeAddon as Serializer } from '@xterm/addon-serialize'
 
 const require = createRequire(import.meta.url)
 const [dir, socket] = process.argv.slice(2)
-if (!dir || !socket) { console.error('usage: host.js <project dir> <socket path>'); process.exit(2) }
+if (!dir || !socket) { console.error('usage: host <project dir> <socket path>'); process.exit(2) }
 
 /** node-pty. Its prebuilt helper ships without execute permission (1.1.0): add it. */
-function loadPty() {
+function loadPty(): typeof import('node-pty') {
   const pty = require('node-pty')
   const helper = path.join(path.dirname(require.resolve('node-pty/package.json')), 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
   try { if (fs.existsSync(helper) && !(fs.statSync(helper).mode & 0o111)) fs.chmodSync(helper, 0o755) } catch {}
@@ -45,14 +48,35 @@ function loadPty() {
 const { Terminal } = (await import('@xterm/headless')).default
 const { SerializeAddon } = (await import('@xterm/addon-serialize')).default
 
-/** @type {Map<string, any>} the sessions by id, in the order they were made */
-const sessions = new Map()
+/** A program in a pseudo-terminal, and the headless terminal that keeps its screen. */
+interface Session {
+  id: string
+  label: string
+  proc: IPty
+  screen: HeadlessTerminal
+  serializer: Serializer
+  cols: number
+  rows: number
+  /** the connections following it */
+  attached: Set<Conn>
+  exited: number | null
+  started: string
+}
+
+/** A connection; `queue` holds what arrives while it still waits for its screen. */
+interface Conn {
+  socket: net.Socket
+  queue: unknown[] | null
+}
+
+/** the sessions by id, in the order they were made */
+const sessions = new Map<string, Session>()
 let nextId = 1
 // connections following some session: each hears when the list of sessions changes
-const watchers = new Set()
+const watchers = new Set<Conn>()
 
 // a host with no program running leaves after a while (also one whose first start failed)
-let idle = null
+let idle: ReturnType<typeof setTimeout> | undefined
 function checkIdle() {
   clearTimeout(idle)
   if (![...sessions.values()].some(s => s.exited == null)) idle = setTimeout(() => quit(), 10 * 60 * 1000)
@@ -61,11 +85,11 @@ function checkIdle() {
 const list = () => [...sessions.values()].map(s => ({ id: s.id, label: s.label, running: s.exited == null, exited: s.exited, started: s.started }))
 function announce() { for (const c of watchers) send(c, { t: 'sessions', sessions: list() }) }
 
-function start(id, command, args, label) {
+function start(id: string, command: string, args: string[], label: string): Session {
   const pty = loadPty()
   const before = sessions.get(id)
   const cols = before?.cols ?? 100, rows = before?.rows ?? 30
-  const attached = before?.attached ?? new Set()
+  const attached = before?.attached ?? new Set<Conn>()
   if (before) endProcess(before)
   const screen = new Terminal({ cols, rows, scrollback: 2000, allowProposedApi: true })
   const serializer = new SerializeAddon()
@@ -74,7 +98,7 @@ function start(id, command, args, label) {
     name: 'xterm-256color', cols, rows, cwd: dir,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
   })
-  const s = { id, label, proc, screen, serializer, cols, rows, attached, exited: null, started: new Date().toISOString() }
+  const s: Session = { id, label, proc, screen, serializer, cols, rows, attached, exited: null, started: new Date().toISOString() }
   proc.onData(d => {
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
@@ -93,12 +117,12 @@ function start(id, command, args, label) {
   return s
 }
 
-function endProcess(s) {
+function endProcess(s: Session) {
   try { if (s.exited == null) s.proc.kill() } catch {}
   s.screen.dispose()
 }
 
-function close(id) {
+function close(id: string) {
   const s = sessions.get(id)
   if (!s) return
   endProcess(s)
@@ -115,23 +139,23 @@ function quit() {
 }
 
 /** Write a message to a connection; one that is still waiting for its screen queues it. */
-function send(conn, msg) {
+function send(conn: Conn, msg: unknown) {
   if (conn.queue) return void conn.queue.push(msg)
   conn.socket.write(JSON.stringify(msg) + '\n')
 }
 
 /** The screen once the headless terminal has parsed everything written so far; what arrives meanwhile follows it. */
-function sendScreen(conn, s) {
+function sendScreen(conn: Conn, s: Session) {
   conn.queue = []
   s.screen.write('', () => {
     conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize(), cols: s.cols, rows: s.rows, exited: s.exited }) + '\n')
-    const queued = conn.queue
+    const queued = conn.queue ?? []
     conn.queue = null
     for (const msg of queued) send(conn, msg)
   })
 }
 
-function html(s) {
+function html(s: Session | undefined): string {
   if (!s) return ''
   try {
     // the rows, without the wrapper that sets the serializer's own colors and font; text is escaped
@@ -140,8 +164,8 @@ function html(s) {
   } catch { return '' }
 }
 
-function handle(conn, req) {
-  const reply = msg => { conn.socket.end(JSON.stringify(msg) + '\n') }
+function handle(conn: Conn, req: Record<string, any>) {
+  const reply = (msg: unknown) => { conn.socket.end(JSON.stringify(msg) + '\n') }
   const s = req.id != null ? sessions.get(String(req.id)) : undefined
   switch (req.t) {
     case 'list': return reply({ sessions: list() })
@@ -150,7 +174,7 @@ function handle(conn, req) {
       const id = req.id != null ? String(req.id) : String(nextId)
       const running = sessions.get(id)
       if (running && running.exited == null && !req.restart) return reply({ session: id, already: true })
-      try { start(id, req.command, Array.isArray(req.args) ? req.args.map(String) : [], String(req.label ?? path.basename(req.command))) } catch (e) { return reply({ error: e.message }) }
+      try { start(id, req.command, Array.isArray(req.args) ? req.args.map(String) : [], String(req.label ?? path.basename(req.command))) } catch (e) { return reply({ error: (e as Error).message }) }
       // ids are never reused while the host runs, so a closed tab's id can't come back as another
       if (Number(id) >= nextId) nextId = Number(id) + 1
       return reply({ session: id })
@@ -184,7 +208,7 @@ function handle(conn, req) {
 }
 
 const server = net.createServer(socketConn => {
-  const conn = { socket: socketConn, queue: null }
+  const conn: Conn = { socket: socketConn, queue: null }
   let buf = ''
   socketConn.setEncoding('utf8')
   socketConn.on('error', () => {})
@@ -203,7 +227,7 @@ const server = net.createServer(socketConn => {
 
 // a socket left by a host that is gone: remove it; one whose host still answers: leave, it's running
 try {
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const probe = net.connect(socket)
     probe.on('connect', () => { probe.destroy(); reject(new Error('running')) })
     probe.on('error', () => resolve())

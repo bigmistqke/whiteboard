@@ -1,5 +1,5 @@
 // The terminal drawer at the bottom of every page (for a browser with the project's token; see
-// server.js). The server writes its markup and sets its open state before the first render, so
+// server.ts). The server writes its markup and sets its open state before the first render, so
 // the browser can morph it from the page before (a view transition across the page load). This module
 // connects it: an xterm that shows the session of the current tab, keystrokes and size sent back,
 // and a tab per session, with "+" for a shell next to them.

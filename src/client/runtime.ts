@@ -2,7 +2,7 @@
 // renderer. Framework-free, and it draws nothing: the renderer's client gets the root element and
 // does the rest. A page without a renderer client shows the server's HTML, replaced when it changes.
 import type { Api, PluginMount, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
-import { html } from '../html.js'
+import { html } from '../html.ts'
 import { formsApi, trackForms } from './forms'
 
 interface Handoff {

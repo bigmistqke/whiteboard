@@ -1,11 +1,30 @@
 // The project's config: its renderers, its plugins and whether it serves the repository's files. Node loads it
-// (see load.js), so it can be TypeScript and import renderer packages from the project's own
+// (see load.ts), so it can be TypeScript and import renderer packages from the project's own
 // node_modules.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { importFresh } from './load.js'
-import { pluginCommands } from './plugins.js'
+import { importFresh } from './load.ts'
+import { pluginCommands } from './plugins.ts'
+import type { Config, Plugin, RenderContext, Renderer, StoredPage } from './define.ts'
+import type { Project } from './config.ts'
+
+/** A renderer as the core uses it: its methods bound, its client a path. */
+export interface LoadedRenderer {
+  name: string
+  render: Renderer['render'] | null
+  docs: Renderer['docs'] | null
+  expects: ((page: StoredPage, ctx: RenderContext) => string[] | Promise<string[]>) | null
+  client: string | null
+}
+
+/** A config as loaded: what went wrong is in `errors`. */
+export interface LoadedConfig {
+  renderers: LoadedRenderer[]
+  plugins: Plugin[]
+  files: boolean
+  errors: unknown[]
+}
 
 const NAME = /^[\w-]+$/
 /** The command line's own commands: a plugin can't be named like one, since its commands are `whiteboard <name>`. */
@@ -14,7 +33,7 @@ export const BUILTIN_COMMANDS = new Set(['serve', 'init', 'root', 'new', 'show',
 const RESERVED = new Set(['pages', 'delivered', ...BUILTIN_COMMANDS])
 
 /** A plugin's own folder, `.whiteboard/<name>/`, made with a .gitignore that ignores all of it. */
-export function pluginDir(wb, name) {
+export function pluginDir(wb: string, name: string): string {
   const dir = path.join(wb, name)
   fs.mkdirSync(dir, { recursive: true })
   const ignore = path.join(dir, '.gitignore')
@@ -23,12 +42,12 @@ export function pluginDir(wb, name) {
 }
 
 /** A file reference (URL, file: URL string, or absolute path) → absolute path. */
-export function toPath(ref) {
+export function toPath(ref: unknown): string {
   if (ref instanceof URL || (typeof ref === 'string' && ref.startsWith('file:'))) return fileURLToPath(ref)
   return String(ref)
 }
 
-function normalize(r, source) {
+function normalize(r: Renderer, source: string | null): LoadedRenderer {
   if (typeof r !== 'object' || !r) throw new Error(`a renderer in ${source} is not an object`)
   if (!NAME.test(r.name ?? '')) throw new Error(`renderer name ${JSON.stringify(r.name)} in ${source}: use letters, digits, - and _`)
   const client = r.client == null ? null : toPath(r.client)
@@ -46,7 +65,7 @@ function normalize(r, source) {
  * The renderers of a config that names none: markboard, the one this package ships. A config that
  * lists renderers gets only those, so `renderers: []` still shows every page as its raw text.
  */
-async function defaultRenderers() {
+async function defaultRenderers(): Promise<Renderer[]> {
   const { default: markboard } = await import('@bigmistqke/whiteboard/markboard')
   return [markboard()]
 }
@@ -56,25 +75,26 @@ async function defaultRenderers() {
  * a config that fails to load leaves the project without renderers, so pages show as raw text,
  * and serves no repository files.
  */
-export function createConfigLoader(proj) {
-  let cached = null
+export function createConfigLoader(proj: Project) {
+  let cached: Promise<LoadedConfig> | null = null
 
-  async function load() {
+  async function load(): Promise<Omit<LoadedConfig, 'errors'>> {
     // no config file: the defaults, the same as an empty config
     const configFile = proj.configFile
     const mod = configFile ? await importFresh(configFile) : { default: {} }
-    let config = mod.default
-    if (typeof config === 'function') config = await config()
-    const renderers = []
-    for (const r of [config?.renderers ?? await defaultRenderers()].flat(Infinity)) {
+    // a config can also be a function that returns one
+    const exported: Config | (() => Config | Promise<Config>) = mod.default
+    const config: Config & { extensions?: unknown } = typeof exported === 'function' ? await exported() : exported
+    const renderers: LoadedRenderer[] = []
+    for (const r of [config?.renderers ?? await defaultRenderers()].flat(Infinity) as Renderer[]) {
       if (!r) continue
       const n = normalize(r, configFile)
       if (renderers.some(x => x.name === n.name)) throw new Error(`two renderers are named "${n.name}" in ${configFile}`)
       renderers.push(n)
     }
-    const plugins = []
+    const plugins: Plugin[] = []
     if (config?.extensions) throw new Error(`\`extensions\` is called \`plugins\` now: rename it in ${configFile}`)
-    for (const e of [config?.plugins ?? []].flat(Infinity)) {
+    for (const e of [config?.plugins ?? []].flat(Infinity) as Plugin[]) {
       if (!e) continue
       if (typeof e !== 'object' || !NAME.test(e.name ?? '')) throw new Error(`a plugin in ${configFile} needs a name: letters, digits, - and _`)
       if (RESERVED.has(e.name)) throw new Error(`plugin name "${e.name}" in ${configFile} is taken by the core (a folder in .whiteboard/ or a command)`)
@@ -85,8 +105,7 @@ export function createConfigLoader(proj) {
     return { renderers, plugins, files: config?.files !== false }
   }
 
-  /** @returns {Promise<{ renderers: object[], plugins: object[], files: boolean, errors: Error[] }>} */
-  function config() {
+  function config(): Promise<LoadedConfig> {
     cached ??= load().then(
       value => ({ ...value, errors: [] }),
       error => ({ renderers: [], plugins: [], files: false, errors: [error] }),

@@ -8,7 +8,7 @@ import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { trackWaiting } from './waiting'
-import { html } from '../../src/html.js'
+import { html } from '../../src/html.ts'
 
 interface Island { template: string; client: string; props: unknown }
 interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }

@@ -18,13 +18,21 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import type { CommandContext, PageStatus, Plugin } from '../src/define.ts'
 
-const MODES = { stop: 'Stop', prompt: 'UserPromptSubmit', session: 'SessionStart' }
+type Mode = 'stop' | 'prompt' | 'session'
+
+/** Claude Code's settings file, as far as hooks go. */
+interface Settings {
+  hooks?: Record<string, { hooks?: { type?: string; command?: string }[] }[]>
+}
+
+const MODES: Record<Mode, string> = { stop: 'Stop', prompt: 'UserPromptSubmit', session: 'SessionStart' }
 
 /** A hook command this plugin installs, or one an older version of the package installed. */
 const OURS = /\bwhiteboard (claude-code hook|status --hook)\b/
 
-export default function claudeCode() {
+export default function claudeCode(): Plugin {
   return {
     name: 'claude-code',
     session: () => process.env.CLAUDE_CODE_SESSION_ID || null,
@@ -33,10 +41,10 @@ export default function claudeCode() {
         description: 'what Claude Code runs on an event (stop, prompt or session): report what is open on the session\'s pages; never blocks',
         args: '<stop|prompt|session>',
         async run(ctx) {
-          const mode = ctx.positionals[0]
-          if (!(mode in MODES)) throw new Error(`usage: whiteboard claude-code hook <${Object.keys(MODES).join('|')}>`)
+          const mode = ctx.positionals[0] as Mode
+          if (!mode || !(mode in MODES)) throw new Error(`usage: whiteboard claude-code hook <${Object.keys(MODES).join('|')}>`)
           // a hook that fails must not get in the way of the session it runs in: say why, and exit cleanly
-          try { await hook(ctx, mode) } catch (err) { console.error(`whiteboard claude-code hook ${mode}: ${err.message}`) }
+          try { await hook(ctx, mode) } catch (err) { console.error(`whiteboard claude-code hook ${mode}: ${(err as Error).message}`) }
         },
       },
       install: {
@@ -48,17 +56,17 @@ export default function claudeCode() {
 }
 
 /** The JSON Claude Code passes a hook on its standard input, or nothing. */
-function hookInput() {
+function hookInput(): { session_id?: string } {
   if (process.stdin.isTTY) return {}
   try { return JSON.parse(fs.readFileSync(0, 'utf8') || '{}') } catch { return {} }
 }
 
-const relFile = file => path.relative(process.cwd(), file) || file
-const whose = (p, session) => (p.owner && p.owner === session ? 'yours' : p.owner ? `session ${p.owner.slice(0, 8)}` : 'no session')
+const relFile = (file: string) => path.relative(process.cwd(), file) || file
+const whose = (p: PageStatus, session: string | null) => (p.owner && p.owner === session ? 'yours' : p.owner ? `session ${p.owner.slice(0, 8)}` : 'no session')
 
 /** What is open on a page, in short phrases; the command that picks it up comes last, once. */
-function openOn(p, { waiting = true } = {}) {
-  const lines = []
+function openOn(p: PageStatus, { waiting = true } = {}): string[] {
+  const lines: string[] = []
   if (p.unpicked.length) lines.push(`${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent picked up (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`)
   if (p.unheard.length) lines.push(`nobody listens for ${p.unheard.join(', ')}`)
   if (lines.length) lines.push(`→ whiteboard wait --page ${relFile(p.file)}`)
@@ -67,7 +75,7 @@ function openOn(p, { waiting = true } = {}) {
   return lines
 }
 
-async function hook(ctx, mode) {
+async function hook(ctx: CommandContext, mode: Mode) {
   const session = hookInput().session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
   const pages = await ctx.status()
   const busy = pages.filter(p => p.unpicked.length || p.open.length)
@@ -77,14 +85,14 @@ async function hook(ctx, mode) {
     // shown to the reader when a turn ends, never blocking it
     const loose = mine.filter(p => p.unheard.length || p.unpicked.length)
     if (!loose.length) return
-    const said = p => { const l = openOn(p, { waiting: false }); return `${l.slice(0, -1).join('; ')} ${l.at(-1)}` }
+    const said = (p: PageStatus) => { const l = openOn(p, { waiting: false }); return `${l.slice(0, -1).join('; ')} ${l.at(-1)}` }
     console.log(JSON.stringify({ systemMessage: `whiteboard: ${loose.map(p => `${p.page}: ${said(p)}`).join(' · ')}` }))
     return
   }
 
   // prompt and session: what is printed becomes context for the agent. Answers on its own pages
   // that no wait picked up are handed over here, and count as picked up from then on.
-  const out = []
+  const out: string[] = []
   for (const p of mine) {
     if (p.unpicked.length) {
       out.push(`Answers on your page ${p.page} (${relFile(p.file)}) that no wait picked up; they count as picked up now:`)
@@ -105,26 +113,26 @@ async function hook(ctx, mode) {
 }
 
 /** Add the hooks to the project's .claude/settings.json, replacing ones an older version added. */
-function install(dir) {
+function install(dir: string) {
   const file = path.join(dir, '.claude', 'settings.json')
-  let settings = {}
+  let settings: Settings = {}
   if (fs.existsSync(file)) {
     try { settings = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { throw new Error(`${file} is not valid JSON; fix it first`) }
   }
   // the hooks run outside any project folder's node_modules/.bin, so name the command that works here
   const onPath = spawnSync('sh', ['-c', 'command -v whiteboard'], { encoding: 'utf8' }).status === 0
   const bin = onPath ? 'whiteboard' : 'npx whiteboard'
-  const changed = []
-  settings.hooks ??= {}
+  const changed: string[] = []
+  const hooks = settings.hooks ??= {}
   for (const [mode, event] of Object.entries(MODES)) {
     const command = `${bin} claude-code hook ${mode}`
-    const groups = settings.hooks[event] ?? []
+    const groups = hooks[event] ?? []
     if (groups.some(g => g.hooks?.some(h => h.command === command))) continue
     // drop the hooks of ours that run another command, and the groups that leaves empty
     const kept = groups
       .map(g => ({ ...g, hooks: (g.hooks ?? []).filter(h => !OURS.test(h.command ?? '')) }))
       .filter(g => g.hooks.length)
-    settings.hooks[event] = [...kept, { hooks: [{ type: 'command', command }] }]
+    hooks[event] = [...kept, { hooks: [{ type: 'command', command }] }]
     changed.push(event)
   }
   if (!changed.length) { console.log(`hooks already installed: ${file}`); return }

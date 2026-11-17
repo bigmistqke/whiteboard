@@ -9,9 +9,25 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node"],
-    "allowJs": true
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ],
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*", "markboard/**/*", "solid/**/*", "terminal/**/*", "comments/**/*", "claude-code/**/*"]
+  "include": [
+    "src/**/*",
+    "bin/**/*",
+    "build.ts",
+    "markboard/**/*",
+    "solid/**/*",
+    "terminal/**/*",
+    "comments/**/*",
+    "claude-code/**/*"
+  ]
 }

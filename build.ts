@@ -4,45 +4,47 @@
 //   dist/terminal/client.js    the terminal drawer (xterm included), and style.css with xterm's styles
 //   dist/comments/client.js    comments in the browser, and their style.css
 //   dist/define.js             ./config: defineConfig, defineRenderer
+//   dist/bin/, dist/src/       the engine: the command line and the server, module for module
+//   dist/terminal/, dist/comments/, dist/claude-code/   the plugins' server side, and the terminal's host
 //   dist/markboard/…               ./markboard (the renderer) and ./template, module for module, with
 //                              each template's style and readme
 //   dist/markboard/client/main.js  markboard in the browser, one module (morphdom included)
 //   dist/markboard/<t>/client.js   a template's browser code: one module with Solid included
 //   dist/solid/index.js        ./solid, for template packages that bundle it themselves
 //
-// The engine itself (src/*.js, bin/) is plain JavaScript and runs as it is. Node runs TypeScript
-// of its own, but not inside node_modules, which is where an installed package lives: so anything a
-// project imports from this package is built. `node build.js --watch` rebuilds on change.
+// Node runs TypeScript of its own, but not inside node_modules, which is where an installed package
+// lives: so everything the package runs is built, the engine included. In this repository the engine
+// also runs from source (see bin/whiteboard.js). `node build.ts --watch` rebuilds on change.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { build, watch } from 'rolldown'
+import { build, watch, type BuildOptions, type Plugin } from 'rolldown'
 import { transform } from '@solidjs/compiler'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(ROOT, 'dist')
-const at = (...p) => path.join(ROOT, ...p)
+const at = (...p: string[]) => path.join(ROOT, ...p)
 
 /** Compile Solid JSX; rolldown strips the types that are left. */
-const solidJsx = () => ({
+const solidJsx = (): Plugin => ({
   name: 'solid-jsx',
   transform: {
     filter: { id: /\.[jt]sx$/ },
-    handler(code, id) {
+    handler(code: string, id: string) {
       const out = transform(code, { filename: id, generate: 'dom', moduleName: '@solidjs/web' })
-      return { code: out.code, map: out.map ?? null, moduleType: id.endsWith('.tsx') ? 'ts' : 'js' }
+      return { code: out.code, map: out.map ?? null, moduleType: id.endsWith('.tsx') ? 'ts' as const : 'js' as const }
     },
   },
 })
 
-const bare = id => !id.startsWith('.') && !path.isAbsolute(id)
+const bare = (id: string) => !id.startsWith('.') && !path.isAbsolute(id)
 
 const templateDirs = fs.readdirSync(at('markboard'), { withFileTypes: true })
   .filter(e => e.isDirectory() && fs.existsSync(at('markboard', e.name, 'index.ts')))
   .map(e => e.name)
 const clients = templateDirs.filter(name => fs.existsSync(at('markboard', name, 'client.tsx')))
 
-const builds = [
+const builds: BuildOptions[] = [
   // the core in the browser
   {
     input: at('src/client/runtime.ts'),
@@ -75,14 +77,22 @@ const builds = [
       'markboard/index': at('markboard/index.ts'),
       'markboard/types': at('markboard/types.ts'),
       ...Object.fromEntries(templateDirs.map(name => [`markboard/${name}/index`, at('markboard', name, 'index.ts')])),
+      // the engine, and the plugins that ship with it; the terminal's host is started by its path
+      'bin/whiteboard': at('bin/whiteboard.ts'),
+      'terminal/index': at('terminal/index.ts'),
+      'terminal/host': at('terminal/host.ts'),
+      'comments/index': at('comments/index.ts'),
+      'claude-code/index': at('claude-code/index.ts'),
     },
     platform: 'node',
-    external: id => bare(id) || id.startsWith('node:'),
+    // the helpers the compiler adds (a tagged template holding </script> is rewritten with one) are
+    // bundled in: the package doesn't depend on them
+    external: (id: string) => (bare(id) && !id.startsWith('@oxc-project/runtime')) || id.startsWith('node:'),
     output: { dir: DIST, format: 'esm', preserveModules: true, preserveModulesRoot: ROOT, entryFileNames: '[name].js' },
   },
   // each template's browser code as one module: Solid and the adapter included, so it needs
   // nothing from the page to run
-  ...clients.map(name => ({
+  ...clients.map((name): BuildOptions => ({
     input: at('markboard', name, 'client.tsx'),
     platform: 'browser',
     resolve: { alias: { '@bigmistqke/whiteboard/solid': at('solid/index.tsx') } },
@@ -118,7 +128,7 @@ function copyAssets() {
 }
 
 /** Remove files under `dir` older than `since` (left from an earlier build), and folders left empty. */
-function prune(dir, since) {
+function prune(dir: string, since: number) {
   if (!fs.existsSync(dir)) return
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const file = path.join(dir, e.name)
@@ -129,7 +139,7 @@ function prune(dir, since) {
   }
 }
 
-const options = b => ({ ...b, logLevel: 'warn', transform: { define: { 'process.env.NODE_ENV': '"production"' } } })
+const options = (b: BuildOptions): BuildOptions => ({ ...b, logLevel: 'warn', transform: { define: { 'process.env.NODE_ENV': '"production"' } } })
 
 if (process.argv.includes('--watch')) {
   copyAssets()

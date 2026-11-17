@@ -42,13 +42,16 @@
       "default": "./dist/markboard/index.js"
     },
     "./terminal": {
-      "default": "./terminal/index.js"
+      "types": "./terminal/index.ts",
+      "default": "./dist/terminal/index.js"
     },
     "./claude-code": {
-      "default": "./claude-code/index.js"
+      "types": "./claude-code/index.ts",
+      "default": "./dist/claude-code/index.js"
     },
     "./comments": {
-      "default": "./comments/index.js"
+      "types": "./comments/index.ts",
+      "default": "./dist/comments/index.js"
     },
     "./solid": {
       "types": "./solid/index.tsx",
@@ -67,11 +70,11 @@
     "skills"
   ],
   "scripts": {
-    "build": "node build.js",
-    "dev": "node build.js --watch",
-    "prepare": "node build.js",
+    "build": "node build.ts",
+    "dev": "node build.ts --watch",
+    "prepare": "node build.ts",
     "start": "node bin/whiteboard.js serve",
-    "types": "tsc -p tsconfig.json"
+    "check": "tsc -p tsconfig.json"
   },
   "engines": {
     "node": ">=22.18"
