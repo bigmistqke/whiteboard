@@ -70,6 +70,18 @@ function moduleFormat(file: string): ModuleFormat | undefined {
 
 let version = 0
 
+/**
+ * Import one of the package's own parts (`markboard`) afresh, with everything it imports, the way
+ * `importFresh` does a config: for what the core loads itself on a config's behalf, such as the
+ * default renderer, which must reload along with the config.
+ */
+export function importOwn(part: string): Promise<any> {
+  installHooks()
+  const file = ownFile(`${PACKAGE}/${part}`)
+  if (!file) throw new Error(`the package has no part "${part}"`)
+  return import(`${pathToFileURL(file).href}?wb-v=${++version}`)
+}
+
 /** Import `file` and everything local it imports afresh. */
 export function importFresh(file: string): Promise<any> {
   installHooks()

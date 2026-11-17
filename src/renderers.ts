@@ -4,7 +4,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { importFresh, installHooks } from './load.ts'
+import { importFresh, importOwn } from './load.ts'
 import { pluginCommands } from './plugins.ts'
 import type { Config, Plugin, RenderContext, Renderer, StoredPage } from './define.ts'
 import type { Project } from './config.ts'
@@ -66,8 +66,8 @@ function normalize(r: Renderer, source: string | null): LoadedRenderer {
  * lists renderers gets only those, so `renderers: []` still shows every page as its raw text.
  */
 async function defaultRenderers(): Promise<Renderer[]> {
-  installHooks()
-  const { default: markboard } = await import('@bigmistqke/whiteboard/markboard')
+  // afresh with every load of the config, like what a config imports itself, so it reloads too
+  const { default: markboard } = await importOwn('markboard')
   return [markboard()]
 }
 
