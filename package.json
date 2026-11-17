@@ -85,7 +85,6 @@
     "dev": "node build.ts --watch",
     "prepare": "node build.ts",
     "start": "node bin/whiteboard.ts serve",
-    "link:source": "ln -sf \"$PWD/bin/whiteboard.ts\" \"$(npm prefix -g)/bin/whiteboard\"",
     "check": "tsc -p tsconfig.json",
     "test": "node --test --test-force-exit 'src/**/*.test.ts'"
   },

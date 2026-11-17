@@ -344,7 +344,7 @@ can run from source instead, so a change needs no build:
 ```sh
 git clone https://github.com/bigmistqke/whiteboard && cd whiteboard
 npm install
-npm run link:source    # your global `whiteboard` now runs bin/whiteboard.ts
+ln -sf "$PWD/bin/whiteboard.ts" "$(npm prefix -g)/bin/whiteboard"   # your global `whiteboard` runs the source
 npm run dev            # rebuilds the browser code as you change it
 ```
 
