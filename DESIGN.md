@@ -228,9 +228,9 @@ arguments before its code runs.
 
 A plugin too, so any page can be commented on. Selecting text in the
 page's content (its `<main>`, else all of it) shows a "Comment" button; a
-comment is an event (`comment`, with the quote and the text around it),
-and so are replies (`comment-reply`) and closing a thread
-(`comment-resolve`). Passages are found again by quote and context after
+comment is an event (`comments:new`, with the quote and the text around
+it), and so are replies (`comments:reply`) and closing a thread
+(`comments:resolve`). Passages are found again by quote and context after
 edits, and highlighted with the CSS Highlight API, so the page's markup
 never changes for them. A badge in the margin opens each open thread; it
 is filled when the agent spoke last. How an agent answers is in its
@@ -280,6 +280,16 @@ event once (see Projects): `watch` is `wait` that never exits.
 Events the command line appends (`whiteboard append`, an agent's reply,
 say) carry `from: "cli"`; waits skip them, so an agent never wakes on its
 own events, and renderers can tell the two sides apart.
+
+Event types share one namespace, so a colon is reserved: a form's name
+has none, and every other type is named after its owner, `<owner>:<what>`.
+That is whiteboard itself (`whiteboard:claim`, `whiteboard:picked`), a
+plugin (`comments:new`, `comments:reply`, `comments:resolve`) or a
+template (`form:thread`), so a form's answers never mix with their events.
+A form whose name has a colon is not a question: the form template shows
+an error in its place, and the core leaves it alone. The events of the
+comments and the form thread had plain names before (`comment`,
+`comment-reply`, `comment-resolve`, `thread`); those still count.
 
 Only one server runs per project, also when several commands want one at
 the same moment: the one that creates `server.lock` starts it and the others
@@ -403,7 +413,7 @@ templates.
 6. Writes forms as markdown (the `form` template); sending them and
    drafts are the core's. The template adds a
    thread under each form:
-   messages are `thread` events (`{ form, text }`, from the reader or the
+   messages are `form:thread` events (`{ form, text }`, from the reader or the
    agent), never submits, so asking about a choice never makes it. An agent
    message can name the submit whose typed text it answers (`replyTo`),
    shown as the reader's message before it, and can take the place of an

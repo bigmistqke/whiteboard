@@ -104,11 +104,11 @@ but send nothing.
 
 **A thread under every form.** The reader can ask about a question without
 answering it (Enter sends, Shift+Enter starts a new line): what they write
-in the form's thread is a `thread` event, `{ "form": "<name>", "text": "…" }`,
+in the form's thread is a `form:thread` event, `{ "form": "<name>", "text": "…" }`,
 never a submit of the form, so it never makes a choice. Answer in the same thread:
 
 ```sh
-whiteboard append --page <file> --type thread --data '{"form":"<name>","text":"your answer"}'
+whiteboard append --page <file> --type form:thread --data '{"form":"<name>","text":"your answer"}'
 ```
 
 The thread shows as a chat, the reader's messages on one side and yours on

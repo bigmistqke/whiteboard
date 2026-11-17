@@ -19,7 +19,7 @@
 // marked `data-wb-self` (or inside an element that is) keeps its own fields: no drafts and no last
 // answer are written into it, for a renderer's component that shows them itself.
 import type { Api, FormState, FormStatus } from '../define'
-import { STATES, questionState } from '../status.ts'
+import { STATES, isQuestionName, questionState } from '../status.ts'
 
 type Data = Record<string, unknown>
 
@@ -28,8 +28,8 @@ let api: Api
 let page = ''
 const listeners = new Set<(forms: FormStatus[]) => void>()
 
-/** The forms the core looks after: named, without an action. */
-const managed = (form: HTMLFormElement) => !!form.getAttribute('name') && !form.hasAttribute('action')
+/** The forms the core looks after: named (a name without a colon: see isQuestionName), without an action. */
+const managed = (form: HTMLFormElement) => isQuestionName(form.getAttribute('name') ?? '') && !form.hasAttribute('action')
 const forms = () => [...root.querySelectorAll('form')].filter(managed)
 const keepsOwnFields = (form: HTMLFormElement) => !!form.closest('[data-wb-self]')
 

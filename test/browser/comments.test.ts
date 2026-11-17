@@ -39,14 +39,14 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   await page.fill('.wb-comment-new textarea', 'why these words?')
   await page.click('.wb-comment-new button[type=submit]')
 
-  const comment = await until('the comment is in the log', () => proj.events().find(e => e.type === 'comment'))
+  const comment = await until('the comment is in the log', () => proj.events().find(e => e.type === 'comments:new'))
   assert.equal(comment.data.quote, 'some words')
   assert.equal(comment.data.text, 'why these words?')
   await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
   assert.equal(await page.$$eval('.wb-comment-badge', b => b.length), 1, 'one badge')
 
   // the agent replies from the command line
-  proj.cli('append', '--page', 'q', '--type', 'comment-reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'because' }))
+  proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'because' }))
   await until('the badge shows the agent replied', () => page.$eval('.wb-comment-badge', b => b.hasAttribute('data-agent') && b.textContent === '2'))
 
   // a live edit elsewhere keeps the passage

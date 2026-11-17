@@ -1,12 +1,15 @@
 // The thread under a form (rendered by the form template as plain HTML around this island): the
 // reader asks about the question, the agent answers
-// (`whiteboard append --type thread --data '{"form":"<name>","text":"…"}'`). A message is a `thread`
+// (`whiteboard append --type form:thread --data '{"form":"<name>","text":"…"}'`). A message is a `form:thread`
 // event of its own, never a submit of the form, so talking about a choice never makes it.
 import { createMemo, For } from 'solid-js'
 import { solid, useWhiteboard } from '@bigmistqke/whiteboard/solid'
 import type { ThreadProps } from './index'
 import type { WbEvent } from '@bigmistqke/whiteboard/template'
 import { autosize } from './autosize'
+
+/** A message in a form's thread: the form template's own event type. */
+const THREAD = 'form:thread'
 
 interface Message { id: string; from: 'you' | 'agent'; text: string }
 
@@ -29,7 +32,8 @@ function Thread(props: ThreadProps) {
   // take the place of an earlier one (`replaces` its id), to correct it.
   const messages = createMemo((): Message[] => {
     const events = wb.events()
-    const own = events.filter(e => e.type === 'thread' && e.data.form === props.form)
+    // `thread` is what these were called before event types got their owner's name
+    const own = events.filter(e => (e.type === THREAD || e.type === 'thread') && e.data.form === props.form)
     const replaced = new Set(own.map(e => e.data.replaces).filter(Boolean).map(String))
     const out: Message[] = []
     for (const e of own) {
@@ -45,7 +49,7 @@ function Thread(props: ThreadProps) {
   const post = async () => {
     const text = box?.value.trim()
     if (!text) return
-    await wb.append('thread', { form: props.form, text })
+    await wb.append(THREAD, { form: props.form, text })
     box!.value = ''
     // measure again: a value set from code fires no input event
     box!.dispatchEvent(new Event('input'))

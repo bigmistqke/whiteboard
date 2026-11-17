@@ -78,3 +78,31 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
 
   assert.deepEqual(errors, [], 'no console errors')
 })
+
+test('event names: a form name with a colon is refused, and a thread shows old and new messages', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { q: `# Q
+
+:::form{name=pick}
+:radio[A]{name=x}
+:::
+
+:::form{name=comments:new}
+:radio[B]{name=y}
+:::
+` } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+  // a message from before event types had their owner's name, and one from now
+  proj.cli('append', '--page', 'q', '--type', 'thread', '--data', JSON.stringify({ form: 'pick', text: 'old name' }))
+  proj.cli('append', '--page', 'q', '--type', 'form:thread', '--data', JSON.stringify({ form: 'pick', text: 'new name' }))
+
+  await page.goto(proj.url('q'))
+  await until('the thread shows both', () => page.evaluate(() => {
+    const text = document.querySelector('form[name=pick] .wb-form-thread')?.textContent ?? ''
+    return text.includes('old name') && text.includes('new name')
+  }))
+  assert.match(await page.textContent('.wb-error') ?? '', /form name "comments:new" has a colon/)
+  // the page asks only the one question
+  assert.match(proj.cli('status', '--page', 'q'), /nobody listens for pick\n/)
+  assert.deepEqual(errors, [], 'no console errors')
+})

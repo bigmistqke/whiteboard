@@ -14,6 +14,7 @@ import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import { toString } from 'mdast-util-to-string'
 import { html, raw, type Html } from '../src/html.ts'
+import { isQuestionName } from '../src/status.ts'
 import type { ResolvedTemplate } from './templates.ts'
 
 /**
@@ -105,7 +106,7 @@ export function formNames(source: string) {
     for (const child of node.children ?? []) walk(child)
   }
   walk(tree)
-  return [...new Set(names)]
+  return [...new Set(names)].filter(isQuestionName)
 }
 
 export interface RenderOptions {

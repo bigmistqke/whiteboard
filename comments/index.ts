@@ -19,17 +19,17 @@ The reader can select text on any page and comment on it. Each comment comes
 to you as an event on the page, like a form answer:
 
 \`\`\`json
-{"id":"…","page":"plan","type":"comment","data":{"quote":"the selected text","before":"…","after":"…","block":3,"text":"their comment"}}
+{"id":"…","page":"plan","type":"comments:new","data":{"quote":"the selected text","before":"…","after":"…","block":3,"text":"their comment"}}
 \`\`\`
 
-Replies to a thread come as \`comment-reply\` (\`data.replyTo\` is the comment's
-id), and \`comment-resolve\` when the reader closed it. A thread stays on the
+Replies to a thread come as \`comments:reply\` (\`data.replyTo\` is the comment's
+id), and \`comments:resolve\` when the reader closed it. A thread stays on the
 page until the reader closes it. Answer a comment the way it asks:
 
 - **It asks for a change:** edit the page. The thread stays, so say what you
   changed in a reply if it is not obvious.
 - **It asks a question:** reply in the thread:
-  \`whiteboard append --page <file> --type comment-reply --data '{"replyTo":"<comment id>","text":"…"}'\`
+  \`whiteboard append --page <file> --type comments:reply --data '{"replyTo":"<comment id>","text":"…"}'\`
 
 Your replies show as the agent's, and \`wait\` and \`watch\` skip what you
 append, so you don't hear your own replies.`

@@ -53,7 +53,7 @@ Write for a reader who comes back later:
   above it: the user decides where they read. Keep `:::details` for real
   depth, not for the options.
 - A send is a choice, and only that. Questions and remarks about a form go
-  in its thread (`thread` events, see the form template's docs): answer them
+  in its thread (`form:thread` events, see the form template's docs): answer them
   there, and never read a thread message, or a note sent along with a
   submit, as a choice. Don't add a notes field to a decision form for
   questions; the thread is for that.
@@ -227,7 +227,7 @@ So when a message arrives with answers from the hook, act on them as on
 answers from a wait, and start a wait when it says nobody listens.
 
 The user can also select text on a page and comment on it: a `watch` on the
-page hands you those as `comment` events. `whiteboard docs` says how to reply
+page hands you those as `comments:new` events. `whiteboard docs` says how to reply
 (by editing the page, or in the thread with `whiteboard append`).
 
 After acting on an answer, update the page to say what you did with it.

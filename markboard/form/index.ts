@@ -7,6 +7,7 @@
 // stands, which markboard's client shows). Only the thread under the form is a client island.
 import { html, raw, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
 import { builtFile } from '../../src/package.ts'
+import { isQuestionName } from '../../src/status.ts'
 
 const style = new URL('./style.css', import.meta.url)
 const readme = new URL('./README.md', import.meta.url)
@@ -39,6 +40,8 @@ const form: Template = {
   async html(ctx) {
     const c = ctx as DirectiveContext
     const name = c.attrs.name || c.attrs.id || 'form'
+    // a colon marks the events of whiteboard, a plugin or a template (`form:thread`), never an answer
+    if (!isQuestionName(name)) throw new Error(`form name "${name}" has a colon: those names are reserved for events of whiteboard, plugins and templates`)
     const inputs = inputsOf(c.children as Node[])
     const choices = [...new Set(inputs.filter(i => CHOICES.has(i.name) && i.attrs.name).map(i => i.attrs.name))]
     const hasButton = inputs.some(i => i.name === 'button')
