@@ -188,7 +188,7 @@ function renderPopover() {
     ${[t.comment, ...t.replies].map(message)}
     <form class="wb-thread-reply">
       <textarea rows="2" placeholder="Reply"></textarea>
-      <div class="wb-thread-actions"><button type="submit" class="wb-primary">Reply</button><button type="button" data-close>Close thread</button></div>
+      <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Reply</button><button type="button" class="wb-comment-button" data-close>Close thread</button></div>
     </form>`)
   popover.querySelector('textarea')!.value = draft
 }
@@ -258,7 +258,7 @@ const composer = document.createElement('form')
 composer.className = 'wb-thread wb-comment-new'
 composer.hidden = true
 composer.innerHTML = String(html`<blockquote class="wb-thread-quote"></blockquote><textarea rows="3" placeholder="Your comment"></textarea>
-  <div class="wb-thread-actions"><button type="submit" class="wb-primary">Comment</button><button type="button" data-cancel>Cancel</button></div>`)
+  <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Comment</button><button type="button" class="wb-comment-button" data-cancel>Cancel</button></div>`)
 
 function startComment() {
   if (!pending) return
