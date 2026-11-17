@@ -1,6 +1,7 @@
 // Turns the block's content into gallery items: one per heading (first image in the section is
 // its picture), or one per image when there are no headings.
 import { escape, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
+import { builtFile } from '../../src/package.ts'
 
 interface Node { type: string; depth?: number; url?: string; alt?: string; children?: Node[] }
 export interface Item { src: string | null; alt: string; title: string | null; html: string }
@@ -52,7 +53,7 @@ export async function props(ctx: DirectiveContext) {
 export default {
   name: 'gallery',
   props,
-  client: new URL('./client.js', import.meta.url),
+  client: builtFile(import.meta.url, 'client.js'),
   style: new URL('./style.css', import.meta.url),
   readme: new URL('./README.md', import.meta.url),
 } satisfies Template

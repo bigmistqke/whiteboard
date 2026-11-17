@@ -1,10 +1,11 @@
 // Loading a project's config with Node itself: Node runs the TypeScript of `config.ts`, and these
 // hooks do the two things it cannot do alone.
 //
-// - `@bigmistqke/whiteboard/*` always means this engine's own build, so a config works in a
+// - `@bigmistqke/whiteboard/*` always means this engine's own files, so a config works in a
 //   project without node_modules (a Rust repository, a home folder), and it always matches the
 //   server that runs it. Which file a subpath is comes from the package's `exports`, read afresh
-//   on every resolve, so a part added to the package works without restarting the server.
+//   on every resolve, so a part added to the package works without restarting the server: its
+//   `source` (the TypeScript) where the engine runs from source, its build where it is installed.
 // - Reloading. Node evaluates a module once per URL; the config and every local module it imports
 //   get a version in their URL, and a new version imports them again. Modules in node_modules are
 //   left alone: they don't change while the server runs.
@@ -12,7 +13,7 @@ import fs from 'node:fs'
 import { registerHooks, type ModuleFormat } from 'node:module'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { PACKAGE_DIR } from './package.ts'
+import { INSTALLED, PACKAGE_DIR } from './package.ts'
 
 const ENGINE_DIR = PACKAGE_DIR
 const PACKAGE = '@bigmistqke/whiteboard/'
@@ -20,10 +21,10 @@ const PACKAGE = '@bigmistqke/whiteboard/'
 /** The file `@bigmistqke/whiteboard/<part>` is, by the package's `exports`; null for none. */
 function ownFile(specifier: string): string | null {
   if (!specifier.startsWith(PACKAGE)) return null
-  let exports: Record<string, string | { default?: string }> | undefined
+  let exports: Record<string, string | { source?: string; default?: string }> | undefined
   try { exports = JSON.parse(fs.readFileSync(path.join(ENGINE_DIR, 'package.json'), 'utf8')).exports } catch { return null }
   const target = exports?.[`./${specifier.slice(PACKAGE.length)}`]
-  const file = typeof target === 'string' ? target : target?.default
+  const file = typeof target === 'string' ? target : (!INSTALLED && target?.source) || target?.default
   return file ? path.join(ENGINE_DIR, file) : null
 }
 
@@ -35,7 +36,7 @@ registerHooks({
     if (own) {
       const url = pathToFileURL(own).href
       const v = context.parentURL && versionOf(context.parentURL)
-      return { url: v ? `${url}?wb-v=${v}` : url, shortCircuit: true, format: 'module' }
+      return { url: v ? `${url}?wb-v=${v}` : url, shortCircuit: true, format: moduleFormat(own) ?? 'module' }
     }
     const resolved = next(specifier, context)
     if (!resolved.url.startsWith('file:') || resolved.url.includes('/node_modules/')) return resolved

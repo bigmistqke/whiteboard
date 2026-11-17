@@ -27,14 +27,17 @@
   },
   "exports": {
     "./config": {
+      "source": "./src/define.ts",
       "types": "./src/define.ts",
       "default": "./dist/define.js"
     },
     "./log": {
+      "source": "./src/events.ts",
       "types": "./src/events.ts",
       "default": "./dist/src/events.js"
     },
     "./template": {
+      "source": "./markboard/types.ts",
       "types": "./markboard/types.ts",
       "default": "./dist/markboard/types.js"
     },
@@ -42,18 +45,22 @@
       "types": "./src/define.ts"
     },
     "./markboard": {
+      "source": "./markboard/index.ts",
       "types": "./markboard/index.ts",
       "default": "./dist/markboard/index.js"
     },
     "./terminal": {
+      "source": "./terminal/index.ts",
       "types": "./terminal/index.ts",
       "default": "./dist/terminal/index.js"
     },
     "./claude-code": {
+      "source": "./claude-code/index.ts",
       "types": "./claude-code/index.ts",
       "default": "./dist/claude-code/index.js"
     },
     "./comments": {
+      "source": "./comments/index.ts",
       "types": "./comments/index.ts",
       "default": "./dist/comments/index.js"
     },

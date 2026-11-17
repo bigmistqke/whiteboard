@@ -8,6 +8,7 @@
 // `import { grid, form } from '@bigmistqke/whiteboard/markboard'`. `code` (syntax highlighting for code
 // blocks) takes options, so it is a function: `code({ themes })`, or `markboard({ code: { themes } })`.
 import type { Renderer } from '../src/define.ts'
+import { builtFile } from '../src/package.ts'
 import type { TemplateEntry } from './types.ts'
 import callout from './callout/index.ts'
 import code, { type Options as CodeOptions } from './code/index.ts'
@@ -45,6 +46,6 @@ export default function markboard(options: Options = {}): Renderer {
     docs: createDocs(templates),
     // the questions a page asks are its named forms; a form's answers are events of its name
     expects: page => (page.kind === 'page' ? formNames(page.source) : []),
-    client: new URL('./client/main.js', import.meta.url),
+    client: builtFile(import.meta.url, 'client/main.js'),
   }
 }

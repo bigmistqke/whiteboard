@@ -19,3 +19,20 @@ export const PACKAGE_DIR = findRoot(path.dirname(fileURLToPath(import.meta.url))
 
 /** A path inside the package. */
 export const packagePath = (...parts: string[]) => path.join(PACKAGE_DIR, ...parts)
+
+/**
+ * Is this an installed package (in a node_modules folder)? Then Node won't run its TypeScript, and
+ * everything runs from dist/. Otherwise (this repository, or a link to it) it runs from source.
+ */
+export const INSTALLED = PACKAGE_DIR.split(path.sep).includes('node_modules')
+
+/**
+ * A browser file built from the module at `moduleUrl`'s folder: `name` in that folder's place in
+ * dist/. The same whether the module runs from source (markboard/form/index.ts gives
+ * dist/markboard/form/client.js) or from dist/ itself.
+ */
+export function builtFile(moduleUrl: string, name: string): string {
+  const rel = path.relative(PACKAGE_DIR, path.dirname(fileURLToPath(moduleUrl)))
+  const inDist = rel === 'dist' || rel.startsWith('dist' + path.sep)
+  return path.join(PACKAGE_DIR, inDist ? '' : 'dist', rel, name)
+}

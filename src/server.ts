@@ -21,7 +21,7 @@ import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig, type LoadedRenderer } from './renderers.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth } from './auth.ts'
-import { PACKAGE_DIR } from './package.ts'
+import { INSTALLED, PACKAGE_DIR } from './package.ts'
 import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
 
 const PROJECT: Project = projectAt(findProjectDir()) ?? (() => {
@@ -137,8 +137,8 @@ function asset(ref: string | URL): string {
     const dir = path.dirname(file)
     if (!assetDirs.has(dir)) {
       assetDirs.add(dir)
-      // .whiteboard/ itself is watched already (setFiles), and so is the engine's own build
-      if (!within(dir, PROJECT.wb) && !within(dir, ENGINE_BUILD)) {
+      // .whiteboard/ itself is watched already (setFiles), and so are the engine's own files
+      if (!within(dir, PROJECT.wb) && !ENGINE_WATCHED.some(d => within(dir, d))) {
         try { fs.watch(dir, (_evt, name) => { if (name) onSourceChange(path.join(dir, name)) }) } catch { /* gone */ }
       }
     }
@@ -481,12 +481,14 @@ async function onSourceChange(file: string) {
   }, 80)
 }
 
-// The engine's own build, when it is not an installed package: rebuilding it (npm run dev) reloads
-// what it is made of, like a project's own files.
+// The engine's own files, when it is not an installed package: what a config loads from it runs
+// from source (markboard and the plugins), and the browser code from its build (npm run dev). A
+// change to either reloads what it is made of, like a project's own files.
 const ENGINE_BUILD = path.join(ENGINE_DIR, 'dist')
-if (!ENGINE_DIR.split(path.sep).includes('node_modules')) {
+const ENGINE_WATCHED = INSTALLED ? [] : [ENGINE_BUILD, ...['markboard', 'terminal', 'comments', 'claude-code'].map(d => path.join(ENGINE_DIR, d))]
+for (const dir of ENGINE_WATCHED) {
   try {
-    fs.watch(ENGINE_BUILD, { recursive: true }, (_evt, name) => { if (name) onSourceChange(path.join(ENGINE_BUILD, name)) })
+    fs.watch(dir, { recursive: true }, (_evt, name) => { if (name) onSourceChange(path.join(dir, name)) })
   } catch { /* not built */ }
 }
 

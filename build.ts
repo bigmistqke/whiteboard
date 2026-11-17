@@ -13,8 +13,9 @@
 //   dist/solid/index.js        ./solid, for template packages that bundle it themselves
 //
 // Node runs TypeScript of its own, but not inside node_modules, which is where an installed package
-// lives: so everything the package runs is built, the engine included. In this repository the engine
-// also runs from source (see bin/whiteboard.js). `node build.ts --watch` rebuilds on change.
+// lives: so everything the package runs is built, the engine included. In this repository everything
+// on the server runs from source instead (see bin/whiteboard.js and the `source` exports); only
+// browser code is always built. `node build.ts --watch` rebuilds on change.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

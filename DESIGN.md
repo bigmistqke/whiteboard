@@ -332,7 +332,8 @@ agent forgetting a wait is caught from outside it:
 
 The config is loaded by Node itself, which runs its TypeScript
 (`src/load.ts`). Two resolve hooks help it: `@bigmistqke/whiteboard/*`
-always means the engine's own build, so a project needs no `node_modules`;
+always means the engine's own files (its source, or its build once
+installed; see Layout), so a project needs no `node_modules`;
 and the config and the local files it imports get a version in their URL,
 so a change loads them afresh. Nothing compiles browser code: a renderer's
 or template's browser module is served as the file it is, so packages ship
@@ -503,9 +504,17 @@ check` type-checks all of it; `npm test` runs the tests
 (`node:test`, next to the code as `*.test.ts`). Node runs TypeScript, but not inside
 `node_modules`, where an installed package lives; so everything the package
 runs ships built in `dist/`, the engine and its plugins included, and its
-`exports` point there. `bin/whiteboard.js`, the one JavaScript file, picks:
-in an installed package it runs the build, anywhere else (this repository,
-or a link to it) the source, so a change to the engine needs no build here.
+`exports` point there. Anywhere else (this repository, or a link to it)
+everything on the server runs from source, so a change to it needs no
+build: `bin/whiteboard.js`, the one JavaScript file, runs `bin/whiteboard.ts`
+or its build by whether it lies in a `node_modules` folder, and each export
+has a `source` condition (listed first, pointing at the TypeScript) that the
+config loader picks by the same test, as does `tsc` (`customConditions`).
+This is the usual way to run a TypeScript package from source during
+development; the condition stays in the published `package.json`, where
+nothing asks for it. Only browser code is always built (`npm run dev`), so
+markboard finds its browser modules in `dist/` (`builtFile`), from source
+and from the build alike.
 Paths into the package are found from its root (`src/package.ts`), since a
 module in `dist/` sits at another depth than its source.
 

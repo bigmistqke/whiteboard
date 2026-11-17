@@ -6,6 +6,7 @@
 // sends a submit as an event, keeps drafts, puts the last answer back and marks where the form
 // stands, which markboard's client shows). Only the thread under the form is a client island.
 import { html, raw, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
+import { builtFile } from '../../src/package.ts'
 
 const style = new URL('./style.css', import.meta.url)
 const readme = new URL('./README.md', import.meta.url)
@@ -101,7 +102,7 @@ const thread: Template<ThreadProps> = {
   readme,
   props: ctx => ({ form: ctx.attrs.form ?? '', choices: (ctx.attrs.choices ?? '').split(' ').filter(Boolean) }),
   html: () => '',
-  client: new URL('./client.js', import.meta.url),
+  client: builtFile(import.meta.url, 'client.js'),
 }
 
 export default [form, ...inputs, thread]

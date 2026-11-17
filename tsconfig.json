@@ -18,7 +18,10 @@
       "node"
     ],
     "erasableSyntaxOnly": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "customConditions": [
+      "source"
+    ]
   },
   "include": [
     "src/**/*",
