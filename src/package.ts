@@ -21,10 +21,11 @@ export const PACKAGE_DIR = findRoot(path.dirname(fileURLToPath(import.meta.url))
 export const packagePath = (...parts: string[]) => path.join(PACKAGE_DIR, ...parts)
 
 /**
- * Is this an installed package (in a node_modules folder)? Then Node won't run its TypeScript, and
- * everything runs from dist/. Otherwise (this repository, or a link to it) it runs from source.
+ * Is the engine running from its TypeScript source (`bin/whiteboard.ts`), rather than from its build
+ * (`dist/bin/whiteboard.js`, what an installed package runs)? Then what a config imports from the
+ * package comes from source too (the `source` export conditions), so the two never mix.
  */
-export const INSTALLED = PACKAGE_DIR.split(path.sep).includes('node_modules')
+export const FROM_SOURCE = fileURLToPath(import.meta.url).endsWith('.ts')
 
 /**
  * A browser file built from the module at `moduleUrl`'s folder: `name` in that folder's place in

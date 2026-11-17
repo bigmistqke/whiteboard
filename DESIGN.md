@@ -504,12 +504,13 @@ check` type-checks all of it; `npm test` runs the tests
 (`node:test`, next to the code as `*.test.ts`). Node runs TypeScript, but not inside
 `node_modules`, where an installed package lives; so everything the package
 runs ships built in `dist/`, the engine and its plugins included, and its
-`exports` point there. Anywhere else (this repository, or a link to it)
-everything on the server runs from source, so a change to it needs no
-build: `bin/whiteboard.js`, the one JavaScript file, runs `bin/whiteboard.ts`
-or its build by whether it lies in a `node_modules` folder, and each export
-has a `source` condition (listed first, pointing at the TypeScript) that the
-config loader picks by the same test, as does `tsc` (`customConditions`).
+`exports` and its `bin` point there. To work on whiteboard without
+building, run `bin/whiteboard.ts` instead (link `whiteboard` to it): Node
+runs it from source, and everything on the server follows, so a change
+needs no build. Each export has a `source` condition (listed first,
+pointing at the TypeScript) that the config loader picks when the engine
+itself runs from source, as does `tsc` (`customConditions`); a build run
+uses the build throughout, so the two never mix.
 This is the usual way to run a TypeScript package from source during
 development; the condition stays in the published `package.json`, where
 nothing asks for it. Only browser code is always built (`npm run dev`), so

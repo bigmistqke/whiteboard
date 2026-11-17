@@ -23,7 +23,7 @@
   "bugs": "https://github.com/bigmistqke/whiteboard/issues",
   "type": "module",
   "bin": {
-    "whiteboard": "bin/whiteboard.js"
+    "whiteboard": "dist/bin/whiteboard.js"
   },
   "exports": {
     "./config": {
@@ -84,7 +84,7 @@
     "build": "node build.ts",
     "dev": "node build.ts --watch",
     "prepare": "node build.ts",
-    "start": "node bin/whiteboard.js serve",
+    "start": "node bin/whiteboard.ts serve",
     "check": "tsc -p tsconfig.json",
     "test": "node --test --test-force-exit 'src/**/*.test.ts'"
   },

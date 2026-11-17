@@ -21,7 +21,7 @@ import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig, type LoadedRenderer } from './renderers.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth } from './auth.ts'
-import { INSTALLED, PACKAGE_DIR } from './package.ts'
+import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
 import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
 
 const PROJECT: Project = projectAt(findProjectDir()) ?? (() => {
@@ -481,11 +481,11 @@ async function onSourceChange(file: string) {
   }, 80)
 }
 
-// The engine's own files, when it is not an installed package: what a config loads from it runs
-// from source (markboard and the plugins), and the browser code from its build (npm run dev). A
-// change to either reloads what it is made of, like a project's own files.
+// The engine's own files, when it runs from source: what a config loads from it runs from source
+// too (markboard and the plugins), and the browser code from its build (npm run dev). A change to
+// either reloads what it is made of, like a project's own files.
 const ENGINE_BUILD = path.join(ENGINE_DIR, 'dist')
-const ENGINE_WATCHED = INSTALLED ? [] : [ENGINE_BUILD, ...['markboard', 'terminal', 'comments', 'claude-code'].map(d => path.join(ENGINE_DIR, d))]
+const ENGINE_WATCHED = !FROM_SOURCE ? [] : [ENGINE_BUILD, ...['markboard', 'terminal', 'comments', 'claude-code'].map(d => path.join(ENGINE_DIR, d))]
 for (const dir of ENGINE_WATCHED) {
   try {
     fs.watch(dir, { recursive: true }, (_evt, name) => { if (name) onSourceChange(path.join(dir, name)) })
