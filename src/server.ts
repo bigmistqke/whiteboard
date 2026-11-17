@@ -19,7 +19,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Project } from './config.ts'
-import { appendEvent, readEvents, matches, pickedUp, fromReader, CLAIM } from './events.ts'
+import { appendEvent, readEvents, matches, pickedUp, fromReader, forAgent, CLAIM } from './events.ts'
 import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
@@ -331,7 +331,8 @@ export function createServer(project: Project): WhiteboardServer {
    * hooks report. The questions are a page's named forms.
    */
   async function status(only: string | null): Promise<PageStatus[]> {
-    const { pages } = await config()
+    const { pages, handedOut } = await config()
+    const isForAgent = forAgent(handedOut)
     const all = readEvents(project.eventsFile)
     const picked = pickedUp(all)
     const owner = new Map<string, string | null>()
@@ -351,7 +352,8 @@ export function createServer(project: Project): WhiteboardServer {
         page: p.id, file: p.file, owner: owner.get(p.id) ?? null, asks, questions,
         open: named('waiting', 'unheard'),
         unheard: named('unheard'),
-        unpicked: events.filter(e => fromReader(e) && !picked.has(e.id)),
+        // the reader's events for an agent: a form's answers, and plugin events declared handOut
+        unpicked: events.filter(e => fromReader(e) && isForAgent(e.type) && !picked.has(e.id)),
         listeners: listening,
       })
     }
@@ -368,6 +370,7 @@ export function createServer(project: Project): WhiteboardServer {
       docs: h.plugin.docs ? await h.plugin.docs() : null,
       routes: describeRoutes(h.table),
       commands: pluginCommands(h.plugin).map(c => ({ name: c.name, usage: usage(c.command), description: c.command.description })),
+      events: Object.entries(h.plugin.events ?? {}).map(([type, spec]) => ({ type, handOut: !!spec?.handOut, description: spec?.description ?? '' })),
     })))
     return { errors: errors.map(e => (e as Error).message), pages: pages?.docs(context()) ?? null, plugins }
   }

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { appendEvent, follow, fromReader, handOut, pick, pickedUp, read, readEvents } from './events.ts'
+import { appendEvent, follow, forAgent, fromReader, handOut, pick, pickedUp, read, readEvents } from './events.ts'
 import type { WbEvent } from './define.ts'
 
 const FAST = { interval: 5 }
@@ -169,4 +169,18 @@ test('a signal stops following', async () => {
   reader(log, 'p')
   await sleep(30)
   assert.equal(pickedUp(readEvents(log)).size, 0)
+})
+
+test('a plugin\'s events reach an agent only when declared handOut, or asked for by type', async () => {
+  const log = tempLog()
+  const answer = reader(log, 'p', 'pick')
+  const vote = reader(log, 'p', 'votes:up')
+  const message = reader(log, 'p', 'chat:message')
+  const isForAgent = forAgent(new Set(['chat:message']))
+  assert.deepEqual((await backlog(log, {}, { forAgent: isForAgent })).map(e => e.id), [answer.id, message.id])
+  // the vote stays in the log, for whoever asks for it by name
+  assert.deepEqual((await backlog(log, { type: 'votes:up' }, { forAgent: isForAgent })).map(e => e.id), [vote.id])
+  // without declarations: a form's answers only
+  assert.equal(forAgent()('pick'), true)
+  assert.equal(forAgent()('chat:message'), false)
 })

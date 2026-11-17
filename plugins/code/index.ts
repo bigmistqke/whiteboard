@@ -10,7 +10,9 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Every token carries both a light and a dark colour as CSS variables (--shiki-light,
 // --shiki-dark); style.css picks one per theme, so highlighting follows the theme toggle without
 // re-rendering. The block's background stays the page's own code background.
-import { createHighlighter, bundledLanguages, type BundledTheme, type Highlighter } from 'shiki'
+// shiki loads the first time a page has code, not with the plugin: the command line loads the
+// built-in plugins too, for their declarations
+import type { BundledTheme, Highlighter } from 'shiki'
 import type { FenceContext } from '@bigmistqke/whiteboard'
 
 export interface Options {
@@ -32,16 +34,18 @@ export default function code(options: Options = {}): Plugin {
   const themes = options.themes ?? DEFAULT_THEMES
   const colorReplacements = options.colorReplacements ?? (options.themes ? {} : DEFAULT_REPLACEMENTS)
   let highlighter: Promise<Highlighter> | undefined
+  let shiki: typeof import('shiki') | undefined
   const loaded = new Set<string>()
 
   /** Highlight `code` as `lang`; an unknown or missing language renders as plain text. */
   async function highlight(code: string, lang: string | null) {
-    highlighter ??= createHighlighter({ themes: Object.values(themes), langs: [] })
+    shiki ??= await import('shiki')
+    highlighter ??= shiki.createHighlighter({ themes: Object.values(themes), langs: [] })
     const h = await highlighter
     let language = String(lang ?? '').toLowerCase()
-    if (language in bundledLanguages) {
+    if (language in shiki.bundledLanguages) {
       if (!loaded.has(language)) {
-        await h.loadLanguage(language as keyof typeof bundledLanguages)
+        await h.loadLanguage(language as keyof typeof shiki.bundledLanguages)
         loaded.add(language)
       }
     } else language = 'text'

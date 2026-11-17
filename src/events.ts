@@ -136,7 +136,16 @@ export function pick(file: string, event: WbEvent): WbEvent {
 
 // ---- handing out ---------------------------------------------------------------------------------
 
+/**
+ * Which event types reach an agent unasked: a form's answers (types without a colon) always, and of
+ * the plugins' events (`<plugin>:<what>`) those declared `handOut: true`, given in `handedOut`.
+ */
+export const forAgent = (handedOut: ReadonlySet<string> = new Set()) => (type: string): boolean =>
+  !type.includes(':') || handedOut.has(type)
+
 export interface HandOutOptions {
+  /** which event types it hands out unasked (see forAgent); a filter's `type` is handed out always */
+  forAgent?: (type: string) => boolean
   /** stop after this many (default: no limit) */
   count?: number
   /** after the backlog, follow the log for new events (default true) */
@@ -152,18 +161,20 @@ export interface HandOutOptions {
  * handed out. First the backlog: those nobody picked up yet, also from before this started,
  * whatever filter picked up the others. Then, with `follow`, every new one as it comes, also when
  * another running hand-out gets it too. The backlog and the following split the log at one line
- * boundary, so no event falls between them. Events an agent wrote are never handed out.
+ * boundary, so no event falls between them. Events an agent wrote are never handed out, and of the
+ * plugins' events only those for an agent (`forAgent`), unless the filter asks for a type by name.
  *
  * Resolves with how many were handed out: once `count` is reached, after the backlog without
  * `follow`, or when `signal` aborts.
  */
 export function handOut(file: string, filter: EventFilter, onEvent: (event: WbEvent) => void, options: HandOutOptions = {}): Promise<number> {
-  const { count = Infinity, follow: following = true, interval, signal } = options
+  const { count = Infinity, follow: following = true, interval, signal, forAgent: isForAgent = forAgent() } = options
   return new Promise(resolve => {
     let got = 0
     let stop = () => {}
     const finish = () => { stop(); signal?.removeEventListener('abort', finish); resolve(got) }
-    const wanted = (e: WbEvent) => fromReader(e) && matches(e, filter)
+    // the reader's events, and of those, the ones for an agent, unless the filter names a type
+    const wanted = (e: WbEvent) => fromReader(e) && matches(e, filter) && (!!filter.type || isForAgent(e.type))
     // false once enough were handed out
     const hand = (e: WbEvent) => {
       onEvent(e)

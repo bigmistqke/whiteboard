@@ -163,3 +163,19 @@ test('two plugins bringing the same block is a config error, shown on the page',
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'g.md'), '# G\n')
   assert.match(await (await fetch(`${base}/g`)).text(), /block &quot;grid&quot; comes from two plugins: grid and other/)
 })
+
+test('status counts the reader\'s events for an agent: answers and declared ones, not other plugin events', async () => {
+  const { base, server } = await serve()
+  const post = (type: string, data = {}) => fetch(`${base}/api/events`, { method: 'POST', body: JSON.stringify({ page: 'q', type, data }) })
+  await post('votes:up')
+  await post('chat:message', { chat: 'talk', text: 'hi' })   // the chat plugin declares it handOut
+  await post('pick', { x: 'A' })
+  const types = (await server.status('q'))[0]!.unpicked.map(e => e.type)
+  assert.deepEqual(types.sort(), ['chat:message', 'pick'])
+})
+
+test('a plugin\'s event types must be named after it', async () => {
+  const { base, dir } = await serve({ 'config.ts': `export default { plugins: [{ name: 'votes', events: { 'up': {} } }] }\n` })
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'v.md'), '# V\n')
+  assert.match(await (await fetch(`${base}/v`)).text(), /event type &quot;up&quot; must be named after it: votes:&lt;what&gt;/)
+})

@@ -34,6 +34,11 @@ export default function comments(): Plugin {
   return {
     name: 'comments',
     docs: () => DOCS,
+    events: {
+      'comments:new': { handOut: true, description: 'a comment on a passage: `{ quote, before, after, block, text }`; its id is the thread\'s' },
+      'comments:reply': { handOut: true, description: 'a reply in a thread: `{ replyTo, text }`' },
+      'comments:resolve': { description: 'the reader closed a thread: `{ replyTo }`' },
+    },
     style: STYLE,
     setup: () => ({ client: CLIENT }),
   }

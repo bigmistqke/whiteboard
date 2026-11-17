@@ -7,7 +7,7 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn, type Project } from '../src/config.ts'
-import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, handOut, CLAIM, type EventFilter } from '../src/events.ts'
+import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, handOut, CLAIM, type EventFilter, forAgent } from '../src/events.ts'
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
@@ -190,10 +190,10 @@ const relFile = (file: string) => path.relative(process.cwd(), file) || file
 
 /**
  * The project's config, as the command line needs it: for its plugins (their commands, the
- * session), so without the built-in ones. Loaded once per command.
+ * session, which events reach an agent), so without the pages. Loaded once per command.
  */
 let loaded: ReturnType<ReturnType<typeof createConfigLoader>['config']> | null = null
-const projectConfig = (proj: Project) => (loaded ??= createConfigLoader(proj, { builtins: false }).config())
+const projectConfig = (proj: Project) => (loaded ??= createConfigLoader(proj, { pages: false }).config())
 
 /**
  * The agent session this command runs in, as the project's plugins know it (Claude Code's
@@ -292,6 +292,11 @@ switch (cmd) {
       console.log(`<!-- plugin: ${e.name} -->\n# Plugin: ${e.name}\n`)
       if (e.error) console.log(`It failed to load: ${e.error}\n`)
       if (e.docs) console.log(`${e.docs.trim()}\n`)
+      if (e.events?.length) {
+        console.log('Events it writes (handed out: a `wait` or `watch` on the page gets them, and `status` counts them; the others only when asked for by type):\n')
+        for (const v of e.events) console.log(`- \`${v.type}\`${v.handOut ? ' (handed out)' : ''}${v.description ? `: ${v.description}` : ''}`)
+        console.log()
+      }
       for (const c of e.commands) console.log(`- \`whiteboard ${[c.name, c.usage].filter(Boolean).join(' ')}\`: ${c.description}`)
       if (e.routes.length) console.log(`\nRoutes (\`auth\`: needs the project's token, header \`x-whiteboard-token\`):\n`)
       for (const r of e.routes) {
@@ -332,11 +337,13 @@ switch (cmd) {
   }
   case 'wait':
   case 'watch': {
-    // Each answer once, also one given before the command started, never the agent's own; see
-    // handOut. `wait` stops after --count events (default 1); `watch` never does.
+    // Each answer once, also one given before the command started, never the agent's own; of the
+    // plugins' events, those they declare for an agent (see handOut). `wait` stops after --count
+    // events (default 1); `watch` never does.
     const proj = needProject()
     const f = filter()
-    handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), { count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity })
+    const { handedOut } = await projectConfig(proj)
+    handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), { count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity, forAgent: forAgent(handedOut) })
       .then(() => process.exit(0))
     listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
@@ -396,7 +403,7 @@ switch (cmd) {
         server: ensureServer,
         pagePath: page => `/${pageId(project, page ?? '')}`,
         status: async page => api(`/api/status${page ? `?page=${encodeURIComponent(pageId(project, page))}` : ''}`),
-        handOut: (filter, onEvent, options) => handOut(project.eventsFile, { ...filter, page: filter.page ? pageId(project, filter.page) : null }, onEvent, options),
+        handOut: async (filter, onEvent, options) => handOut(project.eventsFile, { ...filter, page: filter.page ? pageId(project, filter.page) : null }, onEvent, { ...options, forAgent: forAgent((await projectConfig(project)).handedOut) }),
         authLink: async to => `${await ensureServer()}/_/auth?token=${encodeURIComponent(projectToken(project.wb))}&to=${encodeURIComponent(to)}`,
       })
       break

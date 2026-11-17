@@ -16,6 +16,8 @@ export interface LoadedConfig {
   /** how pages render, with the plugins' blocks; null when the config failed to load, or for the command line */
   pages: Pages | null
   plugins: Plugin[]
+  /** the plugins' event types declared `handOut: true`: those that reach an agent unasked */
+  handedOut: Set<string>
   files: boolean
   errors: unknown[]
 }
@@ -53,6 +55,8 @@ function checkPlugin(e: Plugin, where: string | null) {
   if (typeof e !== 'object' || !NAME.test(e?.name ?? '')) throw new Error(`a plugin in ${where} needs a name: letters, digits, - and _`)
   if (RESERVED.has(e.name)) throw new Error(`plugin name "${e.name}" in ${where} is taken by the core (a folder in .whiteboard/ or a command)`)
   pluginCommands(e) // checks them
+  for (const type of Object.keys(e.events ?? {}))
+    if (!type.startsWith(`${e.name}:`) || type.length <= e.name.length + 1) throw new Error(`plugin ${e.name}: event type "${type}" must be named after it: ${e.name}:<what>`)
 }
 
 /**
@@ -61,11 +65,10 @@ function checkPlugin(e: Plugin, where: string | null) {
  * and serves no repository files.
  *
  * The project's plugins are the built-in ones, then the config's: one with a built-in's name
- * replaces it. Their blocks make the pages. `builtins: false` leaves the built-ins and the pages
- * out, for the command line, which only needs the config's plugins (their commands, the
- * session), so it doesn't load the highlighter and the rest.
+ * replaces it. Their blocks make the pages. `pages: false` leaves the pages out, for the command
+ * line, which only needs the plugins (their commands, the session, their events).
  */
-export function createConfigLoader(proj: Project, { builtins: withBuiltins = true } = {}) {
+export function createConfigLoader(proj: Project, { pages: withPages = true } = {}) {
   let cached: Promise<LoadedConfig> | null = null
 
   async function load(): Promise<Omit<LoadedConfig, 'errors'>> {
@@ -75,7 +78,7 @@ export function createConfigLoader(proj: Project, { builtins: withBuiltins = tru
     // a config can also be a function that returns one
     const exported: Config | (() => Config | Promise<Config>) = mod.default
     const config: Config = typeof exported === 'function' ? await exported() : exported
-    const plugins: Plugin[] = withBuiltins ? await builtinPlugins() : []
+    const plugins: Plugin[] = await builtinPlugins()
     const builtin = new Set(plugins.map(p => p.name))
     const added = new Set<string>()
     for (const e of [config?.plugins ?? []].flat(Infinity) as Plugin[]) {
@@ -89,14 +92,15 @@ export function createConfigLoader(proj: Project, { builtins: withBuiltins = tru
     }
     const blocks = plugins.flatMap(p => Object.entries(p.blocks ?? {}).map(([name, block]) => ({ name, block, plugin: p.name })))
     const styles = plugins.map(p => p.style).filter((s): s is URL | string => !!s)
-    const pages = withBuiltins ? createPages({ blocks, style: config?.style, styles }) : null
-    return { pages, plugins, files: config?.files !== false }
+    const pages = withPages ? createPages({ blocks, style: config?.style, styles }) : null
+    const handedOut = new Set(plugins.flatMap(p => Object.entries(p.events ?? {}).filter(([, spec]) => spec?.handOut).map(([type]) => type)))
+    return { pages, plugins, handedOut, files: config?.files !== false }
   }
 
   function config(): Promise<LoadedConfig> {
     cached ??= load().then(
       value => ({ ...value, errors: [] }),
-      error => ({ pages: null, plugins: [], files: false, errors: [error] }),
+      error => ({ pages: null, plugins: [], handedOut: new Set<string>(), files: false, errors: [error] }),
     )
     return cached
   }

@@ -58,6 +58,13 @@ export interface Plugin {
   blocks?: Record<string, Block<any>>
   /** a stylesheet linked on every page (for blocks, their own `style` links it only where they're used) */
   style?: URL | string
+  /**
+   * The event types it writes to the log, named `<plugin name>:<what>`, and who they're for.
+   * `whiteboard docs` lists them. Only those with `handOut: true` reach an agent unasked: a `wait`
+   * or `watch` on a page hands them out, `whiteboard status` counts them, and the hooks deliver them.
+   * Others stay in the log, for `whiteboard events` or a `wait --type` that asks for them by name.
+   */
+  events?: Record<string, EventSpec>
   setup?(ctx: PluginContext): PluginHooks | Promise<PluginHooks>
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>
@@ -77,6 +84,14 @@ export interface Plugin {
 }
 
 export const definePlugin = (plugin: Plugin): Plugin => plugin
+
+/** One of a plugin's event types. */
+export interface EventSpec {
+  /** what it is, and its `data`: for `whiteboard docs` */
+  description?: string
+  /** hand it to an agent unasked, like a form's answer (a message for the agent); default false */
+  handOut?: boolean
+}
 
 export interface Project {
   name: string
