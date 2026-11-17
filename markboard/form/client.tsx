@@ -32,8 +32,7 @@ function Thread(props: ThreadProps) {
   // take the place of an earlier one (`replaces` its id), to correct it.
   const messages = createMemo((): Message[] => {
     const events = wb.events()
-    // `thread` is what these were called before event types got their owner's name
-    const own = events.filter(e => (e.type === THREAD || e.type === 'thread') && e.data.form === props.form)
+    const own = events.filter(e => e.type === THREAD && e.data.form === props.form)
     const replaced = new Set(own.map(e => e.data.replaces).filter(Boolean).map(String))
     const out: Message[] = []
     for (const e of own) {

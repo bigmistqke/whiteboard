@@ -5,8 +5,8 @@
 import type { Api, WbEvent } from '../../src/define'
 import { html } from '../../src/html.ts'
 
-/** A thread message: the form template's event, or what it was called before (`thread`). */
-const isThread = (e: WbEvent) => (e.type === 'form:thread' || e.type === 'thread') && typeof e.data.form === 'string'
+/** A message in a form's thread: the form template's event. */
+const isThread = (e: WbEvent) => e.type === 'form:thread' && typeof e.data.form === 'string'
 
 export function trackOrphanThreads(main: HTMLElement, api: Api) {
   // after the page's content, not in it: #wb-main is compared block by block on every update

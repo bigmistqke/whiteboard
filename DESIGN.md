@@ -287,9 +287,7 @@ That is whiteboard itself (`whiteboard:claim`, `whiteboard:picked`), a
 plugin (`comments:new`, `comments:reply`, `comments:resolve`) or a
 template (`form:thread`), so a form's answers never mix with their events.
 A form whose name has a colon is not a question: the form template shows
-an error in its place, and the core leaves it alone. The events of the
-comments and the form thread had plain names before (`comment`,
-`comment-reply`, `comment-resolve`, `thread`); those still count.
+an error in its place, and the core leaves it alone.
 
 Only one server runs per project, also when several commands want one at
 the same moment: the one that creates `server.lock` starts it and the others

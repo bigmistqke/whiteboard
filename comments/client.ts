@@ -7,8 +7,6 @@
 //   comments:new      { quote, before, after, block, text }   the event's id is the thread's id
 //   comments:reply    { replyTo, text }                       from the reader, or from the command line
 //   comments:resolve  { replyTo }                             the reader closed the thread
-// (Before event types got their owner's name these were comment, comment-reply and comment-resolve,
-// which still count.)
 //
 // Passages are found again by their quote and the text around it, so they survive edits elsewhere
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
@@ -17,8 +15,6 @@ import type { Api, PluginMount, PageHandle, WbEvent } from '../src/define'
 import { html } from '../src/html.ts'
 
 const NEW = 'comments:new', REPLY = 'comments:reply', RESOLVE = 'comments:resolve'
-const OLD: Record<string, string> = { [NEW]: 'comment', [REPLY]: 'comment-reply', [RESOLVE]: 'comment-resolve' }
-const is = (e: WbEvent, type: string) => e.type === type || e.type === OLD[type]
 
 interface Thread {
   id: string
@@ -123,14 +119,14 @@ function locate(index: ReturnType<typeof textIndex>, data: Record<string, unknow
 
 function collect(): Thread[] {
   const events = api.events()
-  const resolved = new Set(events.filter(e => is(e, RESOLVE)).map(e => String(e.data.replyTo)))
+  const resolved = new Set(events.filter(e => e.type === RESOLVE).map(e => String(e.data.replyTo)))
   const index = textIndex()
   return events
-    .filter(e => is(e, NEW) && !resolved.has(e.id))
+    .filter(e => e.type === NEW && !resolved.has(e.id))
     .map(comment => ({
       id: comment.id,
       comment,
-      replies: events.filter(e => is(e, REPLY) && e.data.replyTo === comment.id),
+      replies: events.filter(e => e.type === REPLY && e.data.replyTo === comment.id),
       range: locate(index, comment.data),
     }))
 }
