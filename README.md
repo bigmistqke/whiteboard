@@ -335,6 +335,39 @@ Link it into whichever folder your agent reads skills from. The link points
 into the installed package, so the skill updates when you update whiteboard.
 Agents that don't read skills can be pointed at the `SKILL.md` file directly.
 
+## Working on whiteboard
+
+Whiteboard is TypeScript. An installed package runs its build from
+`dist/`, because Node won't run TypeScript inside `node_modules`. A clone
+can run from source instead, so a change needs no build:
+
+```sh
+git clone https://github.com/bigmistqke/whiteboard && cd whiteboard
+npm install
+npm run link:source    # your global `whiteboard` now runs bin/whiteboard.ts
+npm run dev            # rebuilds the browser code as you change it
+```
+
+`whiteboard` then runs from source in every project on your machine. That
+includes the server it starts, and what a project's config imports from
+the package (markboard and the plugins), so a project needs nothing of its
+own for this. What a change takes:
+
+| what you change | what it takes |
+| --- | --- |
+| markboard, a template, a plugin's server side | nothing: the server reloads open pages |
+| browser code (`client.ts`, `markboard/client/`) | `npm run dev` running; open pages reload |
+| the core (`src/`, `bin/`) | restart the project's server; commands pick it up on their next run |
+
+Don't use `npm link` for this: it links `whiteboard` to the build, which
+changes only when you run `npm run build`. Without a global command,
+`node bin/whiteboard.ts <command>` works from inside the clone.
+
+- `npm test`: the tests (`node:test`)
+- `npm run check`: type-check everything
+- `npm run build`: build `dist/`, what the package ships; `node
+  dist/bin/whiteboard.js` runs it as an installed copy would
+
 ## Design
 
 [DESIGN.md](https://github.com/bigmistqke/whiteboard/blob/main/DESIGN.md)
