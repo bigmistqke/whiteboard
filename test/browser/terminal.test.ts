@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { browser, project, until } from './project.ts'
 
-const CONFIG = `import { defineConfig } from '@bigmistqke/whiteboard/config'
+const CONFIG = `import { defineConfig } from '@bigmistqke/whiteboard'
 import terminal from '@bigmistqke/whiteboard/terminal'
 export default defineConfig({ plugins: [terminal({ command: './prog.sh' })] })
 `

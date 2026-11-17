@@ -3,7 +3,7 @@
 //   dist/client/runtime.js     the core in the browser: events, live channel, hand-over to a renderer
 //   dist/terminal/client.js    the terminal drawer (xterm included), and style.css with xterm's styles
 //   dist/comments/client.js    comments in the browser, and their style.css
-//   dist/define.js             ./config: defineConfig, defineRenderer
+//   dist/define.js             the package's entry: defineConfig, definePlugin, defineRenderer
 //   dist/bin/, dist/src/       the engine: the command line and the server, module for module
 //   dist/terminal/, dist/comments/, dist/claude-code/   the plugins' server side, and the terminal's host
 //   dist/markboard/…               ./markboard (the renderer) and ./template, module for module, with

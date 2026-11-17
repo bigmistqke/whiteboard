@@ -435,7 +435,7 @@ to be longer than the ones inside it.
 
 ```ts
 // <repo>/.whiteboard/config.ts
-import { defineConfig } from '@bigmistqke/whiteboard/config'
+import { defineConfig } from '@bigmistqke/whiteboard'
 import markboard from '@bigmistqke/whiteboard/markboard'
 import chart from 'whiteboard-chart'   // a template package of someone else's
 import timeline from './templates/timeline.ts'
@@ -503,7 +503,7 @@ and re-renders.
 ## Layout
 
 ```
-src/              the core; ./config (and the types of ./client)
+src/              the core; the package's own entry (`@bigmistqke/whiteboard`: the contract and its types)
 src/client/       the core in the browser
 bin/              the `whiteboard` command
 markboard/            ./markboard: the markboard renderer and its templates; ./template: their contract

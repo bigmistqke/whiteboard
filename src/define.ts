@@ -1,6 +1,6 @@
 // The contract between the core, a project's config and its renderers.
 //
-//   import { defineConfig, defineRenderer, definePlugin } from '@bigmistqke/whiteboard/config'
+//   import { defineConfig, defineRenderer, definePlugin } from '@bigmistqke/whiteboard'
 //
 // The core stores pages, keeps the event log and runs the live channel between them and a browser.
 // How a page looks and behaves is a renderer's: the core hands it the page as stored, and the

@@ -10,7 +10,7 @@ names no renderers, uses it. To pass it options, name it:
 
 ```ts
 // .whiteboard/config.ts
-import { defineConfig } from '@bigmistqke/whiteboard/config'
+import { defineConfig } from '@bigmistqke/whiteboard'
 import markboard from '@bigmistqke/whiteboard/markboard'
 
 export default defineConfig({

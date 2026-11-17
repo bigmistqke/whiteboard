@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { browser, project, until } from './project.ts'
 
-const CONFIG = `import { defineConfig } from '@bigmistqke/whiteboard/config'
+const CONFIG = `import { defineConfig } from '@bigmistqke/whiteboard'
 import comments from '@bigmistqke/whiteboard/comments'
 export default defineConfig({ plugins: [comments()] })
 `

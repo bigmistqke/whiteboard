@@ -163,7 +163,7 @@ function init(name: string | undefined) {
   const named = name && name !== path.basename(dir)
   fs.mkdirSync(path.join(wb, 'pages'), { recursive: true })
   // a config only for what differs from the defaults
-  if (named || home) fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard/config'
+  if (named || home) fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard'
 
 export default defineConfig({
 ${named ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}})

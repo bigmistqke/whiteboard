@@ -280,7 +280,7 @@ Every field is optional:
 
 ```ts
 // .whiteboard/config.ts
-import { defineConfig } from '@bigmistqke/whiteboard/config'
+import { defineConfig } from '@bigmistqke/whiteboard'
 import markboard from '@bigmistqke/whiteboard/markboard'
 import comments from '@bigmistqke/whiteboard/comments'
 
@@ -298,7 +298,7 @@ Named forms need nothing in the config: the core sends a submit of any
 `<form name>` as an event, on a page of any renderer. `comments()` lets you
 select any passage and comment on it; the agent replies in the thread.
 
-A plugin (`definePlugin` from `@bigmistqke/whiteboard/config`)
+A plugin (`definePlugin` from `@bigmistqke/whiteboard`)
 declares what it adds, and everything lives under its name, so two
 plugins can't collide:
 

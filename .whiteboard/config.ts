@@ -1,4 +1,4 @@
-import { defineConfig } from '@bigmistqke/whiteboard/config'
+import { defineConfig } from '@bigmistqke/whiteboard'
 import terminal from '@bigmistqke/whiteboard/terminal'
 import claudeCode from '@bigmistqke/whiteboard/claude-code'
 import comments from '@bigmistqke/whiteboard/comments'
