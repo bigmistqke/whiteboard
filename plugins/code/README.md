@@ -1,6 +1,6 @@
 Syntax highlighting for code blocks. [Shiki](https://shiki.style) runs on the server, so no script
 runs on the page, and the colours follow the page theme. It applies to every
-fence that no other template claims by name, and to the code view of
+fence that no other block claims by name, and to the code view of
 repository files. Write an ordinary fence with a language:
 
 ````markdown

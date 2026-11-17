@@ -7,11 +7,11 @@ Attributes: `open` (start expanded).
 ```markdown
 :::details[Why remark-directive instead of MDX?]
 MDX fails the **whole page** on one stray `<` or `{`. Directives that no
-template handles still render as plain markdown.
+block handles still render as plain markdown.
 :::
 ```
 
 :::details[Why remark-directive instead of MDX?]
 MDX fails the **whole page** on one stray `<` or `{`. Directives that no
-template handles still render as plain markdown.
+block handles still render as plain markdown.
 :::

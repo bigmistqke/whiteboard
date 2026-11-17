@@ -1,9 +1,9 @@
-// Markdown → HTML, with directives and fences handed to templates.
+// Markdown → HTML, with directives and fences handed to blocks.
 //
-// A template with a component becomes an island:
+// A block with a component becomes an island:
 //   <div class="wb-island" data-wb-island="3">fallback html</div>
 // and its props go into the `islands` map the page embeds for the client to mount.
-// A template with only server.ts html() is inlined as static HTML.
+// A block with only server.ts html() is inlined as static HTML.
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { unified } from 'unified'
@@ -15,11 +15,11 @@ import rehypeStringify from 'rehype-stringify'
 import { toString } from 'mdast-util-to-string'
 import { html, raw, type Html } from '../html.ts'
 import { isQuestionName } from '../status.ts'
-import type { ResolvedTemplate } from './blocks.ts'
+import type { ResolvedBlock } from './blocks.ts'
 
 /**
  * An mdast node, loosely: the pipeline hands nodes between remark, the directive plugin and
- * templates, and replaces some in place with `html` nodes.
+ * blocks, and replaces some in place with `html` nodes.
  */
 export interface MdNode {
   type: string
@@ -112,26 +112,26 @@ export function formNames(source: string) {
 export interface RenderOptions {
   page: string
   file: string
-  /** a template by name, resolved (see templates.ts) */
-  resolve: (name: string) => ResolvedTemplate | null
-  /** the template for fences no template claims by name; without one they render as plain code */
-  code?: ResolvedTemplate | null
+  /** a block by name, resolved (see blocks.ts) */
+  resolve: (name: string) => ResolvedBlock | null
+  /** the block for fences no block claims by name; without one they render as plain code */
+  code?: ResolvedBlock | null
   /** the URL that serves a file on disk, for relative links */
   linkFor?: LinkFor
 }
 
-export interface Island { template: string; client: string; props: unknown }
+export interface Island { block: string; client: string; props: unknown }
 
 /**
  * Markdown (or an mdast root, rendered as it is) → HTML, with directives and fences handed to
- * templates. Returns the page's HTML, its first heading, the islands to mount and the templates'
+ * blocks. Returns the page's HTML, its first heading, the islands to mount and the blocks'
  * stylesheets.
  */
 export async function renderMarkdown(source: string | MdNode, { page, file, resolve, code = null, linkFor }: RenderOptions) {
   let nextId = 0
   const islands: Record<string, Island> = {}
   const keyCount: Record<string, number> = {}
-  const used = new Map<string, ResolvedTemplate>()
+  const used = new Map<string, ResolvedBlock>()
 
   const stringify = (nodes: MdNode[]): string => {
     // inline content (a label, say) is one line: as children of the root, each node would be a block
@@ -174,26 +174,26 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
   /** HTML into the markdown tree, where the rest of the pipeline takes it as it is: the one place it becomes a string. */
   const htmlNode = (markup: Html | string): MdNode => ({ type: 'html', value: String(markup) })
 
-  /** A template's output for one directive or fence: static HTML, or an island around it. */
-  async function run(template: ResolvedTemplate, ctx: any, fallback: () => Promise<Html | string>): Promise<Html> {
-    used.set(template.name, template)
+  /** A block's output for one directive or fence: static HTML, or an island around it. */
+  async function run(block: ResolvedBlock, ctx: any, fallback: () => Promise<Html | string>): Promise<Html> {
+    used.set(block.name, block)
     try {
-      // a template may return a string or an `html` result: either is HTML
-      const own = template.html ? await template.html(ctx) : null
+      // a block may return a string or an `html` result: either is HTML
+      const own = block.html ? await block.html(ctx) : null
       const body = raw(own ?? (await fallback()))
       // the element is span or div, chosen here, never from input
       const tag = raw(ctx.kind === 'textDirective' ? 'span' : 'div')
-      if (!template.client) return own != null ? body : html`<${tag} data-template="${ctx.name}">${body}</${tag}>`
-      const props = template.props ? await template.props(ctx) : await ctx.defaults()
+      if (!block.client) return own != null ? body : html`<${tag} data-block="${ctx.name}">${body}</${tag}>`
+      const props = block.props ? await block.props(ctx) : await ctx.defaults()
       const id = String(++nextId)
-      islands[id] = { template: template.name, client: template.client, props }
-      // stable across re-renders while template + props are unchanged, so the client keeps the mounted island
-      const hash = crypto.createHash('sha1').update(template.name + '\0' + JSON.stringify(props)).digest('hex').slice(0, 12)
+      islands[id] = { block: block.name, client: block.client, props }
+      // stable across re-renders while block + props are unchanged, so the client keeps the mounted island
+      const hash = crypto.createHash('sha1').update(block.name + '\0' + JSON.stringify(props)).digest('hex').slice(0, 12)
       const key = `${hash}-${(keyCount[hash] = (keyCount[hash] ?? 0) + 1)}`
-      return html`<${tag} class="wb-island" data-template="${ctx.name}" data-wb-island="${id}" data-wb-key="${key}">${body}</${tag}>`
+      return html`<${tag} class="wb-island" data-block="${ctx.name}" data-wb-island="${id}" data-wb-key="${key}">${body}</${tag}>`
     } catch (err) {
-      console.error(`template ${template.name}:`, err)
-      return html`<pre class="wb-error">template "${template.name}" failed: ${(err as Error).message}</pre>`
+      console.error(`block ${block.name}:`, err)
+      return html`<pre class="wb-error">block "${block.name}" failed: ${(err as Error).message}</pre>`
     }
   }
 
@@ -208,8 +208,8 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
 
   async function directive(node: MdNode): Promise<MdNode> {
     const { label, children } = splitLabel(node)
-    const template = resolve(node.name)
-    if (!template) {
+    const block = resolve(node.name)
+    if (!block) {
       if (node.type === 'textDirective') return { type: 'text', value: literalDirective(node, label) }
       // an unknown directive still shows its content: a typo never breaks the page
       const labelHtml = label && html`<p class="wb-label"><strong>${raw(await toHtml(label))}</strong></p>`
@@ -232,15 +232,15 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
         return { name: node.name, attrs: { ...node.attributes }, label: labelHtml, html: content, ...(await sectionsOf(children)) }
       })()),
     }
-    return htmlNode(await run(template, ctx, () => toHtml(children)))
+    return htmlNode(await run(block, ctx, () => toHtml(children)))
   }
 
   async function fence(node: MdNode): Promise<MdNode> {
     const lang: string | null = node.lang || null
     const plain = async () => html`<pre><code${lang && html` class="language-${lang}"`}>${node.value}</code></pre>`
-    const template = (lang && resolve(lang)) || code
-    if (!template) return htmlNode(await plain())
-    const name = code && template === code && lang !== code.name ? code.name : lang
+    const block = (lang && resolve(lang)) || code
+    if (!block) return htmlNode(await plain())
+    const name = code && block === code && lang !== code.name ? code.name : lang
     const attrs = parseAttrs(node.meta)
     const ctx = {
       ...base,
@@ -252,7 +252,7 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
       node,
       defaults: async () => ({ name, attrs, text: node.value }),
     }
-    return htmlNode(await run(template, ctx, plain))
+    return htmlNode(await run(block, ctx, plain))
   }
 
   async function transform(parent: MdNode) {

@@ -1,4 +1,4 @@
-// Named forms in the browser, with markboard: where each stands, drafts, a submit handed to a wait,
+// Named forms in the browser: where each stands, drafts, a submit handed to a wait,
 // folding once decided, and live updates.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

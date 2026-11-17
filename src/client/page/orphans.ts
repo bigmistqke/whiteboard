@@ -5,7 +5,7 @@
 import type { Api, WbEvent } from '../../define.ts'
 import { html } from '../../html.ts'
 
-/** A message in a chat: the chat template's event. */
+/** A message in a chat: the chat block's event. */
 const isMessage = (e: WbEvent) => e.type === 'chat:message' && typeof e.data.chat === 'string'
 
 export function trackOrphanThreads(main: HTMLElement, api: Api) {

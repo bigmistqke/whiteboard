@@ -8,29 +8,34 @@ conversation; the page holds overview, detail and decisions.
 
 ## Principles
 
-- **Stored, not shown.** A page is stored as text, usually markdown. How it
-  is shown is a renderer's choice, not the core's: the core reads pages as
-  they are and hands them over. `markboard()` (markdown with templates) is one
-  renderer; slides, a canvas or a React app could be others. A page no
-  renderer takes shows as its raw text.
-- **A light core.** The core keeps pages, the event log and the live
-  channel between them and a browser. It draws nothing, compiles nothing and
-  depends on no UI framework.
+- **Markdown, read as stored.** A page is stored as text and the core reads
+  it as it is. The core renders it as markdown, with the blocks the
+  project's plugins bring. It used to hand pages to renderers, of which
+  markdown with templates was one; no second renderer was ever written, and
+  three kinds of extension (renderers, templates, plugins) made every
+  feature ask which kind it was. So there is one: plugins. Rendering stays
+  behind one internal interface (`src/pages/`), so another way to show
+  pages could come back without a public concept for it.
+- **A small core.** The core keeps pages, renders them as markdown, keeps
+  the event log and the live channel between them and a browser. It
+  compiles nothing and depends on no UI framework; anything a page shows
+  beyond markdown is a plugin's block.
 - **No agent concepts in the core.** There are no tasks, statuses or
   approvals. The one interaction primitive is appending an event to a page's
-  log: a submitted form is one, a renderer can append others. Everything
-  else is a renderer, a template, or a convention between an agent and its
-  pages.
-- **Everything added is a module.** Renderers, plugins and templates are
-  objects (usually returned by a factory taking options) that a config imports from a
-  package or a local file, the way bundler plugins work.
-- **Agent-written pages must never break.** markboard renders an unknown
-  directive as its content, an unknown fence as a code block, a template
-  that throws as an error box in place of that block only. A broken config
-  or a failing renderer shows its error above the raw text.
-- **Self-documenting.** Each renderer documents how to write for it, served
-  at `/_/docs` and printed by `whiteboard docs`, so agents read the current
-  syntax instead of remembering it.
+  log: a submitted form is one, a plugin can append others. Everything else
+  is a plugin or a convention between an agent and its pages.
+- **Everything added is a module.** Plugins are objects (usually returned
+  by a factory taking options) that a config imports from a package or a
+  local file, the way bundler plugins work.
+- **Agent-written pages must never break.** An unknown directive renders as
+  its content, an unknown fence as a code block, a block that throws as an
+  error box in place of that block only. A config that fails to load leaves
+  pages as their raw text, with the error above it.
+- **Self-documenting.** The core says how pages are written and which
+  plugin brings which block; each plugin documents its blocks, its events,
+  commands and routes. All of it is served at `/_/docs` and printed by
+  `whiteboard docs` (`whiteboard docs <name>` for one plugin), so agents read
+  the current syntax instead of remembering it.
 
 ## Projects
 
@@ -40,9 +45,10 @@ outside the project:
 
 ```
 <repo>/.whiteboard/
-  config.ts     optional: defineConfig({ name, renderers, plugins, files }), only what differs
+  config.ts     optional: defineConfig({ name, plugins, style, files }), only what differs
   pages/        the project's pages, served at /<page>
   events.ndjson the project's events: form submits, threads, comments, and what agents picked up
+  token         the secret for what runs code (the terminal)
   server.json   the port and process of the project's running server
   server.log    that server's output
   .gitignore    everything but config.ts: remove a line to keep it in git
@@ -50,21 +56,20 @@ outside the project:
 
 `whiteboard init` creates it. Every command works on the project of the
 current folder: the nearest folder upward with a `.whiteboard/` folder.
-Without a config the project has the defaults: markboard as its renderer,
-no plugins, the folder's name. `init` writes a config only for what differs
-(a name, or `files: false` in the home folder); the config is looked up on
-every load, so one added or removed while the server runs counts at once.
-Outside
-a project the commands stop and point to `whiteboard init`. An agent working
+Without a config the project has the defaults: the built-in plugins and
+the folder's name. `init` writes a config only for what differs (a name, or
+`files: false` in the home folder); the config is looked up on every load,
+so one added or removed while the server runs counts at once. Outside a
+project the commands stop and point to `whiteboard init`. An agent working
 in the repository can start the server, write pages and read answers without
 access outside it.
 
 **Security: whiteboard runs with the rights of whoever started it, and
 adds none.** The server runs code from the project: it imports `config.ts`
-and the local templates and plugins that imports, and its plugins run more
-(the terminal runs a program). An agent can write all of that, since it is
-in the project, and the project's token is in the project too: it keeps
-other websites out, not agents. So the boundary is wherever the server was
+and the local plugins that imports, and its plugins run more (the terminal
+runs a program). An agent can write all of that, since it is in the
+project, and the project's token is in the project too: it keeps other
+websites out, not agents. So the boundary is wherever the server was
 started, set from outside, where an agent can't change it. Start the server
 inside the sandbox the agents run in (an agent starting it with `whiteboard
 show` does), and everything it starts is boxed in the same way; then an
@@ -82,9 +87,9 @@ ports; nothing coordinates them, and `/` lists only this project's pages.
 
 Any other file in the project folder is served from the repository at
 `/-/<path>`: markdown files as pages, folders with their entries, other text
-files with their text, all handed to the renderer like any page; images and
-other binary files are served as they are. `.git` is never served. The whole
-project folder is watched so these views stay live.
+files as code, all rendered like any page; images and other binary files
+are served as they are. `.git` is never served. The whole project folder is
+watched so these views stay live.
 
 `files: false` in the config turns that off: only `.whiteboard/` is served and
 watched. It is for a project whose folder is not a repository, such as the
@@ -131,100 +136,116 @@ is left as written.
 
 ## Core (`src/`)
 
-The core reads a stored page, picks its renderer and hands the page over,
-on the server and in the browser.
+The core reads a stored page, renders it as markdown with the plugins'
+blocks, and runs it in the browser with the plugins' modules.
 
 ### Stored pages
 
-What a renderer gets is the page as stored (`StoredPage` in `src/define.ts`):
+What the core reads is the page as stored (`StoredPage` in `src/define.ts`):
 
 | kind | what | served at |
 | --- | --- | --- |
-| `page` | a markdown file: `source`, and its `frontmatter` fields | `/<page>`, `/-/<path>.md` |
+| `page` | a markdown file: `source`, its `body` (without frontmatter) and its `frontmatter` fields | `/<page>`, `/-/<path>.md` |
 | `file` | any other text file of the repository: `source` | `/-/<path>` |
 | `folder` | a repository folder: its `entries` | `/-/<path>/` |
 | `pages` | the overview, or a folder of pages without an `index.md`: the `pages` in it, with when each was last answered | `/`, `/<folder>/` |
 
 Images and other binary files are served as they are.
 
-### Renderers
+### Showing a page
 
-```ts
-interface Renderer {
-  name: string
-  render?(page: StoredPage, ctx: RenderContext): { html, title?, head?, data? }   // server
-  client?: URL                         // browser: default export mount(root, page, api)
-  docs?(ctx): string                   // markdown: how to write pages for it
-  expects?(page, ctx): string[]        // the event types the page waits on the reader for: its questions
-}
-```
-
-- **Which one.** The config lists the renderers; the first is the default.
-  A page picks another in its frontmatter (`renderer: slides`). A config
-  that leaves `renderers` out gets `[markboard()]`: the config loader fills
-  that in, so the server never imports markboard itself. With an empty
-  list, or when the one a page names is missing, the page shows as its raw
-  text, with a note saying why.
-- **Server.** `render` returns the page's first HTML, put into
-  `<div id="wb-root">`, its `<head>` additions and `data` for the client.
-  `ctx.asset(file)` gives the URL a file is served at (a client module, a
-  stylesheet); only files asked for this way are served, from `/_/file/…`.
-  `ctx.urlFor(file)` gives the URL that shows a file or folder on disk, for
-  links.
-- **Browser.** The core's runtime (`src/client/runtime.ts`) imports the
-  renderer's `client` and calls `mount(root, page, api)`. `page` has the
-  page's id, kind and `data`, `onChange(fn)`, `render()` (the server render,
-  afresh) and `stored()` (the stored page, afresh). `api` has the page's
-  events, `onEvents`, `last(type)` and `append(type, data, action)`, the
-  listeners, and three things the page's parts share: `rendered()` (a
-  renderer that patched its content says so, and plugins listening with
-  `onRendered` put back what they add to it), `corner()` (an empty column at
-  the bottom right, the one element the core puts on every page, for
-  floating buttons) and `badge(key, text, order)` with `title(title)` (counts
-  in the tab title, in front of the page's own title).
-- **Changes.** The core only signals that a page changed; the renderer
-  fetches what it needs. That keeps how an update looks the renderer's
-  choice: markboard morphs it in place.
+- **One seam.** The server renders through one interface, made by the
+  config loader for each loaded config (`createPages` in
+  `src/pages/index.ts`): `render(page, ctx)` gives a stored page's HTML, its
+  title, its `<head>` additions and `data` for the browser; `docs(ctx)` says
+  how pages are written and which plugin brings which block; `questions(page)`
+  gives the event types a page waits on the reader for. The server knows
+  nothing else of markdown. It is internal, not a public concept: it is
+  where another way to show pages would plug in, should one come back.
+- **Server.** The render goes into `<div id="wb-root">`. `ctx.asset(file)`
+  gives the URL a file is served at (a client module, a stylesheet); only
+  files asked for this way are served, from `/_/file/…`. `ctx.urlFor(file)`
+  gives the URL that shows a file or folder on disk, for links.
+- **Browser.** The core's runtime (`src/client/runtime.ts`) imports the page
+  module (`src/client/page/main.ts`) and calls `mount(root, page, api)`.
+  `page` has the page's id, kind and `data`, `onChange(fn)`, `render()` (the
+  server render, afresh) and `stored()` (the stored page, afresh). `api` has
+  the page's events, `onEvents`, `last(type)` and `append(type, data,
+  action)`, the listeners, and three things the page's parts share:
+  `rendered()` (the page module says it patched its content, and plugins
+  listening with `onRendered` put back what they add to it), `corner()` (an
+  empty column at the bottom right, the one element the core puts on every
+  page, for floating buttons) and `badge(key, text, order)` with
+  `title(title)` (counts in the tab title, in front of the page's own
+  title). Then the runtime starts the named forms and imports the plugins'
+  modules, with the same arguments.
+- **Changes.** The core only signals that a page changed; the page module
+  fetches the new render and morphs it in place.
+- **When the config fails.** There are no pages to render with, so the
+  server shows the page as stored, as text, under the error, and the
+  runtime runs no page module: it replaces the text when the page changes.
+  A render that throws falls back the same way.
 
 ### Plugins
 
-Behaviour on every page, whatever renderer draws it (`Plugin` in
-`src/define.ts`): an object in the config's `plugins`, with a name and
-optional parts. Its routes are mounted at `/api/<name>/…`, its commands are
-`whiteboard <name> [sub]`, its files go in `.whiteboard/<name>/`, and
-`shell(req)` adds markup to every page. The core checks a route's token and
-arguments before its code runs.
+Everything that extends whiteboard (`Plugin` in `src/define.ts`): an
+object in the config's `plugins`, with a name and optional parts, all under
+that name, so two plugins can't collide:
 
+- `blocks`: syntax for pages, by name (see Blocks). Block names are unique
+  across a project's plugins: two plugins bringing the same one is a config
+  error.
+- `events`: the event types it writes, `<plugin>:<what>`, each with a
+  `description` and whether it is handed out (see Events). The loader
+  checks the names.
+- `style`: a stylesheet linked on every page.
+- `docs()`: markdown for whoever writes pages, printed by `whiteboard docs`
+  under a `# Plugin: <name>` heading the core adds, with its events,
+  commands and routes listed after it.
+- `commands`: `whiteboard <name> [sub]`, with declared options the core
+  parses and checks. A command gets the project, the log, the token, the
+  server, the status (`ctx.status()`) and handing out (`ctx.handOut()`).
+- `session()`: the agent session a command runs in (see Status and hooks).
+- `setup(ctx)`, run once per loaded config on the server: its `routes` are
+  mounted at `/api/<name>/…` (the core checks a route's token and arguments
+  before its code runs), `shell(req)` adds markup to every page's `<head>`
+  and `<body>`, and `client` is a module on every page. Its files go in
+  `.whiteboard/<name>/`.
+
+The built-in plugins are in `plugins/<name>/`: callout, chat, code,
+comments, details, form (with its input blocks), gallery, grid, mermaid and
+quiet. Every project has them (`builtins()` in `plugins/index.ts`); a
+config's `plugins` add to them, and one with a built-in's name replaces it
+in its place, so options are given by replacing (`code({ themes })`, from
+`@bigmistqke/whiteboard/code`). The terminal (`/terminal`) and the Claude
+Code plugin (`/claude-code`) are opt-in, since they run code or are about
+one agent. The loader imports the built-ins afresh with every load of the
+config, like what a config imports itself.
+
+- **One kind of extension.** A block, a behaviour on every page, a command
+  and an event type are all parts of a plugin, so a feature that needs
+  several (the chat: a block, its event, its docs) is one object, and a
+  config has one list.
 - **One contract, portable parts inside.** The object is the only thing the
   core knows. Inside it, a behaviour is built from pieces with no whiteboard
   in them where it can be: the terminal's server half is a plain request
   handler and its host a process of its own, so taking it elsewhere means
   dropping the ten lines that wire them in.
-- **In the browser.** `client` is a module the runtime imports after the
-  renderer has mounted, with the same `mount(root, page, api)` arguments.
-  A plugin that works on the page's content puts back what it adds
-  after `api.onRendered`; a renderer that patches its content keeps the
-  `data-wb-*` attributes a plugin set (markboard does). Floating
-  buttons go in `api.corner()` and counts in the title through
-  `api.badge()`, so a renderer and plugins never need to know about each
-  other.
+- **In the browser.** `setup`'s `client` is a module the runtime imports
+  after the page module has mounted, with the same `mount(root, page, api)`
+  arguments. A plugin that works on the page's content puts back what it
+  adds after `api.onRendered`; the page module keeps the `data-wb-*`
+  attributes a plugin set when it morphs. Floating buttons go in
+  `api.corner()` and counts in the title through `api.badge()`, so the page
+  and plugins never need to know about each other.
 - **A plugin owns a whole feature.** Its event types, what it draws
   and what it tells agents, end to end, so taking it out of the config
   removes the feature and breaks nothing else: the terminal, the Claude
   Code hooks, comments. A behaviour that is half a core protocol and half
-  a renderer's look is neither: named forms are the core's protocol, and
-  how they look is the renderer's.
-- **Renderers stay their own kind.** A renderer is chosen (one per page:
-  the first, or the one the page names), a plugin is added (all of
-  them, on every page). One list of plugins would not remove that choice,
-  only turn it into a rule about the list, so the config keeps saying
-  plainly what renders and what is added. The two already share their
-  shape where it overlaps: a name, a `client` with the same `mount`, and
-  `docs()`. When a renderer needs routes, commands or a folder of its own,
-  it gets `setup` and `commands` the way a plugin does; until one does,
-  that stays unbuilt.
+  a page's look is neither: named forms are the core's protocol, and how
+  they look is the page's.
 
-### Comments (`comments/`)
+### Comments (`plugins/comments/`)
 
 A plugin too, so any page can be commented on. Selecting text in the
 page's content (its `<main>`, else all of it) shows a "Comment" button; a
@@ -234,14 +255,14 @@ it), and so are replies (`comments:reply`) and closing a thread
 edits, and highlighted with the CSS Highlight API, so the page's markup
 never changes for them. A badge in the margin opens each open thread; it
 is filled when the agent spoke last. How an agent answers is in its
-`docs()`, which `whiteboard docs` prints after the renderers': an
-plugin can document what it sends to the log.
+`docs()`, which `whiteboard docs` prints with the other plugins': a plugin
+documents what it sends to the log.
 
 ### Named forms
 
 Whiteboard's one interaction primitive, so the core's, on every page
-whatever renderer drew it (`src/client/forms.ts`). It draws nothing; how
-it looks is the renderer's.
+(`src/client/forms.ts`). It draws nothing; how it looks is the page's
+(`src/client/page/`).
 
 - **Submits.** A `<form name="…">` without an `action` attribute (one with
   an action submits normally) is a question. Submitting it appends an
@@ -251,7 +272,7 @@ it looks is the renderer's.
   localStorage until it is sent, so it survives a re-render and a reload;
   the last answer goes back into the form, its button in `data-wb-sent`. A
   form marked `data-wb-self` (or inside an element that is) keeps its own
-  fields, for a renderer's component that shows them itself.
+  fields, for a block's client that shows them itself.
 - **Where each stands.** Every form gets one of four attributes, from the
   log and the listeners: `data-wb-waiting` when a listener asks for it by
   name (also when it was answered before: the agent wants a new answer) or
@@ -261,13 +282,14 @@ it looks is the renderer's.
   from the `whiteboard:picked` events in the log); `data-wb-decided` once
   one did, with `data-wb-outcome` quoting the answer in one line. The
   states are marked again when the log, the listeners or the page change,
-  and `api.forms()` / `api.onForms()` give them to the renderer, for
-  drawing more than the attributes allow.
-- **Which forms a page asks** is the renderer's (`expects`): only it can
-  read its own syntax.
+  and `api.forms()` / `api.onForms()` give them to the page and plugins,
+  for drawing more than the attributes allow.
+- **Which forms a page asks** is read from its markdown (`questions`):
+  `:::form{name=…}` blocks and hand-written `<form name>` without an action,
+  parsed, so a form shown as an example in a code block doesn't count.
 
 An earlier version made this a plugin. It held half of a core
-protocol and half of markboard's look, so it was split between the two.
+protocol and half of the page's look, so it was split between the two.
 
 ### Events
 
@@ -279,15 +301,26 @@ event once (see Projects): `watch` is `wait` that never exits.
 
 Events the command line appends (`whiteboard append`, an agent's reply,
 say) carry `from: "cli"`; waits skip them, so an agent never wakes on its
-own events, and renderers can tell the two sides apart.
+own events, and the page and plugins can tell the two sides apart.
 
 Event types share one namespace, so a colon is reserved: a form's name
 has none, and every other type is named after its owner, `<owner>:<what>`.
-That is whiteboard itself (`whiteboard:claim`, `whiteboard:picked`), a
-plugin (`comments:new`, `comments:reply`, `comments:resolve`) or a
-template (`chat:message`), so a form's answers never mix with their events.
-A form whose name has a colon is not a question: the form template shows
+That is whiteboard itself (`whiteboard:claim`, `whiteboard:picked`) or a
+plugin (`chat:message`, `comments:new`, `comments:reply`,
+`comments:resolve`), so a form's answers never mix with their events.
+A form whose name has a colon is not a question: the form block shows
 an error in its place, and the core leaves it alone.
+
+Which events reach an agent unasked is stated, not guessed. A form's
+answers (types without a colon) always do. Of a plugin's events, only
+those it declares `handOut: true` do (`forAgent` in `src/events.ts`): a
+`wait` or `watch` on the page hands them out, `ctx.handOut` in a plugin's
+command does, `whiteboard status` counts them, and so the Claude Code
+hooks deliver them. The others stay in the log, for `whiteboard events` or
+a `wait --type` that asks for them by name. Of the built-ins,
+`chat:message`, `comments:new` and `comments:reply` are handed out;
+`comments:resolve` is not: the reader closing a thread asks nothing of the
+agent.
 
 Only one server runs per project, also when several commands want one at
 the same moment: the one that creates `server.lock` starts it and the others
@@ -310,33 +343,34 @@ it is gone when the command is (it reconnects when the server restarts). The
 server tells pages when listeners come and go (`listeners` on the live
 channel), and `api.listeners()` gives the ones covering the page. So what an
 agent waits for is a fact the command line knows, not something the agent
-has to mark; renderers show it as they like. Reading the log never depends
-on the connection, so no answer is missed while the server is away.
+has to mark; the page shows it. Reading the log never depends on the
+connection, so no answer is missed while the server is away.
 
 ### Status and hooks
 
 What is open is a fact the core can state without asking the agent, so the
 agent forgetting a wait is caught from outside it:
 
-- **Questions.** A question exists only in a renderer's syntax (for markboard,
-  a named form), so the renderer says which a page asks: `expects(page)`
-  returns their event types. Where each stands (waiting, unheard, pending,
-  decided; see Named forms) is one function, `questionState` in
-  `src/status.ts`, which the server and the page both use, so `whiteboard
-  status` and the page never disagree. A question is open while it waits
-  for the reader: it has no answer, or a running wait asks for it by name
-  (the agent wants a new answer). Only the reader's events answer it.
+- **Questions.** A question is a named form, so the pages say which a page
+  asks: `questions(page)` returns their event types. Where each stands
+  (waiting, unheard, pending, decided; see Named forms) is one function,
+  `questionState` in `src/status.ts`, which the server and the page both
+  use, so `whiteboard status` and the page never disagree. A question is
+  open while it waits for the reader: it has no answer, or a running wait
+  asks for it by name (the agent wants a new answer). Only the reader's
+  events answer it.
 - **Claims.** `whiteboard new` appends a `whiteboard:claim` event with the
   agent session that made the page; the colon keeps it apart from form
   names. Which session runs a command is something only the agent's tooling
   knows, so the core asks the project's plugins (`session()`), and
   records no claim when none names one.
 - **Status.** `/api/status` and `whiteboard status` give, per page: its open
-  questions, those no listener covers (unheard), the reader's events no wait
-  or watch picked up, its listeners and its claim.
+  questions, those no listener covers (unheard), the reader's events for an
+  agent (see Events) no wait or watch picked up, its listeners and its
+  claim.
 - **Hooks.** Reporting the status to an agent is a plugin, since how is
   particular to each agent, and the core has no agent-specific code. The
-  Claude Code plugin (`claude-code/`) names the session from
+  Claude Code plugin (`plugins/claude-code/`) names the session from
   `CLAUDE_CODE_SESSION_ID`, and adds `whiteboard claude-code hook
   stop|prompt|session`, which Claude Code runs (`whiteboard claude-code
   install` adds them). None blocks. `stop` shows the reader what on the
@@ -351,13 +385,14 @@ agent forgetting a wait is caught from outside it:
 ### Loading and reloading
 
 The config is loaded by Node itself, which runs its TypeScript
-(`src/load.ts`). Two resolve hooks help it: `@bigmistqke/whiteboard/*`
-always means the engine's own files (its source, or its build once
-installed; see Layout), so a project needs no `node_modules`;
-and the config and the local files it imports get a version in their URL,
-so a change loads them afresh. Nothing compiles browser code: a renderer's
-or template's browser module is served as the file it is, so packages ship
-JavaScript.
+(`src/load.ts`); `src/loader.ts` makes of it the project's plugins (the
+built-ins, then the config's), checks them, and makes the pages from their
+blocks. Two resolve hooks help Node: `@bigmistqke/whiteboard/*` always means
+the engine's own files (its source, or its build once installed; see
+Layout), so a project needs no `node_modules`; and the config and the local
+files it imports get a version in their URL, so a change loads them afresh.
+Nothing compiles browser code: a plugin's or block's browser module is
+served as the file it is, so packages ship JavaScript.
 
 The browser listens at `/api/watch`: `change` (its page changed), `events`
 (the log grew), `style` (a stylesheet changed: reloaded in place) and
@@ -365,16 +400,18 @@ The browser listens at `/api/watch`: `change` (its page changed), `events`
 and the folders of served files are watched; any other change in them loads
 the config afresh and re-renders open pages.
 
-## markboard (`markboard/`)
+## Pages (`src/pages/`, `src/client/page/`)
 
-The renderer that ships with whiteboard: pages are markdown, extended by
-templates.
+How the core shows a page. On the server, the markdown engine
+(`src/pages/`: `markdown.ts`, `render.ts`, `blocks.ts`) behind the one
+interface above; in the browser, the page module (`src/client/page/`).
 
 1. Turns markdown into HTML: remark (GFM + `remark-directive`), then rehype.
    Raw HTML passes through, so `<details>` and hand-written forms work.
-   Frontmatter is skipped. Code blocks that no template handles render as
-   plain `<pre><code>`, unless there is a code template (below).
-2. Resolves extension points to templates:
+   Frontmatter is skipped. Code blocks that no block handles render as
+   plain `<pre><code>`, unless a block takes every fence (`fence: 'any'`,
+   the built-in `code`).
+2. Hands extension points to the plugins' blocks:
    - `:::name[label]{attrs}` … `:::` container directives, `::name[label]{attrs}`
      leaf directives, `:name[label]{attrs}` text directives
    - ```` ```name attrs ```` fences
@@ -384,12 +421,14 @@ templates.
    with their README on top, and repository files as code. Its HTML is built
    with `html` tagged templates (`src/html.ts`), which escape every
    value unless it is marked as HTML (`raw()`, for markdown's output); the
-   comment popover in the browser uses the same.
+   comment popover in the browser uses the same. Stylesheets are linked in
+   this order: the page's own (`base.css`), every plugin's `style`, the
+   `style` of each block used on the page, then the config's `style`.
 4. Patches the page in place when it changes, with morphdom: focus, caret,
    typed values, open `<details>` (found by their heading and summary, so a
    block added above one keeps it open), the reader's place on the page,
    and mounted islands whose props did not change all survive (islands
-   carry a `data-wb-key` hashed from template + props), and so do the
+   carry a `data-wb-key` hashed from block + props), and so do the
    `data-wb-*` marks set in the browser (the core's form states).
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
@@ -399,25 +438,25 @@ templates.
      page opened for the first time marks nothing, and neither does one
      where fewer than a quarter of the blocks are left from the last visit:
      it is effectively a new page, and marking all of it says nothing.
-     Content inside a `[data-wb-quiet]` element (the `quiet` template
-     writes one) does not count: it can appear, change or go without
-     marking its block, and a block that is quiet as a whole is never
-     marked. It is for what changes without being news to the reader.
+     Content inside a `[data-wb-quiet]` element (the `quiet` block writes
+     one) does not count: it can appear, change or go without marking its
+     block, and a block that is quiet as a whole is never marked. It is for
+     what changes without being news to the reader.
    - **Navigator.** Floating `↑ new (n)` / `↓ new (n)` buttons in the
      page's corner jump to the nearest unseen block; the tab title gets a
      `(n)` badge.
-5. Leaves comments to the comments plugin, which works on its
-   `<main>`.
-6. Writes forms as markdown (the `form` template); sending them and
-   drafts are the core's. Chats are the `chat` template: a chat under each
-   form, named after it, and `:::chat{name=…}` blocks anywhere. Messages
-   are `chat:message` events (`{ chat, text }`, from the reader or the
-   agent), never submits, so asking about a choice never makes it. An agent
-   message can take the place of an earlier one (`replaces`), since the log
-   only grows, and in a form's chat can name the submit whose typed text it
-   answers (`replyTo`), shown as the reader's message before it. A chat no
-   longer on the page (its form or block removed or renamed) is listed
-   after the page's content, read-only, until one of its name is back.
+5. Leaves comments to the comments plugin, which works on its `<main>`.
+6. Forms are written as markdown with the `form` plugin's blocks; sending
+   them and drafts are the core's. Chats are the `chat` plugin: a chat
+   under each form, named after it, and `:::chat{name=…}` blocks anywhere.
+   Messages are `chat:message` events (`{ chat, text }`, from the reader or
+   the agent), never submits, so asking about a choice never makes it. An
+   agent message can take the place of an earlier one (`replaces`), since
+   the log only grows, and in a form's chat can name the submit whose typed
+   text it answers (`replyTo`), shown as the reader's message before it. A
+   chat no longer on the page (its form or block removed or renamed) is
+   listed after the page's content, read-only, until one of its name is
+   back (`src/client/page/orphans.ts`).
 7. Shows what waits on whom, from the core's form states: a form waiting
    for the reader is outlined and says so, one nobody listens for says
    that, a decided one folds into one line quoting its answer, with its
@@ -427,43 +466,49 @@ templates.
    one waiting form to the next, the tab title gets a `(!n)` badge, and the
    overview marks the pages an agent waits on.
 
-Nested containers may all use `:::`. markboard pairs the fences and lengthens
-the outer ones before parsing, because remark-directive needs an outer fence
-to be longer than the ones inside it.
+Containers are parsed as written: a `:::` closes the first open container
+whose fence is no longer than its own, so a container around another needs
+more colons (`::::grid` around `:::details`).
 
-### Templates
+## Blocks
+
+A plugin's `blocks` are its syntax: each handles the directive and fence
+with its name (`:::name`, `::name`, `:name`, ```` ```name ````).
 
 ```ts
-// <repo>/.whiteboard/config.ts
+// .whiteboard/config.ts
 import { defineConfig } from '@bigmistqke/whiteboard'
-import markboard from '@bigmistqke/whiteboard/markboard'
-import chart from 'whiteboard-chart'   // a template package of someone else's
-import timeline from './templates/timeline.ts'
+import chart from 'whiteboard-chart'   // a plugin package of someone else's
+import timeline from './plugins/timeline/index.ts'
 
 export default defineConfig({
   name: 'radio-garden',
-  renderers: [markboard({ templates: [chart({ palette: 'cool' }), timeline] })],
+  plugins: [chart({ palette: 'cool' }), timeline()],
 })
 ```
 
-A template handles the directive and fence with its `name`
-(`:::name`, `::name`, `:name`, ```` ```name ````). markboard's own templates are
-always there; one passed with the same name replaces it.
-
 ```ts
-export default {
+export default () => definePlugin({
   name: 'chart',
-  props: ctx => ({ … }),     // server: JSON props for the client (optional)
-  html: ctx => '…',          // server: the block's HTML; with a client, shown until it mounts (optional)
-  client: new URL('./client.js', import.meta.url),   // browser: default export mount(el, props, api) (optional)
-  style: new URL('./style.css', import.meta.url),    // linked on pages that use it (optional)
-  readme: new URL('./README.md', import.meta.url),   // syntax and examples (optional)
-} satisfies Template
+  blocks: {
+    chart: {
+      props: ctx => ({ … }),     // server: JSON props for the client (optional)
+      html: ctx => '…',          // server: the block's HTML; with a client, shown until it mounts (optional)
+      client: new URL('./client.js', import.meta.url),   // browser: default export mount(el, props, api) (optional)
+      style: new URL('./style.css', import.meta.url),    // linked on pages that use it (optional)
+    },
+  },
+  docs: () => '…',               // syntax and examples, for `whiteboard docs` (optional)
+})
 ```
 
-- Types come from `@bigmistqke/whiteboard/template` (`Template`, `Mount`,
-  `ClientApi`, the server context types). `defineTemplate` only returns its
-  argument; a published package needs no runtime import from whiteboard.
+- The contract is in `src/define.ts` and exported from
+  `@bigmistqke/whiteboard`: `Block`, `defineBlock`, `Mount`, the server
+  context types (`ServerContext`, `DirectiveContext`, `FenceContext`,
+  `Section`), the default props (`DirectiveProps`, `FenceProps`),
+  `ClientApi` and `Theme`, with `html`, `raw` and `escape`.
+  `definePlugin` and `defineBlock` only return their argument; a published
+  package needs no runtime import from whiteboard.
 - Files are referenced by URL relative to the module, so they resolve
   wherever the package is installed.
 - The server context has `attrs`, `label`, `children` (mdast),
@@ -473,52 +518,57 @@ export default {
   `{ name, attrs, label, html, intro, sections: [{ title, text, html }] }`
   (`sections` splits the content at its shallowest headings, or at blank
   lines when there are none); a fence client gets `{ name, attrs, text }`.
-- A template with only `html` is static: no JavaScript on the page.
-- `code: true` makes a template the one for code blocks in general: it also
-  gets every fence no template claims by name, and the code view of
-  repository files, with the fence's language in `ctx.lang`. Highlighting is
-  a template for the same reason a diagram is: themes and colours are a
-  choice. The last `code` template wins. Without one, code renders plain, which is still a valid page.
-- Layout classes a template can put on its outermost element: `.wb-figure`
+- A block with only `html` is static: no JavaScript on the page.
+- `fence: 'any'` makes a block the one for code in general: it also gets
+  every fence no block claims by name, and the code view of repository
+  files, with the fence's language in `ctx.lang`. Highlighting is a block
+  for the same reason a diagram is: themes and colours are a choice. When
+  several set it, the last plugin's wins. Without one, code renders plain,
+  which is still a valid page.
+- Layout classes a block can put on its outermost element: `.wb-figure`
   runs up to `--figure` (920px) wide, like a standalone image or a diagram;
   `.wb-wide` runs up to `--wide` (1040px), like a grid of cards. Both centre
   on the text column and stay within the screen.
-- A client's island is wrapped in `<div class="wb-island" data-template="name">`.
-  markboard never adds `wb-<name>` classes, so a template owns its class names.
+- A client's island is wrapped in `<div class="wb-island" data-block="name">`.
+  The engine never adds `wb-<name>` classes, so a block owns its class names.
 - `api` (a `ClientApi`) is the core's `Api` (the page id, its events with a
-  subscription, `last(type)`, `append(type, data)`) plus markboard's theme, with
-  a subscription too. `@bigmistqke/whiteboard/solid` wraps it:
+  subscription, `last(type)`, `append(type, data)`) plus the page's theme,
+  with a subscription too. `@bigmistqke/whiteboard/solid` wraps it:
   `export default solid(Component)` and `useWhiteboard()` for signals.
 - A client is one module the browser loads as it is, so a package bundles
-  what its client needs, UI framework included. `markboard()`'s Solid clients
-  each carry their own copy of Solid; the cost is some bytes over a local
-  connection, and in return a client needs nothing from the page.
+  what its client needs, UI framework included. The built-in Solid clients
+  (chat, gallery) each carry their own copy of Solid; the cost is some
+  bytes over a local connection, and in return a client needs nothing from
+  the page.
+- A plugin's `docs` say how to write its blocks; there is no readme per
+  block. The built-ins keep theirs in a `README.md` beside the plugin.
 
-
-Template files are watched like any served file: a changed client reloads
+Block files are watched like any served file: a changed client reloads
 the open pages (drafts keep what was typed), a changed style reloads in
-place, anything else (server functions, readmes) loads the config afresh
+place, anything else (server functions, docs) loads the config afresh
 and re-renders.
 
 ## Layout
 
 ```
 src/              the core; the package's own entry (`@bigmistqke/whiteboard`: the contract and its types)
-src/client/       the core in the browser
+src/pages/        the markdown engine behind one interface: markdown.ts, render.ts, blocks.ts
+src/client/       the core in the browser: the runtime, named forms
+src/client/page/  the page in the browser: morphing, islands, new-content marks, theme, waiting and folding, orphaned chats
+src/loader.ts     the config loader: the plugins, checked, and the pages made from their blocks
+plugins/<name>/   the built-in plugins (./plugins), and the opt-in ones: terminal, claude-code
 bin/              the `whiteboard` command
-markboard/            ./markboard: the markboard renderer and its templates; ./template: their contract
-markboard/client/     markboard in the browser: morphing, islands, forms, new-content marks, theme
-solid/            ./solid: write template clients as Solid 2 components
+solid/            ./solid: write block clients as Solid 2 components
 build.ts          builds dist/: what the package ships as JavaScript (`npm run dev` watches)
 skills/whiteboard the agent skill: where to write pages, how to wait for input
 .whiteboard/      this repository as a whiteboard project (dogfooding)
 ```
 
-It is one package, `@bigmistqke/whiteboard`, with a subpath export per part;
-it splits into packages once a second renderer exists. The core never
-imports markboard; a config does. The server resolves the package's own exports
-itself, so a config in a repository without npm can import
-`@bigmistqke/whiteboard/markboard`.
+It is one package, `@bigmistqke/whiteboard`, with a subpath export per
+part: `.`, `./log`, `./plugins`, `./code`, `./comments`, `./terminal`,
+`./claude-code` and `./solid`. The server resolves the package's own
+exports itself, so a config in a repository without npm can import
+`@bigmistqke/whiteboard/terminal`.
 
 Everything is TypeScript, written so that Node can run it by stripping
 its types (`erasableSyntaxOnly`: no enums, no namespaces), and `npm run
@@ -538,8 +588,8 @@ uses the build throughout, so the two never mix.
 This is the usual way to run a TypeScript package from source during
 development; the condition stays in the published `package.json`, where
 nothing asks for it. Only browser code is always built (`npm run dev`), so
-markboard finds its browser modules in `dist/` (`builtFile`), from source
-and from the build alike.
+the page module and the plugins find their browser modules in `dist/`
+(`builtFile`), from source and from the build alike.
 Paths into the package are found from its root (`src/package.ts`), since a
 module in `dist/` sits at another depth than its source.
 

@@ -101,11 +101,11 @@ Forms don't nest, and inputs belong inside a form: outside one they show
 but send nothing.
 
 **A chat under every form.** The reader can ask about a question without
-answering it: under every form is a chat (see the chat template), named
+answering it: under every form is a chat (see the chat plugin), named
 after the form, whose messages are never a submit, so talking about a choice
 never makes it. Answer there with `whiteboard append --type chat:message
 --data '{"chat":"<form name>","text":"…"}'`, and don't add a free-text field
 for questions to a decision form.
 
 A hand-written `<form name="…">` (no `action` attribute) is recorded the same
-way; this template only saves typing.
+way; this block only saves typing.

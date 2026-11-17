@@ -1,5 +1,5 @@
 // The project's events, one JSON object per line, in `.whiteboard/events.ndjson`. An event has a
-// `type`: a submitted form's type is the form's name; a template can append events of its own.
+// `type`: a submitted form's type is the form's name; a plugin can append events of its own.
 //
 // Two layers. The primitives work on the log and nothing else: read it, follow it, append to it,
 // record that an event was picked up. Handing out (`handOut`) is built from them alone: it gives

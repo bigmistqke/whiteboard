@@ -9,7 +9,7 @@ A whole block, a line, or a few words:
 
 ```markdown
 :::quiet
-Decided: **through the renderer**, as you answered.
+Decided: **this week**, as you answered.
 :::
 
 ::quiet[Last checked 12:04]

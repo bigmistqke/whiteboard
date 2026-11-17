@@ -1,6 +1,6 @@
 Cards in a responsive grid. Each heading at the shallowest level inside the
 block starts a card; everything under it is the card body (any markdown,
-including other templates). Without headings, each paragraph is a card.
+including other blocks). Without headings, each paragraph is a card.
 
 A heading that ends in `{word}` gets a badge. `done ok yes good` are green,
 `active new info` blue, `open todo maybe warning` amber,

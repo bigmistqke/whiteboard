@@ -13,7 +13,7 @@ import type { FormState, Listener, PageStatus, WbEvent } from './define.ts'
 
 /**
  * Can this be a question's name, the type of its answers? Not with a colon: types with one belong
- * to whiteboard (`whiteboard:picked`), a plugin or a template (`comments:reply`, `chat:message`),
+ * to whiteboard (`whiteboard:picked`) or a plugin (`comments:reply`, `chat:message`),
  * named after its owner, so a form's answers never mix with their events.
  */
 export const isQuestionName = (name: string): boolean => !!name && !name.includes(':')

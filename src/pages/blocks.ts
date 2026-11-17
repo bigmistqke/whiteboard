@@ -11,7 +11,7 @@ export interface BlockEntry { name: string; block: Block<any>; plugin: string }
 const NAME = /^[\w-]+$/
 
 /** A block as the engine uses it: checked, with its files as absolute paths. */
-export interface ResolvedTemplate {
+export interface ResolvedBlock {
   name: string
   /** the block for code in general (`fence: 'any'`) */
   code: boolean
@@ -23,7 +23,7 @@ export interface ResolvedTemplate {
   source: string
 }
 
-export interface ResolvedTemplates { templates: Map<string, ResolvedTemplate>; code: ResolvedTemplate | null }
+export interface ResolvedBlocks { blocks: Map<string, ResolvedBlock>; code: ResolvedBlock | null }
 
 /** A block's file reference (URL, file: URL string, or absolute path) → absolute path. */
 function toPath(ref: unknown, field: string, block: string): string | null {
@@ -34,7 +34,7 @@ function toPath(ref: unknown, field: string, block: string): string | null {
 }
 
 /** Check and resolve one block into what the engine uses. */
-function normalize({ name, block: b, plugin }: BlockEntry): ResolvedTemplate {
+function normalize({ name, block: b, plugin }: BlockEntry): ResolvedBlock {
   if (typeof b !== 'object' || !b) throw new Error(`plugin ${plugin}: block "${name}" is not an object`)
   if (!NAME.test(name)) throw new Error(`plugin ${plugin}: block name ${JSON.stringify(name)}: use letters, digits, - and _`)
   const files = { client: toPath(b.client, 'client', name), style: toPath(b.style, 'style', name) }
@@ -55,13 +55,13 @@ function normalize({ name, block: b, plugin }: BlockEntry): ResolvedTemplate {
  * an error. `code` is the block for code fences no block claims by name: the last one with
  * `fence: 'any'`.
  */
-export function resolveBlocks(entries: BlockEntry[]): ResolvedTemplates {
-  const templates = new Map<string, ResolvedTemplate>()
+export function resolveBlocks(entries: BlockEntry[]): ResolvedBlocks {
+  const blocks = new Map<string, ResolvedBlock>()
   for (const entry of entries) {
     const n = normalize(entry)
-    const other = templates.get(n.name)
+    const other = blocks.get(n.name)
     if (other) throw new Error(`block "${n.name}" comes from two plugins: ${other.source} and ${n.source}`)
-    templates.set(n.name, n)
+    blocks.set(n.name, n)
   }
-  return { templates, code: [...templates.values()].findLast(t => t.code) ?? null }
+  return { blocks, code: [...blocks.values()].findLast(t => t.code) ?? null }
 }

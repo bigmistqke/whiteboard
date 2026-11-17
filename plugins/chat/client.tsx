@@ -1,4 +1,4 @@
-// A chat (rendered by the chat template, on its own or under a form): the reader writes, the agent
+// A chat (rendered by the chat block, on its own or under a form): the reader writes, the agent
 // answers (`whiteboard append --type chat:message --data '{"chat":"<name>","text":"…"}'`). A message
 // is a `chat:message` event, never an answer, so talking about a form's choice never makes it.
 import { createMemo, For } from 'solid-js'
@@ -7,7 +7,7 @@ import type { ChatProps } from './index'
 import type { WbEvent } from '@bigmistqke/whiteboard'
 import { autosize } from './autosize'
 
-/** A message in a chat: the chat template's own event type. */
+/** A message in a chat: the chat block's own event type. */
 const MESSAGE = 'chat:message'
 
 interface Message { id: string; from: 'you' | 'agent'; text: string }

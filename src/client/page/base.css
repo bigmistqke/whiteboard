@@ -1,4 +1,4 @@
-/* Base page style: an article, set for reading. Templates bring their own style.css;
+/* Base page style: an article, set for reading. Blocks bring their own style.css;
    <root>/style.css is loaded after this file to override anything here.
 
    Theme: follows the system unless <html data-theme="light|dark"> is set (the nav toggle). */
@@ -124,7 +124,7 @@ details > summary:hover { color: var(--accent); }
 details > :not(summary) { margin-left: 1.4em; }
 details[open] > :last-child { margin-bottom: 2em; }
 
-/* figures: an image alone in its paragraph, an HTML <figure>, or anything with .wb-figure (templates
+/* figures: an image alone in its paragraph, an HTML <figure>, or anything with .wb-figure (blocks
    opt in) may run wider than the text, up to --figure, centred on the column. Images keep their
    natural size within that. */
 #wb-main > :is(figure, .wb-figure, p:has(> img:only-child), p:has(> a:only-child > img:only-child)) {
@@ -134,8 +134,8 @@ details[open] > :last-child { margin-bottom: 2em; }
 #wb-main > p:has(> img:only-child), #wb-main > p:has(> a:only-child > img:only-child) { margin-top: 3.6em; margin-bottom: 3.6em; }
 #wb-main > :is(figure, .wb-figure) figcaption { text-align: center; }
 
-/* blocks that may run wider than the text column (templates opt in with .wb-wide) */
-/* positioned with left + transform, not margins, so a template's own margin rules can't undo it */
+/* blocks that may run wider than the text column (blocks opt in with .wb-wide) */
+/* positioned with left + transform, not margins, so a block's own margin rules can't undo it */
 .wb-wide { width: min(var(--wide), 100vw - 32px); position: relative; left: 50%; transform: translateX(-50%); }
 
 /* frame */
@@ -216,9 +216,9 @@ form[data-wb-pending][data-wb-just-sent]::before { content: "✓ sent · waiting
 
 /* decided: the agent picked up the latest answer; the form folds into one line quoting it */
 form[data-wb-folded] { cursor: pointer; }
-form[data-wb-folded] > :not([data-template=chat-thread]) { display: none !important; }
+form[data-wb-folded] > :not([data-block=chat-thread]) { display: none !important; }
 /* the question's chat stays with it, under the answer and the line that reopens it */
-form[data-wb-folded] > [data-template=chat-thread] { order: 1; margin-top: 14px; cursor: auto; }
+form[data-wb-folded] > [data-block=chat-thread] { order: 1; margin-top: 14px; cursor: auto; }
 form[data-wb-folded]::before { content: "✓ " attr(data-wb-outcome); display: block; white-space: pre-line; color: var(--text); font: .95rem/1.5 var(--sans); }
 form[data-wb-folded]::after { content: "decided · click to change the answer"; display: block; margin-top: 4px; color: var(--muted); font: .75rem/1.4 var(--sans); }
 form[data-wb-folded][data-wb-just-sent]::after { content: "✓ sent · the agent has it"; color: var(--ok); font-weight: 600; }

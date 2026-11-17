@@ -4,7 +4,8 @@
 // Everything whiteboard keeps lives in that folder:
 //   config.ts      what the project changes from the defaults (optional)
 //   pages/         the pages, served at /<page>
-//   events.ndjson  form submits
+//   events.ndjson  the events: form submits, chat messages, comments, and what agents picked up
+//   token          the secret for what runs code (the terminal), made on first use
 //   server.json    the port and process of this project's running server
 //   server.log     that server's output
 // Each project runs its own server; nothing is shared between projects.

@@ -18,9 +18,9 @@ PATH, the project has it installed locally: run them as `npx whiteboard …`.
 ## Writing a page
 
 1. Run `whiteboard docs` once per session and read it: it is how pages are
-   written in this project (with the markboard renderer: the current syntax of
-   every template it can use). Do not rely on memory for
-   template syntax; the set differs per project. If it says there is no
+   written in this project: the syntax of every block its plugins bring, and
+   what their events mean. Do not rely on memory for block syntax; the set
+   differs per project. If it says there is no
    project, ask the user before running `whiteboard init`: it adds a folder
    to their repository.
 2. Run `whiteboard new <topic>` (subfolders are fine: `task/plan`). It
@@ -49,12 +49,12 @@ Write for a reader who comes back later:
 - Put the things you need from the user in forms, one form per decision, each
   with a distinct name (no colon: those are reserved for event types like
   `chat:message`). A form is markdown with its inputs inline (see the
-  form template's docs). When the options need explaining, explain them in
+  form plugin's docs). When the options need explaining, explain them in
   the form, each option with its meaning right under it, not in a section
   above it: the user decides where they read. Keep `:::details` for real
   depth, not for the options.
 - A send is a choice, and only that. Questions and remarks about a form go
-  in the chat under it (`chat:message` events, see the chat template's docs):
+  in the chat under it (`chat:message` events, see the chat plugin's docs):
   answer them there, and never read a chat message, or a note sent along
   with a submit, as a choice. Don't add a notes field to a decision form for
   questions; its chat is for that.
@@ -64,7 +64,7 @@ Write for a reader who comes back later:
 - When a question changes, rework it inside its form and keep the form's
   name. The chat belongs to the form by name: replace or rename the form and
   its chat moves to the end of the page, away from the question.
-- Don't number headings yourself (`### 1. Naming`): the markboard renderer
+- Don't number headings yourself (`### 1. Naming`): the page
   numbers section headings already, so yours would show twice. Refer to a
   section by its name.
 - When you only repeat back what the user answered, or update a status line
@@ -73,9 +73,9 @@ Write for a reader who comes back later:
   news. Anything they need to read (a question back, a different reading of
   their answer, a new explanation) stays outside it.
 
-Anything that is not a template (plain markdown, GFM tables, `<details>`, a raw
-`<form name="…">`) works without one. An unknown `:::name` block still renders
-its content, so a typo never breaks the page.
+Plain markdown, GFM tables, `<details>` and a raw `<form name="…">` work
+without any block. An unknown `:::name` block still renders its content, so
+a typo never breaks the page.
 
 **Nesting containers:** the outer fence needs more colons than anything
 inside it, `::::grid` around `:::details`. A `:::` closes the first open

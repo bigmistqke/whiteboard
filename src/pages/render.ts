@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
 import { html, raw, type Html } from '../html.ts'
 import type { RenderContext, Rendered, StoredPage } from '../define.ts'
-import type { ResolvedTemplate, ResolvedTemplates } from './blocks.ts'
+import type { ResolvedBlock, ResolvedBlocks } from './blocks.ts'
 
 type PagesPage = Extract<StoredPage, { kind: 'pages' }>
 type FolderPage = Extract<StoredPage, { kind: 'folder' }>
@@ -107,11 +107,11 @@ function documentList(ctx: RenderContext) {
   return html`<section class="wb-documents"><h2>Documents</h2><ul class="wb-index">${rows}</ul></section>`
 }
 
-export function createRender(templates: () => ResolvedTemplates, style?: URL | string, pluginStyles: (URL | string)[] = []) {
+export function createRender(blocks: () => ResolvedBlocks, style?: URL | string, pluginStyles: (URL | string)[] = []) {
   const STYLE = stylePath(style)
   const PLUGIN_STYLES = pluginStyles.map(stylePath).filter((f): f is string => !!f)
   async function markdown(source: string, page: string, file: string, ctx: RenderContext) {
-    const { templates: set, code } = templates()
+    const { blocks: set, code } = blocks()
     return renderMarkdown(body(source), { page, file, resolve: name => set.get(name) ?? null, code, linkFor: ctx.urlFor })
   }
 
@@ -124,7 +124,7 @@ export function createRender(templates: () => ResolvedTemplates, style?: URL | s
         const list = page.pages.length ? pageList(page.pages) : html`<p class="wb-meta">No pages yet.</p>`
         const view = page.id
           ? html`<h1>${page.id}</h1>${list}<p class="wb-meta">${page.file}</p>`
-          : html`<h1>${project.name}</h1>${list}${project.files && documentList(ctx)}<p class="wb-meta"><code>${project.dir}</code>${project.files && html` · <a href="/-/">files</a>`} · <a href="/_/docs">templates</a></p>`
+          : html`<h1>${project.name}</h1>${list}${project.files && documentList(ctx)}<p class="wb-meta"><code>${project.dir}</code>${project.files && html` · <a href="/-/">files</a>`} · <a href="/_/docs">how to write pages</a></p>`
         return { html: view, title: page.id || project.name, islands: {}, styles: [] }
       }
       case 'folder': {
@@ -138,8 +138,8 @@ export function createRender(templates: () => ResolvedTemplates, style?: URL | s
         return { ...r, html: html`${raw(r.html)}<hr>${listing}` }
       }
       case 'file': {
-        // the file as one code block, rendered by the code template (or as plain code)
-        const { code } = templates()
+        // the file as one code block, rendered by the code block (or as plain code)
+        const { code } = blocks()
         const ext = path.extname(page.file).slice(1).toLowerCase()
         const tree: MdNode = { type: 'root', children: [{ type: 'code', lang: CODE_LANG[ext] ?? (ext || null), meta: null, value: page.source }] }
         const out = await renderMarkdown(tree, { page: page.id, file: page.file, resolve: () => null, code, linkFor: ctx.urlFor })
@@ -178,10 +178,10 @@ ${links.map(href => html`<link rel="stylesheet" href="${href}">`)}`,
  * What `whiteboard docs` prints first: how pages are written, and which blocks the project's plugins
  * bring. Each plugin's own docs, printed after it, say how to write its blocks.
  */
-export function createDocs(templates: () => ResolvedTemplates) {
+export function createDocs(blocks: () => ResolvedBlocks) {
   return function docs(_ctx: RenderContext) {
     const byPlugin = new Map<string, string[]>()
-    for (const t of templates().templates.values()) byPlugin.set(t.source, [...(byPlugin.get(t.source) ?? []), t.code ? `${t.name} (every other code fence)` : t.name])
+    for (const t of blocks().blocks.values()) byPlugin.set(t.source, [...(byPlugin.get(t.source) ?? []), t.code ? `${t.name} (every other code fence)` : t.name])
     const list = [...byPlugin].sort(([a], [b]) => a.localeCompare(b))
       .map(([plugin, blocks]) => `- **${plugin}**: ${blocks.map(b => `\`${b}\``).join(', ')}`)
     return `# Pages

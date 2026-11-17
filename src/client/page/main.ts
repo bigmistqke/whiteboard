@@ -11,7 +11,7 @@ import { trackWaiting } from './waiting'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
 
-interface Island { template: string; client: string; props: unknown }
+interface Island { block: string; client: string; props: unknown }
 interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }
 
 let main: HTMLElement
@@ -35,8 +35,8 @@ async function mountOne(el: HTMLElement) {
     const dispose = await mount(el, island.props, api)
     if (typeof dispose === 'function') disposers.set(el, dispose)
   } catch (err) {
-    console.error(`island ${island.template}:`, err)
-    el.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error">template "${island.template}" failed to mount: ${(err as Error).message}</pre>`))
+    console.error(`island ${island.block}:`, err)
+    el.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error">block "${island.block}" failed to mount: ${(err as Error).message}</pre>`))
   }
 }
 
