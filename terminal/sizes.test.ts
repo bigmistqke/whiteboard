@@ -1,7 +1,7 @@
 // Whose size a session has, with several drawers showing it.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { handOver, leave, report, type Sizes } from './sizes.ts'
+import { handOver, lastUsed, leave, report, type Sizes } from './sizes.ts'
 
 const session = (): Sizes => ({ cols: 100, rows: 30, viewers: new Map(), active: null })
 
@@ -75,4 +75,14 @@ test('the last drawer leaving leaves the size as it is', () => {
   assert.equal(s.active, null)
   // the next drawer to report gets it
   assert.equal(sized(s, 'b', 120, 30), '120x30')
+})
+
+test('of several sessions, the one whose drawer the reader used last', () => {
+  const one = session(), two = session()
+  sized(one, 'a', 80, 24, true, 5)
+  sized(two, 'b', 80, 24, true, 9)
+  assert.equal(lastUsed([one, two]), two)
+  sized(one, 'a', 80, 24, true, 12)
+  assert.equal(lastUsed([one, two]), one)
+  assert.equal(lastUsed([session()]), undefined)
 })

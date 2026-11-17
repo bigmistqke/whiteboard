@@ -21,9 +21,9 @@
 //   { t: 'html', id? }                     → { html }: a screen as HTML rows (the first session's
 //                                            without an id), for a page's first render
 //   { t: 'close', id }                     → { ok }: end the session and drop its tab
-//   { t: 'open', id, path }                → { shown }: show the page at `path` in the browser tab
-//                                            whose drawer the reader used last for the session
-//                                            (a `navigate` to its attach); how many were told
+//   { t: 'open', id?, path }               → { shown }: show the page at `path` in the browser tab
+//                                            whose drawer the reader used last, for session `id`
+//                                            or, without one, of all (a `navigate` to its attach)
 //   { t: 'stop' }                          → { ok }, and the host exits
 //   { t: 'attach', id, viewer }            → { t: 'sessions', sessions }, then { t: 'none' } or
 //                                            { t: 'screen', d, cols, rows, active, exited }, and then
@@ -43,7 +43,7 @@ import type { IPty } from 'node-pty'
 import type { Terminal as HeadlessTerminal } from '@xterm/headless'
 import type { SerializeAddon as Serializer } from '@xterm/addon-serialize'
 import { followMouseEncoding } from './modes.ts'
-import { handOver, leave, report, type Sizes } from './sizes.ts'
+import { handOver, lastUsed, leave, report, type Sizes } from './sizes.ts'
 
 const require = createRequire(import.meta.url)
 const [dir, socket] = process.argv.slice(2)
@@ -253,11 +253,13 @@ function handle(conn: Conn, req: Record<string, any>) {
     case 'html': return reply({ html: html(s ?? sessions.values().next().value) })
     case 'close': close(String(req.id)); return reply({ ok: true })
     case 'open': {
-      // show a page in the browser tab whose drawer the reader used last for this session; with
-      // none of them active, in every one that shows it
-      if (!s || typeof req.path !== 'string') return reply({ shown: 0 })
-      const mine = [...s.attached].filter(c => c.viewer && c.viewer === s.active)
-      const to = mine.length ? mine : [...s.attached]
+      // show a page in the browser tab whose drawer the reader used last: for session `id`, or
+      // without one, across all of them (where the reader is). With none active, in every drawer
+      // that shows the session.
+      const target = s ?? (req.id == null ? lastUsed([...sessions.values()].filter(x => x.attached.size)) ?? [...sessions.values()].find(x => x.attached.size) : undefined)
+      if (!target || typeof req.path !== 'string') return reply({ shown: 0 })
+      const mine = [...target.attached].filter(c => c.viewer && c.viewer === target.active)
+      const to = mine.length ? mine : [...target.attached]
       // not `open`: a browser's EventSource has an event of that name already
       for (const c of to) send(c, { t: 'navigate', path: req.path })
       return reply({ shown: to.length })

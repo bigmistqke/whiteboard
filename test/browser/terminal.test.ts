@@ -127,7 +127,8 @@ test('terminal: a program in a tab opens a page where its drawer is', { timeout:
   await until('the page, with the drawer still there', () => page.evaluate(() =>
     document.body.textContent!.includes('Other page') && !!document.querySelector('#wb-terminal .xterm-screen')))
 
-  // outside a terminal tab it says how to show a page instead
-  assert.throws(() => proj.cli('terminal', 'open', 'q'), /not in a terminal tab/)
+  // without knowing its tab (outside one, or with its environment filtered): the drawer used last
+  assert.match(proj.cli('terminal', 'open', 'q'), /where the drawer you used last is/)
+  await page.waitForURL(/\/q$/)
   assert.deepEqual(errors, [], 'no console errors')
 })

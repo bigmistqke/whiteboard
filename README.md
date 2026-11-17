@@ -208,10 +208,10 @@ whiteboard terminal stop               # end every tab and their host
 With `command: 'claude'`, `whiteboard terminal -- --resume <id>` continues
 a Claude Code session in a new tab.
 
-Programs in a tab know which tab they run in (`WHITEBOARD_TERMINAL`), so an
-agent there can show you a page: `whiteboard terminal open <page>` takes the
+An agent can show you a page: `whiteboard terminal open <page>` takes the
 browser tab whose drawer you used last to that page, and the drawer comes
-along.
+along. A program in a tab knows which tab it runs in (`WHITEBOARD_TERMINAL`)
+and opens it where that tab's drawer is; without it, where you were last.
 
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie

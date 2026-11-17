@@ -79,10 +79,10 @@ export default function terminal(options: TerminalOptions = {}): Plugin {
           'POST /close': { description: 'end a session and drop its tab', auth: true, body: { id: 'string' }, run: ({ body }) => term.close(body.id as string) },
           'POST /stop': { description: 'end every session and their host', auth: true, run: () => term.stop() },
           'POST /open': {
-            description: 'show the page at path in the browser tab whose drawer shows session id (the one the reader used last); how many were shown',
+            description: 'show the page at path in the browser tab whose drawer the reader used last, for session id or, without one, of all; how many were shown',
             auth: true,
-            body: { id: 'string', path: 'string' },
-            run: ({ body }) => term.open(body.id as string, body.path as string),
+            body: { id: 'string?', path: 'string' },
+            run: ({ body }) => term.open(body.id as string | undefined, body.path as string),
           },
         },
         async shell(req) {
@@ -110,16 +110,16 @@ export default function terminal(options: TerminalOptions = {}): Plugin {
         },
       },
       open: {
-        description: 'from a program in a terminal tab: show a page in the browser tab whose drawer it runs in',
+        description: 'show a page in the browser tab whose drawer the reader used last (from a program in a terminal tab: that tab\'s drawer)',
         args: '<page|file>',
         async run(ctx) {
-          const id = process.env.WHITEBOARD_TERMINAL
-          if (!id) throw new Error('not in a terminal tab of whiteboard (WHITEBOARD_TERMINAL is not set): use whiteboard show <page> and open its URL')
           if (!ctx.positionals[0]) throw new Error('usage: whiteboard terminal open <page|file>')
+          // a program in a tab knows its tab; anything else gets the drawer the reader used last
+          const id = process.env.WHITEBOARD_TERMINAL || undefined
           const path = ctx.pagePath(ctx.positionals[0])
           const { shown } = await call(ctx, 'POST', '/open', { id, path }) as { shown: number }
-          if (!shown) throw new Error(`no browser shows terminal tab ${id} right now; the page is at ${await ctx.server()}${path}`)
-          console.log(`opened ${path} where tab ${id}'s drawer is`)
+          if (!shown) throw new Error(`no browser shows ${id ? `terminal tab ${id}` : 'the terminal drawer'} right now; the page is at ${await ctx.server()}${path}`)
+          console.log(`opened ${path} ${id ? `where tab ${id}'s drawer is` : 'where the drawer you used last is'}`)
         },
       },
       stop: {

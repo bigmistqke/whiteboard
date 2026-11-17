@@ -44,3 +44,17 @@ export function handOver(s: Sizes, viewer: string): { cols: number; rows: number
   s.active = next?.[0] ?? null
   return next ? { cols: next[1].cols, rows: next[1].rows } : null
 }
+
+/**
+ * Of several sessions, the one whose active drawer the reader used last: where "the browser the
+ * reader is in" is, for a program that doesn't know its own tab. Undefined when no drawer is active.
+ */
+export function lastUsed<S extends Sizes>(sessions: S[]): S | undefined {
+  let best: S | undefined
+  let at = -1
+  for (const s of sessions) {
+    const viewer = s.active ? s.viewers.get(s.active) : undefined
+    if (viewer && viewer.used > at) { best = s; at = viewer.used }
+  }
+  return best
+}

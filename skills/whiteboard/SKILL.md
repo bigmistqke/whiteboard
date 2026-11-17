@@ -94,12 +94,16 @@ page around it; in cmux, its own browser pane; in herdr, terminal-browser.
 
 ### In whiteboard's terminal drawer
 
-When `WHITEBOARD_TERMINAL` is set, you run in a tab of the terminal drawer at
-the bottom of the user's whiteboard pages, so the browser is right there:
+When you run in a tab of the terminal drawer at the bottom of the user's
+whiteboard pages (`WHITEBOARD_TERMINAL` is set, or the user says so), the
+browser is right there:
 
 ```sh
 whiteboard terminal open <file>     # the browser tab the user is in goes to that page; the drawer comes along
 ```
+
+It works without `WHITEBOARD_TERMINAL` too (a sandbox may filter it out):
+then it uses the drawer the user used last.
 
 It replaces the page the user is looking at, so open a page when they asked
 to see it or when you just wrote it for them, not while they read another.
