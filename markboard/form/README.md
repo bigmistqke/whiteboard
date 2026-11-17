@@ -112,7 +112,11 @@ whiteboard append --page <file> --type form:thread --data '{"form":"<name>","tex
 ```
 
 The thread shows as a chat, the reader's messages on one side and yours on
-the other. Two more fields, both optional:
+the other. It belongs to the form by name: remove or rename the form and its
+thread moves to the end of the page, read-only, under "Threads of questions
+no longer on this page" (you can still answer there); bring the form back
+under its name and the thread is under it again. So rework a question in
+its form rather than replacing the form. Two more fields, both optional:
 
 - `replyTo`: the id of a submit of this form whose written text you answer
   (a remark typed into one of its text fields). That text shows as the

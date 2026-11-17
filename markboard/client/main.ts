@@ -8,6 +8,7 @@ import type { ClientApi, Mount } from '../types'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { trackWaiting } from './waiting'
+import { trackOrphanThreads } from './orphans'
 import { html } from '../../src/html.ts'
 
 interface Island { template: string; client: string; props: unknown }
@@ -240,6 +241,7 @@ const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, coreA
   blockSigs = [...main.children].map(signature)
   if (!isDir) trackInitial(main, page, core)
   if (!isDir) trackWaiting(main, core)
+  if (!isDir) trackOrphanThreads(main, core)
   await mountIslands()
   tickTimes()
 }

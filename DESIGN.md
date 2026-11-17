@@ -417,7 +417,9 @@ templates.
    agent), never submits, so asking about a choice never makes it. An agent
    message can name the submit whose typed text it answers (`replyTo`),
    shown as the reader's message before it, and can take the place of an
-   earlier one (`replaces`), since the log only grows.
+   earlier one (`replaces`), since the log only grows. A thread whose form
+   is no longer on the page (removed, or renamed) is listed after the
+   page's content, read-only, until a form of its name is back.
 7. Shows what waits on whom, from the core's form states: a form waiting
    for the reader is outlined and says so, one nobody listens for says
    that, a decided one folds into one line quoting its answer, with its

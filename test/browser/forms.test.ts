@@ -106,3 +106,30 @@ test('event names: a form name with a colon is refused, and a thread shows old a
   assert.match(proj.cli('status', '--page', 'q'), /nobody listens for pick\n/)
   assert.deepEqual(errors, [], 'no console errors')
 })
+
+test('a thread whose form is gone shows after the page, until the form is back', { timeout: 60000 }, async t => {
+  const FORM = ':::form{name=pick}\n:radio[A]{name=x}\n:::\n'
+  const proj = await project({ pages: { q: `# Q\n\n${FORM}` } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+  proj.cli('append', '--page', 'q', '--type', 'form:thread', '--data', JSON.stringify({ form: 'pick', text: 'about pick' }))
+  await page.goto(proj.url('q'))
+  await until('the thread under its form', () => page.evaluate(() => document.querySelector('form[name=pick] .wb-form-thread')?.textContent?.includes('about pick')))
+  assert.ok(await page.$eval('.wb-orphans', el => (el as HTMLElement).hidden), 'nothing orphaned yet')
+
+  // the writer removes the form: its thread moves to the end of the page
+  proj.page('q', '# Q\n\nThe question is gone.\n')
+  await until('the thread after the page', () => page.evaluate(() => {
+    const box = document.querySelector<HTMLElement>('.wb-orphans')!
+    return !box.hidden && box.querySelector('[data-form=pick]')?.textContent?.includes('about pick')
+  }))
+  // and the agent can still answer in it
+  proj.cli('append', '--page', 'q', '--type', 'form:thread', '--data', JSON.stringify({ form: 'pick', text: 'still here' }))
+  await until('the answer shows', () => page.evaluate(() => document.querySelector('.wb-orphans')!.textContent!.includes('still here')))
+
+  // the form comes back: so does its thread, and the list is gone
+  proj.page('q', `# Q\n\n${FORM}`)
+  await until('back under its form', () => page.evaluate(() =>
+    document.querySelector<HTMLElement>('.wb-orphans')!.hidden && !!document.querySelector('form[name=pick] .wb-form-thread')?.textContent?.includes('still here')))
+  assert.deepEqual(errors, [], 'no console errors')
+})

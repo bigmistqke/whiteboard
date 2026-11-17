@@ -82,7 +82,7 @@ export async function project({ config, pages = {}, files = {} }: { config?: str
     async close() {
       for (const c of children) c.kill()
       // the terminal's host, if a test started one
-      try { cli('terminal', 'stop') } catch { /* no terminal here */ }
+      if (fs.existsSync(path.join(dir, '.whiteboard', 'terminal'))) try { cli('terminal', 'stop') } catch { /* gone already */ }
       try {
         const { pid } = JSON.parse(fs.readFileSync(path.join(dir, '.whiteboard', 'server.json'), 'utf8'))
         process.kill(pid)
