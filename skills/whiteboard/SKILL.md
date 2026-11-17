@@ -264,7 +264,8 @@ After acting on an answer, update the page to say what you did with it.
 
 To have the user review code you changed, write the diff into a page, one
 file at a time: each file's diff in a `diff` fence, inside a chat named
-after the file. Its lines are coloured, the user can comment on any of them
+after the file. The fence shows the file's name, where each part starts
+and line numbers, and leaves out the headers only tools read. Its lines are coloured, the user can comment on any of them
 (each comment's `at` says which file and line: `src/a.ts:12`, or
 `src/a.ts (old):9` for a removed line), and the chat under it is for the
 file as a whole. End with a form for the verdict.
@@ -273,8 +274,8 @@ file as a whole. End with a form for the verdict.
 git add -N .   # new files show in the diff too
 { printf '# Review: <what changed>\n\n<why, in a few lines>\n\n'
   git diff HEAD --name-only | while read -r f; do
-    printf ':::chat{name="%s"}\n**%s**\n\n````diff\n' "$f" "$f"
-    git diff HEAD -- "$f" | grep -v -e '^diff --git ' -e '^index '
+    printf ':::chat{name="%s"}\n````diff\n' "$f"
+    git diff HEAD -- "$f"
     printf '````\n:::\n\n'
   done
   printf ':::form{name=review}\n:textarea[Anything else]{name=note}\n\n:button[Approve] :button[Request changes]\n:::\n'

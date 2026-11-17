@@ -11,8 +11,10 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // --shiki-dark); style.css picks one per theme, so highlighting follows the theme toggle without
 // re-rendering. The block's background stays the page's own code background.
 //
-// A `diff` fence marks each line with what it is (`data-diff`: add, del, context, hunk, meta) and,
-// in a hunk, where it is (`data-wb-at="file:line"`), which comments on the line record.
+// A `diff` fence is shown for reading (see diff.ts): its header lines go, except the file's name;
+// a hunk's start reads `line 13  <function>`; each line says what it is (`data-diff`: add, del,
+// context, hunk, file), its number (`data-n`, drawn in a gutter by style.css, so it is never part
+// of the text) and where it is (`data-wb-at="file:line"`), which comments on the line record.
 // shiki loads the first time a page has code, not with the plugin: the command line loads the
 // built-in plugins too, for their declarations
 import type { BundledTheme, Highlighter } from 'shiki'
@@ -61,7 +63,17 @@ export default function code(options: Options = {}): Plugin {
           const info = diff[n - 1]
           if (!info) return
           node.properties['data-diff'] = info.kind
+          if (info.n != null) node.properties['data-n'] = String(info.n)
           if (info.at) node.properties['data-wb-at'] = info.at
+          // a file's headers read as its name, a hunk's as where it starts
+          if (info.label != null) node.children = [{ type: 'text', value: info.label }]
+        },
+        // the headers nobody reads go, with the line break after each
+        code(node) {
+          node.children = node.children.filter((child, i, all) => {
+            const isMeta = (c: typeof child | undefined) => c?.type === 'element' && c.properties['data-diff'] === 'meta'
+            return !isMeta(child) && !(child.type === 'text' && isMeta(all[i - 1]))
+          })
         },
       }] : [],
     })

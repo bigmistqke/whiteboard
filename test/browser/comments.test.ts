@@ -89,7 +89,9 @@ test('comments on lines of a diff: tinted lines, a drag over two, and where they
   await page.goto(proj.url('q'))
   await page.waitForSelector('pre .line[data-diff]')
   assert.deepEqual(await page.$$eval('pre .line', ls => ls.map(l => (l as HTMLElement).dataset.diff)),
-    ['meta', 'meta', 'meta', 'hunk', 'context', 'del', 'add', 'add', 'context'])
+    ['file', 'hunk', 'context', 'del', 'add', 'add', 'context'])
+  // the headers read as the file's name and where the hunk starts
+  assert.deepEqual(await page.$$eval('pre .line[data-diff=file], pre .line[data-diff=hunk]', ls => ls.map(l => l.textContent)), ['src/a.ts', 'line 1'])
 
   // hover "const b = 3", press its "+", drag down to "const c = 4"
   const line = (text: string) => page.locator('pre .line', { hasText: text })
