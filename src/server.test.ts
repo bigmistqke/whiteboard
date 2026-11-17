@@ -18,9 +18,10 @@ const PAGE = `# Plan
 `
 
 /** A project with the page `q`, its server, and its base URL. Torn down after the tests. */
-async function serve(): Promise<{ base: string; dir: string; server: WhiteboardServer }> {
+async function serve(files: Record<string, string> = {}): Promise<{ base: string; dir: string; server: WhiteboardServer }> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-server-'))
   fs.mkdirSync(path.join(dir, '.whiteboard', 'pages'), { recursive: true })
+  for (const [file, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, '.whiteboard', file), text)
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'q.md'), PAGE)
   fs.mkdirSync(path.join(dir, '.whiteboard', 'pages', 'notes'))
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'notes', 'a.md'), '# A\n')
@@ -113,4 +114,24 @@ test('close ends the live connections', async () => {
   await new Promise(r => setTimeout(r, 100))
   server.close()
   assert.equal(await watch.done, 'ended')
+})
+
+test('a served file opens up its folder only for browser assets, never the token or the log', async () => {
+  // a local plugin whose browser module sits in .whiteboard/, next to the project's own files
+  const { base } = await serve({
+    'config.ts': "export default { plugins: [{ name: 'probe', setup: () => ({ client: new URL('./probe.client.js', import.meta.url) }) }] }\n",
+    'probe.client.js': "import './helper.js'\nexport default () => {}\n",
+    'helper.js': 'export const x = 1\n',
+    'token': 'secret\n',
+    'events.ndjson': '',
+  })
+  // the page's first render asks the server to serve the plugin's module
+  const page = await (await fetch(`${base}/q`)).text()
+  const client = /"client":"([^"]*probe\.client\.js)"/.exec(page)?.[1]
+  assert.ok(client, 'the page names the plugin\'s module')
+  // beside it, as the server names files (the temporary folder may sit behind a symlink)
+  const at = (file: string) => `${base}${client.replace(/probe\.client\.js$/, encodeURIComponent(file))}`
+  assert.equal((await fetch(`${base}${client}`)).status, 200, 'the module')
+  assert.equal((await fetch(at('helper.js'))).status, 200, 'a module beside it, which it imports')
+  for (const file of ['token', 'events.ndjson', 'config.ts']) assert.equal((await fetch(at(file))).status, 404, file)
 })

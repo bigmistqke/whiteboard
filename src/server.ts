@@ -141,11 +141,15 @@ export function createServer(project: Project): WhiteboardServer {
   }
 
   // ---- assets: files a renderer asks to serve ----------------------------------------------------
-  // Served at /_/file/<absolute path>, only once asked for, and only files in the folders of files
-  // asked for (a client module may import its neighbours). Those folders are watched from then on.
+  // Served at /_/file/<absolute path>, only once asked for. Beside a file asked for, its neighbours
+  // too, since a client module may import them, but only browser assets (scripts, styles, images,
+  // fonts): a plugin's module in .whiteboard/ must not open up the project's token, log or config.
+  // Those folders are watched from then on.
 
   const assets = new Set<string>()
   const assetDirs = new Set<string>()
+  const BROWSER_ASSET = /\.(m?js|css|map|svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|wasm)$/i
+  const servable = (file: string) => assets.has(file) || (assetDirs.has(path.dirname(file)) && BROWSER_ASSET.test(file))
 
   function asset(ref: string | URL): string {
     const file = toPath(ref)
@@ -566,7 +570,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       }
       if (p.startsWith('/_/file/')) {
         const file = path.resolve(p.slice('/_/file'.length))
-        if (!assetDirs.has(path.dirname(file)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
+        if (!servable(file) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
         return sendFile(res, file)
       }
       if (p === '/api/health') return sendJson(res, 200, { ok: true, dir: project.dir, pid: process.pid })
