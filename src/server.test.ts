@@ -1,0 +1,116 @@
+// A project's server, in-process: a throwaway project, createServer, and requests through a plain
+// HTTP server on a free port.
+import { after, test } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import http from 'node:http'
+import os from 'node:os'
+import path from 'node:path'
+import type { AddressInfo } from 'node:net'
+import { project as projectAt } from './config.ts'
+import { createServer, type WhiteboardServer } from './server.ts'
+
+const PAGE = `# Plan
+
+:::form{name=pick}
+:radio[A]{name=x} :radio[B]{name=x}
+:::
+`
+
+/** A project with the page `q`, its server, and its base URL. Torn down after the tests. */
+async function serve(): Promise<{ base: string; dir: string; server: WhiteboardServer }> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-server-'))
+  fs.mkdirSync(path.join(dir, '.whiteboard', 'pages'), { recursive: true })
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'q.md'), PAGE)
+  fs.mkdirSync(path.join(dir, '.whiteboard', 'pages', 'notes'))
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'notes', 'a.md'), '# A\n')
+  const server = createServer(projectAt(dir)!)
+  const http_ = http.createServer((req, res) => { void server.handle(req, res) })
+  await new Promise<void>(r => http_.listen(0, '127.0.0.1', r))
+  after(() => { server.close(); http_.closeAllConnections(); http_.close(); fs.rmSync(dir, { recursive: true, force: true }) })
+  return { base: `http://127.0.0.1:${(http_.address() as AddressInfo).port}`, dir, server }
+}
+
+const until = async <T>(what: string, check: () => T | Promise<T>, timeout = 3000): Promise<NonNullable<T>> => {
+  const end = Date.now() + timeout
+  for (;;) {
+    const v = await check()
+    if (v) return v
+    if (Date.now() > end) throw new Error(`timed out waiting for: ${what}`)
+    await new Promise(r => setTimeout(r, 25))
+  }
+}
+
+/** Open a server-sent event stream and collect the names of its events. */
+function stream(url: string) {
+  const controller = new AbortController()
+  const seen: string[] = []
+  const done = fetch(url, { signal: controller.signal }).then(async res => {
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) return 'ended'
+      for (const m of decoder.decode(value).matchAll(/^event: (\w+)$/gm)) seen.push(m[1]!)
+    }
+  }).catch(() => 'aborted')
+  return { seen, done, stop: () => controller.abort() }
+}
+
+const { base, dir, server } = await serve()
+
+test('health names the project', async () => {
+  const health = await (await fetch(`${base}/api/health`)).json()
+  assert.equal(health.dir, dir)
+})
+
+test('a page renders with its renderer, and a missing one is a 404', async () => {
+  const page = await fetch(`${base}/q`)
+  assert.equal(page.status, 200)
+  assert.match(await page.text(), /<form name="pick"/)
+  assert.equal((await fetch(`${base}/nope`)).status, 404)
+})
+
+test('a folder of pages is served with its slash', async () => {
+  const res = await fetch(`${base}/notes`, { redirect: 'manual' })
+  assert.equal(res.status, 302)
+  assert.equal(res.headers.get('location'), '/notes/')
+})
+
+test('events go into the log and come back filtered, picked ones marked', async () => {
+  const posted = await (await fetch(`${base}/api/events`, { method: 'POST', body: JSON.stringify({ page: 'q', type: 'note', data: { a: 1 } }) })).json()
+  assert.equal(posted.type, 'note')
+  const listed = await (await fetch(`${base}/api/events?page=q&type=note`)).json()
+  assert.deepEqual(listed.map((e: { id: string }) => e.id), [posted.id])
+  assert.equal(listed[0].pickedUp, undefined)
+})
+
+test('status follows listeners: unheard, waiting while a wait runs, unheard again', async () => {
+  const state = async () => (await server.status('q'))[0]!.questions.find(q => q.name === 'pick')!.state
+  assert.equal(await state(), 'unheard')
+  const watch = stream(`${base}/api/watch?page=q`)
+  const listen = stream(`${base}/api/listen?page=q&type=pick&command=wait`)
+  await until('waiting', async () => (await state()) === 'waiting')
+  assert.deepEqual((await server.status('q'))[0]!.listeners, [{ page: 'q', type: 'pick', command: 'wait' }])
+  // an open page is told that someone listens
+  await until('the page heard of the listener', () => watch.seen.includes('listeners'))
+  listen.stop()
+  await until('unheard again', async () => (await state()) === 'unheard')
+  watch.stop()
+})
+
+test('a changed page file tells the open page', async () => {
+  const watch = stream(`${base}/api/watch?page=q`)
+  await new Promise(r => setTimeout(r, 100))
+  fs.appendFileSync(path.join(dir, '.whiteboard', 'pages', 'q.md'), '\nMore.\n')
+  await until('change', () => watch.seen.includes('change'))
+  watch.stop()
+})
+
+test('close ends the live connections', async () => {
+  const { base, server } = await serve()
+  const watch = stream(`${base}/api/watch?page=q`)
+  await new Promise(r => setTimeout(r, 100))
+  server.close()
+  assert.equal(await watch.done, 'ended')
+})

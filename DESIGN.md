@@ -286,6 +286,14 @@ the same moment: the one that creates `server.lock` starts it and the others
 wait for it, and a server that finds another of its project already up
 exits.
 
+The server itself is a request handler you create for a project
+(`createServer(project)` in `src/server.ts`): nothing happens on import,
+and its state (listeners, open pages, watchers) lives in it, so tests make
+one for a throwaway project and send it requests (`src/server.test.ts`).
+Listening on a port, `server.json` and the lock are `src/serve.ts`, and
+finding a project's running server is `src/running.ts`, shared with the
+command line.
+
 ### Listeners
 
 While `whiteboard wait` or `watch` runs, it holds a connection to the

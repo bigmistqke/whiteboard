@@ -12,6 +12,7 @@ import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/renderer
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { packagePath } from '../src/package.ts'
+import { runningServer } from '../src/running.ts'
 import { statusLines, whose } from '../src/status.ts'
 import type { PageStatus, WbEvent } from '../src/define.ts'
 
@@ -75,16 +76,7 @@ Run \`whiteboard init\` in the folder that should become one.`)
 const filter = (): EventFilter => ({ page: opts.page ? pageId(needProject(), opts.page) : undefined, type: opts.type })
 
 /** The running server of this project: its base URL, or null. */
-async function running(proj: Project): Promise<string | null> {
-  let port
-  try { port = JSON.parse(fs.readFileSync(proj.serverFile, 'utf8')).port } catch { return null }
-  const base = `http://localhost:${port}`
-  try {
-    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(800) })
-    // the port may since have been taken by another project's server
-    return res.ok && (await res.json()).dir === proj.dir ? base : null
-  } catch { return null }
-}
+const running = (proj: Project) => runningServer(proj)
 
 /** This project's server, started in the background when it is not running. @returns its base URL */
 async function ensureServer(): Promise<string> {
@@ -233,8 +225,8 @@ switch (cmd) {
     const proj = needProject()
     const base = await running(proj)
     if (base) { console.error(`whiteboard: ${proj.name} is already served at ${base}`); process.exit(1) }
-    const { start } = await import('../src/server.ts')
-    await start()
+    const { start } = await import('../src/serve.ts')
+    await start(proj)
     break
   }
   case 'init': {
