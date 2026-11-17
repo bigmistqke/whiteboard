@@ -47,7 +47,8 @@ Write for a reader who comes back later:
 - Update your page rather than starting a new one for the same topic; changed
   blocks are highlighted for the user, unchanged ones stay quiet.
 - Put the things you need from the user in forms, one form per decision, each
-  with a distinct name. A form is markdown with its inputs inline (see the
+  with a distinct name (no colon: those are reserved for event types like
+  `form:thread`). A form is markdown with its inputs inline (see the
   form template's docs). When the options need explaining, explain them in
   the form, each option with its meaning right under it, not in a section
   above it: the user decides where they read. Keep `:::details` for real
@@ -57,6 +58,9 @@ Write for a reader who comes back later:
   there, and never read a thread message, or a note sent along with a
   submit, as a choice. Don't add a notes field to a decision form for
   questions; the thread is for that.
+- When a question changes, rework it inside its form and keep the form's
+  name. The thread belongs to the form by name: replace or rename the form
+  and its thread moves to the end of the page, away from the question.
 - Don't number headings yourself (`### 1. Naming`): the markboard renderer
   numbers section headings already, so yours would show twice. Refer to a
   section by its name.
@@ -188,7 +192,10 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   monitor), and restart it when that expires.
 - `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
-  answer.
+  answer. With `--follow` it then prints each new event as it comes, without
+  picking anything up; `whiteboard pick <event id>` marks one picked up
+  yourself. Use these only for something `wait` doesn't do, such as picking
+  an answer up after you acted on it.
 
 While `wait` or `watch` runs, the page shows the user what you are waiting
 for: the forms it covers are marked "waiting for you", a button jumps from
@@ -207,8 +214,9 @@ that no agent is listening. So:
 
 ### Status and hooks
 
-`whiteboard status` lists, per page, the questions without an answer, the
-answers no agent picked up, and who is listening, with the `wait` command
+`whiteboard status` lists, per page, the questions waiting for the user (no
+answer yet, or a wait asks for a new one), the answers no agent picked up,
+and who is listening, with the `wait` command
 that picks them up. Pages are claimed by the session that ran
 `whiteboard new` for them, and `status` marks yours. Run it when you resume
 work, or when you're unsure what is still open.
@@ -226,8 +234,8 @@ its config, and `whiteboard claude-code install`. None of them ever blocks:
 So when a message arrives with answers from the hook, act on them as on
 answers from a wait, and start a wait when it says nobody listens.
 
-The user can also select text on a page and comment on it: a `watch` on the
-page hands you those as `comments:new` events. `whiteboard docs` says how to reply
+The user can also select text on a page and comment on it: a `wait` or
+`watch` on the whole page hands you those as `comments:new` events. `whiteboard docs` says how to reply
 (by editing the page, or in the thread with `whiteboard append`).
 
 After acting on an answer, update the page to say what you did with it.

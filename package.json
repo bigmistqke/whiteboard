@@ -78,7 +78,8 @@
     "terminal",
     "claude-code",
     "comments",
-    "skills"
+    "skills",
+    "!**/*.test.ts"
   ],
   "scripts": {
     "build": "node build.ts",

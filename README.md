@@ -19,7 +19,7 @@ In the repository you work in:
 
 ```sh
 npm i -D @bigmistqke/whiteboard
-npx whiteboard init                # creates .whiteboard/ with a config and a pages folder
+npx whiteboard init                # creates .whiteboard/ with a pages folder
 ```
 
 Then give your agent the skill that tells it how to use the whiteboard
@@ -92,7 +92,9 @@ whiteboard keeps is there; nothing is written outside the project.
 .whiteboard/
   config.ts       optional: what differs from the defaults (renderers, plugins, options)
   pages/          the pages: pages/plan.md is served at /plan
-  events.ndjson   every form submit, one JSON object per line, and which ones an agent picked up
+  events.ndjson   the events, one JSON object per line: form submits, comments, replies,
+                  and which ones an agent picked up
+  token           the secret for what runs code (the terminal)
   server.json     the port and process of the running server
   server.log      that server's output
 ```
@@ -124,8 +126,11 @@ A form with a `name` and no `action` attribute is recorded when submitted:
 ```
 
 `type` is the form's name, `action` is the button that was pressed and
-`data` holds the fields. The log is an event stream: a template can append
-events of other types too, through `api.append(type, data)`. The
+`data` holds the fields. The log is an event stream: a template or a plugin
+can append events of other types too, through `api.append(type, data)`.
+Those types are named after their owner, `<owner>:<what>` (`form:thread`,
+`comments:reply`, whiteboard's own `whiteboard:picked`), so a form's name
+can't contain a colon and its answers never mix with them. The
 `form` template (in `markboard()`) writes them as markdown with inputs inline
 (`:::form{name=ship}` … `:radio[this week]{name=when}` … `:::`); a
 hand-written `<form name="…">` works without it.
@@ -143,6 +148,19 @@ answer out is itself an event in the log (`whiteboard:picked`), and when a
 wait starts it first returns the answers nobody picked up yet, including
 ones given before it started, whatever filter handed out the others. So an
 agent can ask, do other work, and wait later.
+
+`wait` is built from smaller pieces that are commands too, for a script that
+wants to use the log its own way (pick an answer up only once it has acted
+on it, say):
+
+```sh
+whiteboard events --follow --page plan      # every new event as it comes, marking nothing
+whiteboard pick <event id>                  # record one as picked up, as wait does
+whiteboard append --page plan --type <t>    # write one
+```
+
+The same pieces are a module, `@bigmistqke/whiteboard/log`: `read`,
+`follow`, `appendEvent`, `pick`, and `handOut`, which is `wait` itself.
 
 ## A terminal on every page
 
@@ -279,7 +297,6 @@ A page without a renderer shows as its raw text, live.
 Named forms need nothing in the config: the core sends a submit of any
 `<form name>` as an event, on a page of any renderer. `comments()` lets you
 select any passage and comment on it; the agent replies in the thread.
-`whiteboard init` adds it.
 
 A plugin (`definePlugin` from `@bigmistqke/whiteboard/config`)
 declares what it adds, and everything lives under its name, so two
@@ -290,7 +307,9 @@ plugins can't collide:
   (`auth`), and the types of its body and query fields. The core checks all
   of that before the route's code runs.
 - `commands` are `whiteboard <name>` and `whiteboard <name> <sub>`, with
-  declared options that the core parses and checks.
+  declared options that the core parses and checks. A command gets the
+  project, its token and server, what is open on each page (`ctx.status`),
+  and handing out (`ctx.handOut`, what `wait` does).
 - `shell` adds markup at the end of every page's `<head>` and `<body>`.
 - `docs` is markdown that `whiteboard docs` prints after the renderers':
   what the plugin sends to the log, and how an agent answers it.
@@ -301,7 +320,7 @@ plugins can't collide:
 - Its files go in `.whiteboard/<name>/`, which git ignores and which reloads
   nothing when it changes.
 
-`whiteboard help` lists the commands and `whiteboard docs` the routes. An
+`whiteboard help` lists the commands and `whiteboard docs` the routes. A
 plugin can't be named like a built-in command or a folder of the core.
 Something that covers the bottom of the window says how much in
 `--wb-inset-bottom`, and markboard keeps clear of it.
