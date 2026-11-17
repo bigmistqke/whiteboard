@@ -387,8 +387,9 @@ templates.
    earlier one (`replaces`), since the log only grows.
 7. Shows what waits on whom, from the core's form states: a form waiting
    for the reader is outlined and says so, one nobody listens for says
-   that, a decided one folds into one line quoting its answer (a click
-   opens it again to change it). A line above the page counts the four
+   that, a decided one folds into one line quoting its answer, with its
+   thread still open under it (a click on the line opens the form again to
+   change it). A line above the page counts the four
    states and jumps through each, a button in the page's corner jumps from
    one waiting form to the next, the tab title gets a `(!n)` badge, and the
    overview marks the pages an agent waits on.

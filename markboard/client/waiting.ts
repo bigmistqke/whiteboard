@@ -90,10 +90,12 @@ export function trackWaiting(root: HTMLElement, core: Api) {
     const state = (e.target as HTMLElement).closest<HTMLElement>('button[data-state]')?.dataset.state as FormState | undefined
     if (state) jump(state)
   })
-  // a folded form opens again on a click, to change the answer
+  // a folded form opens again on a click, to change the answer; not on one in its thread, which
+  // stays open under it
   main.addEventListener('click', e => {
-    const form = (e.target as HTMLElement).closest<HTMLFormElement>('form[data-wb-folded]')
-    if (!form) return
+    const target = e.target as HTMLElement
+    const form = target.closest<HTMLFormElement>('form[data-wb-folded]')
+    if (!form || target.closest('[data-template=form-thread]')) return
     e.preventDefault()
     const name = form.getAttribute('name')!
     const last = api.last(name)

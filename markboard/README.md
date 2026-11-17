@@ -82,7 +82,7 @@ listening right now (a running `whiteboard wait` or `watch`):
 | **waiting for you** | an agent is listening and wants this answer |
 | **nobody listening** | no answer yet, and no agent would hear one now |
 | **waiting for the agent** | answered, but no agent has picked the answer up yet |
-| **decided** | an agent picked up the latest answer: the form folds into one line quoting it; a click opens it again to change it |
+| **decided** | an agent picked up the latest answer: the form folds into one line quoting it, with its thread still under it; a click on the line opens it again to change it |
 
 A line above the page counts the states and jumps through each, a button
 jumps from one form waiting for you to the next, and the tab title gets a
