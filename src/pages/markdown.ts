@@ -13,9 +13,9 @@ import remarkDirective from 'remark-directive'
 import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import { toString } from 'mdast-util-to-string'
-import { html, raw, type Html } from '../src/html.ts'
-import { isQuestionName } from '../src/status.ts'
-import type { ResolvedTemplate } from './templates.ts'
+import { html, raw, type Html } from '../html.ts'
+import { isQuestionName } from '../status.ts'
+import type { ResolvedTemplate } from './blocks.ts'
 
 /**
  * An mdast node, loosely: the pipeline hands nodes between remark, the directive plugin and

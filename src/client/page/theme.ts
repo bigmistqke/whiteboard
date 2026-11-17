@@ -1,5 +1,5 @@
-// markboard's light and dark theme: the reader's choice (kept in localStorage), else the system's.
-import type { Theme } from '../types'
+// The page's light and dark theme: the reader's choice (kept in localStorage), else the system's.
+import type { Theme } from '../../define.ts'
 
 export type ThemePreference = Theme | 'auto'
 

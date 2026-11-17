@@ -7,7 +7,7 @@
 // stands, which the page shows). The chat under the form is the chat plugin's.
 import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
-import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard/template'
+import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { chatThread } from '../chat/index.ts'
 import { isQuestionName } from '../../src/status.ts'
 

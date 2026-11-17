@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Static template: no component, so no JavaScript on the page.
-import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard/template'
+import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
 
 const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 

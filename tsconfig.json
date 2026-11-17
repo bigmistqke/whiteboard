@@ -27,7 +27,6 @@
     "src/**/*",
     "bin/**/*",
     "build.ts",
-    "markboard/**/*",
     "solid/**/*",
     "test/**/*",
     "plugins/**/*"

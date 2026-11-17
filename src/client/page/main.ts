@@ -1,15 +1,15 @@
-// markboard in the browser: mounts template islands, patches the page in place when it changes, and
+// The page in the browser: mounts blocks' islands, patches the page in place when it changes, and
 // shows what an agent waits for on the page's named forms (the core sends them and marks their
 // state). Comments are a plugin of their own. Framework-free: an island's client module exports
 // mount(element, props, api) (see types.ts).
 import morphdom from 'morphdom'
-import type { Api, PageHandle, RendererMount } from '../../src/define'
-import type { ClientApi, Mount } from '../types'
+import type { Api, PageHandle, PluginMount } from '../../define.ts'
+import type { ClientApi, Mount } from '../../define.ts'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { trackWaiting } from './waiting'
 import { trackOrphanThreads } from './orphans'
-import { html } from '../../src/html.ts'
+import { html } from '../../html.ts'
 
 interface Island { template: string; client: string; props: unknown }
 interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }
@@ -144,7 +144,7 @@ function morph(html: string) {
       }
       // <details> open state was set on the new tree by detailsKeys(), matched by identity, not position
       // what a plugin marked on an element (`data-wb-*`) stays, unless the new render sets it;
-      // data-wb-mounted is markboard's own, and a replaced island must mount afresh
+      // data-wb-mounted is the page's own, and a replaced island must mount afresh
       for (const { name, value } of [...from.attributes])
         if (name.startsWith('data-wb-') && name !== 'data-wb-mounted' && !to.hasAttribute(name)) to.setAttribute(name, value)
       for (const c of KEEP_CLASSES) if (from.classList.contains(c)) to.classList.add(c)
@@ -216,7 +216,7 @@ async function refresh() {
 let currentPage: PageHandle
 let core: Api
 
-const mount: RendererMount = async (root: HTMLElement, handle: PageHandle, coreApi: Api) => {
+const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi: Api) => {
   currentPage = handle
   core = coreApi
   page = handle.id

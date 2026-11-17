@@ -14,16 +14,19 @@ const page = await whiteboard.show('plan')
 ```
 
 A missing or unknown language renders as plain text. Fences named after
-another template, such as `mermaid`, still go to that template.
+another block, such as `mermaid`, still go to that block.
 
-In a config, pass options through `markboard()`:
+It's a built-in plugin. For options, replace it in the config with your own
+`code(…)`:
 
 ```ts
-markboard({
-  code: {
+import code from '@bigmistqke/whiteboard/code'
+
+export default defineConfig({
+  plugins: [code({
     themes: { light: 'github-light', dark: 'github-dark' },          // any Shiki theme names
     colorReplacements: { 'github-light': { '#e36209': '#0f766e' } }, // per theme
-  },
+  })],
 })
 ```
 

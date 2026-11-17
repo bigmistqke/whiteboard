@@ -1,9 +1,9 @@
 // Chats no longer on the page. A chat is found by its name: a form's chat by the form's, a chat
 // block by its own. So when the writer removes or renames one, what the reader and the agent said in
-// it would vanish from the page without a trace. markboard lists those chats after the page's
+// it would vanish from the page without a trace. The page lists those chats after its
 // content instead, read-only: the agent can still answer in one (`whiteboard append --type chat:message`).
-import type { Api, WbEvent } from '../../src/define'
-import { html } from '../../src/html.ts'
+import type { Api, WbEvent } from '../../define.ts'
+import { html } from '../../html.ts'
 
 /** A message in a chat: the chat template's event. */
 const isMessage = (e: WbEvent) => e.type === 'chat:message' && typeof e.data.chat === 'string'

@@ -6,7 +6,7 @@
 // a form's chat is talk about the question, never a choice.
 import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
-import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard/template'
+import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { builtFile } from '../../src/package.ts'
 import { isQuestionName } from '../../src/status.ts'
 

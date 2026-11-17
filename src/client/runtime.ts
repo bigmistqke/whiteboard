@@ -1,12 +1,14 @@
-// The core in the browser: the page's events, the live channel, and handing the page to its
-// renderer. Framework-free, and it draws nothing: the renderer's client gets the root element and
-// does the rest. A page without a renderer client shows the server's HTML, replaced when it changes.
-import type { Api, PluginMount, Listener, PageHandle, RenderedPage, RendererMount, StoredPage, WbEvent } from '../define'
+// The core in the browser: the page's events, the live channel, and handing the page to the page
+// module (./page: markdown live, the blocks' islands) and the plugins' modules. When the config failed
+// to load, the page is its raw text: the server's HTML, replaced when it changes.
+import type { Api, PluginMount, Listener, PageHandle, RenderedPage, StoredPage, WbEvent } from '../define'
 import { html } from '../html.ts'
 import { formsApi, trackForms } from './forms'
 
 interface Handoff {
-  id: string; kind: StoredPage['kind']; renderer: string | null; client: string | null; data: unknown
+  id: string; kind: StoredPage['kind']; data: unknown
+  /** the page module; null for raw text */
+  client: string | null
   /** the plugins' browser modules */
   plugins: { name: string; client: string }[]
 }
@@ -105,7 +107,7 @@ const handle: PageHandle = {
   stored: () => getJson<StoredPage>(`/api/page?page=${encodeURIComponent(page)}`),
 }
 
-// without a renderer client, the server's HTML is the page: replace it when the page changes
+// raw text: the server's HTML is the page, replaced when the page changes
 if (!handoff.client) handle.onChange(async () => { root.innerHTML = (await handle.render()).html; api.rendered() })
 
 // ---- live channel ------------------------------------------------------------------------------
@@ -122,7 +124,7 @@ function connect() {
   es.addEventListener('change', () => { for (const fn of changeListeners) fn() })
   es.addEventListener('events', () => loadEvents())
   es.addEventListener('listeners', () => loadListeners())
-  // browser code changed; renderers keep what matters across a reload themselves. Reload only once
+  // browser code changed; the page keeps what matters across a reload itself. Reload only once
   // the server answers: reloading while it restarts would leave the browser's error page, which
   // has nothing left in it to recover with.
   es.addEventListener('reload', () => {
@@ -145,17 +147,16 @@ function connect() {
 await Promise.all([loadEvents(), loadListeners()])
 if (handoff.client) {
   try {
-    const mount: RendererMount = (await import(handoff.client)).default
-    if (typeof mount !== 'function') throw new Error('the client module must export a mount(root, page, api) function as default')
+    const mount: PluginMount = (await import(handoff.client)).default
     await mount(root, handle, api)
   } catch (err) {
-    console.error(`renderer ${handoff.renderer}:`, err)
-    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">renderer "${handoff.renderer}" failed to start: ${(err as Error).message}</pre>`))
+    console.error('page:', err)
+    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">the page failed to start: ${(err as Error).message}</pre>`))
   }
 }
-// named forms, once the renderer has put them on the page
+// named forms, once the page is on the page
 trackForms(root, page, api)
-// the plugins after the renderer, so that what they work on is on the page; one failing leaves the others
+// the plugins' modules after the page, so that what they work on is there; one failing leaves the others
 await Promise.all((handoff.plugins ?? []).map(async ext => {
   try {
     const mount: PluginMount = (await import(ext.client)).default

@@ -3,8 +3,8 @@
 //   dist/client/runtime.js         the core in the browser: events, live channel, hand-over to the page
 //   dist/define.js                 the package's entry: defineConfig, definePlugin
 //   dist/bin/, dist/src/           the engine: the command line and the server, module for module
-//   dist/markboard/…               the markdown engine, module for module
-//   dist/markboard/client/main.js  the page in the browser, one module (morphdom included)
+//   dist/src/client/page/main.js   the page in the browser, one module (morphdom included), and
+//                                  its base.css
 //   dist/plugins/<name>/…          each plugin, module for module, with its styles and readme; its
 //                                  browser code as one module (Solid included for a client.tsx)
 //   dist/plugins/terminal/         also the terminal's host, and its style.css with xterm's styles
@@ -60,17 +60,15 @@ const builds: BuildOptions[] = [
   })),
   // the page in the browser
   {
-    input: at('markboard/client/main.ts'),
+    input: at('src/client/page/main.ts'),
     platform: 'browser',
-    output: { file: path.join(DIST, 'markboard/client/main.js'), format: 'esm' },
+    output: { file: path.join(DIST, 'src/client/page/main.js'), format: 'esm' },
   },
   // what configs and template packages import on the server, module for module so that
   // new URL('./style.css', import.meta.url) still points next to the module
   {
     input: {
       define: at('src/define.ts'),
-      'markboard/index': at('markboard/index.ts'),
-      'markboard/types': at('markboard/types.ts'),
       // the engine, and the plugins that ship with it; the terminal's host is started by its path
       'bin/whiteboard': at('bin/whiteboard.ts'),
       'plugins/index': at('plugins/index.ts'),
@@ -111,7 +109,7 @@ function copyAssets() {
       fs.copyFileSync(at(from, f), path.join(DIST, to, f))
     }
   }
-  copyDir('markboard/client', 'markboard/client')
+  copyDir('src/client/page', 'src/client/page')
   for (const name of pluginDirs) copyDir(`plugins/${name}`, `plugins/${name}`)
   // the drawer's styles after xterm's own
   fs.writeFileSync(path.join(DIST, 'plugins/terminal/style.css'),

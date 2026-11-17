@@ -65,7 +65,7 @@ test('health names the project', async () => {
   assert.equal(health.dir, dir)
 })
 
-test('a page renders with its renderer, and a missing one is a 404', async () => {
+test('a page renders as markdown, and a missing one is a 404', async () => {
   const page = await fetch(`${base}/q`)
   assert.equal(page.status, 200)
   assert.match(await page.text(), /<form name="pick"/)

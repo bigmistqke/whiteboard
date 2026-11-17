@@ -3,7 +3,7 @@
 @view-transition { navigation: auto; }
 
 /* How much of the window the drawer takes at the bottom, for the page to keep clear: its content
-   scrolls to above it, and its own fixed elements sit above it (markboard's buttons at the bottom).
+   scrolls to above it, and its own fixed elements sit above it (the page's buttons at the bottom).
    Registered as a length so that it computes to pixels a script can read. */
 @property --wb-inset-bottom { syntax: '<length>'; inherits: true; initial-value: 0px; }
 

@@ -3,8 +3,8 @@
 // visit (remembered per page in localStorage). New blocks get .wb-new (a left border) until they
 // have been in view for a moment with the tab visible. Floating buttons jump to unseen blocks.
 
-import { html } from '../../src/html.ts'
-import type { Api } from '../../src/define'
+import { html } from '../../html.ts'
+import type { Api } from '../../define.ts'
 import { viewBottom } from './view'
 
 const DWELL_MS = 600

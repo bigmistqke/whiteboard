@@ -1,6 +1,6 @@
 /*
  * Comments: highlights through the CSS Highlight API, badges and threads above the page. Colors
- * and fonts come from the renderer's theme when it has these variables (markboard does), else from
+ * and fonts come from the page's theme variables, else from
  * the fallbacks here.
  */
 ::highlight(wb-comment) { background-color: color-mix(in srgb, var(--accent, #1d5bbf) 18%, transparent); }
@@ -21,7 +21,7 @@
 .wb-thread textarea { width: 100%; resize: vertical; font: inherit; }
 .wb-thread-reply { display: grid; gap: 8px; margin: 0; }
 .wb-thread-actions { display: flex; gap: 8px; }
-/* its own buttons, so they look the same whatever renderer drew the page */
+/* its own buttons, styled here rather than borrowed from the page */
 .wb-comment-button { font: 500 .85rem/1.3 var(--sans, sans-serif); padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border, #e3e5e9); background: var(--surface, Canvas); color: var(--text, CanvasText); }
 .wb-comment-button:hover { border-color: var(--muted, #696e76); }
 .wb-comment-primary { background: var(--accent, #1d5bbf); color: var(--accent-text, #fff); border-color: var(--accent, #1d5bbf); }

@@ -4,7 +4,7 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // the page, and colours come from CSS variables, so diagrams follow the light/dark theme.
 import crypto from 'node:crypto'
 import { render as renderMermaid, PeleError } from 'pele'
-import { html, raw, type FenceContext } from '@bigmistqke/whiteboard/template'
+import { html, raw, type FenceContext } from '@bigmistqke/whiteboard'
 
 const FONT = 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 

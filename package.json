@@ -36,16 +36,6 @@
       "types": "./src/events.ts",
       "default": "./dist/src/events.js"
     },
-    "./template": {
-      "source": "./markboard/types.ts",
-      "types": "./markboard/types.ts",
-      "default": "./dist/markboard/types.js"
-    },
-    "./markboard": {
-      "source": "./markboard/index.ts",
-      "types": "./markboard/index.ts",
-      "default": "./dist/markboard/index.js"
-    },
     "./terminal": {
       "source": "./plugins/terminal/index.ts",
       "types": "./plugins/terminal/index.ts",
@@ -69,13 +59,17 @@
       "source": "./plugins/index.ts",
       "types": "./plugins/index.ts",
       "default": "./dist/plugins/index.js"
+    },
+    "./code": {
+      "source": "./plugins/code/index.ts",
+      "types": "./plugins/code/index.ts",
+      "default": "./dist/plugins/code/index.js"
     }
   },
   "files": [
     "bin",
     "src",
     "dist",
-    "markboard",
     "plugins",
     "solid",
     "skills",

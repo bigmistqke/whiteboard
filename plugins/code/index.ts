@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Syntax highlighting for code blocks, on the server with Shiki: the page gets plain HTML, no script.
 //
-// Part of markboard(); pass options through it: markboard({ code: { themes: { light, dark } } }).
+// Built in; for options, replace it in the config: plugins: [code({ themes: { light, dark } })].
 //
 // Its block takes `fence: 'any'`, so it renders every fence no other block claims by name, and the
 // code view of repository files.
@@ -11,7 +11,7 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // --shiki-dark); style.css picks one per theme, so highlighting follows the theme toggle without
 // re-rendering. The block's background stays the page's own code background.
 import { createHighlighter, bundledLanguages, type BundledTheme, type Highlighter } from 'shiki'
-import type { FenceContext } from '@bigmistqke/whiteboard/template'
+import type { FenceContext } from '@bigmistqke/whiteboard'
 
 export interface Options {
   /** Shiki theme names for each page theme (default: GitHub light and dark) */

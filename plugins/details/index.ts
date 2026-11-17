@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
-import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard/template'
+import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
 
 export async function render(ctx: DirectiveContext) {
   // the label and content are HTML already

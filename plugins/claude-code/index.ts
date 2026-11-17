@@ -2,7 +2,7 @@
 // session, and Claude Code hooks report to it what is open on them. In a config:
 //
 //   import claudeCode from '@bigmistqke/whiteboard/claude-code'
-//   export default defineConfig({ renderers: [markboard()], plugins: [claudeCode()] })
+//   export default defineConfig({ plugins: [claudeCode()] })
 //
 // `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json. Each runs
 // `whiteboard claude-code hook <stop|prompt|session>`, and none of them ever blocks:

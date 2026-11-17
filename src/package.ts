@@ -29,8 +29,8 @@ export const FROM_SOURCE = fileURLToPath(import.meta.url).endsWith('.ts')
 
 /**
  * A browser file built from the module at `moduleUrl`'s folder: `name` in that folder's place in
- * dist/. The same whether the module runs from source (markboard/form/index.ts gives
- * dist/markboard/form/client.js) or from dist/ itself.
+ * dist/. The same whether the module runs from source (plugins/form/index.ts gives
+ * dist/plugins/form/client.js) or from dist/ itself.
  */
 export function builtFile(moduleUrl: string, name: string): string {
   const rel = path.relative(PACKAGE_DIR, path.dirname(fileURLToPath(moduleUrl)))

@@ -1,11 +1,11 @@
-// How markboard shows what an agent waits for. The core marks each named form with where it stands
-// (waiting, unheard, pending, decided; see `api.onForms`); markboard styles those marks (base.css),
+// How the page shows what an agent waits for. The core marks each named form with where it stands
+// (waiting, unheard, pending, decided; see `api.onForms`); the page styles those marks (base.css),
 // folds a decided form into one line quoting its answer, sums the states up in a line above the
 // page, puts a button in the page's corner that jumps from one waiting form to the next, and counts
 // the waiting ones in the tab title.
-import type { Api, FormState, FormStatus } from '../../src/define'
+import type { Api, FormState, FormStatus } from '../../define.ts'
 import { viewBottom } from './view'
-import { STATES } from '../../src/status.ts'
+import { STATES } from '../../status.ts'
 
 const ORDER = STATES
 const LABEL: Record<FormState, (n: number) => string> = {

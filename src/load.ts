@@ -71,9 +71,9 @@ function moduleFormat(file: string): ModuleFormat | undefined {
 let version = 0
 
 /**
- * Import one of the package's own parts (`markboard`) afresh, with everything it imports, the way
+ * Import one of the package's own parts (`plugins`) afresh, with everything it imports, the way
  * `importFresh` does a config: for what the core loads itself on a config's behalf, such as the
- * default renderer, which must reload along with the config.
+ * built-in plugins, which must reload along with the config.
  */
 export function importOwn(part: string): Promise<any> {
   installHooks()

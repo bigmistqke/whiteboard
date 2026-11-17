@@ -8,8 +8,8 @@
 // undefined and false render as nothing, so `${cond && html`…`}` works when `cond` is a boolean (a
 // count of 0 would render as 0: write `count > 0 && …`).
 //
-// Everything that builds HTML uses it: the core's page shell, markboard on the server and in the
-// browser, and templates (`import { html, raw } from '@bigmistqke/whiteboard/template'`).
+// Everything that builds HTML uses it: the core's page shell, the page on the server and in the
+// browser, and plugins (`import { html, raw } from '@bigmistqke/whiteboard'`).
 
 /** A piece of HTML that is not escaped again. `String(piece)` is its markup. */
 export class Html {

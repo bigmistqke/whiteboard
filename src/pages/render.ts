@@ -1,21 +1,21 @@
-// markboard on the server: a stored page → the HTML the reader sees. Markdown goes through remark with
-// directives and fences handed to templates (markdown.ts); repository files show as highlighted
-// code, folders as listings with their README on top; around all of it goes markboard's frame.
-// What markboard draws itself is built with `html` (src/html.js), which escapes every value.
+// A page on the server: a stored page → the HTML the reader sees. Markdown goes through remark with
+// directives and fences handed to the plugins' blocks (markdown.ts); repository files show as highlighted
+// code, folders as listings with their README on top; around all of it goes the page's frame.
+// What the page draws itself is built with `html` (../html.ts), which escapes every value.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
-import { html, raw, type Html } from '../src/html.ts'
-import type { RenderContext, Rendered, StoredPage } from '../src/define.ts'
-import type { ResolvedTemplate, ResolvedTemplates } from './templates.ts'
+import { html, raw, type Html } from '../html.ts'
+import type { RenderContext, Rendered, StoredPage } from '../define.ts'
+import type { ResolvedTemplate, ResolvedTemplates } from './blocks.ts'
 
 type PagesPage = Extract<StoredPage, { kind: 'pages' }>
 type FolderPage = Extract<StoredPage, { kind: 'folder' }>
 interface Content { html: string | Html; title?: string | null; islands: Record<string, Island>; styles: string[] }
 
-const BASE_CSS = new URL('./client/base.css', import.meta.url)
+const BASE_CSS = new URL('../client/page/base.css', import.meta.url)
 
 // before the stylesheets, so the page never flashes the wrong theme. A plain string, not part of an
 // `html` template: the bundler writes `</script` in strings as `<\/script`, which in a tagged
@@ -24,7 +24,7 @@ const THEME_SCRIPT = raw(`<script>try{const t=localStorage.getItem('wb-theme');i
 
 const CODE_LANG: Record<string, string> = { js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'tsx', jsx: 'jsx', json: 'json', css: 'css', html: 'html', sh: 'bash', zsh: 'bash', py: 'python', rs: 'rust', go: 'go', toml: 'toml', yml: 'yaml', yaml: 'yaml' }
 
-/** Frontmatter is the core's (it picks the renderer); the page starts after it. */
+/** Frontmatter is the core's; the page starts after it. */
 const body = (source: string) => source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
 
 /** A page's title: its first heading, else its name. */
@@ -69,7 +69,7 @@ const SKIP = new Set(['node_modules', '.git', '.whiteboard', 'dist', 'build'])
 const MARKDOWN = /\.(md|markdown)$/i
 
 /**
- * Every markdown file in the project, which markboard renders as a page: the top folder's first,
+ * Every markdown file in the project, which renders as a page: the top folder's first,
  * then by path. In a git repository, the files git knows (tracked, or new and not ignored), so
  * built copies and dependencies stay out; elsewhere a walk that skips the usual build and
  * dependency folders. The project's own pages (.whiteboard/) are listed apart.
@@ -154,13 +154,13 @@ export function createRender(templates: () => ResolvedTemplates, style?: URL | s
     try {
       out = await content(page, ctx)
     } catch (err) {
-      // a template set that does not resolve (a bad entry in markboard({ templates }))
+      // blocks that do not resolve (a bad block in a plugin)
       out = { html: html`<pre class="wb-error">${(err as Error).message}</pre>`, islands: {}, styles: [] }
     }
     const islands = Object.fromEntries(Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]))
     const styles = out.styles.map(s => ctx.asset(s))
     const nav = html`<nav class="wb-nav"><span>${crumbs(page.id, ctx.project.name)}</span>${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark">auto</button><span class="wb-live" title="live reload"></span></nav>`
-    // markboard's own, the plugins' (every page), the blocks' on this page, then the project's
+    // the page's own, the plugins' (every page), the blocks' on this page, then the project's
     const links = [ctx.asset(BASE_CSS), ...PLUGIN_STYLES.map(f => ctx.asset(f)), ...styles, ...(STYLE ? [ctx.asset(STYLE)] : [])]
     return {
       title: out.title || page.id || ctx.project.name,

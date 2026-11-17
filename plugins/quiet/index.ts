@@ -4,7 +4,7 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // block as new, and a block that is quiet as a whole is never marked. For what changes without
 // being news to the reader: an echo of their answer, a status line, a timestamp. The mechanism is
 // the data-wb-quiet attribute, which any template or hand-written HTML can use as well.
-import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard/template'
+import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
 
 export async function render(ctx: DirectiveContext) {
   // the label and content are HTML already

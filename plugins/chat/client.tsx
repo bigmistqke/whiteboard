@@ -4,7 +4,7 @@
 import { createMemo, For } from 'solid-js'
 import { solid, useWhiteboard } from '@bigmistqke/whiteboard/solid'
 import type { ChatProps } from './index'
-import type { WbEvent } from '@bigmistqke/whiteboard/template'
+import type { WbEvent } from '@bigmistqke/whiteboard'
 import { autosize } from './autosize'
 
 /** A message in a chat: the chat template's own event type. */

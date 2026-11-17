@@ -6,14 +6,14 @@
 //   /                the overview: the project's pages
 //   /<page>          a page from .whiteboard/pages/<page>.md
 //   /-/<path>        a file of the project, from the repository (unless the config sets files: false)
-//   /_/docs          the documentation of the project's renderers
-//   /_/file/<path>   a file a renderer asked to serve (its client, a stylesheet)
+//   /_/docs          how to write pages here: markdown, and each plugin's docs
+//   /_/file/<path>   a file a plugin asked to serve (its client, a stylesheet)
 //   /_/auth          sets the project's token as a cookie (see auth.ts)
 //   /api/<ext>/…     a plugin's own routes (see Plugin in define.ts)
 //   /api/…           the stored page, its render, events, live changes
 //
-// The core reads pages as they are stored and hands them to a renderer, which decides what they
-// become. It draws nothing itself, except for a page no renderer takes: that shows as its raw
+// The core reads pages as they are stored and renders them as markdown, with the blocks the project's
+// plugins bring (pages.ts). When the config fails to load, a page shows as its raw
 // text.
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import fs from 'node:fs'
@@ -21,7 +21,7 @@ import path from 'node:path'
 import type { Project } from './config.ts'
 import { appendEvent, readEvents, matches, pickedUp, fromReader, CLAIM } from './events.ts'
 import { html, raw, type Html } from './html.ts'
-import { createConfigLoader, pluginDir, toPath, type LoadedConfig, type LoadedRenderer } from './renderers.ts'
+import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth } from './auth.ts'
 import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
@@ -31,6 +31,8 @@ import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, S
 const ENGINE_DIR = PACKAGE_DIR
 // the browser runtime, built by build.ts
 const RUNTIME = path.join(ENGINE_DIR, 'dist', 'client', 'runtime.js')
+// the page in the browser (markdown live: morphing, blocks' islands, forms' marks), built by build.ts
+const PAGE_CLIENT = path.join(ENGINE_DIR, 'dist', 'src', 'client', 'page', 'main.js')
 const MIME: Record<string, string> = {
   '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
@@ -68,7 +70,7 @@ export function createServer(project: Project): WhiteboardServer {
   }
 
   // ---- plugins --------------------------------------------------------------------------------
-  // Behaviour on every page, next to the renderer: each one's setup runs once per loaded config.
+  // Behaviour on every page: each one's setup runs once per loaded config.
 
   /** A plugin once set up: what its setup returned, its mounted routes, or why it failed. */
   interface SetUp extends PluginHooks {
@@ -124,7 +126,7 @@ export function createServer(project: Project): WhiteboardServer {
         return null
       }
     }))
-    // their browser modules, which the runtime imports after the renderer's
+    // their browser modules, which the runtime imports after the page's
     const clients = hooks.filter(h => h.client && !h.error).map(h => ({ name: h.name, client: asset(h.client!) }))
     return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), clients, notices }
   }
@@ -142,7 +144,7 @@ export function createServer(project: Project): WhiteboardServer {
     return c
   }
 
-  // ---- assets: files a renderer asks to serve ----------------------------------------------------
+  // ---- assets: files a plugin asks to serve -------------------------------------------------------
   // Served at /_/file/<absolute path>, only once asked for. Beside a file asked for, its neighbours
   // too, since a client module may import them, but only browser assets (scripts, styles, images,
   // fonts): a plugin's module in .whiteboard/ must not open up the project's token, log or config.
@@ -285,18 +287,7 @@ export function createServer(project: Project): WhiteboardServer {
 
   // ---- rendering ---------------------------------------------------------------------------------
 
-  /** The renderer for a page: the one its frontmatter names, else the config's first. */
-  function pick(page: StoredPage, renderers: LoadedRenderer[], notices: string[]): LoadedRenderer | null {
-    const wanted = page.kind === 'page' ? page.frontmatter.renderer : undefined
-    if (wanted) {
-      const r = renderers.find(x => x.name === wanted)
-      if (r) return r
-      notices.push(`this page asks for the renderer "${wanted}", which the config does not list`)
-    }
-    return renderers[0] ?? null
-  }
-
-  /** No renderer: the page as stored, as text. */
+  /** A config that failed to load: the page as stored, as text, under the error. */
   function rawRender(page: StoredPage): Rendered {
     const list = (items: [string, string][]) => html`<ul>${items.map(([href, text]) => html`<li><a href="${href}">${text}</a></li>`)}</ul>`
     if (page.kind === 'pages') return { html: list(page.pages.map(p => [`/${p.id}`, p.id])) }
@@ -308,39 +299,39 @@ export function createServer(project: Project): WhiteboardServer {
 
   const context = () => ({ project: { name: project.name, dir: project.dir, files: !!FILES }, asset, urlFor })
 
-  /** Render a stored page: its renderer, its render, and anything the reader should be told. */
-  /** A render as the shell takes it: its HTML a string by now. */
+  /** A render as the shell takes it. `page`: whether the page's browser part runs (not on raw text). */
   interface Render {
-    renderer: LoadedRenderer | null
+    page: boolean
     out: Rendered
     notices: string[]
   }
 
+  /** Render a stored page as markdown, with the plugins' blocks, and anything the reader should be told. */
   async function render(page: StoredPage): Promise<Render> {
-    const { renderers, errors } = await config()
+    const { pages, errors } = await config()
     const notices = errors.map(e => `config: ${(e as Error).message}`)
-    const renderer = pick(page, renderers, notices)
     let out: Rendered
+    let rendered = !!pages
     try {
-      out = renderer?.render ? await renderer.render(page, context()) : renderer ? { html: '' } : rawRender(page)
+      out = pages ? await pages.render(page, context()) : rawRender(page)
     } catch (err) {
-      console.error(`renderer ${renderer!.name}:`, err)
-      notices.push(`renderer "${renderer!.name}" failed: ${(err as Error).message}`)
+      console.error('render:', err)
+      notices.push(`the page failed to render: ${(err as Error).message}`)
       out = rawRender(page)
+      rendered = false
     }
-    // a renderer may return HTML built with `html`: from here on it is a string, for the shell and
-    // for /api/render's JSON alike
+    // HTML built with `html`: from here on it is a string, for the shell and for /api/render's JSON alike
     const strings = { ...out, html: String(out.html ?? ''), ...(out.head != null ? { head: String(out.head) } : {}) }
-    return { renderer, out: strings, notices }
+    return { page: rendered, out: strings, notices }
   }
 
   /**
    * Per page: the questions it asks that have no answer yet, the reader's events no wait or watch
    * picked up, who is listening, and the session that claimed it. What `whiteboard status` and the
-   * hooks report. The questions come from each page's renderer (`expects`).
+   * hooks report. The questions are a page's named forms.
    */
   async function status(only: string | null): Promise<PageStatus[]> {
-    const { renderers } = await config()
+    const { pages } = await config()
     const all = readEvents(project.eventsFile)
     const picked = pickedUp(all)
     const owner = new Map<string, string | null>()
@@ -349,9 +340,8 @@ export function createServer(project: Project): WhiteboardServer {
     for (const p of pagesIn(project.pagesDir)) {
       if (only && p.id !== only && !p.id.startsWith(only + '/')) continue
       const page = pageSource(p.id, p.file)
-      const renderer = pick(page, renderers, [])
       let asks: string[] = []
-      try { asks = renderer?.expects ? [...(await renderer.expects(page, context()))] : [] } catch (err) { console.error(`renderer ${renderer!.name}: expects:`, err) }
+      try { asks = pages?.questions(page) ?? [] } catch (err) { console.error('questions:', err) }
       const events = all.filter(e => e.page === p.id)
       const listening = listenersFor(p.id)
       // where each question stands, as the page shows it (see status.ts)
@@ -368,11 +358,9 @@ export function createServer(project: Project): WhiteboardServer {
     return out
   }
 
-  /** The documentation of every renderer, as markdown. */
+  /** How to write pages here, as markdown: the pages' own docs, then each plugin's. */
   async function docs() {
-    const { renderers, errors } = await config()
-    const list: { name: string; docs: string | null }[] = []
-    for (const r of renderers) list.push({ name: r.name, docs: r.docs ? await r.docs(context()) : null })
+    const { pages, errors } = await config()
     // what each plugin declares: its routes (for an agent that wants to call them) and commands
     const plugins = await Promise.all((await pluginHooks()).map(async h => ({
       name: h.name,
@@ -381,19 +369,19 @@ export function createServer(project: Project): WhiteboardServer {
       routes: describeRoutes(h.table),
       commands: pluginCommands(h.plugin).map(c => ({ name: c.name, usage: usage(c.command), description: c.command.description })),
     })))
-    return { errors: errors.map(e => (e as Error).message), renderers: list, plugins }
+    return { errors: errors.map(e => (e as Error).message), pages: pages?.docs(context()) ?? null, plugins }
   }
 
   const json = (s: unknown) => JSON.stringify(s).replace(/</g, '\\u003c')
 
   // the page's corner (api.corner()): the one thing the core puts on every page, empty, for the
-  // renderer's and the plugins' floating buttons; above what covers the bottom of the window
+  // page's and the plugins' floating buttons; above what covers the bottom of the window
   const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
-  function shell(page: StoredPage, { renderer, out, notices }: Render, extras: Extras = { head: [], body: [], clients: [] }): string {
-    const handoff = { id: page.id, kind: page.kind, renderer: renderer?.name ?? null, client: renderer?.client ? asset(renderer.client) : null, data: out.data ?? null, plugins: extras.clients }
-    // the renderer's head and html are HTML already; the handoff is JSON made safe for a script tag
+  function shell(page: StoredPage, { page: rendered, out, notices }: Render, extras: Extras = { head: [], body: [], clients: [] }): string {
+    const handoff = { id: page.id, kind: page.kind, client: rendered ? asset(PAGE_CLIENT) : null, data: out.data ?? null, plugins: extras.clients }
+    // the page's head and html are HTML already; the handoff is JSON made safe for a script tag
     return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${out.title || page.id || project.name}</title>
 <style>${DOCK_STYLE}</style>
@@ -488,7 +476,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
     watchers.add(watcher)
   }
 
-  // What a renderer or the config is made of changed. A stylesheet reloads in place; a browser module
+  // What a plugin or the config is made of changed. A stylesheet reloads in place; a browser module
   // reloads the pages; anything else loads the config afresh and re-renders open pages.
   let reloadTimer: ReturnType<typeof setTimeout> | undefined
   async function onSourceChange(file: string) {
@@ -507,10 +495,10 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
   }
 
   // The engine's own files, when it runs from source: what a config loads from it runs from source
-  // too (markboard and the plugins), and the browser code from its build (npm run dev). A change to
+  // too (the plugins), and the browser code from its build (npm run dev). A change to
   // either reloads what it is made of, like a project's own files.
   const ENGINE_BUILD = path.join(ENGINE_DIR, 'dist')
-  const ENGINE_WATCHED = !FROM_SOURCE ? [] : [ENGINE_BUILD, ...['markboard', 'plugins'].map(d => path.join(ENGINE_DIR, d))]
+  const ENGINE_WATCHED = !FROM_SOURCE ? [] : [ENGINE_BUILD, ...['plugins'].map(d => path.join(ENGINE_DIR, d))]
   for (const dir of ENGINE_WATCHED) watch(dir, { recursive: true }, name => onSourceChange(path.join(dir, name)))
 
   // ---- http --------------------------------------------------------------------------------------
@@ -540,9 +528,9 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
     if (isRepoId(id) && !FILES) return { notFound: 'This project does not serve its files: its config sets files: false.' }
     if (id === '_/docs') {
       // how pages are written, then each plugin's own docs, with their examples rendered live
-      const { renderers, plugins } = await docs()
+      const { pages, plugins } = await docs()
       const source = [
-        ...renderers.map(r => r.docs ?? ''),
+        pages ?? '',
         ...plugins.filter(p => p.docs).map(p => `<a id="plugin-${p.name}"></a>\n\n${p.docs}`),
       ].join('\n\n---\n\n')
       return { page: { kind: 'page', id, file: path.join(project.pagesDir, '_docs.md'), mtime: null, source, body: source, frontmatter: {} } }
@@ -630,7 +618,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       if ('raw' in r) return sendFile(res, r.raw)
       if ('notFound' in r) {
         const missing: PageSource = { kind: 'page', id, file: '', mtime: null, source: r.notFound, body: r.notFound, frontmatter: {} }
-        return send(res, 404, await page(req, missing, { renderer: null, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }))
+        return send(res, 404, await page(req, missing, { page: false, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }))
       }
       return send(res, 200, await page(req, r.page, await render(r.page)))
     } catch (err) {

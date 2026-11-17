@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn, type Project } from '../src/config.ts'
 import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, handOut, CLAIM, type EventFilter } from '../src/events.ts'
-import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/renderers.ts'
+import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { packagePath } from '../src/package.ts'
@@ -31,8 +31,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard new <name>           create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
-  whiteboard docs [name]           how to write pages here (for markboard: its templates) — read before writing one;
-                                   with a name, only that renderer's or plugin's
+  whiteboard docs [plugin]         how to write pages here: markdown, and each plugin's blocks — read before writing one;
+                                   with a plugin's name, only its docs
   whiteboard events [filters]      print recorded events as ndjson; --follow: then each new one as it comes
   whiteboard wait [filters]        block until the next matching event, print it, exit
   whiteboard watch [filters]       like wait, but never exits: print each matching event once
@@ -48,9 +48,9 @@ events:  --since <iso time or event id>  --last <n>
 
 Every command works on the project of the current folder: the nearest folder upward with a
 .whiteboard/ folder. A project needs no config: .whiteboard/config.ts only says what differs from
-the defaults (markdown with markboard, no plugins). Each project runs its own server; its port is in .whiteboard/server.json.
+the defaults (markdown with the built-in plugins). Each project runs its own server; its port is in .whiteboard/server.json.
 A page appends events {id, ts, page, type, action, data} to .whiteboard/events.ndjson;
-which types it sends is up to its renderer (\`whiteboard docs\` says). The project's plugins
+which types it sends is up to its plugins (\`whiteboard docs\` says). The project's plugins
 can add commands of their own; \`whiteboard help\` in a project lists them.`
 
 const [cmd, ...rest] = process.argv.slice(2)
@@ -181,7 +181,7 @@ token
 `)
   console.log(`project: ${wb}
   pages:     ${path.join(wb, 'pages')} (gitignored); \`whiteboard show <page>\` starts the server
-  config:    ${configFileIn(wb) ?? `none: the defaults (markdown with markboard, no plugins); add ${path.join(wb, 'config.ts')} to change them`}`)
+  config:    ${configFileIn(wb) ?? `none: the defaults (markdown with the built-in plugins); add ${path.join(wb, 'config.ts')} to change them`}`)
 }
 
 // ---- status ------------------------------------------------------------------------------------
@@ -190,7 +190,7 @@ const relFile = (file: string) => path.relative(process.cwd(), file) || file
 
 /**
  * The project's config, as the command line needs it: for its plugins (their commands, the
- * session), so without the default renderer. Loaded once per command.
+ * session), so without the built-in ones. Loaded once per command.
  */
 let loaded: ReturnType<ReturnType<typeof createConfigLoader>['config']> | null = null
 const projectConfig = (proj: Project) => (loaded ??= createConfigLoader(proj, { builtins: false }).config())
@@ -279,20 +279,15 @@ switch (cmd) {
     break
   }
   case 'docs': {
-    // what each renderer says about writing pages for it (for markboard, the syntax of its
-    // templates), then each plugin; `whiteboard docs <name>` prints only that renderer or plugin
+    // how pages are written and which plugin brings which block, then each plugin's docs (the
+    // syntax of its blocks, its events, its commands); `whiteboard docs <plugin>` prints only that one
     const info = await api('/api/docs')
     for (const e of info.errors) console.error(`config error: ${e}`)
     const only = positionals[0]
-    const names = [...info.renderers, ...(info.plugins ?? [])].map((x: { name: string }) => x.name)
-    if (only && !names.includes(only)) throw new Error(`no renderer or plugin named "${only}" here: ${names.join(', ')}`)
+    const names = (info.plugins ?? []).map((x: { name: string }) => x.name)
+    if (only && !names.includes(only)) throw new Error(`no plugin named "${only}" here: ${names.join(', ')}`)
     const shown = (x: { name: string }) => !only || x.name === only
-    if (!info.renderers.length && !only) console.log('This project has no renderers: pages show as their raw text. Its config sets `renderers: []`.')
-    for (const r of info.renderers.filter(shown)) {
-      console.log(`<!-- renderer: ${r.name} -->`)
-      console.log(r.docs ? r.docs.trim() : `# ${r.name}\n\n(no documentation)`)
-      console.log()
-    }
+    if (!only) console.log(info.pages ? `${info.pages.trim()}\n` : 'The config failed to load, so pages show as their raw text.\n')
     for (const e of (info.plugins ?? []).filter(shown)) {
       console.log(`<!-- plugin: ${e.name} -->\n# Plugin: ${e.name}\n`)
       if (e.error) console.log(`It failed to load: ${e.error}\n`)
@@ -348,7 +343,7 @@ switch (cmd) {
     break
   }
   case 'append': {
-    // the agent's side of the log: anything a page's renderer understands, such as a reply to a
+    // the agent's side of the log: anything a page's plugins understand, such as a reply to a
     // comment. Waits skip what is appended here, so an agent does not hear its own events.
     const proj = needProject()
     if (!opts.page || !opts.type) throw new Error("usage: whiteboard append --page <page|file> --type <type> [--data '<json>']")

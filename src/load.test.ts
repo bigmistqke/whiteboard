@@ -4,9 +4,9 @@ import assert from 'node:assert/strict'
 import { importOwn } from './load.ts'
 
 test('a part of the package loaded for a config comes afresh each time, so it reloads with it', async () => {
-  const one = await importOwn('markboard')
-  const two = await importOwn('markboard')
-  assert.equal(typeof one.default, 'function')
+  const one = await importOwn('plugins')
+  const two = await importOwn('plugins')
+  assert.equal(typeof one.builtins, 'function')
   assert.notEqual(one, two, 'two loads are two module instances')
 })
 

@@ -1,0 +1,36 @@
+// Markdown pages: how the core turns a stored page into what the reader sees, with the blocks the
+// project's plugins bring (`:::name`, `::name`, `:name`, ```` ```name ````). The loader makes one per
+// loaded config (see loader.ts); the server renders with it.
+import { resolveBlocks, type BlockEntry } from './blocks.ts'
+import { createDocs, createRender } from './render.ts'
+import { formNames } from './markdown.ts'
+import type { PageSource, RenderContext, Rendered, StoredPage } from '../define.ts'
+
+export interface PagesOptions {
+  /** the blocks of the project's plugins, in plugin order */
+  blocks: BlockEntry[]
+  /** the project's stylesheet, linked on every page after the others */
+  style?: URL | string
+  /** the plugins' stylesheets, linked on every page */
+  styles?: (URL | string)[]
+}
+
+/** How the core renders pages for one loaded config. */
+export interface Pages {
+  /** a stored page as HTML, with its title, head additions and the data its browser part needs */
+  render(page: StoredPage, ctx: RenderContext): Promise<Rendered>
+  /** how pages are written, and which blocks the plugins bring: what `whiteboard docs` prints first */
+  docs(ctx: RenderContext): string
+  /** the questions a page asks: its named forms, whose answers are events of their name */
+  questions(page: PageSource): string[]
+}
+
+export function createPages(options: PagesOptions): Pages {
+  const resolved = resolveBlocks(options.blocks)
+  const blocks = () => resolved
+  return {
+    render: createRender(blocks, options.style, options.styles ?? []),
+    docs: createDocs(blocks),
+    questions: page => formNames(page.source),
+  }
+}

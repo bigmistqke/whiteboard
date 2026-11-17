@@ -1,4 +1,4 @@
-// Comments on a page's text, on every page whatever renderer drew it. The reader selects a passage
+// Comments on a page's text, on every page. The reader selects a passage
 // of the page's content (its <main>, else all of it), a "Comment" button appears next to it,
 // and what they write goes into the page's log; the agent replies there too (`whiteboard append`),
 // or edits the page. Threads stay until the reader closes them.
@@ -27,7 +27,7 @@ const CONTEXT = 32
 
 let root: HTMLElement
 let api: Api
-// the page's content: its <main> when it has one. Looked up afresh, since a renderer may replace it
+// the page's content: its <main> when it has one. Looked up afresh, since a live update may replace it
 let main: HTMLElement
 let threads: Thread[] = []
 let openThread: string | null = null

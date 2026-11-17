@@ -1,15 +1,14 @@
-// The contract between the core, a project's config and its renderers.
+// The contract between the core, a project's config and its plugins.
 //
-//   import { defineConfig, defineRenderer, definePlugin } from '@bigmistqke/whiteboard'
+//   import { defineConfig, definePlugin, html } from '@bigmistqke/whiteboard'
 //
-// The core stores pages, keeps the event log and runs the live channel between them and a browser.
-// How a page looks and behaves is a renderer's: the core hands it the page as stored, and the
-// renderer turns it into whatever it likes. Both functions only return their argument; they exist
-// for types, so a renderer package needs nothing from the core at runtime.
+// The core stores pages as markdown, renders them, keeps the event log and runs the live channel
+// between them and a browser. Everything else is a plugin: the syntax pages are written in (blocks),
+// behaviour on every page, commands, routes. defineConfig and definePlugin only return their
+// argument; they exist for types.
 import type { Html } from './html.ts'
-import type { Block } from '../markboard/types.ts'
 
-// HTML from a template literal, escaped by default: for a renderer, a plugin's `shell`, a template
+// HTML from a template literal, escaped by default: for a block, a plugin's `shell`
 export { html, raw, escape, Html } from './html.ts'
 
 // ---- config ------------------------------------------------------------------------------------
@@ -38,7 +37,7 @@ export const defineConfig = (config: Config): Config => config
 // ---- plugins --------------------------------------------------------------------------------
 
 /**
- * Behaviour on every page, next to what the renderer draws, and commands of its own. `setup` runs
+ * What extends whiteboard: syntax (blocks), behaviour on every page, and commands. `setup` runs
  * once per loaded config, on the server, and returns what the plugin adds to it. Everything is
  * optional but the name.
  *
@@ -50,7 +49,7 @@ export const defineConfig = (config: Config): Config => config
  * in `whiteboard help` and `whiteboard docs`.
  */
 export interface Plugin {
-  /** letters, digits, - and _; not a folder of the core (`pages`, and `plugins`, `templates`, `renderers` for local code) nor a built-in command */
+  /** letters, digits, - and _; not a folder of the core (`pages`, and `plugins` for local plugins) nor a built-in command */
   name: string
   /**
    * Syntax: the blocks it adds to pages, by name: `:::name`, `::name`, `:name` and ```` ```name ````
@@ -63,7 +62,7 @@ export interface Plugin {
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>
   /**
-   * Markdown for whoever writes pages here, printed by `whiteboard docs` with the renderers' own,
+   * Markdown for whoever writes pages here, printed by `whiteboard docs` after how pages are written,
    * under a heading the core adds (`# Plugin: <name>`), so start below it (`##`):
    * what the plugin sends to the page's log, and how to answer it (comments say how to reply)
    */
@@ -107,19 +106,19 @@ export interface PluginHooks {
   /** by method and path, `'POST /start'`: mounted at `/api/<name>/start` */
   routes?: Record<string, Route>
   /**
-   * Markup for the page shell, outside the renderer's root: `head` at the end of <head>, `body` at
+   * Markup for the page shell, outside the page's root: `head` at the end of <head>, `body` at
    * the end of <body>. Called for every page; null adds nothing. The body is there for the first
    * render, so an element in it can take part in the view transition between two pages.
    *
    * Something that covers an edge of the window (a drawer at the bottom) says how much of it, as a
    * length in `--wb-inset-bottom` on :root, registered with `@property` so that it computes to
-   * pixels. A renderer keeps its own fixed elements clear of it and counts what is behind it as out
-   * of view (markboard does).
+   * pixels. The page keeps its own fixed elements clear of it and counts what is behind it as out
+   * of view.
    */
   shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
   /**
    * A browser module whose default export is an `PluginMount`: on every page, the core imports
-   * it once the renderer has mounted, and hands it the page and the api a renderer gets. For
+   * it once the page has mounted, and hands it the page and its api. For
    * behaviour on the page's own content (its forms, say); markup of the plugin's own can come
    * from `shell` instead. Serve it with `ctx.asset`.
    */
@@ -204,7 +203,7 @@ export interface PageStatus {
   file: string
   /** the session that claimed the page with `whiteboard new`, if one did */
   owner: string | null
-  /** the event types the page waits on the reader for (its renderer's `expects`) */
+  /** the event types the page waits on the reader for: its named forms */
   asks: string[]
   /** where each of them stands, as the page shows it: waiting, unheard, pending or decided */
   questions: { name: string; state: FormState }[]
@@ -218,32 +217,7 @@ export interface PageStatus {
   listeners: Listener[]
 }
 
-// ---- renderers ---------------------------------------------------------------------------------
-
-/**
- * Turns stored pages into what the reader sees. `render` runs on the server, `client` in the
- * browser; a renderer can have either or both. The core calls `render` for the first paint and
- * again whenever the browser side asks for it (`page.render()`), and tells the client when its page
- * changed; what then changes on screen is up to the renderer.
- */
-export interface Renderer {
-  name: string
-  /** server: the page's HTML, shown in the page's root before the client mounts (optional) */
-  render?(page: StoredPage, ctx: RenderContext): Rendered | Promise<Rendered>
-  /** browser: a module whose default export is a `RendererMount` (optional) */
-  client?: URL | string
-  /** markdown documentation for whoever writes pages for this renderer: `whiteboard docs` */
-  docs?(ctx: RenderContext): string | Promise<string>
-  /**
-   * The event types a page waits on the reader for: its questions (for markboard, its named forms).
-   * Only the renderer can know them, since they are written in its syntax. `whiteboard status` and
-   * the hooks use them to say which questions have no answer, and which nobody listens for
-   * (optional; without it a page asks nothing)
-   */
-  expects?(page: StoredPage, ctx: RenderContext): string[] | Promise<string[]>
-}
-
-export const defineRenderer = (renderer: Renderer): Renderer => renderer
+// ---- pages ---------------------------------------------------------------------------------------
 
 export interface Rendered {
   /** the page's HTML: a string, or built with `html` (the core turns it into a string once) */
@@ -302,12 +276,12 @@ export interface PagesSource extends StoredBase {
   pages: { id: string; file: string; mtime: number; lastEvent: string | null; listeners: number }[]
 }
 
-/** What the core offers a renderer on the server. */
+/** What the core offers the pages on the server: how files are served and linked. */
 export interface RenderContext {
   project: { name: string; dir: string; files: boolean }
   /**
    * The URL the browser loads a file from: a client module, a stylesheet, an image next to a
-   * template. Files are served only once a renderer asked for them, and are watched from then on:
+   * block. Files are served only once asked for, and are watched from then on:
    * a stylesheet reloads in place, a browser module reloads the page.
    */
   asset(file: string | URL): string
@@ -319,14 +293,8 @@ export interface RenderContext {
 }
 
 /**
- * Default export of a renderer's `client` module. It runs once per page load and is never unmounted:
- * going to another page loads a new one. When the stored page changes, `page.onChange` says so.
- */
-export type RendererMount = (root: HTMLElement, page: PageHandle, api: Api) => void | Promise<void>
-
-/**
- * The default export of a plugin's browser module: the same arguments as a renderer's mount. Like
- * it, it runs once per page load, and is never unmounted: going to another page loads a new one.
+ * The default export of a plugin's browser module (from `setup`): the page's root, the page, and its
+ * api. It runs once per page load, and is never unmounted: going to another page loads a new one.
  */
 export type PluginMount = (root: HTMLElement, page: PageHandle, api: Api) => void | Promise<void>
 
@@ -372,7 +340,7 @@ export interface Listener {
   command: 'wait' | 'watch'
 }
 
-/** What the core gives every renderer in the browser. Framework-free: getters and subscriptions. */
+/** What the core gives the page and every plugin in the browser. Framework-free: getters and subscriptions. */
 export interface Api {
   /** this page's id */
   page: string
@@ -390,16 +358,16 @@ export interface Api {
   listeners(): Listener[]
   onListeners(fn: (listeners: Listener[]) => void): () => void
   /**
-   * Say that the page's content changed in place: a renderer that patches the page on an update
-   * (markboard morphs it) calls this after each patch, so that plugins working on the content
-   * can put back what they add to it. A renderer that leaves its content alone never needs to.
+   * Say that the page's content changed in place: the page module calls it after each patch on an update
+   * (it morphs it) calls this after each patch, so that plugins working on the content
+   * can put back what they add to it.
    */
   rendered(): void
   /** called after each `rendered()`; returns an unsubscribe */
   onRendered(fn: () => void): () => void
   /**
    * The page's corner: a column at the bottom right, above whatever covers the bottom of the
-   * window (`--wb-inset-bottom`), for floating buttons. The renderer and the plugins each add
+   * window (`--wb-inset-bottom`), for floating buttons. The page and the plugins each add
    * their own; the core draws nothing in it.
    */
   corner(): HTMLElement
@@ -408,13 +376,13 @@ export interface Api {
    * Lower `order` comes first (default 0), so what waits for the reader can lead.
    */
   badge(key: string, text: string | null, order?: number): void
-  /** the page's own title, behind the badges: for a renderer whose page changes its title */
+  /** the page's own title, behind the badges */
   title(title: string): void
   /**
    * The page's named forms and where each stands. The core looks after every `<form name>` without
    * an `action`: it sends a submit as an event, keeps drafts, puts the last answer back, and marks
    * each form with its state (`data-wb-waiting`, `-unheard`, `-pending`, `-decided`). How that
-   * looks is the renderer's; this is for drawing more than the attributes allow (a summary, a count)
+   * looks is the page's styles'; this is for drawing more than the attributes allow (a summary, a count)
    */
   forms(): FormStatus[]
   /** called after the forms were marked again: the log, the listeners or the page changed */
@@ -437,4 +405,127 @@ export interface FormStatus {
   state: FormState
   /** its latest answer */
   last: WbEvent | undefined
+}
+
+// ---- blocks ------------------------------------------------------------------------------------
+
+/**
+ * A block handles the directive or fence with its name (its key in a plugin's `blocks`): `:::name`,
+ * `::name`, `:name` and ```` ```name ````. Server functions run while the page renders; `client`
+ * runs in the browser.
+ *
+ * File references are URLs relative to the plugin's module, so they work wherever it is installed:
+ *   client: new URL('./client.js', import.meta.url)
+ */
+export interface Block<Props = unknown> {
+  /**
+   * `'any'`: also render every fence no block claims by name, and the code view of repository
+   * files: the block for code in general, such as a syntax highlighter. When several blocks set it,
+   * the last plugin's wins.
+   */
+  fence?: 'any'
+  /** props for the client; JSON-serialisable. Without it a client gets the defaults (see DirectiveProps / FenceProps). */
+  props?(ctx: ServerContext): Props | Promise<Props>
+  /**
+   * HTML for the block, as a string or built with `html`. Without `client` this is the whole
+   * output; with it, what shows until it mounts.
+   */
+  html?(ctx: ServerContext): string | Html | null | Promise<string | Html | null>
+  /** a browser module whose default export is a `Mount` */
+  client?: URL | string
+  /** a stylesheet linked on every page that uses the block */
+  style?: URL | string
+}
+
+/** A block with typed props, for one written apart from its plugin. */
+export const defineBlock = <Props = unknown>(block: Block<Props>): Block<Props> => block
+
+/**
+ * Default export of a block's `client` module: mounted once per block, again with new props when
+ * the block changes. Return a cleanup, or nothing: it runs when the block is replaced or removed.
+ */
+export type Mount<Props = unknown> = (
+  element: HTMLElement,
+  props: Props,
+  api: ClientApi,
+) => void | (() => void) | Promise<void | (() => void)>
+
+// ---- server context ----------------------------------------------------------------------------
+
+export interface Section {
+  /** heading content as HTML (no <h*> wrapper), null when the block has no headings */
+  title: string | null
+  /** heading as plain text */
+  text: string | null
+  html: string
+}
+
+interface BaseContext {
+  /** page id, e.g. "plan", or "-/docs/guide.md" for a repository file */
+  page: string
+  /** absolute path of the markdown file, and its folder (resolve files next to the page with it) */
+  file: string
+  dir: string
+  name: string
+  attrs: Record<string, string>
+  parseAttrs(s: string): Record<string, string>
+  /** render mdast nodes to HTML; nested directives and fences go through their blocks */
+  toHtml(nodes: unknown[]): Promise<string>
+  toString(node: unknown): string
+  /** render a markdown string to HTML (blocks included) */
+  markdown(src: string): Promise<string>
+  /** like markdown(), without the wrapping <p> for a single paragraph */
+  inline(src: string): Promise<string>
+  /** what a client gets when the block has no props() */
+  defaults(): Promise<Record<string, unknown>>
+}
+
+/** `:::name[label]{attrs}` … `:::`, `::name[label]{attrs}`, `:name[label]{attrs}` */
+export interface DirectiveContext extends BaseContext {
+  kind: 'containerDirective' | 'leafDirective' | 'textDirective'
+  /** label as HTML / plain text, null without one */
+  label: string | null
+  labelText: string | null
+  /** the block's content as mdast nodes */
+  children: unknown[]
+  /** split the content at its shallowest headings, or at blank lines when it has none */
+  sections(): Promise<{ intro: string; sections: Section[] }>
+}
+
+/** ```name attrs */
+export interface FenceContext extends BaseContext {
+  kind: 'fence'
+  text: string
+  /** the fence's language (its first word); for a fence claimed by name it equals `name`, null when there is none */
+  lang: string | null
+}
+
+export type ServerContext = DirectiveContext | FenceContext
+
+/** Default props of a directive without props(). */
+export interface DirectiveProps {
+  name: string
+  attrs: Record<string, string>
+  label: string | null
+  html: string
+  intro: string
+  sections: Section[]
+}
+
+/** Default props of a fence without props(). */
+export interface FenceProps {
+  name: string
+  attrs: Record<string, string>
+  text: string
+}
+
+// ---- client api --------------------------------------------------------------------------------
+
+export type Theme = 'light' | 'dark'
+
+/** Passed to every Mount: the core's api, and the page's theme. */
+export interface ClientApi extends Api {
+  /** the theme in effect (the reader's choice, else the system's) */
+  theme(): Theme
+  onTheme(fn: (theme: Theme) => void): () => void
 }

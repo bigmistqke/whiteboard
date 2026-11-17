@@ -9,7 +9,7 @@
 // the api's events and theme as signals through context.
 import { createContext, createSignal, onSettled, useContext, type Component } from 'solid-js'
 import { render } from '@solidjs/web'
-import type { ClientApi, Mount, Theme, WbEvent } from '@bigmistqke/whiteboard/template'
+import type { ClientApi, Mount, Theme, WbEvent } from '@bigmistqke/whiteboard'
 
 export interface Whiteboard {
   /** this page's id */

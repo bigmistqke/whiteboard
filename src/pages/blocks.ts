@@ -1,13 +1,16 @@
-// The blocks of a project's plugins, checked and resolved into what the markdown renderer uses.
+// The blocks of a project's plugins, checked and resolved into what the markdown engine uses.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Html } from '../src/html.ts'
-import type { BlockEntry } from './index.ts'
+import type { Html } from '../html.ts'
+import type { Block } from '../define.ts'
+
+/** A block as the plugins bring it: its name, and the plugin it comes from. */
+export interface BlockEntry { name: string; block: Block<any>; plugin: string }
 
 const NAME = /^[\w-]+$/
 
-/** A block as the renderer uses it: checked, with its files as absolute paths. */
+/** A block as the engine uses it: checked, with its files as absolute paths. */
 export interface ResolvedTemplate {
   name: string
   /** the block for code in general (`fence: 'any'`) */
@@ -30,7 +33,7 @@ function toPath(ref: unknown, field: string, block: string): string | null {
   throw new Error(`block "${block}": ${field} must be a URL, e.g. new URL('./${field}.js', import.meta.url)`)
 }
 
-/** Check and resolve one block into what the renderer uses. */
+/** Check and resolve one block into what the engine uses. */
 function normalize({ name, block: b, plugin }: BlockEntry): ResolvedTemplate {
   if (typeof b !== 'object' || !b) throw new Error(`plugin ${plugin}: block "${name}" is not an object`)
   if (!NAME.test(name)) throw new Error(`plugin ${plugin}: block name ${JSON.stringify(name)}: use letters, digits, - and _`)

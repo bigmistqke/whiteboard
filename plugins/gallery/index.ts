@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Turns the block's content into gallery items: one per heading (first image in the section is
 // its picture), or one per image when there are no headings.
-import { escape, type DirectiveContext } from '@bigmistqke/whiteboard/template'
+import { escape, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { builtFile } from '../../src/package.ts'
 
 interface Node { type: string; depth?: number; url?: string; alt?: string; children?: Node[] }

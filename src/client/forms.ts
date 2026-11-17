@@ -1,7 +1,7 @@
 // Named forms: whiteboard's one interaction primitive, in the browser. A `<form name>` without an
 // `action` (one with an action submits normally) is a question; submitting it appends an event
 // whose type is the form's name, the button its `action` and the fields its `data`. This holds on
-// every page, whatever renderer drew it.
+// every page.
 //
 // What the core does with such a form, without drawing anything:
 // - sends a submit as an event, and says how that went: `data-wb-state` is sending, sent or failed;
@@ -16,9 +16,9 @@
 //     data-wb-decided   an agent picked up its latest answer; data-wb-outcome quotes it in one line
 // and, for a few seconds after a send went through, `data-wb-just-sent`, to confirm it
 //
-// How that looks is the renderer's: it styles the attributes, and can follow `api.onForms`. A form
+// How that looks is the page's: it styles the attributes, and can follow `api.onForms`. A form
 // marked `data-wb-self` (or inside an element that is) keeps its own fields: no drafts and no last
-// answer are written into it, for a renderer's component that shows them itself.
+// answer are written into it, for a block's component that shows them itself.
 import type { Api, FormState, FormStatus } from '../define'
 import { STATES, isQuestionName, questionState } from '../status.ts'
 
@@ -110,7 +110,7 @@ async function onSubmit(e: SubmitEvent) {
     dropDraft(form)
     form.dataset.wbState = 'sent'
     form.dataset.wbSent = action ?? ''
-    // for the renderer to confirm the send: set for a few seconds after it, also once the form
+    // for the page to confirm the send: set for a few seconds after it, also once the form
     // folds because an agent picked the answer up at once
     form.toggleAttribute('data-wb-just-sent', true)
     clearTimeout(justSent.get(form))
@@ -156,14 +156,14 @@ function mark() {
   for (const fn of listeners) fn(current)
 }
 
-/** After the renderer re-rendered: answers, drafts and marks back on its forms. */
+/** After the page re-rendered: answers, drafts and marks back on its forms. */
 function refresh() {
   restoreLast(false)
   restoreDrafts()
   mark()
 }
 
-/** Look after the page's named forms; called once the renderer has mounted. */
+/** Look after the page's named forms; called once the page has mounted. */
 export function trackForms(el: HTMLElement, pageId: string, core: Api) {
   root = el
   page = pageId
