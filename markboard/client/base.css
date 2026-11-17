@@ -194,6 +194,12 @@ form.wb-form[data-wb-folded] { padding: 1em 0; gap: 0; }
 .wb-index .wb-waiting { color: var(--accent); font-weight: 600; }
 /* named forms: the core marks where each stands (data-wb-waiting, -unheard, -pending, -decided); this is how that looks */
 form[data-wb-state=sending] { opacity: .7; }
+/* sending: the form's buttons can't send twice */
+form[data-wb-state=sending] button { pointer-events: none; cursor: progress; }
+/* just sent: a short green flash, and a line saying what happened, for a few seconds */
+@keyframes wb-sent { from { background-color: color-mix(in srgb, var(--ok) 22%, transparent); } to { background-color: transparent; } }
+form[data-wb-just-sent] { animation: wb-sent 1.4s ease-out; }
+form.wb-form[data-wb-state=failed]::before { content: "couldn't send it: try again"; display: block; margin-bottom: 8px; color: var(--bad); font: 600 .75rem/1.4 var(--sans); }
 form[data-wb-sent]:not(.wb-form)::after { content: "✓ sent " attr(data-wb-sent); display: block; margin-top: 6px; color: var(--ok); font: .8rem var(--sans); }
 form[data-wb-state=failed]:not(.wb-form)::after { content: "failed to send"; color: var(--bad); }
 
@@ -206,6 +212,7 @@ form[data-wb-waiting] { outline: 2px solid var(--accent); outline-offset: 10px; 
 form[data-wb-waiting]::before { content: "waiting for you"; display: block; margin-bottom: 8px; color: var(--accent); font: 600 .75rem/1.4 var(--sans); letter-spacing: .04em; text-transform: uppercase; }
 form[data-wb-unheard]::before { content: "no agent is listening for this right now"; display: block; margin-bottom: 8px; color: var(--muted); font: .75rem/1.4 var(--sans); }
 form[data-wb-pending]::before { content: "sent · waiting for the agent to pick it up"; display: block; margin-bottom: 8px; color: var(--muted); font: .75rem/1.4 var(--sans); }
+form[data-wb-pending][data-wb-just-sent]::before { content: "✓ sent · waiting for the agent to pick it up"; color: var(--ok); font-weight: 600; }
 
 /* decided: the agent picked up the latest answer; the form folds into one line quoting it */
 form[data-wb-folded] { cursor: pointer; }
@@ -214,6 +221,7 @@ form[data-wb-folded] > :not([data-template=chat-thread]) { display: none !import
 form[data-wb-folded] > [data-template=chat-thread] { order: 1; margin-top: 14px; cursor: auto; }
 form[data-wb-folded]::before { content: "✓ " attr(data-wb-outcome); display: block; white-space: pre-line; color: var(--text); font: .95rem/1.5 var(--sans); }
 form[data-wb-folded]::after { content: "decided · click to change the answer"; display: block; margin-top: 4px; color: var(--muted); font: .75rem/1.4 var(--sans); }
+form[data-wb-folded][data-wb-just-sent]::after { content: "✓ sent · the agent has it"; color: var(--ok); font-weight: 600; }
 form[data-wb-folded]:hover::after { color: var(--accent); }
 
 /* the line above the page: what waits for the reader, what nobody listens for, what is answered */

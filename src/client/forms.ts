@@ -14,6 +14,7 @@
 //     data-wb-unheard   no answer, and no agent is listening
 //     data-wb-pending   answered, but no agent has picked the answer up yet
 //     data-wb-decided   an agent picked up its latest answer; data-wb-outcome quotes it in one line
+// and, for a few seconds after a send went through, `data-wb-just-sent`, to confirm it
 //
 // How that looks is the renderer's: it styles the attributes, and can follow `api.onForms`. A form
 // marked `data-wb-self` (or inside an element that is) keeps its own fields: no drafts and no last
@@ -109,6 +110,11 @@ async function onSubmit(e: SubmitEvent) {
     dropDraft(form)
     form.dataset.wbState = 'sent'
     form.dataset.wbSent = action ?? ''
+    // for the renderer to confirm the send: set for a few seconds after it, also once the form
+    // folds because an agent picked the answer up at once
+    form.toggleAttribute('data-wb-just-sent', true)
+    clearTimeout(justSent.get(form))
+    justSent.set(form, setTimeout(() => form.removeAttribute('data-wb-just-sent'), 3000))
   } catch (err) {
     form.dataset.wbState = 'failed'
     console.error(err)
@@ -134,6 +140,7 @@ function outcome(data: Data, action: string | null) {
 }
 
 let current: FormStatus[] = []
+const justSent = new WeakMap<HTMLFormElement, ReturnType<typeof setTimeout>>()
 
 /** Mark every form from the log and the listeners, then tell whoever follows. */
 function mark() {
