@@ -82,7 +82,7 @@ const watchers = new Set<Conn>()
 let idle: ReturnType<typeof setTimeout> | undefined
 function checkIdle() {
   clearTimeout(idle)
-  if (![...sessions.values()].some(s => s.exited == null)) idle = setTimeout(() => quit(), 10 * 60 * 1000)
+  if (![...sessions.values()].some(s => s.exited == null)) idle = setTimeout(() => quit('no program ran for ten minutes'), 10 * 60 * 1000)
 }
 
 const list = () => [...sessions.values()].map(s => ({ id: s.id, label: s.label, running: s.exited == null, exited: s.exited, started: s.started }))
@@ -107,8 +107,9 @@ function start(id: string, command: string, args: string[], label: string): Sess
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
   })
-  proc.onExit(({ exitCode }) => {
+  proc.onExit(({ exitCode, signal }) => {
     s.exited = exitCode
+    log(`tab ${id} (${label}) ended: ${signal ? `signal ${signal}` : `exit code ${exitCode}`}`)
     for (const c of s.attached) send(c, { t: 'exit', code: exitCode })
     announce()
     checkIdle()
@@ -136,7 +137,15 @@ function close(id: string) {
   checkIdle()
 }
 
-function quit() {
+/** A line in the host's log (.whiteboard/terminal/host.log), with the time: what happened to it and its tabs. */
+function log(line: string) {
+  console.log(`${new Date().toISOString()} terminal host ${process.pid}: ${line}`)
+}
+
+/** Leave, saying why: the log is where to look when the tabs are gone. */
+function quit(reason: string) {
+  const running = [...sessions.values()].filter(s => s.exited == null).length
+  log(`leaves: ${reason}${running ? `, ending ${running} running tab${running > 1 ? 's' : ''}` : ''}`)
   for (const id of [...sessions.keys()]) close(id)
   try { fs.unlinkSync(socket) } catch {}
   process.exit(0)
@@ -178,7 +187,9 @@ function handle(conn: Conn, req: Record<string, any>) {
       const id = req.id != null ? String(req.id) : String(nextId)
       const running = sessions.get(id)
       if (running && running.exited == null && !req.restart) return reply({ session: id, already: true })
-      try { start(id, req.command, Array.isArray(req.args) ? req.args.map(String) : [], String(req.label ?? path.basename(req.command))) } catch (e) { return reply({ error: (e as Error).message }) }
+      const label = String(req.label ?? path.basename(req.command))
+      try { start(id, req.command, Array.isArray(req.args) ? req.args.map(String) : [], label) } catch (e) { return reply({ error: (e as Error).message }) }
+      log(`tab ${id} (${label}) ${running ? 'restarted' : 'started'}`)
       // ids are never reused while the host runs, so a closed tab's id can't come back as another
       if (Number(id) >= nextId) nextId = Number(id) + 1
       return reply({ session: id })
@@ -197,7 +208,7 @@ function handle(conn: Conn, req: Record<string, any>) {
     }
     case 'html': return reply({ html: html(s ?? sessions.values().next().value) })
     case 'close': close(String(req.id)); return reply({ ok: true })
-    case 'stop': reply({ ok: true }); return void setTimeout(quit, 50)
+    case 'stop': reply({ ok: true }); return void setTimeout(() => quit('asked to stop (whiteboard terminal stop)'), 50)
     case 'attach': {
       watchers.add(conn)
       conn.socket.on('close', () => { watchers.delete(conn); for (const x of sessions.values()) x.attached.delete(conn) })
@@ -242,7 +253,7 @@ try {
 server.listen(socket, () => {
   // only its owner may talk to it: the socket runs code
   try { fs.chmodSync(socket, 0o600) } catch {}
-  console.log(`terminal host: ${process.pid} on ${socket}`)
+  log(`listening on ${socket}`)
   checkIdle()
 })
-for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, quit)
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => quit(`got ${signal} from outside`))
