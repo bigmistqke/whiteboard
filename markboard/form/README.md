@@ -102,33 +102,12 @@ The migration is reversible.
 Forms don't nest, and inputs belong inside a form: outside one they show
 but send nothing.
 
-**A thread under every form.** The reader can ask about a question without
-answering it (Enter sends, Shift+Enter starts a new line): what they write
-in the form's thread is a `form:thread` event, `{ "form": "<name>", "text": "…" }`,
-never a submit of the form, so it never makes a choice. Answer in the same thread:
-
-```sh
-whiteboard append --page <file> --type form:thread --data '{"form":"<name>","text":"your answer"}'
-```
-
-The thread shows as a chat, the reader's messages on one side and yours on
-the other. It belongs to the form by name: remove or rename the form and its
-thread moves to the end of the page, read-only, under "Threads of questions
-no longer on this page" (you can still answer there); bring the form back
-under its name and the thread is under it again. So rework a question in
-its form rather than replacing the form. Two more fields, both optional:
-
-- `replyTo`: the id of a submit of this form whose written text you answer
-  (a remark typed into one of its text fields). That text shows as the
-  reader's message, right before yours.
-- `replaces`: the id of an earlier message of yours. Yours takes its place,
-  to correct it; the log itself only grows.
-
-Your messages show as the agent's, and `wait` and `watch` skip what you
-append. A wait on the whole page (no `--type`) hands out thread messages too;
-a wait with `--type <form name>` does not. So don't add a free-text field
-for questions or remarks to a decision form: the thread is for that, and a
-submit stays a choice.
+**A chat under every form.** The reader can ask about a question without
+answering it: under every form is a chat (see the chat template), named
+after the form, whose messages are never a submit, so talking about a choice
+never makes it. Answer there with `whiteboard append --type chat:message
+--data '{"chat":"<form name>","text":"…"}'`, and don't add a free-text field
+for questions to a decision form.
 
 A hand-written `<form name="…">` (no `action` attribute) is recorded the same
 way; this template only saves typing.

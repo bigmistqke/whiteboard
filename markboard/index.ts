@@ -11,6 +11,7 @@ import type { Renderer } from '../src/define.ts'
 import { builtFile } from '../src/package.ts'
 import type { TemplateEntry } from './types.ts'
 import callout from './callout/index.ts'
+import chat from './chat/index.ts'
 import code, { type Options as CodeOptions } from './code/index.ts'
 import details from './details/index.ts'
 import form from './form/index.ts'
@@ -22,7 +23,7 @@ import { resolveTemplates } from './templates.ts'
 import { createDocs, createRender } from './render.ts'
 import { formNames } from './markdown.ts'
 
-export { callout, code, details, form, gallery, grid, mermaid, quiet }
+export { callout, chat, code, details, form, gallery, grid, mermaid, quiet }
 export type { CodeOptions }
 
 export interface Options {
@@ -37,7 +38,7 @@ export interface Options {
 export default function markboard(options: Options = {}): Renderer {
   let resolved: ReturnType<typeof resolveTemplates> | undefined
   const templates = () => (resolved ??= resolveTemplates([
-    { entries: [callout, code(options.code), details, form, gallery, grid, mermaid, quiet], source: 'markboard' },
+    { entries: [callout, chat, code(options.code), details, form, gallery, grid, mermaid, quiet], source: 'markboard' },
     { entries: options.templates ?? [], source: 'markboard({ templates })' },
   ]))
   return {

@@ -24,7 +24,7 @@ function tempLog(): string {
 
 /** What the reader sends (a form submit) and what an agent writes (through the command line). */
 const reader = (log: string, page: string, type = 'pick') => appendEvent(log, { page, type, data: {} })
-const agent = (log: string, page: string, type = 'form:thread') => appendEvent(log, { page, type, data: {} }, 'cli')
+const agent = (log: string, page: string, type = 'chat:message') => appendEvent(log, { page, type, data: {} }, 'cli')
 
 /** Hand out without following, collecting what is handed. */
 async function backlog(log: string, filter = {}, options = {}) {

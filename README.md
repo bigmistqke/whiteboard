@@ -128,7 +128,7 @@ A form with a `name` and no `action` attribute is recorded when submitted:
 `type` is the form's name, `action` is the button that was pressed and
 `data` holds the fields. The log is an event stream: a template or a plugin
 can append events of other types too, through `api.append(type, data)`.
-Those types are named after their owner, `<owner>:<what>` (`form:thread`,
+Those types are named after their owner, `<owner>:<what>` (`chat:message`,
 `comments:reply`, whiteboard's own `whiteboard:picked`), so a form's name
 can't contain a colon and its answers never mix with them. The
 `form` template (in `markboard()`) writes them as markdown with inputs inline

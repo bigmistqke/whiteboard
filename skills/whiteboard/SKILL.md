@@ -48,19 +48,22 @@ Write for a reader who comes back later:
   blocks are highlighted for the user, unchanged ones stay quiet.
 - Put the things you need from the user in forms, one form per decision, each
   with a distinct name (no colon: those are reserved for event types like
-  `form:thread`). A form is markdown with its inputs inline (see the
+  `chat:message`). A form is markdown with its inputs inline (see the
   form template's docs). When the options need explaining, explain them in
   the form, each option with its meaning right under it, not in a section
   above it: the user decides where they read. Keep `:::details` for real
   depth, not for the options.
 - A send is a choice, and only that. Questions and remarks about a form go
-  in its thread (`form:thread` events, see the form template's docs): answer them
-  there, and never read a thread message, or a note sent along with a
-  submit, as a choice. Don't add a notes field to a decision form for
-  questions; the thread is for that.
+  in the chat under it (`chat:message` events, see the chat template's docs):
+  answer them there, and never read a chat message, or a note sent along
+  with a submit, as a choice. Don't add a notes field to a decision form for
+  questions; its chat is for that.
+- For talk that isn't about a question, put a chat on the page:
+  `:::chat{name=…}`, at the end or in a section. It is the same chat as
+  under a form, without the question.
 - When a question changes, rework it inside its form and keep the form's
-  name. The thread belongs to the form by name: replace or rename the form
-  and its thread moves to the end of the page, away from the question.
+  name. The chat belongs to the form by name: replace or rename the form and
+  its chat moves to the end of the page, away from the question.
 - Don't number headings yourself (`### 1. Naming`): the markboard renderer
   numbers section headings already, so yours would show twice. Refer to a
   section by its name.

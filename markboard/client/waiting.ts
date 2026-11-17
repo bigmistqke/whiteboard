@@ -96,7 +96,7 @@ export function trackWaiting(root: HTMLElement, core: Api) {
   main.addEventListener('click', e => {
     const target = e.target as HTMLElement
     const form = target.closest<HTMLFormElement>('form[data-wb-folded]')
-    if (!form || target.closest('[data-template=form-thread]')) return
+    if (!form || target.closest('[data-template=chat-thread]')) return
     e.preventDefault()
     const name = form.getAttribute('name')!
     const last = api.last(name)

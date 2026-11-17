@@ -79,7 +79,7 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   assert.deepEqual(errors, [], 'no console errors')
 })
 
-test('event names: a form name with a colon is refused, and the thread is form:thread', { timeout: 60000 }, async t => {
+test('event names: a form name with a colon is refused, and its chat is chat:message', { timeout: 60000 }, async t => {
   const proj = await project({ pages: { q: `# Q
 
 :::form{name=pick}
@@ -92,40 +92,64 @@ test('event names: a form name with a colon is refused, and the thread is form:t
 ` } })
   const { browser: b, page, errors } = await browser()
   t.after(async () => { await b.close(); await proj.close() })
-  proj.cli('append', '--page', 'q', '--type', 'form:thread', '--data', JSON.stringify({ form: 'pick', text: 'about pick' }))
+  proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'pick', text: 'about pick' }))
 
   await page.goto(proj.url('q'))
   await until('the thread shows it', () => page.evaluate(() =>
-    (document.querySelector('form[name=pick] .wb-form-thread')?.textContent ?? '').includes('about pick')))
+    (document.querySelector('form[name=pick] .wb-chat')?.textContent ?? '').includes('about pick')))
   assert.match(await page.textContent('.wb-error') ?? '', /form name "comments:new" has a colon/)
   // the page asks only the one question
   assert.match(proj.cli('status', '--page', 'q'), /nobody listens for pick\n/)
   assert.deepEqual(errors, [], 'no console errors')
 })
 
-test('a thread whose form is gone shows after the page, until the form is back', { timeout: 60000 }, async t => {
+test('a chat whose form is gone shows after the page, until the form is back', { timeout: 60000 }, async t => {
   const FORM = ':::form{name=pick}\n:radio[A]{name=x}\n:::\n'
   const proj = await project({ pages: { q: `# Q\n\n${FORM}` } })
   const { browser: b, page, errors } = await browser()
   t.after(async () => { await b.close(); await proj.close() })
-  proj.cli('append', '--page', 'q', '--type', 'form:thread', '--data', JSON.stringify({ form: 'pick', text: 'about pick' }))
+  proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'pick', text: 'about pick' }))
   await page.goto(proj.url('q'))
-  await until('the thread under its form', () => page.evaluate(() => document.querySelector('form[name=pick] .wb-form-thread')?.textContent?.includes('about pick')))
+  await until('the thread under its form', () => page.evaluate(() => document.querySelector('form[name=pick] .wb-chat')?.textContent?.includes('about pick')))
   assert.ok(await page.$eval('.wb-orphans', el => (el as HTMLElement).hidden), 'nothing orphaned yet')
 
   // the writer removes the form: its thread moves to the end of the page
   proj.page('q', '# Q\n\nThe question is gone.\n')
   await until('the thread after the page', () => page.evaluate(() => {
     const box = document.querySelector<HTMLElement>('.wb-orphans')!
-    return !box.hidden && box.querySelector('[data-form=pick]')?.textContent?.includes('about pick')
+    return !box.hidden && box.querySelector('[data-chat=pick]')?.textContent?.includes('about pick')
   }))
   // and the agent can still answer in it
-  proj.cli('append', '--page', 'q', '--type', 'form:thread', '--data', JSON.stringify({ form: 'pick', text: 'still here' }))
+  proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'pick', text: 'still here' }))
   await until('the answer shows', () => page.evaluate(() => document.querySelector('.wb-orphans')!.textContent!.includes('still here')))
 
   // the form comes back: so does its thread, and the list is gone
   proj.page('q', `# Q\n\n${FORM}`)
   await until('back under its form', () => page.evaluate(() =>
-    document.querySelector<HTMLElement>('.wb-orphans')!.hidden && !!document.querySelector('form[name=pick] .wb-form-thread')?.textContent?.includes('still here')))
+    document.querySelector<HTMLElement>('.wb-orphans')!.hidden && !!document.querySelector('form[name=pick] .wb-chat')?.textContent?.includes('still here')))
+  assert.deepEqual(errors, [], 'no console errors')
+})
+
+test('a chat block: the reader writes, the agent answers, and a wait hands the message out', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { q: '# Q\n\n:::chat{name=notes}\nAnything that is not a decision.\n:::\n' } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+  await page.goto(proj.url('q'))
+  await page.waitForSelector('[data-chat=notes] .wb-chat textarea')
+  assert.match(await page.textContent('[data-chat=notes]') ?? '', /Anything that is not a decision/)
+  assert.equal(await page.getAttribute('[data-chat=notes] textarea', 'placeholder'), 'Write a message')
+
+  const wait = proj.spawn('wait', '--page', 'q')
+  await page.fill('[data-chat=notes] textarea', 'a thought')
+  await page.keyboard.press('Enter')
+  const got = JSON.parse(await until('the wait got the message', () => wait.output()))
+  assert.equal(got.type, 'chat:message')
+  assert.deepEqual(got.data, { chat: 'notes', text: 'a thought' })
+
+  proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'notes', text: 'noted' }))
+  await until('the answer, as the agent', () => page.evaluate(() =>
+    [...document.querySelectorAll('[data-chat=notes] .wb-chat-message[data-from=agent]')].some(m => m.textContent!.includes('noted'))))
+  // a chat block asks nothing: the page has no open question
+  assert.match(proj.cli('status', '--page', 'q'), /nothing open/)
   assert.deepEqual(errors, [], 'no console errors')
 })

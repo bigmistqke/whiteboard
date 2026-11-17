@@ -4,16 +4,13 @@
 //
 // Everything here renders on the server as plain HTML: a `<form name>` the core looks after (it
 // sends a submit as an event, keeps drafts, puts the last answer back and marks where the form
-// stands, which markboard's client shows). Only the thread under the form is a client island.
+// stands, which markboard's client shows). The chat under the form is the chat template's.
 import { html, raw, type DirectiveContext, type Template } from '@bigmistqke/whiteboard/template'
-import { builtFile } from '../../src/package.ts'
+import { chatThread } from '../chat/index.ts'
 import { isQuestionName } from '../../src/status.ts'
 
 const style = new URL('./style.css', import.meta.url)
 const readme = new URL('./README.md', import.meta.url)
-
-/** What the thread needs to know of its form: the names of its choices, whose values are never a remark. */
-export interface ThreadProps { form: string; choices: string[] }
 
 const CHOICES = new Set(['radio', 'check', 'select', 'hidden'])
 
@@ -40,14 +37,15 @@ const form: Template = {
   async html(ctx) {
     const c = ctx as DirectiveContext
     const name = c.attrs.name || c.attrs.id || 'form'
-    // a colon marks the events of whiteboard, a plugin or a template (`form:thread`), never an answer
+    // a colon marks the events of whiteboard, a plugin or a template (`chat:message`), never an answer
     if (!isQuestionName(name)) throw new Error(`form name "${name}" has a colon: those names are reserved for events of whiteboard, plugins and templates`)
     const inputs = inputsOf(c.children as Node[])
     const choices = [...new Set(inputs.filter(i => CHOICES.has(i.name) && i.attrs.name).map(i => i.attrs.name))]
     const hasButton = inputs.some(i => i.name === 'button')
     // the first button is the form's primary one; the markup is the button template's own
     const body = (await c.toHtml(c.children)).replace('<button name="action"', '<button class="wb-primary" name="action"')
-    const thread = await c.markdown(`::form-thread{form="${name.replace(/"/g, '&quot;')}" choices="${choices.join(' ')}"}`)
+    // the form's chat: talk about the question, named after the form (see ../chat)
+    const thread = await chatThread(c, name, { choices })
     return html`<form name="${name}" class="wb-form">${raw(body)}${!hasButton && html`<p><button class="wb-primary">Send</button></p>`}${raw(thread)}</form>`
   },
 }
@@ -98,14 +96,4 @@ const inputs: Template[] = [
   }),
 ]
 
-/** The thread under every form: what the reader asks about it, and the agent's answers. */
-const thread: Template<ThreadProps> = {
-  name: 'form-thread',
-  style,
-  readme,
-  props: ctx => ({ form: ctx.attrs.form ?? '', choices: (ctx.attrs.choices ?? '').split(' ').filter(Boolean) }),
-  html: () => '',
-  client: builtFile(import.meta.url, 'client.js'),
-}
-
-export default [form, ...inputs, thread]
+export default [form, ...inputs]

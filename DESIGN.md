@@ -285,7 +285,7 @@ Event types share one namespace, so a colon is reserved: a form's name
 has none, and every other type is named after its owner, `<owner>:<what>`.
 That is whiteboard itself (`whiteboard:claim`, `whiteboard:picked`), a
 plugin (`comments:new`, `comments:reply`, `comments:resolve`) or a
-template (`form:thread`), so a form's answers never mix with their events.
+template (`chat:message`), so a form's answers never mix with their events.
 A form whose name has a colon is not a question: the form template shows
 an error in its place, and the core leaves it alone.
 
@@ -409,15 +409,15 @@ templates.
 5. Leaves comments to the comments plugin, which works on its
    `<main>`.
 6. Writes forms as markdown (the `form` template); sending them and
-   drafts are the core's. The template adds a
-   thread under each form:
-   messages are `form:thread` events (`{ form, text }`, from the reader or the
+   drafts are the core's. Chats are the `chat` template: a chat under each
+   form, named after it, and `:::chat{name=…}` blocks anywhere. Messages
+   are `chat:message` events (`{ chat, text }`, from the reader or the
    agent), never submits, so asking about a choice never makes it. An agent
-   message can name the submit whose typed text it answers (`replyTo`),
-   shown as the reader's message before it, and can take the place of an
-   earlier one (`replaces`), since the log only grows. A thread whose form
-   is no longer on the page (removed, or renamed) is listed after the
-   page's content, read-only, until a form of its name is back.
+   message can take the place of an earlier one (`replaces`), since the log
+   only grows, and in a form's chat can name the submit whose typed text it
+   answers (`replyTo`), shown as the reader's message before it. A chat no
+   longer on the page (its form or block removed or renamed) is listed
+   after the page's content, read-only, until one of its name is back.
 7. Shows what waits on whom, from the core's form states: a form waiting
    for the reader is outlined and says so, one nobody listens for says
    that, a decided one folds into one line quoting its answer, with its

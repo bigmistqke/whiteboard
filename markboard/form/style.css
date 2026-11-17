@@ -39,15 +39,3 @@
 .wb-form button[name=action] + button[name=action] { margin-left: 8px; }
 .wb-form button.wb-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .wb-card .wb-form { padding: 0; border: 0; margin: .6em 0 0; }
-
-/* the form's thread, as a chat: the reader's messages on the right, the agent's on the left; never
-   part of the answer */
-.wb-form-thread { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding-top: 12px; border-top: 1px dashed var(--border); font: .92rem/1.45 var(--sans); }
-.wb-chat-message { display: flex; flex-direction: column; gap: 3px; max-width: 85%; align-self: flex-start; align-items: flex-start; }
-.wb-chat-message[data-from=you] { align-self: flex-end; align-items: flex-end; }
-.wb-chat-who { font: 600 .68rem/1.3 var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 0 4px; }
-.wb-chat-message[data-from=agent] .wb-chat-who { color: var(--accent); }
-.wb-chat-bubble { white-space: pre-wrap; padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--tint); border: 1px solid var(--border); }
-.wb-chat-message[data-from=you] .wb-chat-bubble { border-radius: 14px 14px 4px 14px; background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-.wb-form-thread-new { display: flex; gap: 8px; align-items: flex-start; }
-.wb-form-thread-new textarea { flex: 1; resize: none; font: inherit; }

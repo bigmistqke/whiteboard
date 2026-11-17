@@ -209,9 +209,9 @@ form[data-wb-pending]::before { content: "sent · waiting for the agent to pick 
 
 /* decided: the agent picked up the latest answer; the form folds into one line quoting it */
 form[data-wb-folded] { cursor: pointer; }
-form[data-wb-folded] > :not([data-template=form-thread]) { display: none !important; }
-/* the question's thread stays with it, under the answer and the line that reopens it */
-form[data-wb-folded] > [data-template=form-thread] { order: 1; margin-top: 14px; cursor: auto; }
+form[data-wb-folded] > :not([data-template=chat-thread]) { display: none !important; }
+/* the question's chat stays with it, under the answer and the line that reopens it */
+form[data-wb-folded] > [data-template=chat-thread] { order: 1; margin-top: 14px; cursor: auto; }
 form[data-wb-folded]::before { content: "✓ " attr(data-wb-outcome); display: block; white-space: pre-line; color: var(--text); font: .95rem/1.5 var(--sans); }
 form[data-wb-folded]::after { content: "decided · click to change the answer"; display: block; margin-top: 4px; color: var(--muted); font: .75rem/1.4 var(--sans); }
 form[data-wb-folded]:hover::after { color: var(--accent); }

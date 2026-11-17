@@ -1,20 +1,19 @@
-// The thread under a form (rendered by the form template as plain HTML around this island): the
-// reader asks about the question, the agent answers
-// (`whiteboard append --type form:thread --data '{"form":"<name>","text":"…"}'`). A message is a `form:thread`
-// event of its own, never a submit of the form, so talking about a choice never makes it.
+// A chat (rendered by the chat template, on its own or under a form): the reader writes, the agent
+// answers (`whiteboard append --type chat:message --data '{"chat":"<name>","text":"…"}'`). A message
+// is a `chat:message` event, never an answer, so talking about a form's choice never makes it.
 import { createMemo, For } from 'solid-js'
 import { solid, useWhiteboard } from '@bigmistqke/whiteboard/solid'
-import type { ThreadProps } from './index'
+import type { ChatProps } from './index'
 import type { WbEvent } from '@bigmistqke/whiteboard/template'
 import { autosize } from './autosize'
 
-/** A message in a form's thread: the form template's own event type. */
-const THREAD = 'form:thread'
+/** A message in a chat: the chat template's own event type. */
+const MESSAGE = 'chat:message'
 
 interface Message { id: string; from: 'you' | 'agent'; text: string }
 
 /**
- * What the reader wrote in a submit of the form: every text in it that is not one of the form's
+ * What the reader wrote in a submit of a form: every text in it that is not one of the form's
  * choices (also from a field the form no longer has).
  */
 function written(submit: WbEvent, choiceNames: string[]) {
@@ -25,19 +24,19 @@ function written(submit: WbEvent, choiceNames: string[]) {
     .join('\n\n')
 }
 
-function Thread(props: ThreadProps) {
+function Chat(props: ChatProps) {
   const wb = useWhiteboard()
-  // The thread's messages in order. A message can answer something the reader wrote in a submit of
-  // the form (`replyTo` its id): that text shows as theirs, right before the answer. A message can
-  // take the place of an earlier one (`replaces` its id), to correct it.
+  // The chat's messages in order. A message can take the place of an earlier one (`replaces` its
+  // id), to correct it. Under a form, a message can answer something the reader wrote in a submit
+  // of the form (`replyTo` its id): that text shows as theirs, right before the answer.
   const messages = createMemo((): Message[] => {
     const events = wb.events()
-    const own = events.filter(e => e.type === THREAD && e.data.form === props.form)
+    const own = events.filter(e => e.type === MESSAGE && e.data.chat === props.chat)
     const replaced = new Set(own.map(e => e.data.replaces).filter(Boolean).map(String))
     const out: Message[] = []
     for (const e of own) {
       if (replaced.has(e.id)) continue
-      const to = e.data.replyTo ? events.find(x => x.id === e.data.replyTo && x.type === props.form) : undefined
+      const to = props.form && e.data.replyTo ? events.find(x => x.id === e.data.replyTo && x.type === props.form) : undefined
       const asked = to ? written(to, props.choices) : ''
       if (to && asked && !out.some(m => m.id === to.id)) out.push({ id: to.id, from: 'you', text: asked })
       out.push({ id: e.id, from: e.from === 'cli' ? 'agent' : 'you', text: String(e.data.text ?? '') })
@@ -48,35 +47,35 @@ function Thread(props: ThreadProps) {
   const post = async () => {
     const text = box?.value.trim()
     if (!text) return
-    await wb.append(THREAD, { form: props.form, text })
+    await wb.append(MESSAGE, { chat: props.chat, text })
     box!.value = ''
     // measure again: a value set from code fires no input event
     box!.dispatchEvent(new Event('input'))
   }
   return (
-    // a div, not a form: forms don't nest, and the box has no name, so it is never part of the answer
-    <div class="wb-form-thread">
+    // a div, not a form: forms don't nest, and the box has no name, so it is never part of an answer
+    <div class="wb-chat" data-under-form={props.form ? '' : undefined}>
       <For each={messages()}>
         {m => (
-          // a chat: the reader's messages on the right, the agent's on the left
+          // the reader's messages on the right, the agent's on the left
           <div class="wb-chat-message" data-from={m.from}>
             <span class="wb-chat-who">{m.from}</span>
             <div class="wb-chat-bubble">{m.text}</div>
           </div>
         )}
       </For>
-      <div class="wb-form-thread-new">
+      <div class="wb-chat-new">
         <textarea
           ref={[el => (box = el), autosize({ maxRows: 10 })]}
           rows={1}
-          placeholder="Ask about this question (doesn't choose anything)"
+          placeholder={props.form ? "Ask about this question (doesn't choose anything)" : 'Write a message'}
           // Enter sends, Shift+Enter starts a new line; not while an input method is composing
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); post() } }}
         />
-        <button type="button" onClick={post}>Ask</button>
+        <button type="button" onClick={post}>{props.form ? 'Ask' : 'Send'}</button>
       </div>
     </div>
   )
 }
 
-export default solid(Thread)
+export default solid(Chat)

@@ -64,11 +64,13 @@ everything that explains it, and each option with what it means:
 
 - **A send is a choice.** The writer's recommended option is tagged, never
   preselected: a choice is only made by picking it.
-- **A thread under every form.** Ask about a question without answering it.
-  What you write there is a `form:thread` event, never a submit, so talking about
-  a choice never makes it. The agent answers in the same thread; it reads
-  as a chat, your messages on one side and the agent's on the other. Enter
-  sends, Shift+Enter starts a new line, and the box grows with your text.
+- **A chat under every form.** Ask about a question without answering it.
+  What you write there is a `chat:message` event, never a submit, so talking
+  about a choice never makes it. The agent answers in the same chat, your
+  messages on one side and the agent's on the other. Enter sends,
+  Shift+Enter starts a new line, and the box grows with your text.
+- **Chats anywhere.** `:::chat{name=…}` puts the same chat on the page on
+  its own, for talk that isn't about a question.
 - **Drafts survive.** What you type into a form is kept until you send it,
   across live updates and reloads.
 
