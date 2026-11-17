@@ -27,6 +27,8 @@ export interface Project {
   url(page: string): string
   /** run a command of the command line in the project; its standard output */
   cli(...args: string[]): string
+  /** the same, with more in its environment (as a program in a terminal tab has) */
+  cliWith(extra: Record<string, string>, ...args: string[]): string
   /** start a long-running command (a wait), and collect what it prints */
   spawn(...args: string[]): ChildProcess & { output(): string }
   /** the project's events, as the log has them */
@@ -67,6 +69,7 @@ export async function project({ config, pages = {}, files = {} }: { config?: str
     dir,
     url: name => `http://localhost:${port}/${name}`,
     cli,
+    cliWith: (extra, ...args) => execFileSync(process.execPath, [CLI, ...args], { cwd: dir, env: { ...env, ...extra }, encoding: 'utf8' }),
     spawn(...args) {
       const child = spawn(process.execPath, [CLI, ...args], { cwd: dir, env })
       let out = ''

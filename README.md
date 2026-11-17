@@ -201,11 +201,17 @@ whiteboard terminal [page]             # the link; the drawer starts the command
 whiteboard terminal --new              # start the command in a new tab
 whiteboard terminal -- <arguments>     # the same, with these arguments after its own
 whiteboard terminal --new --shell      # a new tab with just the shell
+whiteboard terminal open <page>        # from inside a tab: show a page where its drawer is
 whiteboard terminal stop               # end every tab and their host
 ```
 
 With `command: 'claude'`, `whiteboard terminal -- --resume <id>` continues
 a Claude Code session in a new tab.
+
+Programs in a tab know which tab they run in (`WHITEBOARD_TERMINAL`), so an
+agent there can show you a page: `whiteboard terminal open <page>` takes the
+browser tab whose drawer you used last to that page, and the drawer comes
+along.
 
 The terminal runs code, so it needs the project's token: `.whiteboard/token`,
 made on first use and gitignored. The link (`/_/auth`) sets it as a cookie

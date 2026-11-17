@@ -86,8 +86,20 @@ container of at least five.
 Open the page in a browser next to your pane instead of only printing the URL.
 The user then reads the page and talks to you side by side. Do this the first
 time you show a page in a session, or when the user asks to see one. Which
-browser depends on where you run: in cmux, its own browser pane; in herdr,
-terminal-browser.
+browser depends on where you run: in whiteboard's own terminal drawer, the
+page around it; in cmux, its own browser pane; in herdr, terminal-browser.
+
+### In whiteboard's terminal drawer
+
+When `WHITEBOARD_TERMINAL` is set, you run in a tab of the terminal drawer at
+the bottom of the user's whiteboard pages, so the browser is right there:
+
+```sh
+whiteboard terminal open <file>     # the browser tab the user is in goes to that page; the drawer comes along
+```
+
+It replaces the page the user is looking at, so open a page when they asked
+to see it or when you just wrote it for them, not while they read another.
 
 **One browser pane, a tab per page.** The first page opens a browser pane to
 the right of yours; every later page opens as a new tab in that same pane, not

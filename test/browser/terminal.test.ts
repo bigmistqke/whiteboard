@@ -110,3 +110,24 @@ test('terminal: two windows of different widths, the one in use decides the size
 
   assert.deepEqual(errors, [], 'no console errors')
 })
+
+test('terminal: a program in a tab opens a page where its drawer is', { timeout: 60000, skip: !hasPty && 'node-pty is not installed' }, async t => {
+  const proj = await project({ config: CONFIG.replace("{ command: './prog.sh' }", ''), pages: { q: '# Q\n', other: '# Other page\n' } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+  proj.cli('terminal', '--new', '--shell')
+  await page.goto(proj.cli('terminal', 'q').trim())
+  await page.waitForSelector('#wb-terminal .xterm-screen')
+  await page.click('#wb-terminal .xterm-screen')
+
+  // what `whiteboard terminal open` does from inside tab 1 (its programs have WHITEBOARD_TERMINAL=1)
+  const out = proj.cliWith({ WHITEBOARD_TERMINAL: '1' }, 'terminal', 'open', 'other')
+  assert.match(out, /opened \/other/)
+  await page.waitForURL(/\/other$/)
+  await until('the page, with the drawer still there', () => page.evaluate(() =>
+    document.body.textContent!.includes('Other page') && !!document.querySelector('#wb-terminal .xterm-screen')))
+
+  // outside a terminal tab it says how to show a page instead
+  assert.throws(() => proj.cli('terminal', 'open', 'q'), /not in a terminal tab/)
+  assert.deepEqual(errors, [], 'no console errors')
+})

@@ -277,6 +277,11 @@ function init(drawer: HTMLElement) {
       if (isOpen() && store.get('wb-terminal-focus') === '1') term.focus()
     })
     stream.addEventListener('data', e => term.write(JSON.parse((e as MessageEvent).data).d))
+    // a program in this tab asked to show a page here (`whiteboard terminal open`): the drawer comes along
+    stream.addEventListener('open', e => {
+      const { path } = JSON.parse((e as MessageEvent).data)
+      if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) location.assign(path)
+    })
     // the session's size changed, or another drawer became the active one
     stream.addEventListener('size', e => {
       const { cols, rows, active: a } = JSON.parse((e as MessageEvent).data)

@@ -200,5 +200,13 @@ export function createTerminal({ dir, home, command }: { dir: string; home: stri
     return { stopped: !!(await ask({ t: 'stop' })) }
   }
 
-  return { sessions, screens, start, input, resize, close, stream, stop, label }
+  /** Show the page at `path` (a path on this server) in the browser tab whose drawer shows session `id`. */
+  async function open(id: string, path: string) {
+    if (!path.startsWith('/') || path.startsWith('//')) throw failure('open takes a path on this server, like /plan', 400)
+    const reply = await ask({ t: 'open', id, path })
+    if (!reply) throw failure('no terminal host runs', 404)
+    return { shown: Number(reply.shown ?? 0) }
+  }
+
+  return { sessions, screens, start, input, resize, close, open, stream, stop, label }
 }

@@ -21,11 +21,14 @@
 //   { t: 'html', id? }                     → { html }: a screen as HTML rows (the first session's
 //                                            without an id), for a page's first render
 //   { t: 'close', id }                     → { ok }: end the session and drop its tab
+//   { t: 'open', id, path }                → { shown }: show the page at `path` in the browser tab
+//                                            whose drawer the reader used last for the session
+//                                            (an `open` to its attach); how many were told
 //   { t: 'stop' }                          → { ok }, and the host exits
 //   { t: 'attach', id, viewer }            → { t: 'sessions', sessions }, then { t: 'none' } or
 //                                            { t: 'screen', d, cols, rows, active, exited }, and then
 //                                            { t: 'data', d }, { t: 'exit', code },
-//                                            { t: 'size', cols, rows, active } and
+//                                            { t: 'size', cols, rows, active }, { t: 'open', path } and
 //                                            { t: 'sessions', sessions } for as long as it stays open
 //
 // A session has one size for every drawer showing it: whose, is sizes.ts. Every drawer is told of
@@ -112,7 +115,8 @@ function start(id: string, command: string, args: string[], label: string): Sess
   const mouseEncoding = followMouseEncoding(screen)
   const proc = pty.spawn(command, args, {
     name: 'xterm-256color', cols, rows, cwd: dir,
-    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+    // WHITEBOARD_TERMINAL: which tab a program runs in, so it can show a page where its drawer is (`open`)
+    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', WHITEBOARD_TERMINAL: id },
   })
   const s: Session = { id, label, proc, screen, serializer, mouseEncoding, cols, rows, attached, viewers, active, exited: null, started: new Date().toISOString() }
   proc.onData(d => {
@@ -248,6 +252,15 @@ function handle(conn: Conn, req: Record<string, any>) {
     }
     case 'html': return reply({ html: html(s ?? sessions.values().next().value) })
     case 'close': close(String(req.id)); return reply({ ok: true })
+    case 'open': {
+      // show a page in the browser tab whose drawer the reader used last for this session; with
+      // none of them active, in every one that shows it
+      if (!s || typeof req.path !== 'string') return reply({ shown: 0 })
+      const mine = [...s.attached].filter(c => c.viewer && c.viewer === s.active)
+      const to = mine.length ? mine : [...s.attached]
+      for (const c of to) send(c, { t: 'open', path: req.path })
+      return reply({ shown: to.length })
+    }
     case 'stop': reply({ ok: true }); return void setTimeout(() => quit('asked to stop (whiteboard terminal stop)'), 50)
     case 'attach': {
       watchers.add(conn)

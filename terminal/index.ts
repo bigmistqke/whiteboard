@@ -78,6 +78,12 @@ export default function terminal(options: TerminalOptions = {}): Plugin {
           },
           'POST /close': { description: 'end a session and drop its tab', auth: true, body: { id: 'string' }, run: ({ body }) => term.close(body.id as string) },
           'POST /stop': { description: 'end every session and their host', auth: true, run: () => term.stop() },
+          'POST /open': {
+            description: 'show the page at path in the browser tab whose drawer shows session id (the one the reader used last); how many were shown',
+            auth: true,
+            body: { id: 'string', path: 'string' },
+            run: ({ body }) => term.open(body.id as string, body.path as string),
+          },
         },
         async shell(req) {
           if (!ctx.authorized(req)) return null
@@ -101,6 +107,19 @@ export default function terminal(options: TerminalOptions = {}): Plugin {
             console.error(`whiteboard: started in tab ${body.session}`)
           }
           console.log(await ctx.authLink(`${ctx.pagePath(ctx.positionals[0])}?terminal=open`))
+        },
+      },
+      open: {
+        description: 'from a program in a terminal tab: show a page in the browser tab whose drawer it runs in',
+        args: '<page|file>',
+        async run(ctx) {
+          const id = process.env.WHITEBOARD_TERMINAL
+          if (!id) throw new Error('not in a terminal tab of whiteboard (WHITEBOARD_TERMINAL is not set): use whiteboard show <page> and open its URL')
+          if (!ctx.positionals[0]) throw new Error('usage: whiteboard terminal open <page|file>')
+          const path = ctx.pagePath(ctx.positionals[0])
+          const { shown } = await call(ctx, 'POST', '/open', { id, path }) as { shown: number }
+          if (!shown) throw new Error(`no browser shows terminal tab ${id} right now; the page is at ${await ctx.server()}${path}`)
+          console.log(`opened ${path} where tab ${id}'s drawer is`)
         },
       },
       stop: {
