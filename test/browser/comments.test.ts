@@ -98,7 +98,11 @@ test('comments on lines of a diff: tinted lines, a drag over two, and where they
   await plus.waitFor({ state: 'visible' })
   const from = (await plus.boundingBox())!
   const to = (await line('const c = 4').boundingBox())!
-  await page.mouse.move(from.x + 10, from.y + 10)
+  // the way a hand goes: from the line, left through the block's padding, onto the "+"
+  const start = (await line('const b = 3').boundingBox())!
+  await page.mouse.move(start.x + 40, start.y + start.height / 2)
+  await page.mouse.move(from.x + 10, from.y + 10, { steps: 12 })
+  assert.ok(await plus.isVisible(), 'the "+" stays on the way to it')
   await page.mouse.down()
   await page.mouse.move(from.x + 10, to.y + to.height / 2, { steps: 4 })
   await page.mouse.up()

@@ -326,8 +326,15 @@ function onLinePointer(e: MouseEvent) {
   }
   if (e.target === lineButton) return
   const line = codeLine(e.target)
-  if (line) showLineButton(line)
-  else if (!lineButton.hidden) { lineButton.hidden = true; hovered = null }
+  if (line) return showLineButton(line)
+  if (lineButton.hidden || !hovered) return
+  // on the way from the line to its "+" (through the block's padding): keep it, as long as the
+  // pointer stays in the band from the "+" to the line's end
+  const band = hovered.getBoundingClientRect()
+  const plus = lineButton.getBoundingClientRect()
+  const inBand = e.clientX >= plus.left - 4 && e.clientX <= band.right
+    && e.clientY >= Math.min(band.top, plus.top) - 4 && e.clientY <= Math.max(band.bottom, plus.bottom) + 4
+  if (!inBand) { lineButton.hidden = true; hovered = null }
 }
 
 const composer = document.createElement('form')
