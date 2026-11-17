@@ -262,23 +262,30 @@ After acting on an answer, update the page to say what you did with it.
 
 ## Putting changes up for review
 
-To have the user review code you changed, write the diff into a page as a
-`diff` fence. Its lines are coloured, and the user can comment on any of
-them: each comment's `at` says which file and line (`src/a.ts:12`, or
-`src/a.ts (old):9` for a removed line). End with a form for the verdict.
+To have the user review code you changed, write the diff into a page, one
+file at a time: each file's diff in a `diff` fence, inside a chat named
+after the file. Its lines are coloured, the user can comment on any of them
+(each comment's `at` says which file and line: `src/a.ts:12`, or
+`src/a.ts (old):9` for a removed line), and the chat under it is for the
+file as a whole. End with a form for the verdict.
 
 ```sh
 git add -N .   # new files show in the diff too
-{ printf '# Review: <what changed>\n\n<why, in a few lines>\n\n````diff\n'
-  git diff HEAD
-  printf '````\n\n:::form{name=review}\n:textarea[Anything else]{name=note}\n\n:button[Approve] :button[Request changes]\n:::\n'
+{ printf '# Review: <what changed>\n\n<why, in a few lines>\n\n'
+  git diff HEAD --name-only | while read -r f; do
+    printf ':::chat{name="%s"}\n**%s**\n\n````diff\n' "$f" "$f"
+    git diff HEAD -- "$f" | grep -v -e '^diff --git ' -e '^index '
+    printf '````\n:::\n\n'
+  done
+  printf ':::form{name=review}\n:textarea[Anything else]{name=note}\n\n:button[Approve] :button[Request changes]\n:::\n'
 } > .whiteboard/pages/review.md
 ```
 
-Then `whiteboard wait --page review`: it hands you the comments and the
-verdict. For a comment, change the code or reply in its thread; after
-changing code, write the page again the same way, so the diff shows what
-it is now (comments whose lines are gone stay open, marked as no longer on
-the page). Use four backticks for the fence, since a diff can hold three.
-A big change reads better as one fence per file or per part, each with a
-line of explanation above it.
+Then `whiteboard wait --page review`: it hands you the line comments
+(`comments:new`), the messages about a file (`chat:message`, with the file
+as `chat`) and the verdict. For a comment or message, change the code or
+reply in its thread; after changing code, write the page again the same
+way, so each diff shows what the file is now (comments whose lines are gone
+stay open, marked as no longer on the page; a file's chat stays with its
+name). Add a line of explanation above a file's fence where it helps. Use
+four backticks for the fence, since a diff can hold three.
