@@ -309,36 +309,156 @@ Named forms need nothing in the config: the core sends a submit of any
 `<form name>` as an event, on a page of any renderer. `comments()` lets you
 select any passage and comment on it; the agent replies in the thread.
 
-A plugin (`definePlugin` from `@bigmistqke/whiteboard`)
-declares what it adds, and everything lives under its name, so two
-plugins can't collide:
-
-- `routes`, by method and path (`'POST /start'`), are mounted at
-  `/api/<name>/start`. Each says what it does, whether it needs the token
-  (`auth`), and the types of its body and query fields. The core checks all
-  of that before the route's code runs.
-- `commands` are `whiteboard <name>` and `whiteboard <name> <sub>`, with
-  declared options that the core parses and checks. A command gets the
-  project, its token and server, what is open on each page (`ctx.status`),
-  and handing out (`ctx.handOut`, what `wait` does).
-- `shell` adds markup at the end of every page's `<head>` and `<body>`.
-- `docs` is markdown that `whiteboard docs` prints after the renderers':
-  what the plugin sends to the log, and how an agent answers it.
-- `client` is a browser module the page imports after the renderer's, with
-  the page and the same api a renderer gets: events, listeners, a signal
-  after the renderer patched the page, the page's corner for floating
-  buttons, and counts in the tab title.
-- Its files go in `.whiteboard/<name>/`, which git ignores and which reloads
-  nothing when it changes.
-
-`whiteboard help` lists the commands and `whiteboard docs` the routes. A
-plugin can't be named like a built-in command or a folder of the core.
-Something that covers the bottom of the window says how much in
-`--wb-inset-bottom`, and markboard keeps clear of it.
-
 Set `files: false` for a project whose folder is not a repository, such as
 your home folder. Then only `.whiteboard/` is served and watched.
 `whiteboard init` sets it when run in the home folder.
+
+## Writing a plugin
+
+A plugin is behaviour on every page, whatever renderer draws it, and
+commands of its own. It's an object with a name; everything it adds lives
+under that name, so two plugins can't collide. Local plugins go in
+`.whiteboard/plugins/` (`.whiteboard/<plugin name>/` is a plugin's data
+folder, ignored by git). This one lets the reader vote a page up:
+
+```ts
+// .whiteboard/plugins/votes.ts
+import { definePlugin } from '@bigmistqke/whiteboard'
+import { read } from '@bigmistqke/whiteboard/log'
+
+export default function votes() {
+  return definePlugin({
+    name: 'votes',
+    // on the plugin itself: what works without a server running
+    commands: {
+      '': {
+        description: 'print the votes per page',
+        run(ctx) {
+          const counts = new Map<string, number>()
+          for (const e of read(ctx.eventsFile).events) if (e.type === 'votes:up') counts.set(e.page, (counts.get(e.page) ?? 0) + 1)
+          for (const [page, n] of counts) console.log(`${page}: ${n}`)
+        },
+      },
+    },
+    // for `whiteboard docs`, under a `# Plugin: votes` heading the core adds
+    docs: () => '## Votes\n\nThe reader can vote a page up: a `votes:up` event. `whiteboard votes` counts them.',
+    // from setup: what the running server adds (routes, markup, the browser module)
+    setup: () => ({ client: new URL('./votes.client.js', import.meta.url) }),
+  })
+}
+```
+
+```js
+// .whiteboard/plugins/votes.client.js: plain JavaScript, served as it is
+export default function mount(root, page, api) {
+  const button = document.createElement('button')
+  const draw = () => { button.textContent = `👍 ${api.events().filter(e => e.type === 'votes:up').length}` }
+  button.addEventListener('click', () => api.append('votes:up'))
+  api.corner().append(button)   // the page's corner, for floating buttons
+  api.onEvents(draw)            // every event on the page, the ones it appends too
+  draw()
+}
+```
+
+```ts
+// .whiteboard/config.ts
+import { defineConfig } from '@bigmistqke/whiteboard'
+import votes from './plugins/votes.ts'
+
+export default defineConfig({ plugins: [votes()] })
+```
+
+What a plugin can have:
+
+- **On the plugin:** `commands` (`whiteboard <name>` and `whiteboard <name>
+  <sub>`, with declared options the core parses and checks), `docs`
+  (markdown for agents: what the plugin sends to the log, and how to answer
+  it), and `session()` (the agent session a command runs in).
+- **From `setup(ctx)`**, which runs once per loaded config on the server:
+  - `routes`, by method and path (`'POST /start'` is mounted at
+    `/api/<name>/start`), each with what it does, whether it needs the
+    project's token (`auth`), and the types of its body and query; the core
+    checks all of that before the route's code runs;
+  - `shell`, markup at the end of every page's `<head>` and `<body>`;
+  - `client`, a browser module the page imports after the renderer's.
+- **A command gets** the project, its event log (`ctx.eventsFile`, for
+  `@bigmistqke/whiteboard/log`), its token and server, what is open on each
+  page (`ctx.status`), and handing out (`ctx.handOut`, what `wait` does).
+- **A browser module** is plain JavaScript (the server sends it as it is; one
+  written in TypeScript needs building first). Its default export runs once
+  per page load with the page and the same `api` a renderer gets: the page's
+  events and `append`, the listeners, `onRendered` (after the renderer
+  patched the page, to put back what it adds), `corner()` for floating
+  buttons, and `badge()` for counts in the tab title. Files beside it that are
+  browser assets (scripts, styles, images, fonts) are served too.
+- **Its events** are named after it, `<plugin name>:<what>`. For now
+  `whiteboard status` and `wait` treat them like a form's answers.
+
+Something that covers the bottom of the window says how much in
+`--wb-inset-bottom`, and markboard keeps clear of it. A plugin can't be
+named like a built-in command or a folder of the core.
+
+## Writing a renderer
+
+A renderer turns a stored page into what the reader sees. It's chosen per
+page: the config's first renderer, or the one a page names in its
+frontmatter (`renderer: plain`). Local renderers go in
+`.whiteboard/renderers/`. This one shows a page as its text:
+
+```ts
+// .whiteboard/renderers/plain.ts
+import { defineRenderer, html } from '@bigmistqke/whiteboard'
+
+export default function plain() {
+  return defineRenderer({
+    name: 'plain',
+    // server: the page's first HTML, for every kind of stored page
+    render: page => ({
+      html: page.kind === 'page' ? html`<pre>${page.body}</pre>`
+        : page.kind === 'file' ? html`<pre>${page.source}</pre>`
+        : html`<p>${page.id}</p>`,
+    }),
+    client: new URL('./plain.client.js', import.meta.url),
+    docs: () => '# plain\n\nA page with `renderer: plain` in its frontmatter shows as its text.',
+  })
+}
+```
+
+```js
+// .whiteboard/renderers/plain.client.js: plain JavaScript, served as it is
+export default function mount(root, page, api) {
+  // the stored page changed: render it again, then say so, so named forms and plugins put back
+  // what they add
+  page.onChange(async () => {
+    root.innerHTML = (await page.render()).html
+    api.rendered()
+  })
+}
+```
+
+```ts
+// .whiteboard/config.ts
+import { defineConfig } from '@bigmistqke/whiteboard'
+import markboard from '@bigmistqke/whiteboard/markboard'
+import plain from './renderers/plain.ts'
+
+export default defineConfig({ renderers: [markboard(), plain()] })   // the first is the default
+```
+
+- **What `render` gets** is the page as stored (`StoredPage`): a markdown
+  page (`kind: 'page'`, with `source`, its `body` without the frontmatter,
+  and the `frontmatter`), another text file (`file`), a folder (`folder`),
+  or the overview (`pages`). It returns the HTML, and optionally a `title`,
+  markup for `<head>`, and `data` for the client. `html`, `raw` and `escape`
+  build HTML safely; `ctx.asset(file)` serves a file next to it.
+- **The client** (plain JavaScript) mounts once per page load. Without one,
+  the core puts a new render in place itself when the page changes.
+- **Named forms work on every renderer:** a `<form name="…">` in the HTML is
+  sent as an event when submitted, and marked with where it stands. For
+  `whiteboard status` and the hooks to know which questions a page asks,
+  give the renderer `expects(page)`, returning the forms' names.
+- **`docs`** is what `whiteboard docs` prints for agents: how to write a page
+  for this renderer. `whiteboard docs plain` prints only this one.
 
 ## markboard
 

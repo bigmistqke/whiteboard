@@ -133,7 +133,8 @@ new: it's for the agent echoing your answer or updating a status line.
 
 | template | for |
 | --- | --- |
-| `form` | a named form written as markdown, with inline inputs (`:radio`, `:check`, `:text`, …) and a thread |
+| `form` | a named form written as markdown, with inline inputs (`:radio`, `:check`, `:text`, …) and a chat under it |
+| `chat` | a chat between the reader and the agent, anywhere on a page |
 | `grid` | cards in a grid, with status badges |
 | `gallery` | images with a lightbox |
 | `details` | a collapsible section |
@@ -181,7 +182,94 @@ template with `code: true` also renders every code block no other template
 claims.
 
 The template's server side can be TypeScript: Node runs it as it is. The
-browser gets the `client` file as it is too, so a client written in
-TypeScript or JSX needs building to JavaScript first; the server reloads
-the open pages when that file changes. markboard's own templates ship
-built. [DESIGN.md](../DESIGN.md#templates) has the full contract.
+browser gets the `client` file as it is too, so **a client is plain
+JavaScript**: one written in TypeScript or JSX needs building to JavaScript
+first. The server reloads the open pages when that file changes.
+markboard's own templates ship built.
+
+### A whole one: a checklist the reader ticks
+
+Local templates go in `.whiteboard/templates/` (a folder the core keeps for
+them; `.whiteboard/<plugin name>/` is a plugin's data, ignored by git).
+
+```ts
+// .whiteboard/templates/checklist/index.ts
+import { defineTemplate, html, type DirectiveContext } from '@bigmistqke/whiteboard/template'
+
+export default defineTemplate<{ name: string; items: string[] }>({
+  name: 'checklist',
+  // what the browser part gets: here, the block's list items as text
+  props: ctx => {
+    const c = ctx as DirectiveContext   // a block (`:::checklist`), not a code fence
+    return {
+      name: c.attrs.name ?? 'checklist',
+      items: (c.children as any[]).filter(n => n.type === 'list')
+        .flatMap(list => list.children.map((item: any) => toText(item))),
+    }
+  },
+  // shown until the client mounts, then replaced (see Islands, below)
+  html: () => html`<ul class="checklist"></ul>`,
+  client: new URL('./client.js', import.meta.url),
+  readme: new URL('./README.md', import.meta.url),
+})
+
+const toText = (node: any): string => node.value ?? (node.children ?? []).map(toText).join('')
+```
+
+```js
+// .whiteboard/templates/checklist/client.js: plain JavaScript
+export default function mount(el, { name, items }, api) {
+  // a template's own events are named after it: `<template name>:<what>`
+  const ticked = () => {
+    const state = new Map()
+    for (const e of api.events()) if (e.type === 'checklist:tick' && e.data.checklist === name) state.set(e.data.item, e.data.checked)
+    return state
+  }
+  const draw = () => {
+    const state = ticked()
+    el.replaceChildren(...items.map(item => {
+      const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: !!state.get(item) })
+      box.addEventListener('change', () => api.append('checklist:tick', { checklist: name, item, checked: box.checked }))
+      const label = document.createElement('label')
+      label.append(box, ' ', item)
+      return label
+    }))
+  }
+  draw()
+  // the page's events, also the ones it appends itself, come back here
+  return api.onEvents(draw)
+}
+```
+
+```ts
+// .whiteboard/config.ts
+import { defineConfig } from '@bigmistqke/whiteboard'
+import markboard from '@bigmistqke/whiteboard/markboard'
+import checklist from './templates/checklist/index.ts'
+
+export default defineConfig({ renderers: [markboard({ templates: [checklist] })] })
+```
+
+An agent then waits for `checklist:tick` like for a form's answer
+(`whiteboard wait --page <file> --type checklist:tick`).
+
+### Islands
+
+A template with a `client` is an island:
+
+- **Mounting replaces the server's HTML.** The core empties the island and
+  calls `mount(el, props, api)`, so `html` is only a placeholder for the
+  moment before (or a fallback without JavaScript). Build the live markup in
+  `mount`.
+- **`props`** is what the server hands the client: plain JSON, computed from
+  the block (`ctx.attrs`, `ctx.children`, the block's mdast nodes).
+- **`api`** is the page's: `events()`, `onEvents(fn)`, `append(type, data)`
+  (it lands in the log, and comes back through `onEvents`), `listeners()`,
+  `last(type)`, `pickedUp(id)`. `events()` holds this page's events only.
+- **A live update keeps an unchanged island mounted;** one whose block
+  changed is disposed (the function `mount` returned is called) and mounted
+  afresh with its new props.
+- **Events are named after the template:** `<template name>:<what>`. A colon
+  keeps them apart from a form's answers, whose type is the form's name.
+  For now `whiteboard status` and `wait` treat a template's events like
+  answers. [DESIGN.md](https://github.com/bigmistqke/whiteboard/blob/main/DESIGN.md#templates) has the full contract.
