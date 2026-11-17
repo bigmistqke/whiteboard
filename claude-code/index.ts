@@ -18,7 +18,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import type { CommandContext, PageStatus, Plugin } from '../src/define.ts'
+import type { CommandContext, PageStatus, Plugin, WbEvent } from '../src/define.ts'
 
 type Mode = 'stop' | 'prompt' | 'session'
 
@@ -91,13 +91,15 @@ async function hook(ctx: CommandContext, mode: Mode) {
   }
 
   // prompt and session: what is printed becomes context for the agent. Answers on its own pages
-  // that no wait picked up are handed over here, and count as picked up from then on.
+  // that no wait picked up are handed over here, as a wait would, and count as picked up from then
+  // on. Only the page itself: a page below it may be another session's.
   const out: string[] = []
   for (const p of mine) {
-    if (p.unpicked.length) {
+    const handed: WbEvent[] = []
+    await ctx.handOut({ page: p.page, exact: true }, e => handed.push(e), { follow: false })
+    if (handed.length) {
       out.push(`Answers on your page ${p.page} (${relFile(p.file)}) that no wait picked up; they count as picked up now:`)
-      for (const e of p.unpicked) out.push(JSON.stringify(e))
-      for (const e of p.unpicked) ctx.pickUp(e)
+      for (const e of handed) out.push(JSON.stringify(e))
     }
     if (p.unheard.length) out.push(`Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}: run \`whiteboard wait --page ${relFile(p.file)}\` in the background.`)
   }

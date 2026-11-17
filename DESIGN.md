@@ -111,8 +111,17 @@ so the log is the only record of what was handed out. Each command first
 returns the matching events nobody picked up, also those from before it
 started, whatever filter handed out the others; then it follows the log, and
 gets every new matching event, also when another running wait gets it too.
-The backlog and the following split the log at one byte offset, so no event
-falls between them.
+The backlog and the following split the log at one line boundary, so no
+event falls between them, not even one being written as the command starts.
+
+This is handing out (`handOut` in `src/events.ts`), and it is built only
+from the log's primitives: read the log (to the end of its last whole
+line), follow it from an offset, append to it, and record a pick. Each
+primitive is a command too (`events`, `events --follow`, `append`, `pick`)
+and a module (`@bigmistqke/whiteboard/log`), so an agent or a script can use
+the log in a way whiteboard doesn't offer, such as picking an answer up only
+once it has acted on it, without writing a plugin. A plugin's command hands
+out through `ctx.handOut`, the same function.
 
 Relative links and images in any rendered markdown are resolved from that
 file's own folder on disk and rewritten to the URL that serves the target
@@ -315,8 +324,9 @@ agent forgetting a wait is caught from outside it:
   as context, the answers on its pages nobody picked up, and count them as
   picked up (a `whiteboard:picked` event each); `session` also lists what is
   open on other sessions' pages, without handing it over. A plugin's
-  command gets the status and the pick-up from the core (`ctx.status()`,
-  `ctx.pickUp()`).
+  command gets the status and handing out from the core (`ctx.status()`,
+  `ctx.handOut()`); the hooks hand out only the session's own pages, not
+  the pages below them, which can be another session's.
 
 ### Loading and reloading
 
@@ -489,7 +499,8 @@ itself, so a config in a repository without npm can import
 
 Everything is TypeScript, written so that Node can run it by stripping
 its types (`erasableSyntaxOnly`: no enums, no namespaces), and `npm run
-check` type-checks all of it. Node runs TypeScript, but not inside
+check` type-checks all of it; `npm test` runs the tests
+(`node:test`, next to the code as `*.test.ts`). Node runs TypeScript, but not inside
 `node_modules`, where an installed package lives; so everything the package
 runs ships built in `dist/`, the engine and its plugins included, and its
 `exports` point there. `bin/whiteboard.js`, the one JavaScript file, picks:

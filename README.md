@@ -240,10 +240,11 @@ upward with a `.whiteboard/` folder.
 | `whiteboard show <page\|file>` | start the server if needed, print the page's URL |
 | `whiteboard url <page\|file>` | the same |
 | `whiteboard docs` | print how to write pages in this project (for markboard: its templates' syntax) |
-| `whiteboard events [filters]` | print recorded events |
+| `whiteboard events [filters] [--follow]` | print recorded events; with `--follow`, then each new one as it comes, marking nothing |
 | `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed |
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
+| `whiteboard pick <event id>` | record an event as picked up, as `wait` does when it hands one out |
 | `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent picked up, who is listening |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |

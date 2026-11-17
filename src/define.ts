@@ -173,8 +173,17 @@ export interface CommandContext {
   authLink(path: string): Promise<string>
   /** what is open on each page (or on `page` and the pages below it), as `whiteboard status` reports it */
   status(page?: string): Promise<PageStatus[]>
-  /** record that `event` was handed to an agent, as a wait does: from then on it counts as picked up */
-  pickUp(event: WbEvent): void
+  /**
+   * Hand the reader's events on `page` (and below it, unless `exact`) or of `type` to `onEvent`, as `whiteboard
+   * wait` does: each once, also those from before, never an agent's own, and each counted as picked
+   * up from then on. With `follow: false` only those nobody picked up yet. Resolves with how many.
+   * For the log's other primitives, import `@bigmistqke/whiteboard/log`.
+   */
+  handOut(
+    filter: { page?: string | null; type?: string | null; exact?: boolean },
+    onEvent: (event: WbEvent) => void,
+    options?: { count?: number; follow?: boolean; signal?: AbortSignal },
+  ): Promise<number>
 }
 
 /** What is open on one page. */

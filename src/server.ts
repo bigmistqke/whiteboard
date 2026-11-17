@@ -16,7 +16,7 @@ import http, { type IncomingMessage, type ServerResponse } from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { DEFAULT_PORT, findProjectDir, project as projectAt, type Project } from './config.ts'
-import { appendEvent, readEvents, matches, pickedUp, CLAIM } from './events.ts'
+import { appendEvent, readEvents, matches, pickedUp, fromReader, CLAIM } from './events.ts'
 import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig, type LoadedRenderer } from './renderers.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
@@ -177,7 +177,7 @@ function pageSource(id: string, file: string): PageSource {
 function pagesIn(dir: string): PagesSource['pages'] {
   const last = new Map<string, string>()
   // the last time the reader sent something: what the agent appended doesn't count
-  for (const e of readEvents(PROJECT.eventsFile)) if (e.from !== 'cli') last.set(e.page, e.ts)
+  for (const e of readEvents(PROJECT.eventsFile)) if (fromReader(e)) last.set(e.page, e.ts)
   const out: PagesSource['pages'] = []
   const walk = (d: string) => {
     if (!fs.existsSync(d)) return
@@ -321,7 +321,7 @@ async function status(only: string | null): Promise<PageStatus[]> {
   const all = readEvents(PROJECT.eventsFile)
   const picked = pickedUp(all)
   const owner = new Map<string, string | null>()
-  for (const e of all) if (e.type === CLAIM && e.from === 'cli') owner.set(e.page, (e.data?.session as string | undefined) ?? null)
+  for (const e of all) if (e.type === CLAIM && !fromReader(e)) owner.set(e.page, (e.data?.session as string | undefined) ?? null)
   const out: PageStatus[] = []
   for (const p of pagesIn(PROJECT.pagesDir)) {
     if (only && p.id !== only && !p.id.startsWith(only + '/')) continue
@@ -329,7 +329,7 @@ async function status(only: string | null): Promise<PageStatus[]> {
     const renderer = pick(page, renderers, [])
     let asks: string[] = []
     try { asks = renderer?.expects ? [...(await renderer.expects(page, context()))] : [] } catch (err) { console.error(`renderer ${renderer!.name}: expects:`, err) }
-    const sent = all.filter(e => e.page === p.id && e.from !== 'cli')
+    const sent = all.filter(e => e.page === p.id && fromReader(e))
     const answered = new Set(sent.map(e => e.type))
     const open = asks.filter(t => !answered.has(t))
     const listening = listenersFor(p.id)

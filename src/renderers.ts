@@ -28,7 +28,7 @@ export interface LoadedConfig {
 
 const NAME = /^[\w-]+$/
 /** The command line's own commands: a plugin can't be named like one, since its commands are `whiteboard <name>`. */
-export const BUILTIN_COMMANDS = new Set(['serve', 'init', 'root', 'new', 'show', 'url', 'docs', 'events', 'wait', 'watch', 'append', 'status', 'skill', 'help'])
+export const BUILTIN_COMMANDS = new Set(['serve', 'init', 'root', 'new', 'show', 'url', 'docs', 'events', 'wait', 'watch', 'append', 'pick', 'status', 'skill', 'help'])
 // folders in .whiteboard/ that are the core's, and the built-in commands
 const RESERVED = new Set(['pages', 'delivered', ...BUILTIN_COMMANDS])
 

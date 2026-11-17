@@ -7,7 +7,7 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn, type Project } from '../src/config.ts'
-import { appendEvent, parseLines, readEvents, matches, pickedUp, markPicked, CLAIM, type EventFilter } from '../src/events.ts'
+import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, handOut, CLAIM, type EventFilter } from '../src/events.ts'
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/renderers.ts'
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
@@ -30,10 +30,11 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
   whiteboard docs                  how to write pages here (for markboard: its templates) — read before writing one
-  whiteboard events [filters]      print recorded events as ndjson
+  whiteboard events [filters]      print recorded events as ndjson; --follow: then each new one as it comes
   whiteboard wait [filters]        block until the next matching event, print it, exit
   whiteboard watch [filters]       like wait, but never exits: print each matching event once
   whiteboard append --page <p> --type <t> [--data <json>]   add an event to a page's log (e.g. a reply)
+  whiteboard pick <event id>       record an event as picked up, as wait does when it hands one out
   whiteboard status [--page <p>]   per page: questions without an answer, answers no agent picked up, who listens
   whiteboard serve                 run this project's server in the foreground
   whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
@@ -56,7 +57,7 @@ const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { valu
   allowPositionals: true,
   options: {
     page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
-    since: { type: 'string' }, last: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
   },
 })
 
@@ -157,41 +158,6 @@ function listen(f: EventFilter, command: 'wait' | 'watch') {
     req.on('socket', socket => socket.unref())
   }
   connect()
-}
-
-const logSize = (log: string) => (fs.existsSync(log) ? fs.statSync(log).size : 0)
-
-/** The events in the first `bytes` bytes of the log. */
-function readEventsUpTo(log: string, bytes: number): WbEvent[] {
-  if (!bytes) return []
-  const fd = fs.openSync(log, 'r')
-  const buf = Buffer.alloc(bytes)
-  fs.readSync(fd, buf, 0, bytes, 0)
-  fs.closeSync(fd)
-  return parseLines(buf.toString('utf8'))
-}
-
-/** Follow the event log from byte `offset` (default: its current end), calling `onEvent` for each matching new line. */
-function follow(onEvent: (e: WbEvent) => void, offset: number = logSize(needProject().eventsFile)) {
-  const log = needProject().eventsFile
-  const f = filter()
-  let partial = ''
-  const poll = () => {
-    if (!fs.existsSync(log)) return
-    const size = fs.statSync(log).size
-    if (size < offset) offset = 0 // truncated
-    if (size === offset) return
-    const fd = fs.openSync(log, 'r')
-    const buf = Buffer.alloc(size - offset)
-    fs.readSync(fd, buf, 0, buf.length, offset)
-    fs.closeSync(fd)
-    offset = size
-    const text = partial + buf.toString('utf8')
-    const cut = text.lastIndexOf('\n')
-    partial = text.slice(cut + 1)
-    for (const e of parseLines(text.slice(0, cut + 1))) if (matches(e, f)) onEvent(e)
-  }
-  return setInterval(poll, 200)
 }
 
 function init(name: string | undefined) {
@@ -352,8 +318,11 @@ switch (cmd) {
     break
   }
   case 'events': {
+    // the log as it is: every matching event, also the agent's own, and nothing marked as picked up
     const f = filter()
-    let list = readEvents(needProject().eventsFile).filter(e => matches(e, f))
+    const log = needProject().eventsFile
+    const { events, end } = read(log)
+    let list = events.filter(e => matches(e, f))
     if (opts.since) {
       const i = list.findIndex(e => e.id === opts.since)
       const since = opts.since
@@ -361,32 +330,29 @@ switch (cmd) {
     }
     if (opts.last) list = list.slice(-Number(opts.last))
     for (const e of list) console.log(JSON.stringify(e))
+    if (opts.follow) follow(log, end, e => { if (matches(e, f)) console.log(JSON.stringify(e)) })
+    break
+  }
+  case 'pick': {
+    // what a wait does when it hands an event out, for a script that hands out events itself
+    const proj = needProject()
+    const id = positionals[0]
+    if (!id) throw new Error('usage: whiteboard pick <event id>')
+    const events = readEvents(proj.eventsFile)
+    const event = events.find(e => e.id === id)
+    if (!event) throw new Error(`no event ${id} in ${proj.eventsFile}`)
+    if (pickedUp(events).has(id)) { console.error(`whiteboard: ${id} was picked up already`); break }
+    console.log(JSON.stringify(pick(proj.eventsFile, event)))
     break
   }
   case 'wait':
   case 'watch': {
-    // Events nobody picked up yet come first, also those from before the command started; then new
-    // ones. Handing one out appends a `whiteboard:picked` event naming it, so the log itself says
-    // what was handed out: no later wait, whatever its filter, hands it out again, and an answer is
-    // never lost between two commands. While it runs, a wait gets every new matching event, also
-    // when another wait gets it too. `wait` stops after --count events (default 1); `watch` never does.
+    // Each answer once, also one given before the command started, never the agent's own; see
+    // handOut. `wait` stops after --count events (default 1); `watch` never does.
     const proj = needProject()
     const f = filter()
-    const want = cmd === 'wait' ? Number(opts.count ?? 1) : Infinity
-    let got = 0
-    const hand = (e: WbEvent) => {
-      console.log(JSON.stringify(e))
-      markPicked(proj.eventsFile, e)
-      if (++got >= want) process.exit(0)
-    }
-    // the backlog and the follow split the log at one offset, so no event falls between them
-    const offset = logSize(proj.eventsFile)
-    // events the command line wrote (an agent's own reply, say) are not answers to wait for
-    const heard = (e: WbEvent) => matches(e, f) && e.from !== 'cli'
-    const before = readEventsUpTo(proj.eventsFile, offset)
-    const picked = pickedUp(before)
-    for (const e of before.filter(e => heard(e) && !picked.has(e.id))) hand(e)
-    follow(e => { if (e.from !== 'cli') hand(e) }, offset)
+    handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), { count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity })
+      .then(() => process.exit(0))
     listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
     break
@@ -444,7 +410,7 @@ switch (cmd) {
         server: ensureServer,
         pagePath: page => `/${pageId(project, page ?? '')}`,
         status: async page => api(`/api/status${page ? `?page=${encodeURIComponent(pageId(project, page))}` : ''}`),
-        pickUp: event => { markPicked(project.eventsFile, event) },
+        handOut: (filter, onEvent, options) => handOut(project.eventsFile, { ...filter, page: filter.page ? pageId(project, filter.page) : null }, onEvent, options),
         authLink: async to => `${await ensureServer()}/_/auth?token=${encodeURIComponent(projectToken(project.wb))}&to=${encodeURIComponent(to)}`,
       })
       break

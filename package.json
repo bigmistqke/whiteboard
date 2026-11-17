@@ -30,6 +30,10 @@
       "types": "./src/define.ts",
       "default": "./dist/define.js"
     },
+    "./log": {
+      "types": "./src/events.ts",
+      "default": "./dist/src/events.js"
+    },
     "./template": {
       "types": "./markboard/types.ts",
       "default": "./dist/markboard/types.js"
@@ -74,7 +78,8 @@
     "dev": "node build.ts --watch",
     "prepare": "node build.ts",
     "start": "node bin/whiteboard.js serve",
-    "check": "tsc -p tsconfig.json"
+    "check": "tsc -p tsconfig.json",
+    "test": "node --test --test-force-exit 'src/**/*.test.ts'"
   },
   "engines": {
     "node": ">=22.18"
