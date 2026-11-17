@@ -14,8 +14,8 @@ const page = await whiteboard.show('plan')
 ```
 
 A `diff` fence (what `git diff` or `diff -u` prints) is shown for reading:
-each file's headers become its name, a hunk's `@@ … @@` line says where it
-starts (`line 13`), lines have their numbers in a gutter and are tinted
+each file's headers become its name, a hunk's `@@ … @@` line becomes a `⋯`
+where lines are skipped, lines have their numbers in a gutter and are tinted
 when added or removed. Each line in a hunk also says where it is from
 (`src/a.ts:12`), and a comment on it records that. Use four
 backticks around it, since a diff can hold three.

@@ -12,7 +12,7 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // re-rendering. The block's background stays the page's own code background.
 //
 // A `diff` fence is shown for reading (see diff.ts): its header lines go, except the file's name;
-// a hunk's start reads `line 13  <function>`; each line says what it is (`data-diff`: add, del,
+// a hunk's start is a `⋯` where lines are skipped; each line says what it is (`data-diff`: add, del,
 // context, hunk, file), its number (`data-n`, drawn in a gutter by style.css, so it is never part
 // of the text) and where it is (`data-wb-at="file:line"`), which comments on the line record.
 // shiki loads the first time a page has code, not with the plugin: the command line loads the
@@ -65,7 +65,7 @@ export default function code(options: Options = {}): Plugin {
           node.properties['data-diff'] = info.kind
           if (info.n != null) node.properties['data-n'] = String(info.n)
           if (info.at) node.properties['data-wb-at'] = info.at
-          // a file's headers read as its name, a hunk's as where it starts
+          // a file's headers read as its name; a hunk's header as nothing but the gutter's `⋯`
           if (info.label != null) node.children = [{ type: 'text', value: info.label }]
         },
         // the headers nobody reads go, with the line break after each

@@ -1,5 +1,5 @@
 // What each line of a diff fence is, for showing it to a reader rather than a tool: added, removed,
-// unchanged, a hunk's start, a file's name, or a header line nobody needs to read (`diff --git`,
+// unchanged, a gap between hunks, a file's name, or a header line nobody needs to read (`diff --git`,
 // `index`, `---`, modes), which the block leaves out. A line in a hunk has its number (`n`) and
 // where it is (`at`: `file:line` in the new file; a removed line counts in the old one,
 // `file (old):line`). Reads unified diffs, as `git diff` and `diff -u` print them.
@@ -22,10 +22,12 @@ export function diffLines(text: string): DiffLineInfo[] {
   let file = '', oldFile = '', oldN = 0, newN = 0, inHunk = false
   let status = '', renamedFrom = ''
   return text.split('\n').map((line): DiffLineInfo => {
-    const at = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@ ?(.*)$/.exec(line)
+    const at = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line)
     if (at) {
       oldN = Number(at[1]); newN = Number(at[2]); inHunk = true
-      return { kind: 'hunk', label: `line ${Math.max(newN, 1)}${at[3] ? `  ${at[3]}` : ''}` }
+      // only a mark that lines were skipped: the numbers are in the gutter, and the text git adds
+      // after them is a guess at the enclosing line, often just the one before
+      return { kind: 'hunk', label: '' }
     }
     if (inHunk) {
       const sign = line[0]

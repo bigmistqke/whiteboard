@@ -22,8 +22,8 @@ pre.shiki { background: var(--code-bg); }
 .shiki .line[data-diff=add] { background: color-mix(in srgb, #16a34a 14%, transparent); }
 .shiki .line[data-diff=del] { background: color-mix(in srgb, #dc2626 14%, transparent); }
 .shiki .line[data-diff]::before { content: attr(data-n); display: inline-block; width: 4ch; margin-right: 1.5ch; text-align: right; color: var(--muted, #696e76); opacity: .7; user-select: none; }
-:root .shiki .line[data-diff=hunk] { color: var(--muted, #696e76); font-style: italic; margin: 6px 0 2px; }
-.shiki .line[data-diff=hunk]::before { content: '⋯'; text-align: center; font-style: normal; }
+:root .shiki .line[data-diff=hunk] { color: var(--muted, #696e76); line-height: 1.2; margin: 2px 0; }
+.shiki .line[data-diff=hunk]::before { content: '⋯'; text-align: center; }
 .shiki .line[data-diff=file] { font-weight: 600; margin-bottom: 8px; }
 .shiki .line[data-diff=file]::before { content: none; }
 .shiki .line[data-diff=file] + .line[data-diff=hunk] { margin-top: 0; }

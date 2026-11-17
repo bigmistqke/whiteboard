@@ -27,13 +27,13 @@ test('diff lines: kinds, and where each line in a hunk is', () => {
 })
 
 test('diff lines: what the reader sees of the headers', () => {
-  const labels = diffLines(DIFF).filter(l => l.label).map(l => l.label)
-  assert.deepEqual(labels, ['src/a.ts', 'line 3  function f() {', 'gone.ts  (deleted)', 'line 1'])
+  const labels = diffLines(DIFF).filter(l => l.label != null).map(l => l.label)
+  assert.deepEqual(labels, ['src/a.ts', '', 'gone.ts  (deleted)', ''])
   const renamed = diffLines('diff --git a/x.ts b/y.ts\nsimilarity index 90%\nrename from x.ts\nrename to y.ts\n--- a/x.ts\n+++ b/y.ts')
   assert.equal(renamed.find(l => l.kind === 'file')?.label, 'x.ts → y.ts')
 })
 
 test('diff lines: a diff without file headers has kinds and numbers, but no places', () => {
   const lines = diffLines('@@ -1 +1 @@\n-a\n+b')
-  assert.deepEqual(lines, [{ kind: 'hunk', label: 'line 1' }, { kind: 'del', n: 1 }, { kind: 'add', n: 1 }])
+  assert.deepEqual(lines, [{ kind: 'hunk', label: '' }, { kind: 'del', n: 1 }, { kind: 'add', n: 1 }])
 })
