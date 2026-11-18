@@ -20,3 +20,18 @@ toc: true
 
 To have it on every page, `toc({ always: true })`; a page then goes without
 with `toc: false`.
+
+The panel fits its items, between a minimum and a maximum width (160px and
+320px by default). A project sets its own in the options, and a page in its
+frontmatter, which is then also how it asks for the contents:
+
+```ts
+toc({ minWidth: 180, maxWidth: '24rem' })   // pixels, or a CSS length
+```
+
+```markdown
+---
+toc:
+  maxWidth: 240px
+---
+```

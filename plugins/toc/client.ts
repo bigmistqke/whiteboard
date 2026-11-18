@@ -23,19 +23,57 @@ let headings: HTMLElement[] = []
 
 const navHeight = () => document.querySelector<HTMLElement>('.wb-nav')?.getBoundingClientRect().height ?? 0
 
-/** Is there room left of the text for the panel? Else it opens from the header. */
+/** The gap between the panel and the text, and between the panel and the window's edge. */
+const GAP = 40
+const EDGE = 16
+
+/** Is there room left of the text for the panel at its narrowest? Else it opens from the header. */
 function fits() {
+  const narrowest = parseFloat(getComputedStyle(panel).minWidth) || 0
+  return main.getBoundingClientRect().left >= narrowest + GAP + EDGE
+}
+
+/** A width as the frontmatter or the options give it: a CSS length, or a number of pixels. */
+const length = (value: unknown): string | null => {
+  const m = /^(\d+(?:\.\d+)?)(px|em|rem|ch|vw)?$/.exec(String(value ?? '').trim())
+  return m && Number(m[1]) > 0 ? m[1] + (m[2] ?? 'px') : null
+}
+
+/**
+ * How wide the panel may be: it fits its items, between a minimum and a maximum, which the page's
+ * frontmatter can set (`toc: { minWidth: 160px, maxWidth: 320px }`), else the project's options.
+ */
+function bounds() {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name=wb-toc]')
+  const said = handle.frontmatter().toc
+  const own = said && typeof said === 'object' ? (said as Record<string, unknown>) : {}
+  for (const [name, prop] of [
+    ['minWidth', '--wb-toc-min-width'],
+    ['maxWidth', '--wb-toc-max-width'],
+  ] as const) {
+    const value = length(own[name]) ?? length(meta?.dataset[name])
+    if (value) panel.style.setProperty(prop, value)
+    else panel.style.removeProperty(prop)
+  }
+}
+
+/** Docked: its right edge a gap left of the text, so a wider panel grows away from it. */
+function place() {
   const left = main.getBoundingClientRect().left
-  return left >= 230
+  panel.style.setProperty('--wb-toc-right', `${document.documentElement.clientWidth - left + GAP}px`)
+  panel.style.setProperty('--wb-toc-room', `${left - GAP - EDGE}px`)
 }
 
 let handle: PageHandle
 
 /** Does this page have it: what its frontmatter says (`toc:`), and whether it is on everywhere. */
 function wanted() {
-  const said = handle.frontmatter().toc?.trim().toLowerCase()
+  // `toc: true`, or `toc: { minWidth, maxWidth }`: on; `toc: false`: off; else as the project says
+  const said = handle.frontmatter().toc
   const always = document.querySelector('meta[name=wb-toc]')?.getAttribute('content') === 'always'
-  return always ? said !== 'false' : said === 'true'
+  if (said === false) return false
+  if (said === true || (said && typeof said === 'object')) return true
+  return always
 }
 
 function build() {
@@ -60,6 +98,8 @@ function build() {
     }),
   )
   const any = headings.length > 1
+  bounds()
+  place()
   toggle.hidden = !any || fits()
   panel.hidden = !any || (!fits() && !panel.classList.contains('wb-toc-open'))
   panel.classList.toggle('wb-toc-docked', fits())

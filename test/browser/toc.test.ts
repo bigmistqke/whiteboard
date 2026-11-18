@@ -93,3 +93,46 @@ test('toc({ always: true }): on every page, a page says toc: false to go without
   assert.ok((await page.locator('.wb-toc').isHidden()) && (await page.locator('.wb-toc-toggle').isHidden()))
   assert.deepEqual(errors, [])
 })
+
+test(
+  'toc: the panel fits its items, between bounds the options set and a page overrides',
+  { timeout: 60000 },
+  async t => {
+    const BOUNDED = `import toc from '@bigmistqke/whiteboard/toc'\nexport default { plugins: [toc({ maxWidth: 300 })] }\n`
+    const short = `# Short\n\n## One\n\n${filler(5, 'One')}\n\n## Two\n\n${filler(5, 'Two')}\n`
+    const long = `# Long\n\n## A heading that goes on for quite a while, longer than any panel would be\n\n${filler(5, 'One')}\n\n## Two\n\n${filler(5, 'Two')}\n`
+    const proj = await project({
+      config: BOUNDED,
+      pages: {
+        short: `---\ntoc: true\n---\n${short}`,
+        long: `---\ntoc: true\n---\n${long}`,
+        narrow: `---\ntoc:\n  maxWidth: 200px\n---\n${long}`,
+        broken: `---\ntoc: [unclosed\n---\n${short}`,
+      },
+    })
+    const { browser: b, page, errors } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    await page.setViewportSize({ width: 1500, height: 800 })
+    const panel = async (name: string) => {
+      await page.goto(proj.url(name))
+      await until(`contents on ${name}`, async () => (await page.locator('.wb-toc a').count()) === 2 || null)
+      return page.evaluate(() => {
+        const r = document.querySelector('.wb-toc')!.getBoundingClientRect()
+        const text = document.querySelector('#wb-main')!.getBoundingClientRect().left
+        return { width: Math.round(r.width), gap: Math.round(text - r.right) }
+      })
+    }
+    assert.deepEqual(await panel('short'), { width: 160, gap: 40 }, 'short items: the minimum, 40px left of the text')
+    assert.deepEqual(await panel('long'), { width: 300, gap: 40 }, "long ones: the project's maximum")
+    assert.equal((await panel('narrow')).width, 200, "the page's own maximum, from YAML")
+
+    // frontmatter that isn't YAML: said on the page, and read as none
+    await page.goto(proj.url('broken'))
+    await page.waitForSelector('h1')
+    assert.match((await page.textContent('pre.wb-error'))!, /^frontmatter: /)
+    assert.deepEqual(errors, [])
+  },
+)

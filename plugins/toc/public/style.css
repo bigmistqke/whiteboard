@@ -1,8 +1,14 @@
 /* the table of contents (client.ts): in the margin left of the text, or opened from the header */
+/* it fits its items, between a minimum and a maximum (client.ts sets them from the options and the
+   page's frontmatter); docked, never wider than the room left of the text */
 .wb-toc {
   position: fixed;
   z-index: var(--layer-aside);
-  font: var(--ui-small)/var(--ui-line-height) var(--sans, sans-serif);
+  font: var(--ui-small) / var(--ui-line-height) var(--sans, sans-serif);
+  box-sizing: border-box;
+  width: max-content;
+  min-width: var(--wb-toc-min-width, 160px);
+  max-width: var(--wb-toc-max-width, 320px);
 }
 .wb-toc[hidden],
 .wb-toc-toggle[hidden] {
@@ -10,15 +16,15 @@
 }
 .wb-toc-docked {
   top: 72px;
-  left: max(16px, calc((100vw - var(--measure, 680px)) / 2 - 250px));
-  width: 210px;
+  right: var(--wb-toc-right);
+  max-width: min(var(--wb-toc-max-width, 320px), var(--wb-toc-room, 320px));
   max-height: calc(100vh - 120px - var(--wb-inset-bottom, 0px));
   overflow: auto;
 }
 .wb-toc-open:not(.wb-toc-docked) {
   top: 52px;
   left: 16px;
-  width: min(300px, 100vw - 32px);
+  max-width: min(var(--wb-toc-max-width, 320px), 100vw - 32px);
   max-height: calc(100vh - 100px - var(--wb-inset-bottom, 0px));
   overflow: auto;
   padding: var(--space-sm);

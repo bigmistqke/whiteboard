@@ -9,6 +9,7 @@
 // A page has it when its frontmatter says `toc: true`. With `toc({ always: true })`, every page has
 // it, unless its frontmatter says `toc: false`.
 import { builtinPublic } from '../../src/package.ts'
+import { html } from '../../src/html.ts'
 import type { Plugin } from '../../src/define.ts'
 
 const DOCS = `## Table of contents
@@ -21,6 +22,10 @@ in it. A section with an unanswered question or an unread message has a dot.
 export interface TocOptions {
   /** on every page, not only the ones whose frontmatter says `toc: true` (`toc: false` still goes without) */
   always?: boolean
+  /** the panel fits its items, but never narrower than this: a CSS length, or pixels (default 160px) */
+  minWidth?: string | number
+  /** nor wider than this (default 320px); a page's frontmatter can say otherwise: `toc: { maxWidth: 280px }` */
+  maxWidth?: string | number
 }
 
 export default function toc(options: TocOptions = {}): Plugin {
@@ -36,7 +41,14 @@ export default function toc(options: TocOptions = {}): Plugin {
     setup: () => ({
       client: 'client.js',
       // how the browser part knows: on every page, or only where the frontmatter asks
-      shell: () => ({ head: `<meta name="wb-toc" content="${options.always ? 'always' : 'opt-in'}">` }),
+      shell: () => ({
+        head: html`<meta
+          name="wb-toc"
+          content="${options.always ? 'always' : 'opt-in'}"
+          ${options.minWidth != null ? html` data-min-width="${String(options.minWidth)}"` : ''}
+          ${options.maxWidth != null ? html` data-max-width="${String(options.maxWidth)}"` : ''}
+        />`,
+      }),
     }),
   }
 }
