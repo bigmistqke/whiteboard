@@ -114,7 +114,7 @@ hr::after { content: "⁂"; font-size: 1.1em; color: var(--muted); letter-spacin
 details { margin: 3.2em 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 details + details { margin-top: -3.2em; border-top: 0; }
 details > summary {
-  cursor: pointer; list-style: none; padding: .95em 0; font: 500 .95rem/1.4 var(--sans); color: var(--text);
+  cursor: pointer; list-style: none; padding: .5em 0; font: 500 .95rem/1.4 var(--sans); color: var(--text);
   display: flex; gap: .6em; align-items: baseline;
 }
 details > summary::-webkit-details-marker { display: none; }
