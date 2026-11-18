@@ -44,8 +44,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
 
 filters: --page <page|file> (includes pages below it)  --type <type>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
-wait, watch: --fallback  only what no other wait or watch would take, on any page, also once they
-         stop; one fallback per project (a second exits 1)
+wait, watch without --page: the fallback, taking only what no other wait or watch would, on any
+         page, also once they stop; one per project (a second exits 1)
 events:  --since <iso time or event id>  --last <n>
 
 Every command works on the project of the current folder: the nearest folder upward with a
@@ -64,7 +64,7 @@ const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { valu
   allowPositionals: true,
   options: {
     page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
-    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, fallback: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
+    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
   },
 })
 
@@ -151,7 +151,7 @@ function listen(f: EventFilter, command: 'wait' | 'watch', fallback = false): Pr
       const retry = (ms: number) => { if (!again) { again = true; setTimeout(connect, ms).unref() } }
       const req = http.get(`${base}/api/listen?${q}`, res => {
         if (res.statusCode === 409) {
-          console.error('whiteboard: another agent is the fallback already (one per project); `whiteboard status` shows who listens')
+          console.error('whiteboard: another agent already takes what no other listener does (a wait or watch without --page; one per project). Add --page to wait on a page of your own.')
           process.exit(1)
         }
         res.resume()
@@ -394,15 +394,17 @@ switch (cmd) {
     const proj = needProject()
     const f = filter()
     const { handedOut } = await projectConfig(proj)
-    // --fallback: only what no other listener would take, as it comes and once they stop listening
+    // without --page, the fallback: only what no other listener would take, on any page, as it comes
+    // and once they stop listening (an answer left in the log, too)
+    const fallback = !f.page
     let recheck = () => {}
-    const others = opts.fallback ? (await listen(f, cmd, true), await otherListeners(() => recheck())) : null
+    const others = fallback ? (await listen(f, cmd, true), await otherListeners(() => recheck())) : null
     handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), {
       count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity,
       forAgent: forAgent(handedOut),
       ...(others && { skip: e => takenByOther(others(), e), recheck: again => { recheck = again } }),
     }).then(() => process.exit(0))
-    if (!opts.fallback) listen(f, cmd)
+    if (!fallback) listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
     break
   }

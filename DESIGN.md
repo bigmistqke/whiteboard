@@ -362,7 +362,15 @@ it is gone when the command is (it reconnects when the server restarts). The
 server tells pages when listeners come and go (`listeners` on the live
 channel), and `api.listeners()` gives the ones covering the page. So what an
 agent waits for is a fact the command line knows, not something the agent
-has to mark. Reading the log never depends on the
+has to mark.
+
+A `wait` or `watch` without `--page` is the project's fallback: it takes
+only what no other listener would take, by page and type, on any page,
+also answers left from sessions that ended, and an event another listener
+would have taken once that one stops. It asks no question again. One runs
+per project: the server refuses a second (`409`), which exits 1. Without
+this, a page-less listener competed with every page's own agent and was
+rarely what anyone meant. Reading the log never depends on the
 connection, so no answer is missed while the server is away.
 
 ### Status and hooks

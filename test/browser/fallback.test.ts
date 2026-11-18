@@ -1,4 +1,5 @@
-// The fallback (`watch --fallback`): what no other wait or watch would take, and only one per project.
+// The fallback (a `wait` or `watch` without --page): what no other wait or watch would take, and
+// only one per project.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { browser, project, until } from './project.ts'
@@ -11,16 +12,16 @@ test('the fallback takes answers on pages nobody waits on, leaves the others, an
   t.after(async () => { await b.close(); await proj.close() })
   const listeners = async () => (await fetch(proj.url('api/listeners'))).json() as Promise<{ page: string; fallback?: boolean }[]>
 
-  const fallback = proj.spawn('watch', '--fallback')
+  const fallback = proj.spawn('watch')
   await until('the fallback listens', async () => (await listeners()).some(l => l.fallback) || null)
 
   // a second one exits, saying why
-  const second = proj.spawn('watch', '--fallback')
+  const second = proj.spawn('watch')
   let stderr = ''
   second.stderr!.on('data', d => { stderr += d })
   const code = await new Promise<number | null>(resolve => second.on('exit', resolve))
   assert.equal(code, 1)
-  assert.match(stderr, /another agent is the fallback already/)
+  assert.match(stderr, /another agent already takes what no other listener does/)
 
   const wait = proj.spawn('wait', '--page', 'a')
   await until('the wait on a listens', async () => (await listeners()).some(l => l.page === 'a') || null)

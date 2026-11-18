@@ -209,6 +209,11 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   every answer on the page once, also those given while no watch ran. Use it
   only with something that reports each printed line as it comes (a
   monitor), and restart it when that expires.
+- Without `--page`, `wait` and `watch` are the project's fallback: they hand
+  out only what no other wait or watch would take, on any page (also
+  answers left from sessions that ended). One runs per project; a second
+  exits 1. Use it only when asked to look after the whole board; for your
+  own pages, always pass `--page`.
 - `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer. With `--follow` it then prints each new event as it comes, without

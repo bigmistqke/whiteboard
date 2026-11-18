@@ -271,7 +271,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard url <page\|file>` | the same |
 | `whiteboard docs [name]` | print how to write pages in this project: the blocks, then each plugin's docs; with a name, only that plugin's |
 | `whiteboard events [filters] [--follow]` | print recorded events; with `--follow`, then each new one as it comes, marking nothing |
-| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed; `--fallback`: only what no other wait or watch would take (one per project) |
+| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed; without `--page`, only what no other wait or watch would take (the fallback, one per project) |
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
 | `whiteboard pick <event id>` | record an event as picked up, as `wait` does when it hands one out |

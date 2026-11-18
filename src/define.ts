@@ -364,8 +364,8 @@ export interface Listener {
   type: string | null
   command: 'wait' | 'watch'
   /**
-   * `wait --fallback` or `watch --fallback`: it takes only what no other listener would, and asks
-   * no question again. At most one runs per project.
+   * a `wait` or `watch` without `--page`: it takes only what no other listener would, and asks no
+   * question again. At most one runs per project.
    */
   fallback?: boolean
 }
