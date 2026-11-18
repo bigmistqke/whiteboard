@@ -311,6 +311,17 @@ export default defineConfig({
 })
 ```
 
+The page's look is CSS custom properties, which a project's stylesheet
+overrides: colours (`--bg`, `--text`, `--muted`, `--border`, `--accent`,
+`--accent-text`, `--ok`, `--warn`, `--bad`), fonts (`--serif`, `--sans`,
+`--mono`) and widths (`--measure`, `--wide`). Every colour is a
+`light-dark()` pair, so one line sets it for both themes:
+
+```css
+/* .whiteboard/site.css */
+:root { --accent: light-dark(#c2410c, #fb923c); --serif: "Source Serif 4", Georgia, serif; }
+```
+
 The built-in plugins are callout, chat, code, comments, details, forge,
 form, gallery, grid, iframe, mermaid, quiet and window: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,

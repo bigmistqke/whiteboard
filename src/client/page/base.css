@@ -1,11 +1,16 @@
-/* Base page style: an article, set for reading. Blocks bring their own style.css;
-   <root>/style.css is loaded after this file to override anything here.
+/* Base page style: an article, set for reading. Blocks bring their own style.css, and the
+   project's stylesheet (the config's `style`) is linked after this file to override anything here.
 
-   Theme: follows the system unless <html data-theme="light|dark"> is set (the nav toggle). */
+   The theme: every colour is a light-dark(light, dark) pair, so it follows the page's color-scheme:
+   the system's, unless <html data-theme="light|dark"> pins one (the header's toggle). A project
+   overrides a colour for both at once: `--accent: light-dark(#c2410c, #fb923c)`. */
 :root {
-  --bg: #fdfdfc; --surface: #ffffff; --text: #1b1c1e; --muted: #696e76; --border: #e3e5e9;
-  --accent: #1d5bbf; --accent-text: #ffffff; --code-bg: #f2f3f5; --tint: #f6f7f9;
-  --ok: #1a7a49; --warn: #6b4fc0; --bad: #c4352b; --info: #1d5bbf;
+  color-scheme: light dark;
+  --bg: light-dark(#fdfdfc, #131417); --surface: light-dark(#ffffff, #191a1e);
+  --text: light-dark(#1b1c1e, #e4e5e7); --muted: light-dark(#696e76, #979ca5); --border: light-dark(#e3e5e9, #2b2e34);
+  --accent: light-dark(#1d5bbf, #82aaff); --accent-text: light-dark(#ffffff, #0d1220);
+  --code-bg: light-dark(#f2f3f5, #1e2026); --tint: light-dark(#f6f7f9, #1a1c21);
+  --ok: light-dark(#1a7a49, #57c48c); --warn: light-dark(#6b4fc0, #b4a0ff); --bad: light-dark(#c4352b, #ff6f66); --info: light-dark(#1d5bbf, #82aaff);
   --radius: 8px; --shadow: none;
   --serif: "Iowan Old Style", "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
   --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
@@ -13,22 +18,9 @@
   --measure: 680px;
   --wide: 1040px;
   --figure: 920px;
-  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #131417; --surface: #191a1e; --text: #e4e5e7; --muted: #979ca5; --border: #2b2e34;
-    --accent: #82aaff; --accent-text: #0d1220; --code-bg: #1e2026; --tint: #1a1c21;
-    --ok: #57c48c; --warn: #b4a0ff; --bad: #ff6f66; --info: #82aaff;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #131417; --surface: #191a1e; --text: #e4e5e7; --muted: #979ca5; --border: #2b2e34;
-  --accent: #82aaff; --accent-text: #0d1220; --code-bg: #1e2026; --tint: #1a1c21;
-  --ok: #57c48c; --warn: #b4a0ff; --bad: #ff6f66; --info: #82aaff;
-  color-scheme: dark;
-}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
