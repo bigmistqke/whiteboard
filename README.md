@@ -593,6 +593,11 @@ changes only when you run `npm run build`. Without a global command,
 - `npm run check`: type-check everything
 - `npm run build`: build `dist/`, what the package ships; `node
   dist/bin/whiteboard.js` runs it as an installed copy would
+- `npm run release`: type-check and test, then ask for the new version
+  ([bumpp](https://github.com/antfu-collective/bumpp)), commit and tag it as
+  `Release vX.Y.Z`, push, and publish to npm. Publishing reads the token from
+  `NPM_TOKEN` (`.npmrc`); it needs a granular token that may publish without
+  a one-time password
 
 ## Design
 
