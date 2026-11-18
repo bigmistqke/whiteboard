@@ -63,3 +63,26 @@ test('folded: an answer sent with a button and several choices: the button is th
   wait.kill()
   assert.deepEqual(errors, [])
 })
+
+test('folded: a chat being written in doesn\'t fold when its form is decided', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { w: '# Writing\n\n:::form{name=ask}\n:radio[Yes]{name=pick} :radio[No]{name=pick}\n:::\n' } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+  await page.goto(proj.url('w'))
+  await page.check('input[value=Yes]')
+  await page.click('form[name=ask] button.wb-primary')
+  await page.waitForSelector('form[name=ask][data-wb-pending]')
+  // writing in the chat while the answer waits for the agent
+  const box = page.locator('form[name=ask] .wb-chat-new textarea')
+  await box.click()
+  await page.keyboard.type('one more thing')
+  // the agent picks the answer up: the form folds, the chat being written in doesn't
+  const wait = proj.spawn('wait', '--page', 'w')
+  await page.waitForSelector('form[name=ask][data-wb-folded] .wb-folded')
+  await page.waitForTimeout(300)
+  assert.ok(await box.isVisible(), 'the box is still there')
+  assert.equal(await box.inputValue(), 'one more thing')
+  assert.ok(await box.evaluate(b => document.activeElement === b), 'and still has the focus')
+  wait.kill()
+  assert.deepEqual(errors, [])
+})

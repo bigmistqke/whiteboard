@@ -94,8 +94,11 @@ function card(form: HTMLFormElement, name: string, last: WbEvent) {
   const messages = api.events().filter(e => e.type === 'chat:message' && e.data.chat === name).length
   const thread = form.querySelector<HTMLElement>(':scope > [data-block=chat-thread]')
   const unreadHere = !!thread && api.unread().some(m => thread.querySelector(`[data-wb-message="${CSS.escape(m.id)}"]`) || (m.type === 'chat:message' && m.data.chat === name))
-  // a message to read opens it, and it stays open once read, until the reader folds it
-  if (unreadHere) chatsOpen.add(name)
+  // a message to read opens it, and it stays open once read, until the reader folds it; and it
+  // doesn't fold from under a message being written: its box has the focus, or text not sent yet
+  const box = thread?.querySelector<HTMLTextAreaElement>('textarea')
+  const writing = !!box && (document.activeElement === box || box.value.trim() !== '')
+  if (unreadHere || writing) chatsOpen.add(name)
   const open = chatsOpen.has(name)
   form.toggleAttribute('data-wb-chat-open', open)
   const chat = el.querySelector<HTMLButtonElement>('.wb-folded-chat')!
