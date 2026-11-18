@@ -5,8 +5,10 @@
 //   export default defineConfig({ plugins: [claudeCode()] })
 //
 // `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json. Each runs
-// `whiteboard claude-code hook <stop|prompt|session>`, and none of them ever blocks:
-// - stop (a turn ends): the reader sees what on the session's pages nobody listens for;
+// `whiteboard claude-code hook <stop|prompt|session>`, and none of them ever blocks but once:
+// - stop (a turn ends): when the session's pages have questions nobody listens for, the agent's turn
+//   goes on once, told to start its wait (it forgot); a turn a hook already continued ends, and the
+//   reader sees what is open;
 // - prompt (the reader sends a message): the agent gets, as context, the answers on its pages that
 //   no wait picked up, which count as picked up from then on;
 // - session (a session starts): the same, plus what is open on other sessions' pages, without
@@ -42,7 +44,7 @@ export default function claudeCode(): Plugin {
     session: () => process.env.CLAUDE_CODE_SESSION_ID || null,
     commands: {
       hook: {
-        description: 'what Claude Code runs on an event (stop, prompt or session): report what is open on the session\'s pages; never blocks',
+        description: 'what Claude Code runs on an event (stop, prompt or session): report what is open on the session\'s pages; a stop with questions nobody listens for continues the turn once, to start a wait',
         args: '<stop|prompt|session>',
         async run(ctx) {
           const mode = ctx.positionals[0] as Mode
@@ -60,24 +62,31 @@ export default function claudeCode(): Plugin {
 }
 
 /** The JSON Claude Code passes a hook on its standard input, or nothing. */
-function hookInput(): { session_id?: string } {
+function hookInput(): { session_id?: string; stop_hook_active?: boolean } {
   if (process.stdin.isTTY) return {}
   try { return JSON.parse(fs.readFileSync(0, 'utf8') || '{}') } catch { return {} }
 }
 
 const relFile = (file: string) => path.relative(process.cwd(), file) || file
 async function hook(ctx: CommandContext, mode: Mode) {
-  const session = hookInput().session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
+  const input = hookInput()
+  const session = input.session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
   const pages = await ctx.status()
   const busy = pages.filter(p => p.unpicked.length || p.open.length)
   const mine = busy.filter(p => session && p.owner === session)
 
   if (mode === 'stop') {
-    // shown to the reader when a turn ends, never blocking it
+    // A turn ends with questions on the session's pages nobody listens for, or answers no wait
+    // picked up: the agent forgot to wait again. Its turn goes on once, with that as the reason, so
+    // it starts the wait; Claude Code marks a turn a hook continued (stop_hook_active), and that
+    // one ends, with what is open shown to the reader instead.
     const loose = mine.filter(p => p.unheard.length || p.unpicked.length)
     if (!loose.length) return
     const said = (p: PageStatus) => { const l = openOn(p, { waiting: false }); return `${l.slice(0, -1).join('; ')} ${l.at(-1)}` }
-    console.log(JSON.stringify({ systemMessage: `whiteboard: ${loose.map(p => `${p.page}: ${said(p)}`).join(' · ')}` }))
+    const shown = `whiteboard: ${loose.map(p => `${p.page}: ${said(p)}`).join(' · ')}`
+    if (input.stop_hook_active) { console.log(JSON.stringify({ systemMessage: shown })); return }
+    const reason = loose.map(p => `On your whiteboard page ${p.page}: ${openOn(p, { waiting: false }).slice(0, -1).join('; ')}. Run \`whiteboard wait --page ${relFile(p.file)}\` in the background before ending your turn.`).join('\n')
+    console.log(JSON.stringify({ decision: 'block', reason, systemMessage: shown }))
     return
   }
 

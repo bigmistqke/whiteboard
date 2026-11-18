@@ -261,11 +261,16 @@ that picks them up. Pages are claimed by the session that ran
 `whiteboard new` for them, and `status` marks yours. Run it when you resume
 work, or when you're unsure what is still open.
 
-A project can have Claude Code hooks for this: the Claude Code plugin in
-its config, and `whiteboard claude-code install`. None of them ever blocks:
+When `wait` hands you an answer, it also says (on stderr) what is still
+unanswered on the page, with the command to wait again: run it once you've
+acted on the answer.
 
-- when your turn ends with something on your pages nobody listens for, the
-  user sees a one-line warning;
+A project can have Claude Code hooks for this: the Claude Code plugin in
+its config, and `whiteboard claude-code install`:
+
+- when your turn ends with something on your pages nobody listens for, your
+  turn goes on once, telling you to start the wait: start it in the
+  background and end your turn;
 - when the user sends a message, answers on your pages that no wait picked
   up come with it, and count as picked up from then on;
 - a new session starts with the same, plus what is open on other sessions'

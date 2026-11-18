@@ -432,8 +432,14 @@ agent forgetting a wait is caught from outside it:
   Claude Code plugin (`plugins/claude-code/`) names the session from
   `CLAUDE_CODE_SESSION_ID`, and adds `whiteboard claude-code hook
   stop|prompt|session`, which Claude Code runs (`whiteboard claude-code
-  install` adds them). None blocks. `stop` shows the reader what on the
-  session's pages nobody listens for. `prompt` and `session` give the agent,
+  install` adds them). `stop`: when a turn ends with questions on the
+  session's pages nobody listens for (or answers no wait picked up), the
+  turn goes on once, with that as the reason, so the agent starts its wait;
+  a turn a hook already continued (`stop_hook_active`) ends, and the reader
+  sees what is open. An earlier version only showed the reader, and agents
+  kept forgetting to wait again: the reader saw the warning, the agent
+  didn't. `wait` itself also says, on stderr with the answer it hands out,
+  what is still unanswered on the page and the command to wait again. `prompt` and `session` give the agent,
   as context, the answers on its pages nobody picked up, and count them as
   picked up (a `whiteboard:picked` event each); `session` also lists what is
   open on other sessions' pages, without handing it over. A plugin's

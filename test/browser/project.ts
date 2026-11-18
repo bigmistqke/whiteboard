@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright'
 
@@ -29,6 +29,8 @@ export interface Project {
   cli(...args: string[]): string
   /** the same, with more in its environment (as a program in a terminal tab has) */
   cliWith(extra: Record<string, string>, ...args: string[]): string
+  /** run a command with something on its standard input and more in its environment: what it printed, and how it exited */
+  run(args: string[], options?: { input?: string; env?: Record<string, string> }): { stdout: string; stderr: string; status: number }
   /** start a long-running command (a wait), and collect what it prints */
   spawn(...args: string[]): ChildProcess & { output(): string }
   /** the project's events, as the log has them */
@@ -70,6 +72,10 @@ export async function project({ config, pages = {}, files = {} }: { config?: str
     url: name => `http://localhost:${port}/${name}`,
     cli,
     cliWith: (extra, ...args) => execFileSync(process.execPath, [CLI, ...args], { cwd: dir, env: { ...env, ...extra }, encoding: 'utf8' }),
+    run(args, { input = '', env: extra = {} } = {}) {
+      const r = spawnSync(process.execPath, [CLI, ...args], { cwd: dir, env: { ...env, ...extra }, encoding: 'utf8', input })
+      return { stdout: r.stdout, stderr: r.stderr, status: r.status ?? -1 }
+    },
     spawn(...args) {
       const child = spawn(process.execPath, [CLI, ...args], { cwd: dir, env })
       let out = ''

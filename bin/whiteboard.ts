@@ -437,7 +437,17 @@ switch (cmd) {
       count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity,
       forAgent: forAgent(handedOut),
       ...(others && { skip, recheck: again => { recheck = again } }),
-    }).then(() => process.exit(0))
+    }).then(async () => {
+      // a wait on a page ends with an answer, and the agent acts on it; what is still unanswered
+      // there needs the next wait, which is easily forgotten: say so, right with the answer
+      if (cmd === 'wait' && !fallback) {
+        try {
+          const pages = await api(`/api/status?page=${encodeURIComponent(f.page!)}`) as PageStatus[]
+          for (const p of pages) if (p.open.length) console.error(`whiteboard: still unanswered on ${p.page}: ${p.open.join(', ')} → run \`whiteboard wait --page ${relFile(p.file)}\` again, in the background, once you've acted on this`)
+        } catch { /* no status: the answer is what matters */ }
+      }
+      process.exit(0)
+    })
     if (!fallback) listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
     break

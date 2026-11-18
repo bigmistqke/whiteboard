@@ -247,11 +247,11 @@ export default defineConfig({
 With it, `whiteboard new` claims the page it makes for the Claude Code
 session that ran it, and `whiteboard status` marks that session's pages.
 `whiteboard claude-code install` adds three hooks to the project's
-`.claude/settings.json`. None of
-them ever blocks:
+`.claude/settings.json`:
 
 - when a turn ends with something on the session's pages nobody listens for,
-  you see a one-line warning;
+  the turn goes on once, telling the agent to start its wait (agents forget);
+  a turn the hook already continued ends, and you see what is open;
 - when you send a message, answers on the session's pages that no wait
   picked up come with it, and count as picked up from then on;
 - a new session starts with the same, plus what is open on other sessions'
