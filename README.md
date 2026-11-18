@@ -312,7 +312,7 @@ export default defineConfig({
 ```
 
 The built-in plugins are callout, chat, code, comments, details, forge,
-form, gallery, grid, iframe, mermaid and quiet: every project has them, and
+form, gallery, grid, iframe, mermaid, quiet and window: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent, and so is the
@@ -480,6 +480,12 @@ export default function mount(root, page, api) {
     checks all of that before the route's code runs;
   - `shell`, markup at the end of every page's `<head>` and `<body>`;
   - `client`, a module on every page, run once per page load.
+
+**A block can draw a window** around what it shows, the same one as
+`::iframe`, `::image`, `::video` and `:::window`: `windowFrame({ label, open,
+body })` from `@bigmistqke/whiteboard` gives it a header with its label, a
+button that opens `open` on its own, and one that fills the browser window
+(the page does that part).
 
 **A plugin's browser files live in its `public/` folder**, and only that
 folder is served: its client modules, styles, images and fonts, never its

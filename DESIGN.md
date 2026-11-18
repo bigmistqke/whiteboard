@@ -191,6 +191,14 @@ Images and other binary files are served as they are.
 
 ### Plugins
 
+A window (`windowFrame` in `src/pages/window.ts`, exported to plugins) is a
+header around what a block shows: its label, a button that opens it on its
+own (an address, a file), one that fills the browser window (the page does
+that: `src/client/page/window.ts`, kept by the window's place across
+updates; Esc puts it back). It was the iframe block's own; it is the page's
+now, so `::image`, `::video`, `:::window` around any markdown, and any
+plugin's block share it, and `bare` leaves the header out everywhere.
+
 A plugin's browser files live in its public folder (`public` on the plugin,
 `src/public.ts`), and the server serves that folder and nothing else of the
 plugin: its client modules, styles, images and fonts, never its server code,

@@ -13,6 +13,7 @@ import { trackLive } from './live'
 import { applySorts, trackSorts } from './sort'
 import { trackSticky } from './sticky'
 import { trackHold } from './hold'
+import { trackWindows } from './window'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
 
@@ -345,6 +346,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   if (isDir) { trackSorts(); core.onRendered(applySorts) }
   trackSticky(main, fn => core.onRendered(fn))
   trackHold()
+  trackWindows(core)
   if (!isDir) trackOrphanThreads(main, core)
   await mountIslands()
   tickTimes()

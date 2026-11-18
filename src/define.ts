@@ -10,6 +10,7 @@ import type { Html } from './html.ts'
 
 // HTML from a template literal, escaped by default: for a block, a plugin's `shell`
 export { html, raw, escape, Html } from './html.ts'
+export { windowFrame, type WindowOptions } from './pages/window.ts'
 
 // ---- config ------------------------------------------------------------------------------------
 

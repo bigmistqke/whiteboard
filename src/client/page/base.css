@@ -326,3 +326,36 @@ main:has(+ .wb-orphans:not([hidden])) { padding-bottom: 0; }
 .wb-orphan-who { font: 600 .68rem/1.3 var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .wb-orphan-message[data-from=agent] .wb-orphan-who { color: var(--accent); }
 .wb-orphan-text { white-space: pre-wrap; padding: 6px 10px; border-radius: 12px; background: var(--tint, var(--surface)); border: 1px solid var(--border); }
+
+/* a window around a block (src/pages/window.ts, window.ts here): a header like a browser window's,
+   with its label, open on its own, fill the window */
+.wb-window { margin: 1.6em 0; border: 1px solid var(--border); border-radius: var(--radius, 6px); overflow: hidden; background: var(--bg); }
+.wb-window-body > :first-child { margin-top: 0; }
+.wb-window-body > :last-child { margin-bottom: 0; }
+.wb-window-body:not(.wb-iframe-frame) { padding: 12px 14px; overflow: auto; }
+.wb-window-body img, .wb-window-body video { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.wb-window-bar {
+  display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 12px; min-height: 32px; box-sizing: border-box;
+  border-bottom: 1px solid var(--border); background: var(--tint, var(--bg)); font: .8rem/1.4 var(--sans); color: var(--muted);
+}
+.wb-window-name { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; overflow: hidden; white-space: nowrap; }
+.wb-window-title { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.wb-window-address { font-family: var(--mono, monospace); font-size: .75rem; overflow: hidden; text-overflow: ellipsis; }
+.wb-window-button {
+  flex: none; display: inline-grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 5px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.wb-window-button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.wb-window-restore, .wb-window[data-wb-maximized] .wb-window-max { display: none; }
+.wb-window[data-wb-maximized] .wb-window-restore, .wb-window-max { display: contents; }
+/* filling the window, above the page and its header; the terminal drawer stays below it. The
+   margin is !important: the page indents its blocks with a rule more specific than any here */
+.wb-window[data-wb-maximized] {
+  position: fixed; inset: 0 0 var(--wb-inset-bottom, 0px) 0; z-index: 40; margin: 0 !important; border-radius: 0; border: 0;
+  display: flex; flex-direction: column; width: auto; left: 0; transform: none;
+}
+.wb-window[data-wb-maximized] .wb-window-body { flex: 1; height: auto !important; resize: none; min-height: 0; }
+/* what fills it, as large as fits */
+.wb-window[data-wb-maximized] .wb-window-body:has(> p:only-child > :is(img, video):only-child, > :is(img, video):only-child) { display: grid; place-items: center; }
+.wb-window[data-wb-maximized] .wb-window-body :is(img, video) { max-height: calc(100vh - 80px - var(--wb-inset-bottom, 0px)); width: auto; }
+:root[data-wb-window-maximized] { overflow: hidden; }

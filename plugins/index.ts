@@ -15,7 +15,8 @@ import grid from './grid/index.ts'
 import iframe from './iframe/index.ts'
 import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
+import windows from './window/index.ts'
 
 export function builtins(): Plugin[] {
-  return [callout(), chat(), code(), comments(), details(), forge(), form(), gallery(), grid(), iframe(), mermaid(), quiet()]
+  return [callout(), chat(), code(), comments(), details(), forge(), form(), gallery(), grid(), iframe(), mermaid(), quiet(), windows()]
 }

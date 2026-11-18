@@ -18,14 +18,14 @@ test('iframe: a header with its label and address; it fills the window, stays so
   t.after(async () => { await b.close(); await proj.close() })
 
   await page.goto(proj.url('f'))
-  const fig = page.locator('div.wb-iframe').first()
+  const fig = page.locator('div.wb-window').first()
   await fig.waitFor()
-  assert.equal(await fig.locator('.wb-iframe-title').textContent(), 'The demo')
-  assert.equal(await fig.locator('.wb-iframe-url').count(), 0, 'with a label, no address')
-  assert.equal(await fig.locator('.wb-iframe-name').getAttribute('title'), 'demo.html', 'the address on hover')
-  assert.equal(await page.locator('div.wb-iframe').nth(1).locator('.wb-iframe-bar').count(), 0, 'bare: no header')
-  assert.equal(await page.locator('div.wb-iframe').nth(2).locator('.wb-iframe-name').textContent(), 'demo.html?unlabelled', 'without a label, the address')
-  await until('the file loads in the frame', async () => (await page.frameLocator('div.wb-iframe >> nth=0 >> iframe').locator('#inside').count()) === 1 || null)
+  assert.equal(await fig.locator('.wb-window-title').textContent(), 'The demo')
+  assert.equal(await fig.locator('.wb-window-address').count(), 0, 'with a label, no address')
+  assert.equal(await fig.locator('.wb-window-name').getAttribute('title'), 'demo.html', 'the address on hover')
+  assert.equal(await page.locator('div.wb-window').nth(1).locator('.wb-window-bar').count(), 0, 'bare: no header')
+  assert.equal(await page.locator('div.wb-window').nth(2).locator('.wb-window-name').textContent(), 'demo.html?unlabelled', 'without a label, the address')
+  await until('the file loads in the frame', async () => (await page.frameLocator('div.wb-window >> nth=0 >> iframe').locator('#inside').count()) === 1 || null)
 
   const viewport = page.viewportSize()!
   const box = async () => (await fig.boundingBox())!
