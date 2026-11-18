@@ -27,5 +27,13 @@ test('an open details keeps its summary at the top, and a nested one stacks belo
   await page.waitForTimeout(100)
   assert.ok(Math.abs(await page.locator(outer).evaluate(el => el.closest('summary')!.getBoundingClientRect().top) - nav) < 1.5)
   assert.ok(await page.locator(inner).evaluate(el => el.closest('summary')!.getBoundingClientRect().bottom) < nav + outerHeight + 1, 'the inner one went up with its details')
+
+  // closing the outer details by its stuck title: the page goes back to the title
+  await page.locator('text=Inner text 40.').scrollIntoViewIfNeeded()
+  await page.locator(outer).click()
+  await page.waitForTimeout(200)
+  const summaryTop = await page.locator(outer).evaluate(el => el.closest('summary')!.getBoundingClientRect().top)
+  assert.ok(await page.locator(outer).evaluate(el => !el.closest('details')!.open), 'closed')
+  assert.ok(Math.abs(summaryTop - nav) < 1.5, `the title is where it was stuck (${summaryTop} vs ${nav})`)
   assert.deepEqual(errors, [])
 })

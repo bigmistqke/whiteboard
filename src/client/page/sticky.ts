@@ -2,7 +2,9 @@
 // a summary of details inside details stacks below the summaries of the details around it. CSS
 // makes them sticky (base.css); this says how far from the top each sticks: the header's height,
 // then each open summary around it, measured, as a summary can take more than one line. Measured
-// again when a details opens or closes, the window resizes, or the page updates.
+// again when a details opens or closes, the window resizes, or the page updates. Closing a details by
+// its title while the title is stuck (its start is above the view) scrolls back to it, so the
+// reader lands at the title, not somewhere far below where the content was.
 
 function place(main: HTMLElement) {
   const nav = document.querySelector<HTMLElement>('.wb-nav')
@@ -20,7 +22,19 @@ function place(main: HTMLElement) {
   }
 }
 
+/** A click on a stuck title: once its details has closed, the title where it was stuck. */
+function keepTitle(e: MouseEvent) {
+  const summary = (e.target as HTMLElement).closest?.('summary')
+  const details = summary?.parentElement
+  if (!summary || !(details instanceof HTMLDetailsElement) || !details.open) return
+  const top = parseFloat(summary.style.getPropertyValue('--wb-sticky-top')) || 0
+  // stuck: the details starts above where its title is held
+  if (details.getBoundingClientRect().top >= top - 1) return
+  requestAnimationFrame(() => scrollBy({ top: details.getBoundingClientRect().top - top }))
+}
+
 export function trackSticky(main: HTMLElement, onRendered: (fn: () => void) => void) {
+  main.addEventListener('click', keepTitle)
   let frame = 0
   const later = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => place(main)) }
   // toggle doesn't bubble: listened for on the way down
