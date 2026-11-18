@@ -22,7 +22,7 @@ interface Handoff {
   /** the event types that, from the agent, are messages for the reader */
   messages: string[]
   /** the page's frontmatter (PageHandle.frontmatter) */
-  frontmatter: Record<string, string>
+  frontmatter: Record<string, unknown>
   /** false on a built page (`whiteboard build`): a file, no server behind it */
   live?: boolean
 }
@@ -155,7 +155,7 @@ async function getJson<T>(url: string): Promise<T> {
 // place (api.rendered), so a listener never sees new values over the old page
 let data: unknown = handoff.data
 let nextData: unknown = data
-let frontmatter: Record<string, string> = handoff.frontmatter ?? {}
+let frontmatter: Record<string, unknown> = handoff.frontmatter ?? {}
 let nextFrontmatter = frontmatter
 const dataValue = reactive(() => data)
 const frontmatterValue = reactive(() => frontmatter)

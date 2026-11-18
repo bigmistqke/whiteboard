@@ -334,7 +334,7 @@ export interface RenderedPage extends Rendered {
   html: string
   head?: string
   /** the page's frontmatter (see PageHandle.frontmatter) */
-  frontmatter: Record<string, string>
+  frontmatter: Record<string, unknown>
 }
 
 /** A page as the core stores it: what is in the file, read as is. */
@@ -355,8 +355,10 @@ export interface PageSource extends StoredBase {
   source: string
   /** `source` without its frontmatter: the page's content */
   body: string
-  /** the frontmatter's fields, when the file starts with one (`source` keeps it) */
-  frontmatter: Record<string, string>
+  /** the frontmatter's fields, when the file starts with one (`source` keeps it): YAML, as parsed */
+  frontmatter: Record<string, unknown>
+  /** why the frontmatter couldn't be read (it is then empty), shown on the page */
+  frontmatterError?: string | null
 }
 
 /** Any other text file in the repository. */
@@ -416,11 +418,12 @@ export interface PageHandle {
   /** what the server render returned with the HTML now in the root; it changes with each live update */
   data: Reactive<unknown>
   /**
-   * The page's frontmatter: its fields as written, as strings (`toc: true` is `'true'`); empty for a
-   * page without one, and for the overview, folders and code. It changes with a live update that
-   * changed it, once the new page is in place (`onChange` comes before, with the old one still here).
+   * The page's frontmatter: YAML between `---` lines at its start, as parsed (`toc: true` is `true`,
+   * `toc: { maxWidth: 280px }` an object); empty for a page without one, one that doesn't parse, and
+   * for the overview, folders and code. It changes with a live update that changed it, once the new
+   * page is in place (`onChange` comes before, with the old one still here).
    */
-  frontmatter: Reactive<Record<string, string>>
+  frontmatter: Reactive<Record<string, unknown>>
   /** called when the stored page changed; returns an unsubscribe */
   onChange(fn: () => void): () => void
   /** the server render, afresh */

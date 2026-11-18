@@ -145,7 +145,7 @@ What the core reads is the page as stored (`StoredPage` in `src/define.ts`):
 
 | kind | what | served at |
 | --- | --- | --- |
-| `page` | a markdown file: `source`, its `body` (without frontmatter) and its `frontmatter` fields | `/<page>`, `/-/<path>.md` |
+| `page` | a markdown file: `source`, its `body` (without frontmatter) and its `frontmatter`, YAML as parsed | `/<page>`, `/-/<path>.md` |
 | `file` | any other text file of the repository: `source` | `/-/<path>` |
 | `folder` | a repository folder: its `entries` | `/-/<path>/` |
 | `pages` | the overview, or a folder of pages without an `index.md`: the `pages` in it, with when each was last answered | `/`, `/<folder>/` |
@@ -545,7 +545,10 @@ interface above; in the browser, the page module (`src/client/page/`).
 
 1. Turns markdown into HTML: remark (GFM + `remark-directive`), then rehype.
    Raw HTML passes through, so `<details>` and hand-written forms work.
-   Frontmatter is skipped. Code blocks that no block handles render as
+   Frontmatter is not part of the page: it is YAML, parsed (with `yaml`, as
+   other markdown tools read it: nested fields, lists, booleans), for the
+   page handle; one that doesn't parse, or isn't fields, is read as none and
+   said on the page. Code blocks that no block handles render as
    plain `<pre><code>`, unless a block takes every fence (`fence: 'any'`,
    the built-in `code`).
 2. Hands extension points to the plugins' blocks:

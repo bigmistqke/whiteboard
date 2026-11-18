@@ -584,7 +584,7 @@ A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get
 the page's `api`: its `events` and `append` (which comes back through
 `events.on`), the `listeners`, `forms` and `unread` messages, `onRendered`
 (after a live update, to put back what it adds), the page's `frontmatter`
-on the page handle, `corner()` for floating buttons, `toast()` for a label in
+on the page handle (YAML, as parsed: `toc: true` is `true`), `corner()` for floating buttons, `toast()` for a label in
 the corner that says what is going on and goes there (one that hides after a
 few seconds, or one that stays with a count), `badge()` for counts in the
 tab title, and the `theme`. Every value that changes is called for what it

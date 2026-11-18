@@ -17,6 +17,7 @@
 // text.
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import fs from 'node:fs'
+import { parse as parseYaml } from 'yaml'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
@@ -71,7 +72,7 @@ const MIME: Record<string, string> = {
 // files in .whiteboard/ that are the server's own bookkeeping, not content
 const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server.lock', 'token'])
 const SKIP_DIRS = new Set(['node_modules', '.git'])
-// a page's frontmatter: `---` lines around `key: value` lines, at the very start
+// a page's frontmatter: YAML between `---` lines, at the very start
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
 
 /** A project's server: its request handler, and what it knows. */
@@ -263,15 +264,20 @@ export function createServer(project: Project): WhiteboardServer {
 
   const isRepoId = (id: string) => id === '-' || id.startsWith('-/')
 
-  function frontmatter(source: string): Record<string, string> {
+  /** A page's frontmatter, parsed as YAML; empty, with the reason, when it isn't fields. */
+  function frontmatter(source: string): { data: Record<string, unknown>; error: string | null } {
     const m = FRONTMATTER.exec(source)
-    const out: Record<string, string> = {}
-    if (m)
-      for (const line of m[1]!.split(/\r?\n/)) {
-        const kv = /^([\w-]+)\s*:\s*(.*)$/.exec(line)
-        if (kv) out[kv[1]!] = kv[2]!.trim().replace(/^["']|["']$/g, '')
-      }
-    return out
+    if (!m) return { data: {}, error: null }
+    let data: unknown
+    try {
+      data = parseYaml(m[1]!)
+    } catch (err) {
+      return { data: {}, error: (err as Error).message }
+    }
+    if (data == null) return { data: {}, error: null }
+    if (typeof data !== 'object' || Array.isArray(data))
+      return { data: {}, error: 'it must be fields (`key: value` lines), not a single value or a list' }
+    return { data: data as Record<string, unknown>, error: null }
   }
 
   function pageSource(id: string, file: string): PageSource {
@@ -283,7 +289,7 @@ export function createServer(project: Project): WhiteboardServer {
       mtime: fs.statSync(file).mtimeMs,
       source,
       body: source.replace(FRONTMATTER, ''),
-      frontmatter: frontmatter(source),
+      ...(({ data, error }) => ({ frontmatter: data, frontmatterError: error }))(frontmatter(source)),
     }
   }
 
@@ -412,12 +418,13 @@ export function createServer(project: Project): WhiteboardServer {
   }
 
   /** A stored page's frontmatter, for the browser (PageHandle.frontmatter): a markdown page's, else none. */
-  const frontmatterOf = (page: StoredPage): Record<string, string> => (page.kind === 'page' ? page.frontmatter : {})
+  const frontmatterOf = (page: StoredPage): Record<string, unknown> => (page.kind === 'page' ? page.frontmatter : {})
 
   /** Render a stored page as markdown, with the plugins' blocks, and anything the reader should be told. */
   async function render(page: StoredPage): Promise<Render> {
     const { pages, errors } = await config()
     const notices = errors.map(e => `config: ${(e as Error).message}`)
+    if (page.kind === 'page' && page.frontmatterError) notices.push(`frontmatter: ${page.frontmatterError}`)
     let out: Rendered
     let rendered = !!pages
     try {
@@ -1073,6 +1080,8 @@ export function createServer(project: Project): WhiteboardServer {
             .replace(/\.(md|markdown)$/i, '')
         : '-/' + path.relative(project.dir, file).split(path.sep).join('/')
       const stored = pageSource(id, file)
+      if (stored.frontmatterError)
+        warnings.push(`${path.relative(project.dir, file)}: frontmatter: ${stored.frontmatterError}`)
       const context = {
         project: { name: project.name, dir: project.dir, files: !!FILES },
         asset: assetHere,
