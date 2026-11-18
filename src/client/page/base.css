@@ -223,6 +223,9 @@ form[data-wb-state=failed]:not(.wb-form)::after { content: "failed to send"; col
 /* a question the reader hasn't answered, or one the agent asks again: outlined, without a label of
    its own (one laid into the form landed on its content in some layouts; the corner counts them) */
 form[data-wb-open] { outline: 2px solid var(--accent); outline-offset: 10px; border-radius: 2px; }
+/* the outline sets it off: the form's rules above and below (its borders, which the outline would
+   enclose) step aside meanwhile */
+form.wb-form[data-wb-open] { border-top-color: transparent; border-bottom-color: transparent; }
 form[data-wb-pending]::before { content: "sent · waiting for the agent to pick it up"; display: block; margin-bottom: 8px; color: var(--muted); font: .75rem/1.4 var(--sans); }
 form[data-wb-pending][data-wb-just-sent]::before { content: "✓ sent · waiting for the agent to pick it up"; color: var(--ok); font-weight: 600; }
 
