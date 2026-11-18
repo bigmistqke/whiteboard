@@ -17,6 +17,7 @@ import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
 import windows from './window/index.ts'
 import steps from './steps/index.ts'
+import draft from './draft/index.ts'
 
 export function builtins(): Plugin[] {
   return [
@@ -34,5 +35,6 @@ export function builtins(): Plugin[] {
     quiet(),
     windows(),
     steps(),
+    draft(),
   ]
 }

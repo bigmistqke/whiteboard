@@ -1,0 +1,21 @@
+/* A draft (index.ts): set apart, plainly not final */
+.wb-draft {
+  margin: calc(var(--rhythm) * 2) 0;
+  padding: var(--space-md) var(--space-xl) var(--space-xl);
+  border: var(--hairline) dashed color-mix(in srgb, var(--warn) var(--tint-strong), transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) var(--tint-faint), transparent);
+}
+.wb-draft-label {
+  font: var(--weight-strong) var(--ui-tiny) / var(--ui-line-height) var(--sans);
+  letter-spacing: var(--caps-spacing);
+  text-transform: uppercase;
+  color: var(--warn);
+  margin-bottom: var(--space-xs);
+}
+.wb-draft-label > * {
+  margin: 0;
+}
+.wb-draft > :last-child {
+  margin-bottom: 0;
+}
