@@ -149,7 +149,7 @@ function documentsIn(dir: string) {
     walk('')
   }
   const depth = (f: string) => f.split('/').length
-  return [...new Set(files)].sort((a, b) => depth(a) - depth(b) || a.localeCompare(b))
+  return [...new Set(files)].toSorted((a, b) => depth(a) - depth(b) || a.localeCompare(b))
 }
 
 /**
@@ -412,7 +412,7 @@ export function createDocs(blocks: () => ResolvedBlocks) {
         t.code ? `${t.name} (every other code fence)` : t.name,
       ])
     const list = [...byPlugin]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .toSorted(([a], [b]) => a.localeCompare(b))
       .map(([plugin, blocks]) => `- **${plugin}**: ${blocks.map(b => `\`${b}\``).join(', ')}`)
     return `# Pages
 

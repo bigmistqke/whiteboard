@@ -47,7 +47,9 @@ export function leave(s: Sizes, viewer: string): boolean {
  */
 export function handOver(s: Sizes, viewer: string): { cols: number; rows: number } | null {
   if (s.active !== viewer || s.viewers.has(viewer)) return null
-  const next = [...s.viewers].sort((a, b) => b[1].used - a[1].used)[0]
+  // the one used last: the first of them, as a stable sort by `used` would give
+  let next: [string, { cols: number; rows: number; used: number }] | undefined
+  for (const viewer of s.viewers) if (!next || viewer[1].used > next[1].used) next = viewer
   s.active = next?.[0] ?? null
   return next ? { cols: next[1].cols, rows: next[1].rows } : null
 }

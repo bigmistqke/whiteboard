@@ -31,7 +31,7 @@ export function split(children: Node[]): Part[] {
     const depth = Math.min(...heads.map(h => h.depth!))
     for (const n of content) {
       if (n.type === 'heading' && n.depth === depth) parts.push({ title: n.children ?? [], body: [] })
-      else if (parts.length) parts[parts.length - 1].body.push(n)
+      else if (parts.length) parts.at(-1)!.body.push(n)
       else parts.push({ title: null, body: [n] })
     }
     return parts

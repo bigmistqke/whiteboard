@@ -96,7 +96,7 @@ let baseTitle = document.title
 const badges = new Map<string, { text: string; order: number; since: number }>()
 let badgeCount = 0
 function writeTitle() {
-  const list = [...badges.values()].sort((a, b) => a.order - b.order || a.since - b.since)
+  const list = [...badges.values()].toSorted((a, b) => a.order - b.order || a.since - b.since)
   document.title = `${list.map(b => `(${b.text}) `).join('')}${baseTitle}`
 }
 
