@@ -37,3 +37,7 @@ test('diff lines: a diff without file headers has kinds and numbers, but no plac
   const lines = diffLines('@@ -1 +1 @@\n-a\n+b')
   assert.deepEqual(lines, [{ kind: 'hunk', label: '' }, { kind: 'del', n: 1 }, { kind: 'add', n: 1 }])
 })
+
+test('diff lines: a snippet without hunks is added, removed and unchanged lines, nothing hidden', () => {
+  assert.deepEqual(diffLines('function f() {\n-  return 1\n+  return 2\n}'), [{ kind: 'context' }, { kind: 'del' }, { kind: 'add' }, { kind: 'context' }])
+})

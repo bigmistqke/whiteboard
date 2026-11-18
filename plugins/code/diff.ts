@@ -2,7 +2,8 @@
 // unchanged, a gap between hunks, a file's name, or a header line nobody needs to read (`diff --git`,
 // `index`, `---`, modes), which the block leaves out. A line in a hunk has its number (`n`) and
 // where it is (`at`: `file:line` in the new file; a removed line counts in the old one,
-// `file (old):line`). Reads unified diffs, as `git diff` and `diff -u` print them.
+// `file (old):line`). Reads unified diffs, as `git diff` and `diff -u` print them, and snippets of
+// only +, - and unchanged lines.
 
 export type DiffKind = 'add' | 'del' | 'context' | 'hunk' | 'file' | 'meta'
 
@@ -19,6 +20,11 @@ export interface DiffLineInfo {
 const unprefix = (p: string) => p.replace(/\t.*$/, '').replace(/^"|"$/g, '').replace(/^[ab]\//, '')
 
 export function diffLines(text: string): DiffLineInfo[] {
+  // a snippet without hunks or file headers (only +, - and unchanged lines, as people paste them):
+  // every line is one of those, without numbers, as no header says where it is
+  if (!/^(@@ -\d|diff --git )/m.test(text)) {
+    return text.split('\n').map((line): DiffLineInfo => ({ kind: line[0] === '+' ? 'add' : line[0] === '-' ? 'del' : 'context' }))
+  }
   let file = '', oldFile = '', oldN = 0, newN = 0, inHunk = false
   let status = '', renamedFrom = ''
   return text.split('\n').map((line): DiffLineInfo => {
