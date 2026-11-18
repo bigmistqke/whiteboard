@@ -383,8 +383,10 @@ export function createServer(project: Project): WhiteboardServer {
   const json = (s: unknown) => JSON.stringify(s).replace(/</g, '\\u003c')
 
   // the page's corner (api.corner()): the one thing the core puts on every page, empty, for the
-  // page's and the plugins' floating buttons; above what covers the bottom of the window
-  const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
+  // page's and the plugins' floating buttons and toasts; above what covers the bottom of the window.
+  // Above the page and what floats on it (comment threads: 20), under what fills the window (a
+  // maximized frame: 40, a lightbox or the terminal drawer: 50)
+  const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:30;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
     // toasts (api.toast): labels in the corner, in the page's theme colours where it has them
     + '.wb-toasts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.wb-toasts:empty{display:none}'
     + '.wb-toast{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 12px;border-radius:99px;font:600 .8rem/1.4 var(--sans,system-ui,sans-serif);background:var(--accent,#1d5bbf);color:var(--accent-text,#fff);border:1px solid transparent;box-shadow:0 2px 10px rgb(0 0 0/.18)}'
