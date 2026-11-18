@@ -379,6 +379,8 @@ switch (cmd) {
       console.error(`whiteboard: ${proj.name} is already served at ${base}`)
       process.exit(1)
     }
+    // the server only for the commands that run one: every other command (the hooks' among them,
+    // on every prompt) starts without it, a good part of its start-up time
     const { start } = await import('../src/serve.ts')
     await start(proj)
     break
@@ -386,7 +388,7 @@ switch (cmd) {
   case 'build': {
     // pages rendered once, as a static site: the config's `build`, with what is given here over it
     const proj = needProject()
-    const { createServer } = await import('../src/server.ts')
+    const { createServer } = await import('../src/server.ts') // as for serve: only when needed
     const server = createServer(proj)
     try {
       const result = await server.build({

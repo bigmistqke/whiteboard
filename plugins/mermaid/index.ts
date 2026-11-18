@@ -3,10 +3,12 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Mermaid diagrams rendered to SVG on the server with Pele (https://pele.run): no JavaScript on
 // the page, and colours come from CSS variables, so diagrams follow the light/dark theme.
 import crypto from 'node:crypto'
-// pele loads the first time a page has a diagram, not with the plugin
-let pele: typeof import('pele') | undefined
+import type * as Pele from 'pele'
 import { html, raw, type FenceContext } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'
+
+// loaded the first time a page has a diagram, not with the plugin: the command line loads plugins too
+let pele: typeof Pele | undefined
 
 const FONT = 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 

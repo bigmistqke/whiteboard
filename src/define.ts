@@ -6,6 +6,7 @@
 // between them and a browser. Everything else is a plugin: the syntax pages are written in (blocks),
 // behaviour on every page, commands, routes. defineConfig and definePlugin only return their
 // argument; they exist for types.
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Html } from './html.ts'
 
 // HTML from a template literal, escaped by default: for a block, a plugin's `shell`
@@ -177,7 +178,7 @@ export interface PluginContext {
    * whether a request carries the project's token: for a check of its own, beyond a route's `auth`.
    * No request (`shell` for a page being built) has none.
    */
-  authorized(req: import('node:http').IncomingMessage | null): boolean
+  authorized(req: IncomingMessage | null): boolean
   /** the URL that serves a file of the plugin (its browser module, a stylesheet) */
   asset(file: URL | string): string
 }
@@ -206,7 +207,7 @@ export interface PluginHooks {
    * `authorized`) has nothing to add there.
    */
   shell?(
-    req: import('node:http').IncomingMessage | null,
+    req: IncomingMessage | null,
   ):
     | { head?: string | Html; body?: string | Html }
     | null
@@ -240,9 +241,9 @@ export interface Route {
 export interface RouteRequest {
   body: Record<string, unknown>
   query: Record<string, unknown>
-  req: import('node:http').IncomingMessage
+  req: IncomingMessage
   /** only for a stream route */
-  res?: import('node:http').ServerResponse
+  res?: ServerResponse
 }
 
 /** `whiteboard <plugin> [sub] …` */

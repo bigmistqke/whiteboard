@@ -40,9 +40,10 @@ import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
 import { createRequire } from 'node:module'
+import type * as NodePty from 'node-pty'
 import type { IPty } from 'node-pty'
-import type { Terminal as HeadlessTerminal } from '@xterm/headless'
-import type { SerializeAddon as Serializer } from '@xterm/addon-serialize'
+import xtermHeadless, { type Terminal as HeadlessTerminal } from '@xterm/headless'
+import xtermSerialize, { type SerializeAddon as Serializer } from '@xterm/addon-serialize'
 import { followMouseEncoding } from './modes.ts'
 import { handOver, lastUsed, leave, report, type Sizes } from './sizes.ts'
 
@@ -53,8 +54,12 @@ if (!dir || !socket) {
   process.exit(2)
 }
 
-/** node-pty. Its prebuilt helper ships without execute permission (1.1.0): add it. */
-function loadPty(): typeof import('node-pty') {
+/**
+ * node-pty, loaded when a session starts rather than imported: a native module that may not load on
+ * this machine, which then is an error to report, not a host that fails to start. Its prebuilt
+ * helper ships without execute permission (1.1.0): add it.
+ */
+function loadPty(): typeof NodePty {
   const pty = require('node-pty')
   const helper = path.join(
     path.dirname(require.resolve('node-pty/package.json')),
@@ -68,8 +73,9 @@ function loadPty(): typeof import('node-pty') {
   return pty
 }
 
-const { Terminal } = (await import('@xterm/headless')).default
-const { SerializeAddon } = (await import('@xterm/addon-serialize')).default
+// CommonJS packages: their exports are the default's
+const { Terminal } = xtermHeadless
+const { SerializeAddon } = xtermSerialize
 
 /** A program in a pseudo-terminal, and the headless terminal that keeps its screen. */
 interface Session extends Sizes {

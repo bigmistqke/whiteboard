@@ -17,6 +17,7 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // of the text) and where it is (`data-wb-at="file:line"`), which comments on the line record.
 // shiki loads the first time a page has code, not with the plugin: the command line loads the
 // built-in plugins too, for their declarations
+import type * as Shiki from 'shiki'
 import type { BundledTheme, Highlighter } from 'shiki'
 import type { FenceContext } from '@bigmistqke/whiteboard'
 import { diffLines } from './diff.ts'
@@ -41,7 +42,8 @@ export default function code(options: Options = {}): Plugin {
   const themes = options.themes ?? DEFAULT_THEMES
   const colorReplacements = options.colorReplacements ?? (options.themes ? {} : DEFAULT_REPLACEMENTS)
   let highlighter: Promise<Highlighter> | undefined
-  let shiki: typeof import('shiki') | undefined
+  // loaded the first time a page has code, not with the plugin: the command line loads plugins too
+  let shiki: typeof Shiki | undefined
   const loaded = new Set<string>()
 
   /** Highlight `code` as `lang`; an unknown or missing language renders as plain text. */
