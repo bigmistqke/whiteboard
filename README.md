@@ -271,7 +271,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard url <page\|file>` | the same |
 | `whiteboard docs [name]` | print how to write pages in this project: the blocks, then each plugin's docs; with a name, only that plugin's |
 | `whiteboard events [filters] [--follow]` | print recorded events; with `--follow`, then each new one as it comes, marking nothing |
-| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed |
+| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed; `--fallback`: only what no other wait or watch would take (one per project) |
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
 | `whiteboard pick <event id>` | record an event as picked up, as `wait` does when it hands one out |
@@ -527,20 +527,25 @@ Not started.
   send it, across live updates and reloads. Sending confirms itself.
 - **A chat under every form,** to ask about a question without answering
   it: a message is never a submit. `:::chat{name=…}` puts one anywhere.
-- **What waits on whom.** A form is waiting for you (an agent listens for
-  it), with no agent listening, waiting for the agent (answered, not yet
-  picked up), or decided: then it folds to one line quoting the answer, with
-  its chat still under it, and a click opens it again. A line above the page
-  counts them, a button jumps to the next form waiting for you, and the tab
-  title gets a `(!n)` prefix. An answer sent while no agent listens says so
-  in a toast; it stays in the log for the next agent that checks.
-- **What waits on other pages.** While another page has a question an agent
-  is waiting on, the header shows an inbox with their count; it opens a
-  list of those pages, and a page in it opens at its first waiting
-  question. The overview marks the same pages with the inbox.
+- **What waits for you.** Your to-do, not whether an agent's process runs:
+  a question you haven't answered (or one the agent asks again), and a
+  message from the agent you haven't read (a reply to your comment, a chat
+  message). A message is read once it has been in view, and that is
+  recorded in the log, so it holds in every browser. An answered form waits
+  for the agent until it picks the answer up, then it is decided and folds
+  to one line quoting the answer, with its chat still under it; a click
+  opens it again. A line above the page counts all this, a button goes to
+  the next thing waiting for you, unread messages get a toast that stays,
+  and the tab title gets a `(!n)` prefix. An answer sent while no agent
+  listens says so in a toast; it stays in the log for the next agent that
+  checks.
+- **What waits on other pages.** The header shows an inbox with how much
+  waits for you on other pages; it opens a list of those pages, and a page
+  in it opens at the first thing. The overview marks the same pages with
+  the inbox.
 - **Comments.** Select any passage and comment on it; the agent replies in
   the thread or edits the page. Passages are found again after edits. A
-  reply to a thread you don't have open comes as a toast that opens it.
+  thread with a reply you haven't read has a dot on its badge.
 - **What changed.** A block you haven't seen gets a bar until it has been
   in view a moment, remembered per page, so coming back shows what changed
   since. `:::quiet` content never counts as new.

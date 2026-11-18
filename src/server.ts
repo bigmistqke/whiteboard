@@ -25,7 +25,7 @@ import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './load
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth } from './auth.ts'
 import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
-import { covers, questionState } from './status.ts'
+import { awaiting, covers, heard, questionState, unreadMessages } from './status.ts'
 import { titleOf } from './pages/render.ts'
 import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
 
@@ -114,6 +114,8 @@ export function createServer(project: Project): WhiteboardServer {
     head: Html[]
     body: Html[]
     clients: { name: string; client: string }[]
+    /** the event types that, from the agent, are messages for the reader (EventSpec.forReader) */
+    messages?: string[]
     notices?: string[]
   }
 
@@ -129,7 +131,8 @@ export function createServer(project: Project): WhiteboardServer {
     }))
     // their browser modules, which the runtime imports after the page's
     const clients = hooks.filter(h => h.client && !h.error).map(h => ({ name: h.name, client: asset(h.client!) }))
-    return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), clients, notices }
+    const messages = [...(await config()).forReader]
+    return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), clients, messages, notices }
   }
 
   /** A page with what the plugins add, their notices among the page's. */
@@ -332,7 +335,7 @@ export function createServer(project: Project): WhiteboardServer {
    * hooks report. The questions are a page's named forms.
    */
   async function status(only: string | null): Promise<PageStatus[]> {
-    const { pages, handedOut } = await config()
+    const { pages, handedOut, forReader } = await config()
     const isForAgent = forAgent(handedOut)
     const all = readEvents(project.eventsFile)
     const picked = pickedUp(all)
@@ -351,8 +354,9 @@ export function createServer(project: Project): WhiteboardServer {
       const named = (...states: string[]) => questions.filter(q => states.includes(q.state)).map(q => q.name)
       out.push({
         page: p.id, title: titleOf(p.file, path.basename(p.id)), file: p.file, owner: owner.get(p.id) ?? null, asks, questions,
-        open: named('waiting', 'unheard'),
-        unheard: named('unheard'),
+        open: named('open'),
+        unheard: named('open').filter(name => !heard(name, listening)),
+        unread: unreadMessages(events, type => forReader.has(type)),
         // the reader's events for an agent: a form's answers, and plugin events declared handOut
         unpicked: events.filter(e => fromReader(e) && isForAgent(e.type) && !picked.has(e.id)),
         listeners: listening,
@@ -388,7 +392,7 @@ export function createServer(project: Project): WhiteboardServer {
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
   function shell(page: StoredPage, { page: rendered, out, notices }: Render, extras: Extras = { head: [], body: [], clients: [] }): string {
-    const handoff = { id: page.id, kind: page.kind, client: rendered ? asset(PAGE_CLIENT) : null, data: out.data ?? null, plugins: extras.clients }
+    const handoff = { id: page.id, kind: page.kind, client: rendered ? asset(PAGE_CLIENT) : null, data: out.data ?? null, plugins: extras.clients, messages: extras.messages ?? [] }
     // the page's head and html are HTML already; the handoff is JSON made safe for a script tag
     return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${out.title || page.id || project.name}</title>
@@ -548,8 +552,8 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
     if ((found.kind === 'folder' || (found.kind === 'pages' && id)) && !requested.endsWith('/')) return { redirect: `/${id}/` }
     // a list of pages says which await the reader: where their questions stand takes the config
     if (found.kind === 'pages') {
-      const awaiting = new Map((await status(found.id || null)).map(s => [s.page, s.questions.filter(q => q.state === 'waiting').length]))
-      for (const p of found.pages) p.awaiting = awaiting.get(p.id) ?? 0
+      const counts = new Map((await status(found.id || null)).map(s => [s.page, awaiting(s)]))
+      for (const p of found.pages) p.awaiting = counts.get(p.id) ?? 0
     }
     return { page: found }
   }

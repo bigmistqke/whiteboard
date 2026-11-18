@@ -254,7 +254,8 @@ it), and so are replies (`comments:reply`) and closing a thread
 (`comments:resolve`). Passages are found again by quote and context after
 edits, and highlighted with the CSS Highlight API, so the page's markup
 never changes for them. A badge in the margin opens each open thread; it
-is filled when the agent spoke last. How an agent answers is in its
+is filled when the agent spoke last, and has a dot while a reply in it is
+unread. How an agent answers is in its
 `docs()`, which `whiteboard docs` prints with the other plugins': a plugin
 documents what it sends to the log.
 
@@ -273,17 +274,23 @@ Whiteboard's one interaction primitive, so the core's, on every page
   the last answer goes back into the form, its button in `data-wb-sent`. A
   form marked `data-wb-self` (or inside an element that is) keeps its own
   fields, for a block's client that shows them itself.
-- **Where each stands.** Every form gets one of four attributes, from the
-  log and the listeners: `data-wb-waiting` when a listener asks for it by
-  name (also when it was answered before: the agent wants a new answer) or
-  takes any answer and it has none; `data-wb-unheard` when it has no answer
-  and nobody listens; `data-wb-pending` when it is answered but no `wait`
-  or `watch` handed the answer out (the core marks such events `pickedUp`,
-  from the `whiteboard:picked` events in the log); `data-wb-decided` once
-  one did, with `data-wb-outcome` quoting the answer in one line. The
-  states are marked again when the log, the listeners or the page change,
-  and `api.forms()` / `api.onForms()` give them to the page and plugins,
-  for drawing more than the attributes allow.
+- **Where each stands.** Every form gets one of three attributes, from the
+  log: `data-wb-open` when it has no answer, or when a listener asks for it
+  by name after its answer was picked up (the agent wants a new answer);
+  `data-wb-pending` when it is answered but no `wait` or `watch` handed the
+  answer out (the core marks such events `pickedUp`, from the
+  `whiteboard:picked` events in the log); `data-wb-decided` once one did,
+  with `data-wb-outcome` quoting the answer in one line. The states are
+  marked again when the log, the listeners or the page change, and
+  `api.forms()` / `api.onForms()` give them to the page and plugins, for
+  drawing more than the attributes allow.
+- **Open means it waits for the reader,** whether or not an agent listens.
+  An earlier version marked a form "waiting for you" only while a wait
+  covered it, and "nobody listening" otherwise: that told the reader about
+  the agent's process, not about their to-do, and a catch-all watch made
+  every question look urgent. Whether an agent listens is told where it
+  helps when something goes wrong: the toast after a submit, and
+  `whiteboard status` (`unheard`).
 - **Which forms a page asks** is read from its markdown (`questions`):
   `:::form{name=…}` blocks and hand-written `<form name>` without an action,
   parsed, so a form shown as an example in a code block doesn't count.
@@ -310,6 +317,18 @@ plugin (`chat:message`, `comments:new`, `comments:reply`,
 `comments:resolve`), so a form's answers never mix with their events.
 A form whose name has a colon is not a question: the form block shows
 an error in its place, and the core leaves it alone.
+
+Which agent events are messages for the reader is stated the same way:
+`forReader: true` (of the built-ins, `comments:reply` and `chat:message`).
+One from the agent waits for the reader until read. The page marks the
+element showing a message with `data-wb-message="<event id>"`; once it has
+been mostly in view while the tab is visible, the core appends a
+`whiteboard:read` event naming it (several at once, a moment later).
+Reading is in the log, not the browser, so it holds in every browser, the
+server counts unread messages on every page (the header, the overview),
+and an agent can see what was read. A message the agent replaced
+(`replaces`) no longer counts, and closing a comment thread reads its
+replies.
 
 Which events reach an agent unasked is stated, not guessed. A form's
 answers (types without a colon) always do. Of a plugin's events, only
@@ -343,7 +362,7 @@ it is gone when the command is (it reconnects when the server restarts). The
 server tells pages when listeners come and go (`listeners` on the live
 channel), and `api.listeners()` gives the ones covering the page. So what an
 agent waits for is a fact the command line knows, not something the agent
-has to mark; the page shows it. Reading the log never depends on the
+has to mark. Reading the log never depends on the
 connection, so no answer is missed while the server is away.
 
 ### Status and hooks
@@ -353,7 +372,7 @@ agent forgetting a wait is caught from outside it:
 
 - **Questions.** A question is a named form, so the pages say which a page
   asks: `questions(page)` returns their event types. Where each stands
-  (waiting, unheard, pending, decided; see Named forms) is one function,
+  (open, pending, decided; see Named forms) is one function,
   `questionState` in `src/status.ts`, which the server and the page both
   use, so `whiteboard status` and the page never disagree. A question is
   open while it waits for the reader: it has no answer, or a running wait
@@ -365,9 +384,10 @@ agent forgetting a wait is caught from outside it:
   knows, so the core asks the project's plugins (`session()`), and
   records no claim when none names one.
 - **Status.** `/api/status` and `whiteboard status` give, per page: its open
-  questions, those no listener covers (unheard), the reader's events for an
-  agent (see Events) no wait or watch picked up, its listeners and its
-  claim.
+  questions, those no listener covers (unheard), the agent's messages the
+  reader hasn't read, the reader's events for an agent (see Events) no wait
+  or watch picked up, its listeners and its claim. What waits for the
+  reader on a page (`awaiting`) is its open questions and unread messages.
 - **Hooks.** Reporting the status to an agent is a plugin, since how is
   particular to each agent, and the core has no agent-specific code. The
   Claude Code plugin (`plugins/claude-code/`) names the session from
@@ -457,14 +477,17 @@ interface above; in the browser, the page module (`src/client/page/`).
    chat no longer on the page (its form or block removed or renamed) is
    listed after the page's content, read-only, until one of its name is
    back (`src/client/page/orphans.ts`).
-7. Shows what waits on whom, from the core's form states: a form waiting
-   for the reader is outlined and says so, one nobody listens for says
-   that, a decided one folds into one line quoting its answer, with its
-   thread still open under it (a click on the line opens the form again to
-   change it). A line above the page counts the four
-   states and jumps through each, a button in the page's corner jumps from
-   one waiting form to the next, the tab title gets a `(!n)` badge, and the
-   overview marks the pages an agent waits on.
+7. Shows what waits for the reader: open questions and unread messages. An
+   open form is outlined and says "waiting for you", a decided one folds
+   into one line quoting its answer, with its thread still open under it (a
+   click on the line opens the form again to change it). A line above the
+   page counts the states and unread messages and jumps through each, a
+   button in the page's corner goes from one thing waiting to the next (a
+   message not shown, such as a reply in a closed thread, is found by the
+   element holding it, `data-wb-holds`, which is sent `wb-reveal` to show
+   it), unread messages get a toast that stays, the tab title gets a
+   `(!n)` badge, and the header and the overview mark the other pages with
+   something waiting.
 
 Containers are parsed as written: a `:::` closes the first open container
 whose fence is no longer than its own, so a container around another needs

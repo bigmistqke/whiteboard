@@ -86,17 +86,19 @@ test('events go into the log and come back filtered, picked ones marked', async 
   assert.equal(listed[0].pickedUp, undefined)
 })
 
-test('status follows listeners: unheard, waiting while a wait runs, unheard again', async () => {
-  const state = async () => (await server.status('q'))[0]!.questions.find(q => q.name === 'pick')!.state
-  assert.equal(await state(), 'unheard')
+test('status: an unanswered question is open whoever listens; unheard says whether a wait takes it', async () => {
+  const status = async () => (await server.status('q'))[0]!
+  assert.equal((await status()).questions.find(q => q.name === 'pick')!.state, 'open')
+  assert.deepEqual((await status()).unheard, ['pick'])
   const watch = stream(`${base}/api/watch?page=q`)
   const listen = stream(`${base}/api/listen?page=q&type=pick&command=wait`)
-  await until('waiting', async () => (await state()) === 'waiting')
-  assert.deepEqual((await server.status('q'))[0]!.listeners, [{ page: 'q', type: 'pick', command: 'wait' }])
+  await until('heard', async () => !(await status()).unheard.length)
+  assert.equal((await status()).questions.find(q => q.name === 'pick')!.state, 'open', 'still open: it waits for the reader')
+  assert.deepEqual((await status()).listeners, [{ page: 'q', type: 'pick', command: 'wait' }])
   // an open page is told that someone listens
   await until('the page heard of the listener', () => watch.seen.includes('listeners'))
   listen.stop()
-  await until('unheard again', async () => (await state()) === 'unheard')
+  await until('unheard again', async () => (await status()).unheard.length === 1)
   watch.stop()
 })
 

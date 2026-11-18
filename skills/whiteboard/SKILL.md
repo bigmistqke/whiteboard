@@ -216,17 +216,22 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   yourself. Use these only for something `wait` doesn't do, such as picking
   an answer up after you acted on it.
 
-While `wait` or `watch` runs, the page shows the user what you are waiting
-for: the forms it covers are marked "waiting for you", a button jumps from
-one to the next, and the tab title counts them. Forms nobody waits for say
-that no agent is listening. So:
+The page shows the user what waits for them: every question without an
+answer is marked "waiting for you", and so is a message from you they
+haven't read (a reply in a comment thread, a chat message). A button goes
+from one to the next, and the tab title and the header count them. Whether
+your wait runs doesn't change that, so answers given while none runs wait in
+the log for you. So:
 
 - An answer counts as picked up once your `wait` or `watch` hands it to you;
   the form then folds into one line quoting it, as decided. Answers no wait
-  has handed out show as waiting for you to pick them up.
+  has handed out show as waiting for you to pick them up. Waiting on a
+  decided form by name (`--type`) asks the user again: it is open again.
 - Keep a `wait` or `watch` running for as long as you want answers, and only
-  then. Don't poll `whiteboard events` in a loop instead: the user can't see
-  that you are waiting.
+  then. Don't poll `whiteboard events` in a loop instead: it picks nothing
+  up, so the user's answers never show as received, and the hooks and
+  `whiteboard status` keep reporting them. When an answer arrives while no
+  wait runs, the user is told nobody is listening right now.
 - When you need the user to read something before you go on, put a form with
   just a button in it (`:button[Read it]`) and wait for it. Then
   everything you wait for is a form the page can point to.

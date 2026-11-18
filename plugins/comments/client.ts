@@ -16,7 +16,7 @@
 // Passages are found again by their quote and the text around it, so they survive edits elsewhere
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
 // so updates and new-content marks don't see comments at all.
-import type { Api, PluginMount, PageHandle, Toast, WbEvent } from '../../src/define'
+import type { Api, PluginMount, PageHandle, WbEvent } from '../../src/define'
 import { html } from '../../src/html.ts'
 
 const NEW = 'comments:new', REPLY = 'comments:reply', RESOLVE = 'comments:resolve'
@@ -31,7 +31,6 @@ interface Thread {
 const CONTEXT = 32
 
 let root: HTMLElement
-let pageId = ''
 let api: Api
 // the page's content: its <main> when it has one. Looked up afresh, since a live update may replace it
 let main: HTMLElement
@@ -150,13 +149,18 @@ function draw() {
     else highlights.delete('wb-comment-active')
   }
   const column = main.getBoundingClientRect()
+  const unreadIds = new Set(api.unread().map(e => e.id))
   layer.replaceChildren(...threads.map((t, i) => {
     const badge = document.createElement('button')
     badge.type = 'button'
     badge.className = 'wb-comment-badge'
     badge.dataset.thread = t.id
     badge.toggleAttribute('data-agent', lastFromAgent(t))
-    badge.title = lastFromAgent(t) ? 'the agent replied' : 'comment'
+    // the replies it holds, for the page to find an unread one here (data-wb-holds, see the page)
+    badge.dataset.wbHolds = t.replies.map(r => r.id).join(' ')
+    const unread = t.replies.some(r => unreadIds.has(r.id))
+    badge.toggleAttribute('data-unread', unread)
+    badge.title = unread ? 'the agent replied: unread' : lastFromAgent(t) ? 'the agent replied' : 'comment'
     badge.textContent = String(1 + t.replies.length)
     const rect = t.range?.getClientRects()[0]
     // a passage that is gone from the page: its badge waits at the top, still open until closed
@@ -178,68 +182,6 @@ function refreshComments() {
   if (openThread && !threads.some(t => t.id === openThread)) closePopover()
   else if (openThread) renderPopover()
   draw()
-  announceReplies()
-}
-
-// The agent's replies the reader hasn't read, counted in one toast that stays: a click goes to the
-// first thread with one. A reply is read once its message has been in view in its open thread;
-// the toast goes when none is left. What was read is kept per page (localStorage), so a reload
-// doesn't count it again. On a page with nothing kept yet, the replies from before it loaded count
-// as read: they were in the threads already.
-const loadedAt = Date.now()
-const SEEN_KEY = () => `wb-comments-read:${pageId}`
-let seen: Set<string> | null = null
-let kept = false
-let unreadToast: Toast | null = null
-
-function loadSeen(): Set<string> {
-  if (seen) return seen
-  try {
-    const stored = localStorage.getItem(SEEN_KEY())
-    kept = stored != null
-    seen = new Set(stored ? JSON.parse(stored) as string[] : [])
-  } catch { seen = new Set() }
-  return seen
-}
-
-function markRead(id: string) {
-  const s = loadSeen()
-  if (s.has(id)) return
-  s.add(id)
-  kept = true
-  try { localStorage.setItem(SEEN_KEY(), JSON.stringify([...s])) } catch { /* private window: this visit only */ }
-  announceReplies()
-}
-
-/** The open threads' replies from the agent the reader hasn't read, in the page's order. */
-function unread(): { thread: Thread; reply: WbEvent }[] {
-  const s = loadSeen()
-  return threads.flatMap(thread => thread.replies
-    .filter(reply => reply.from === 'cli' && !s.has(reply.id) && (kept || Date.parse(reply.ts) >= loadedAt - 2000))
-    .map(reply => ({ thread, reply })))
-}
-
-function announceReplies() {
-  const list = unread()
-  if (!list.length) { unreadToast?.close(); unreadToast = null; return }
-  const text = list.length === 1 ? '1 unread reply to your comments' : `${list.length} unread replies to your comments`
-  if (unreadToast) unreadToast.update(text)
-  else unreadToast = api.toast(text, { ms: 0, onClick: () => { const first = unread()[0]; if (first) goToThread(first.thread.id) } })
-}
-
-// a reply is read once its message is in view, in its open thread
-const reading = new IntersectionObserver(entries => {
-  for (const entry of entries) if (entry.isIntersecting) {
-    reading.unobserve(entry.target)
-    markRead((entry.target as HTMLElement).dataset.id!)
-  }
-}, { threshold: 0.6 })
-
-/** Scroll to a thread's badge and open it. */
-function goToThread(id: string) {
-  const badge = layer.querySelector<HTMLElement>(`[data-thread="${id}"]`)
-  if (badge) scrollTo({ top: Math.max(0, parseFloat(badge.style.top) - innerHeight / 3), behavior: 'smooth' })
-  openPopover(id)
 }
 
 // ---- the thread popover ------------------------------------------------------------------------
@@ -250,7 +192,7 @@ function renderPopover() {
   const who = (e: WbEvent) => (e.from === 'cli' ? 'agent' : 'you')
   // the quote and every message are text from the reader or the agent: `html` escapes them
   const message = (e: WbEvent) =>
-    html`<div class="wb-thread-message" data-from="${who(e)}" data-id="${e.id}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text">${e.data.text ?? ''}</div></div>`
+    html`<div class="wb-thread-message" data-from="${who(e)}" data-wb-message="${e.id}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text">${e.data.text ?? ''}</div></div>`
   const draft = popover.querySelector('textarea')?.value ?? ''
   popover.innerHTML = String(html`
     <blockquote class="wb-thread-quote">${t.comment.data.quote ?? ''}</blockquote>
@@ -262,9 +204,6 @@ function renderPopover() {
       <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Reply</button><button type="button" class="wb-comment-button" data-close>Close thread</button></div>
     </form>`)
   popover.querySelector('textarea')!.value = draft
-  reading.disconnect()
-  const s = loadSeen()
-  for (const el of popover.querySelectorAll<HTMLElement>('.wb-thread-message[data-from=agent]')) if (!s.has(el.dataset.id!)) reading.observe(el)
 }
 
 function placePopover() {
@@ -430,7 +369,6 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   // the overview and folders are lists, not text to comment on
   if (handle.kind !== 'page' && handle.kind !== 'file') return
   root = el
-  pageId = handle.id
   main = root.querySelector('main') ?? root
   api = core
   document.body.append(layer, startButton, lineButton, popover, composer)
@@ -496,8 +434,15 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     if (!(e.target as HTMLElement).closest('[data-close]') || !openThread) return
     const id = openThread
     closePopover()
+    // closed, the thread's replies ask nothing of the reader any more
+    api.markRead(threads.find(t => t.id === id)?.replies.map(r => r.id) ?? [])
     await api.append(RESOLVE, { replyTo: id })
     refreshComments()
+  })
+  // the page goes to an unread reply here: open its thread
+  layer.addEventListener('wb-reveal', e => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-thread]')?.dataset.thread
+    if (id && openThread !== id) openPopover(id)
   })
   // a double-click outside the open thread closes it (a single click selects, to comment)
   document.addEventListener('dblclick', e => {

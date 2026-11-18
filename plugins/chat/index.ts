@@ -54,7 +54,7 @@ export default function chatPlugin(): Plugin {
     name: 'chat',
     blocks: { chat, 'chat-thread': thread },
     events: {
-      'chat:message': { handOut: true, description: 'a message in a chat: `{ chat, text }`, and `replaces` or `replyTo` (see below)' },
+      'chat:message': { handOut: true, forReader: true, description: 'a message in a chat: `{ chat, text }`, and `replaces` or `replyTo` (see below)' },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),
   })

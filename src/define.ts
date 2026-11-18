@@ -91,6 +91,12 @@ export interface EventSpec {
   description?: string
   /** hand it to an agent unasked, like a form's answer (a message for the agent); default false */
   handOut?: boolean
+  /**
+   * one from the agent is a message for the reader (a reply in a thread, a chat message): it waits
+   * for them until read, which the page records once its element (marked `data-wb-message` with the
+   * event's id) has been in view; default false
+   */
+  forReader?: boolean
 }
 
 export interface Project {
@@ -222,12 +228,14 @@ export interface PageStatus {
   owner: string | null
   /** the event types the page waits on the reader for: its named forms */
   asks: string[]
-  /** where each of them stands, as the page shows it: waiting, unheard, pending or decided */
+  /** where each of them stands, as the page shows it: open, pending or decided */
   questions: { name: string; state: FormState }[]
   /** those waiting for the reader: no answer yet, or a running wait asks for a new one */
   open: string[]
-  /** the open ones no running wait or watch listens for */
+  /** the open ones no running wait or watch (but the fallback) takes */
   unheard: string[]
+  /** the agent's messages on the page the reader hasn't read (see EventSpec.forReader) */
+  unread: WbEvent[]
   /** the reader's events on the page that no wait, watch or hook handed out */
   unpicked: WbEvent[]
   /** the running waits and watches that cover the page */
@@ -289,7 +297,7 @@ export interface FolderSource extends StoredBase {
 /** The overview, or a folder of pages without an index.md. */
 export interface PagesSource extends StoredBase {
   kind: 'pages'
-  /** `awaiting`: how many of the page's questions an agent is waiting on the reader for */
+  /** `awaiting`: how many things on the page wait for the reader: open questions, unread messages */
   pages: { id: string; file: string; mtime: number; lastEvent: string | null; awaiting: number }[]
 }
 
@@ -356,8 +364,8 @@ export interface Listener {
   type: string | null
   command: 'wait' | 'watch'
   /**
-   * `wait --fallback` or `watch --fallback`: it takes only what no other listener would, and waits
-   * on no question in particular, so it never makes one "waiting". At most one runs per project.
+   * `wait --fallback` or `watch --fallback`: it takes only what no other listener would, and asks
+   * no question again. At most one runs per project.
    */
   fallback?: boolean
 }
@@ -391,6 +399,13 @@ export interface Api {
   append(type: string, data?: Record<string, unknown>, action?: string | null): Promise<WbEvent>
   /** has an agent picked this event up (a `wait` or `watch` handed it out)? */
   pickedUp(id: string): boolean
+  /**
+   * The agent's messages on this page the reader hasn't read, oldest first (see
+   * EventSpec.forReader). An element marked `data-wb-message="<event id>"` reads its message once
+   * it has been in view; `markRead` does so for messages read otherwise (a thread closed).
+   */
+  unread(): WbEvent[]
+  markRead(ids: string[]): void
   /** the agents waiting for answers on this page right now */
   listeners(): Listener[]
   onListeners(fn: (listeners: Listener[]) => void): () => void
@@ -425,7 +440,7 @@ export interface Api {
   /**
    * The page's named forms and where each stands. The core looks after every `<form name>` without
    * an `action`: it sends a submit as an event, keeps drafts, puts the last answer back, and marks
-   * each form with its state (`data-wb-waiting`, `-unheard`, `-pending`, `-decided`). How that
+   * each form with its state (`data-wb-open`, `-pending`, `-decided`). How that
    * looks is the page's styles'; this is for drawing more than the attributes allow (a summary, a count)
    */
   forms(): FormStatus[]
@@ -440,7 +455,7 @@ export interface Api {
  * - pending: answered, but no agent has picked the answer up yet
  * - decided: an agent picked up its latest answer
  */
-export type FormState = 'waiting' | 'unheard' | 'pending' | 'decided'
+export type FormState = 'open' | 'pending' | 'decided'
 
 export interface FormStatus {
   form: HTMLFormElement

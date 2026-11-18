@@ -43,7 +43,7 @@ export default function comments(): Plugin {
     docs: () => DOCS,
     events: {
       'comments:new': { handOut: true, description: 'a comment on a passage or lines of code: `{ quote, before, after, block, at?, text }`; its id is the thread\'s' },
-      'comments:reply': { handOut: true, description: 'a reply in a thread: `{ replyTo, text }`' },
+      'comments:reply': { handOut: true, forReader: true, description: 'a reply in a thread: `{ replyTo, text }`' },
       'comments:resolve': { description: 'the reader closed a thread: `{ replyTo }`' },
     },
     style: STYLE,

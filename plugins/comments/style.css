@@ -11,6 +11,8 @@
 .wb-comment-badge { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px 12px 12px 3px; font-size: .72rem; font-weight: 600; background: var(--bg, Canvas); color: var(--accent, #1d5bbf); border: 1px solid color-mix(in srgb, var(--accent, #1d5bbf) 50%, transparent); }
 .wb-comment-badge[data-agent] { background: var(--accent, #1d5bbf); color: var(--accent-text, #fff); }
 .wb-comment-badge[data-detached] { border-style: dashed; }
+/* a reply the reader hasn't read: a dot on the badge until its thread is open and it is in view */
+.wb-comment-badge[data-unread]::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad, #c4352b); border: 2px solid var(--bg, Canvas); }
 .wb-thread { background: var(--bg, Canvas); border: 1px solid var(--border, #e3e5e9); border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 28px rgb(0 0 0 / .16); display: grid; gap: 10px; font-size: .9rem; }
 .wb-thread-quote { margin: 0; padding-left: 10px; border-left: 3px solid color-mix(in srgb, var(--accent, #1d5bbf) 50%, transparent); color: var(--muted, #696e76); font-size: .85rem; max-height: 6.5em; overflow: auto; white-space: pre-wrap; }
 .wb-thread-detached { margin: 0; color: var(--muted, #696e76); font-size: .8rem; }

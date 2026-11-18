@@ -1,9 +1,10 @@
 // What waits for the reader on other pages: a menu in the page's header, there only while another
-// page has a question an agent is waiting on. It lists those pages, each with how many of its
-// questions wait; a click goes to the page, which scrolls to the first of them (`#wb-waiting`,
-// see waiting.ts). This page's own are in its corner, not here.
+// page has a question they haven't answered or a message from the agent they haven't read. It
+// lists those pages, each with how many; a click goes to the page, which goes to the first of them
+// (`#wb-waiting`, see waiting.ts). This page's own are in its corner, not here.
 import type { Api, PageHandle, PageStatus } from '../../define.ts'
 import { INBOX_ICON, awaitingLabel } from '../../icons.ts'
+import { awaiting } from '../../status.ts'
 
 /** A link to a page that scrolls it to its first waiting question. */
 export const WAITING_HASH = '#wb-waiting'
@@ -30,7 +31,7 @@ async function load() {
   try { pages = await (await fetch('/api/status', { cache: 'no-store' })).json() } catch { return }
   const waiting = pages
     .filter(p => p.page !== current)
-    .map(p => ({ p, n: p.questions.filter(q => q.state === 'waiting').length }))
+    .map(p => ({ p, n: awaiting(p) }))
     .filter(({ n }) => n > 0)
   const total = waiting.reduce((sum, { n }) => sum + n, 0)
   box.hidden = total === 0

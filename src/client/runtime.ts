@@ -5,6 +5,8 @@ import type { Api, PluginMount, Listener, PageHandle, RenderedPage, StoredPage, 
 import { html } from '../html.ts'
 import { formsApi, trackForms } from './forms'
 import { toast } from './toast'
+import { markRead, messagesChanged, readsArrived, trackReading, unread } from './read'
+import { READ } from '../status.ts'
 
 interface Handoff {
   id: string; kind: StoredPage['kind']; data: unknown
@@ -12,6 +14,8 @@ interface Handoff {
   client: string | null
   /** the plugins' browser modules */
   plugins: { name: string; client: string }[]
+  /** the event types that, from the agent, are messages for the reader */
+  messages: string[]
 }
 
 const handoff: Handoff = JSON.parse(document.getElementById('wb-page')!.textContent!)
@@ -25,7 +29,9 @@ let events: WbEvent[] = []
 const eventListeners = new Set<(events: WbEvent[]) => void>()
 function setEvents(next: WbEvent[]) {
   events = next
+  readsArrived(events)
   for (const fn of eventListeners) fn(events)
+  messagesChanged()
 }
 
 async function loadEvents() {
@@ -74,6 +80,8 @@ const api: Api = {
   onEvents(fn) { eventListeners.add(fn); return () => eventListeners.delete(fn) },
   last: type => events.findLast(e => e.type === type),
   pickedUp: id => !!events.find(e => e.id === id)?.pickedUp,
+  unread,
+  markRead,
   append,
   listeners: () => listeners,
   onListeners(fn) { listenerListeners.add(fn); return () => listenerListeners.delete(fn) },
@@ -158,6 +166,7 @@ if (handoff.client) {
 }
 // named forms, once the page is on the page
 trackForms(root, page, api)
+trackReading({ messages: handoff.messages ?? [], events: () => events, send: ids => { append(READ, { ids }).catch(err => console.error('marking read:', err)) } })
 // the plugins' modules after the page, so that what they work on is there; one failing leaves the others
 await Promise.all((handoff.plugins ?? []).map(async ext => {
   try {

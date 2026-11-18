@@ -58,7 +58,8 @@ function Chat(props: ChatProps) {
       <For each={messages()}>
         {m => (
           // the reader's messages on the right, the agent's on the left
-          <div class="wb-chat-message" data-from={m.from}>
+          // the agent's: read once in view (the core marks it, see EventSpec.forReader)
+          <div class="wb-chat-message" data-from={m.from} data-wb-message={m.from === 'agent' ? m.id : undefined}>
             <span class="wb-chat-who">{m.from}</span>
             <div class="wb-chat-bubble">{m.text}</div>
           </div>

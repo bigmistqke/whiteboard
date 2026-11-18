@@ -27,7 +27,7 @@ test('the fallback takes answers on pages nobody waits on, leaves the others, an
 
   // nobody waits on b: the fallback takes it, and the page says so
   await page.goto(proj.url('b'))
-  await page.waitForSelector('form[name=b-q][data-wb-unheard]', { timeout: 5000 })
+  await page.waitForSelector('form[name=b-q][data-wb-open]', { timeout: 5000 })
   await page.fill('input[name=note]', 'for whoever')
   await page.click('form[name=b-q] button')
   await until('the fallback got b', () => fallback.output().includes('"page":"b"') || null)
@@ -35,7 +35,7 @@ test('the fallback takes answers on pages nobody waits on, leaves the others, an
 
   // a waits on its own wait: the fallback leaves it
   await page.goto(proj.url('a'))
-  await page.waitForSelector('form[name=a-q][data-wb-waiting]')
+  await page.waitForSelector('form[name=a-q][data-wb-open]')
   await page.fill('input[name=note]', 'for the wait')
   await page.click('form[name=a-q] button')
   await until('the wait on a got it', () => wait.output() || null)

@@ -50,22 +50,26 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   await until('the badge shows the agent replied', () => page.$eval('.wb-comment-badge', b => b.hasAttribute('data-agent') && b.textContent === '2'))
   assert.equal(await page.locator('.wb-toast').count(), 0, 'no toast: the reply shows in the open thread')
 
-  // with the thread closed, replies are counted in a toast that stays; a click opens the thread,
-  // and once the replies are in view there, the count goes and the toast with it
+  // with the thread closed, the agent's replies are unread: counted in a toast that stays, and a dot
+  // on the badge; a click opens the thread, and once the replies are in view there, they are read
+  // (in the log, so for every browser), and the toast goes
   await page.keyboard.press('Escape')
   await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'hidden' })
   proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'and also\nthis' }))
   const toast = page.locator('.wb-toast')
   await toast.waitFor({ state: 'visible' })
-  assert.equal(await toast.textContent(), '1 unread reply to your comments')
+  assert.equal(await toast.textContent(), '1 unread message from the agent')
+  assert.ok(await page.$eval('.wb-comment-badge', b => b.hasAttribute('data-unread')), 'a dot on the badge')
   proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'one more' }))
-  await until('the count goes up', async () => (await toast.textContent()) === '2 unread replies to your comments' || null)
+  await until('the count goes up', async () => (await toast.textContent()) === '2 unread messages from the agent' || null)
   await page.waitForTimeout(7500)
   assert.equal(await toast.count(), 1, 'it stays')
   await toast.click()
   await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
   assert.match((await page.textContent('.wb-thread:not(.wb-comment-new)'))!, /one more/)
   await toast.waitFor({ state: 'detached' })
+  await until('the read is in the log', () => proj.events().filter(e => e.type === 'whiteboard:read').flatMap(e => e.data.ids).length === 3 || null)
+  assert.ok(await page.$eval('.wb-comment-badge', b => !b.hasAttribute('data-unread')), 'no dot once read')
   // read stays read across a reload
   await page.reload()
   await page.waitForSelector('.wb-comment-badge')
@@ -89,7 +93,7 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   assert.ok(await page.$eval('.wb-comment-badge', b => !b.hasAttribute('data-detached')), 'the badge is still attached')
 
   // forms work next to it
-  assert.ok(await page.$eval('form[name=pick]', f => f.hasAttribute('data-wb-unheard')))
+  assert.ok(await page.$eval('form[name=pick]', f => f.hasAttribute('data-wb-open')))
 
   await page.click('.wb-thread [data-close]')
   await until('closing the thread removes it', async () => (await page.$$eval('.wb-comment-badge', b => b.length)) === 0)

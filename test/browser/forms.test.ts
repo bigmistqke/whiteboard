@@ -38,14 +38,16 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
 
   await page.goto(proj.url('q'))
   let s = await until('the form is marked', async () => { const x = await state(); return x.attrs.length ? x : null })
-  assert.ok(s.attrs.includes('data-wb-unheard'), 'unheard without a listener')
-  assert.equal(s.summary, '1 with no agent listening')
+  // unanswered, it waits for the reader, whether or not an agent listens
+  assert.ok(s.attrs.includes('data-wb-open'), 'open without an answer')
+  assert.equal(s.summary, '1 waiting for you')
   assert.equal(s.summaryBeforeMain, 'MAIN', 'the summary line sits right before <main>')
+  s = await until('the title badge', async () => { const x = await state(); return x.title.startsWith('(!1) ') ? x : null })
+  assert.equal(s.button, '→ waiting for you (1)', 'corner button')
 
   const wait = proj.spawn('wait', '--page', 'q')
-  s = await until('waiting while a wait runs', async () => { const x = await state(); return x.attrs.includes('data-wb-waiting') ? x : null })
-  assert.ok(s.title.startsWith('(!1) '), 'title badge (!1)')
-  assert.equal(s.button, '→ waiting for you (1)', 'corner button')
+  await until('the wait listens', async () => (await (await fetch(proj.url('api/listeners?page=q'))).json()).length === 1 || null)
+  assert.ok((await state()).attrs.includes('data-wb-open'), 'a wait changes nothing for the reader')
 
   // a draft survives a reload
   await page.fill('input[name=why]', 'because')
@@ -149,6 +151,9 @@ test('a chat block: the reader writes, the agent answers, and a wait hands the m
   proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'notes', text: 'noted' }))
   await until('the answer, as the agent', () => page.evaluate(() =>
     [...document.querySelectorAll('[data-chat=notes] .wb-chat-message[data-from=agent]')].some(m => m.textContent!.includes('noted'))))
+  // the agent's message is for the reader: in view, it is read, in the log
+  const noted = proj.events().find(e => e.type === 'chat:message' && e.data.text === 'noted')!
+  await until('the message is read', () => proj.events().some(e => e.type === 'whiteboard:read' && e.data.ids.includes(noted.id)) || null)
   // a chat block asks nothing: the page has no open question
   assert.match(proj.cli('status', '--page', 'q'), /nothing open/)
   assert.deepEqual(errors, [], 'no console errors')
@@ -165,14 +170,11 @@ test('the header lists what waits on other pages, and its link goes to the first
 
   const menu = page.locator('.wb-nav .wb-elsewhere')
   await page.goto(proj.url('here'))
-  await page.waitForSelector('form[name=mine][data-wb-unheard]')
-  assert.ok(await menu.isHidden(), 'nothing waits elsewhere: no menu')
-
-  // an agent starts waiting on the other page: the menu comes, live
-  const wait = proj.spawn('wait', '--page', 'there')
+  await page.waitForSelector('form[name=mine][data-wb-open]')
+  // the other page's questions wait for the reader, whether or not an agent listens
   await menu.waitFor({ state: 'visible' })
   assert.equal(await page.textContent('.wb-elsewhere-toggle'), '2')
-  assert.equal(await page.getAttribute('.wb-elsewhere-toggle', 'aria-label'), 'Awaiting you: 2 questions on another page')
+  assert.equal(await page.getAttribute('.wb-elsewhere-toggle', 'aria-label'), 'Awaiting you: 2 questions and messages on another page')
   assert.ok(await page.locator('.wb-elsewhere-list').isHidden(), 'closed until clicked')
   await page.click('.wb-elsewhere-toggle')
   assert.deepEqual(await page.$$eval('.wb-elsewhere-list a', as => as.map(a => a.textContent)), ['Over there (2)'])
@@ -180,7 +182,8 @@ test('the header lists what waits on other pages, and its link goes to the first
   // the overview: the same inbox, after the page's title, and no word on who listens elsewhere
   const overview = await b.newPage()
   await overview.goto(proj.url(''))
-  assert.deepEqual(await overview.$$eval('.wb-index .wb-awaiting', as => as.map(a => [a.textContent, a.getAttribute('href')])), [['2', '/there#wb-waiting']])
+  // every page with something for the reader, this one too: the overview is no page of its own
+  assert.deepEqual(await overview.$$eval('.wb-index .wb-awaiting', as => as.map(a => [a.textContent, a.getAttribute('href')])), [['2', '/there#wb-waiting'], ['1', '/here#wb-waiting']])
   assert.ok(!(await overview.textContent('.wb-index'))!.includes('agent waiting'))
   await overview.close()
 
@@ -193,9 +196,9 @@ test('the header lists what waits on other pages, and its link goes to the first
     return box && box.y > 0 && box.y < (page.viewportSize()?.height ?? 720) ? true : null
   })
   assert.equal(new URL(page.url()).hash, '', 'the link\'s #wb-waiting is gone once used')
-  assert.ok(await menu.isHidden(), 'nothing waits on other pages')
-
-  wait.kill()
+  // here, the other page is the first one, with its question
+  await menu.waitFor({ state: 'visible' })
+  assert.equal(await page.textContent('.wb-elsewhere-toggle'), '1')
   assert.deepEqual(errors, [])
 })
 
@@ -205,7 +208,7 @@ test('an answer no agent is listening for says so in a toast; one an agent waits
   t.after(async () => { await b.close(); await proj.close() })
 
   await page.goto(proj.url('q'))
-  await page.waitForSelector('form[name=ask][data-wb-unheard]')
+  await page.waitForSelector('form[name=ask][data-wb-open]')
   await page.fill('input[name=why]', 'nobody hears this')
   await page.click('form[name=ask] button')
   const toast = page.locator('.wb-toast')
@@ -218,7 +221,8 @@ test('an answer no agent is listening for says so in a toast; one an agent waits
   const first = proj.spawn('wait', '--page', 'q', '--type', 'ask')
   assert.equal(JSON.parse(await until('the first wait got the old answer', () => first.output())).data.why, 'nobody hears this')
   const wait = proj.spawn('wait', '--page', 'q', '--type', 'ask')
-  await page.waitForSelector('form[name=ask][data-wb-waiting]')
+  // asked again by name, the decided question is open again
+  await page.waitForSelector('form[name=ask][data-wb-open]')
   await page.fill('input[name=why]', 'heard')
   await page.click('form[name=ask] button')
   await until('the wait got it', () => wait.output())

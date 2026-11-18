@@ -9,9 +9,8 @@
 //   re-renders and reloads;
 // - puts the last answer back into the form, and its button in `data-wb-sent`;
 // - marks where the form stands, from the log and the listeners, with one of these attributes:
-//     data-wb-waiting   an agent is listening and wants its answer (also when it was answered
-//                       before: the agent wants a new one), or takes any answer and it has none
-//     data-wb-unheard   no answer, and no agent is listening
+//     data-wb-open      no answer yet, or the agent asks again (a wait asks for it by name after
+//                       its answer was picked up)
 //     data-wb-pending   answered, but no agent has picked the answer up yet
 //     data-wb-decided   an agent picked up its latest answer; data-wb-outcome quotes it in one line
 // and, for a few seconds after a send went through, `data-wb-just-sent`, to confirm it
@@ -123,7 +122,7 @@ async function onSubmit(e: SubmitEvent) {
 
 // ---- where each form stands --------------------------------------------------------------------
 
-const ATTR: Record<FormState, string> = { waiting: 'data-wb-waiting', unheard: 'data-wb-unheard', pending: 'data-wb-pending', decided: 'data-wb-decided' }
+const ATTR: Record<FormState, string> = { open: 'data-wb-open', pending: 'data-wb-pending', decided: 'data-wb-decided' }
 
 /** One line quoting an answer: what was chosen, then what was written. */
 function outcome(data: Data, action: string | null) {
@@ -144,10 +143,10 @@ const justSent = new WeakMap<HTMLFormElement, ReturnType<typeof setTimeout>>()
 
 /** Mark every form from the log and the listeners, then tell whoever follows. */
 function mark() {
-  const waitingFor = api.listeners()
+  const listening = api.listeners()
   current = forms().map(form => {
     const name = form.getAttribute('name')!
-    const { state, last } = questionState(name, api.events(), waitingFor, api.pickedUp)
+    const { state, last } = questionState(name, api.events(), listening, api.pickedUp)
     for (const st of STATES) form.toggleAttribute(ATTR[st], st === state)
     if (state === 'decided') form.dataset.wbOutcome = outcome(last!.data, last!.action)
     else delete form.dataset.wbOutcome
