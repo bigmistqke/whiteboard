@@ -112,6 +112,15 @@ test('comments on lines of a diff: tinted lines, a drag over two, and where they
   await page.mouse.move(from.x + 10, from.y + 10, { steps: 30 })
   assert.ok(await plus.isVisible(), 'the "+" stays when the pointer comes diagonally')
   assert.equal(Math.round((await plus.boundingBox())!.y), Math.round(from.y), 'the "+" is for the line at the pointer\'s height')
+  // the pointer leaves the page: the "+" goes, and comes back on the next hover
+  // (from the "+" itself, which can sit at the window's edge: no move off it reaches the page, only
+  // the leave a window gives, which Playwright's mouse doesn't)
+  await page.mouse.move(from.x + 10, from.y + 10)
+  await page.evaluate(() => document.documentElement.dispatchEvent(new MouseEvent('mouseleave')))
+  await plus.waitFor({ state: 'hidden', timeout: 3000 })
+  await line('const b = 3').hover()
+  await plus.waitFor({ state: 'visible' })
+  await page.mouse.move(from.x + 10, from.y + 10, { steps: 12 })
   await page.mouse.down()
   await page.mouse.move(from.x + 10, to.y + to.height / 2, { steps: 4 })
   await page.mouse.up()

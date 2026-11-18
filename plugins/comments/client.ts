@@ -369,6 +369,12 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   document.body.append(layer, startButton, lineButton, popover, composer)
 
   document.addEventListener('mousemove', onLinePointer)
+  // the pointer left the page: no line is hovered any more (a drag keeps its lines until mouseup)
+  document.documentElement.addEventListener('mouseleave', () => {
+    if (drag) return
+    lineButton.hidden = true
+    hovered = null
+  })
   lineButton.addEventListener('mousedown', e => {
     if (!hovered || e.button !== 0) return
     e.preventDefault()
