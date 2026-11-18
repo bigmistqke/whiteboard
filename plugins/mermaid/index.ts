@@ -6,6 +6,7 @@ import crypto from 'node:crypto'
 // pele loads the first time a page has a diagram, not with the plugin
 let pele: typeof import('pele') | undefined
 import { html, raw, type FenceContext } from '@bigmistqke/whiteboard'
+import { builtinPublic } from '../../src/package.ts'
 
 const FONT = 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 
@@ -28,11 +29,12 @@ export async function render(ctx: FenceContext) {
 export default function mermaid(): Plugin {
   return definePlugin({
     name: 'mermaid',
+    public: builtinPublic('mermaid'),
     blocks: {
       mermaid: {
         fence: true,
         html: render,
-        style: new URL('./style.css', import.meta.url),
+        style: 'style.css',
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),

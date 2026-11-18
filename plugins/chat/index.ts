@@ -7,10 +7,10 @@
 import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard'
-import { builtFile } from '../../src/package.ts'
+import { builtinPublic } from '../../src/package.ts'
 import { isQuestionName } from '../../src/status.ts'
 
-const style = new URL('./style.css', import.meta.url)
+const style = 'style.css'
 
 /**
  * What the chat needs to know. `form`: the form it sits under, if any, with the names of its choices,
@@ -27,7 +27,7 @@ const thread: Block<ChatProps> = {
     choices: ((ctx as DirectiveContext).attrs.choices ?? '').split(' ').filter(Boolean),
   }),
   html: () => '',
-  client: builtFile(import.meta.url, 'client.js'),
+  client: 'client.js',
 }
 
 const quote = (s: string) => s.replace(/"/g, '&quot;')
@@ -52,6 +52,7 @@ const chat: Block = {
 export default function chatPlugin(): Plugin {
   return definePlugin({
     name: 'chat',
+    public: builtinPublic('chat'),
     blocks: { chat, 'chat-thread': thread },
     events: {
       'chat:message': { handOut: true, forReader: true, description: 'a message in a chat: `{ chat, text }`, and `replaces` or `replyTo` (see below)' },

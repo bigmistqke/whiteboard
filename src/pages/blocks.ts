@@ -4,9 +4,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Html } from '../html.ts'
 import type { Block } from '../define.ts'
+import { inPublic } from '../public.ts'
 
 /** A block as the plugins bring it: its name, and the plugin it comes from. */
-export interface BlockEntry { name: string; block: Block<any>; plugin: string }
+/** A block of a plugin, with the plugin's public folder, where its files are. */
+export interface BlockEntry { name: string; block: Block<any>; plugin: string; public: string }
 
 const NAME = /^[\w-]+$/
 
@@ -27,19 +29,12 @@ export interface ResolvedBlock {
 
 export interface ResolvedBlocks { blocks: Map<string, ResolvedBlock>; code: ResolvedBlock | null }
 
-/** A block's file reference (URL, file: URL string, or absolute path) → absolute path. */
-function toPath(ref: unknown, field: string, block: string): string | null {
-  if (ref == null) return null
-  if (ref instanceof URL || (typeof ref === 'string' && ref.startsWith('file:'))) return fileURLToPath(ref)
-  if (typeof ref === 'string' && path.isAbsolute(ref)) return ref
-  throw new Error(`block "${block}": ${field} must be a URL, e.g. new URL('./${field}.js', import.meta.url)`)
-}
-
-/** Check and resolve one block into what the engine uses. */
-function normalize({ name, block: b, plugin }: BlockEntry): ResolvedBlock {
+/** Check and resolve one block into what the engine uses: its files in its plugin's public folder. */
+function normalize({ name, block: b, plugin, public: dir }: BlockEntry): ResolvedBlock {
   if (typeof b !== 'object' || !b) throw new Error(`plugin ${plugin}: block "${name}" is not an object`)
   if (!NAME.test(name)) throw new Error(`plugin ${plugin}: block name ${JSON.stringify(name)}: use letters, digits, - and _`)
-  const files = { client: toPath(b.client, 'client', name), style: toPath(b.style, 'style', name) }
+  const file = (ref: URL | string | undefined, field: string) => (ref == null ? null : inPublic(dir, ref, `plugin ${plugin}, block "${name}": ${field}`))
+  const files = { client: file(b.client, 'client'), style: file(b.style, 'style') }
   for (const [field, file] of Object.entries(files))
     if (file && !fs.existsSync(file)) throw new Error(`plugin ${plugin}, block "${name}": ${field} file not found: ${file}`)
   return {

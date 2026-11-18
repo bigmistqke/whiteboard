@@ -15,12 +15,12 @@
 // The parts are whiteboard-free: server.ts is a request handler, host.ts the process that runs the
 // sessions, client.ts the drawer in the browser. This file wires them in.
 import { html, raw } from '../../src/html.ts'
-import { packagePath } from '../../src/package.ts'
+import { builtinPublic } from '../../src/package.ts'
 import { createTerminal, type Sessions, type StartOptions } from './server.ts'
 import type { CommandContext, Plugin } from '../../src/define.ts'
 
-const CLIENT = packagePath('dist/plugins/terminal/client.js')
-const STYLE = packagePath('dist/plugins/terminal/style.css')
+const CLIENT = 'client.js'
+const STYLE = 'style.css'
 
 /**
  * The drawer's markup, written by the server so that it is there when the page first renders and
@@ -40,6 +40,7 @@ const drawer = (state: Sessions, screens: Record<string, string>, client: string
 export default function terminal(): Plugin {
   return {
     name: 'terminal',
+    public: builtinPublic('terminal'),
     // the drawer's look: on every page, since every page can have the drawer
     style: STYLE,
     setup(ctx) {

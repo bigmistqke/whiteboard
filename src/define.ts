@@ -56,7 +56,14 @@ export interface Plugin {
    * go to the block of that name. Block names are unique across a project's plugins.
    */
   blocks?: Record<string, Block<any>>
-  /** a stylesheet linked on every page (for blocks, their own `style` links it only where they're used) */
+  /**
+   * The folder its browser files are served from, and nothing else of it: its client modules,
+   * stylesheets, images, fonts (TypeScript there is served with its types stripped). `client` and
+   * `style` here and in its blocks name files in it. definePlugin defaults it to `public/` next to
+   * the module that calls it; a plain object plugin has the project's `.whiteboard/public/`.
+   */
+  public?: URL | string
+  /** a stylesheet linked on every page, in its public folder (a block's `style` links only where it is used) */
   style?: URL | string
   /**
    * Text that links somewhere, as written in plain text (`#12` → an issue): the core turns each
@@ -89,7 +96,24 @@ export interface Plugin {
   session?(): string | null | undefined | Promise<string | null | undefined>
 }
 
-export const definePlugin = (plugin: Plugin): Plugin => plugin
+/**
+ * A plugin, with its public folder defaulted to `public/` next to the module that calls this
+ * (found from the call stack), when it doesn't say one.
+ */
+export const definePlugin = (plugin: Plugin): Plugin => (plugin.public != null ? plugin : { ...plugin, public: callerPublic() })
+
+/** `public/` next to the module that called definePlugin: the first frame of the stack in another file. */
+function callerPublic(): URL | undefined {
+  const own = import.meta.url
+  for (const line of (new Error().stack ?? '').split('\n').slice(1)) {
+    const m = /(file:\/\/[^\s)]+?|\/[^\s():]+?):\d+:\d+/.exec(line)
+    if (!m) continue
+    const url = m[1].startsWith('file:') ? m[1] : `file://${m[1]}`
+    if (url === own) continue
+    return new URL('./public/', url)
+  }
+  return undefined
+}
 
 /** A pattern in a page's text that links somewhere (Plugin.links). */
 export interface TextLink {
@@ -157,7 +181,7 @@ export interface PluginHooks {
    * A browser module whose default export is an `PluginMount`: on every page, the core imports
    * it once the page has mounted, and hands it the page and its api. For
    * behaviour on the page's own content (its forms, say); markup of the plugin's own can come
-   * from `shell` instead. Serve it with `ctx.asset`.
+   * from `shell` instead. A file in the plugin's public folder: `'client.js'`.
    */
   client?: URL | string
 }
@@ -535,9 +559,9 @@ export interface Block<Props = unknown> {
    * output; with it, what shows until it mounts.
    */
   html?(ctx: ServerContext): string | Html | null | Promise<string | Html | null>
-  /** a browser module whose default export is a `Mount` */
+  /** a browser module whose default export is a `Mount`, in its plugin's public folder: `'chart.js'` */
   client?: URL | string
-  /** a stylesheet linked on every page that uses the block */
+  /** a stylesheet linked on every page that uses the block, in its plugin's public folder: `'chart.css'` */
   style?: URL | string
 }
 

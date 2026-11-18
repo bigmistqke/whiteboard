@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
+import { builtinPublic } from '../../src/package.ts'
 
 export async function render(ctx: DirectiveContext) {
   // the label and content are HTML already
@@ -10,10 +11,11 @@ export async function render(ctx: DirectiveContext) {
 export default function details(): Plugin {
   return definePlugin({
     name: 'details',
+    public: builtinPublic('details'),
     blocks: {
       details: {
         html: render,
-        style: new URL('./style.css', import.meta.url),
+        style: 'style.css',
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),

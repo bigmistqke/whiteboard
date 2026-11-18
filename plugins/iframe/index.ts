@@ -3,7 +3,7 @@
 // opens it on its own, and fills the window with it; the frame can be made taller by dragging its
 // bottom edge.
 import fs from 'node:fs'
-import { packagePath } from '../../src/package.ts'
+import { builtinPublic } from '../../src/package.ts'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
 
@@ -42,13 +42,14 @@ export async function render(ctx: DirectiveContext) {
 export default function iframe(): Plugin {
   return definePlugin({
     name: 'iframe',
+    public: builtinPublic('iframe'),
     blocks: {
       iframe: {
         html: render,
-        style: new URL('./style.css', import.meta.url),
+        style: 'style.css',
       },
     },
-    setup: () => ({ client: packagePath('dist/plugins/iframe/client.js') }),
+    setup: () => ({ client: 'client.js' }),
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),
   })
 }

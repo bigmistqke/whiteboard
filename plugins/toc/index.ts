@@ -8,7 +8,7 @@
 //
 // A page has it when its frontmatter says `toc: true`. With `toc({ always: true })`, every page has
 // it, unless its frontmatter says `toc: false`.
-import { packagePath } from '../../src/package.ts'
+import { builtinPublic } from '../../src/package.ts'
 import type { Plugin } from '../../src/define.ts'
 
 const DOCS = `## Table of contents
@@ -29,9 +29,10 @@ export default function toc(options: TocOptions = {}): Plugin {
     docs: () => options.always
       ? DOCS + '\nIn this project every page has it; a page without it says `toc: false` in its frontmatter.\n'
       : DOCS + '\nA page has it when its frontmatter says `toc: true`:\n\n```markdown\n---\ntoc: true\n---\n# A long page\n```\n',
-    style: packagePath('dist/plugins/toc/style.css'),
+    public: builtinPublic('toc'),
+    style: 'style.css',
     setup: () => ({
-      client: packagePath('dist/plugins/toc/client.js'),
+      client: 'client.js',
       // how the browser part knows: on every page, or only where the frontmatter asks
       shell: () => ({ head: `<meta name="wb-toc" content="${options.always ? 'always' : 'opt-in'}">` }),
     }),

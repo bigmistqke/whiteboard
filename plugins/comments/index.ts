@@ -3,11 +3,9 @@
 //
 // A thread is events on the page (see client.ts), so the server has nothing to do but serve the
 // browser module and the styles, and tell agents how to answer (`whiteboard docs`).
-import { packagePath } from '../../src/package.ts'
+import { builtinPublic } from '../../src/package.ts'
 import type { Plugin } from '../../src/define.ts'
 
-const CLIENT = packagePath('dist/plugins/comments/client.js')
-const STYLE = packagePath('dist/plugins/comments/style.css')
 
 const DOCS = `## Comments
 
@@ -48,7 +46,8 @@ export default function comments(): Plugin {
       'comments:reply': { handOut: true, forReader: true, description: 'a reply in a thread: `{ replyTo, text }`' },
       'comments:resolve': { description: 'the reader closed a thread: `{ replyTo }`' },
     },
-    style: STYLE,
-    setup: () => ({ client: CLIENT }),
+    public: builtinPublic('comments'),
+    style: 'style.css',
+    setup: () => ({ client: 'client.js' }),
   }
 }

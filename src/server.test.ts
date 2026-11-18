@@ -22,7 +22,10 @@ const PAGE = `# Plan
 async function serve(files: Record<string, string> = {}): Promise<{ base: string; dir: string; server: WhiteboardServer }> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-server-'))
   fs.mkdirSync(path.join(dir, '.whiteboard', 'pages'), { recursive: true })
-  for (const [file, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, '.whiteboard', file), text)
+  for (const [file, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, '.whiteboard', file)), { recursive: true })
+    fs.writeFileSync(path.join(dir, '.whiteboard', file), text)
+  }
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'q.md'), PAGE)
   fs.mkdirSync(path.join(dir, '.whiteboard', 'pages', 'notes'))
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'notes', 'a.md'), '# A\n')
@@ -119,47 +122,42 @@ test('close ends the live connections', async () => {
   assert.equal(await watch.done, 'ended')
 })
 
-test('a served file opens up its folder only for browser assets, never the token or the log', async () => {
-  // a local plugin whose browser module sits in .whiteboard/, next to the project's own files
+test('a plugin\'s public folder is served, TypeScript stripped; nothing beside it: not the token, the log, the config', async () => {
+  // a plugin written inline in the config: its public folder is .whiteboard/public/
   const { base } = await serve({
-    'config.ts': "export default { plugins: [{ name: 'probe', setup: () => ({ client: new URL('./probe.client.js', import.meta.url) }) }] }\n",
-    'probe.client.js': "import './helper.js'\nexport default () => {}\n",
-    'helper.js': 'export const x = 1\n',
+    'config.ts': "export default { plugins: [{ name: 'probe', setup: () => ({ client: 'probe.client.ts' }) }] }\n",
+    'public/probe.client.ts': "import { twice } from './helper.ts'\nimport type { Api } from './types.ts'\nconst n: number = twice(2)\nexport default (_root: HTMLElement, _page: unknown, _api: Api) => n\n",
+    'public/helper.ts': 'export const twice = (x: number): number => x * 2\n',
+    'public/look.css': 'p { color: red }\n',
+    'beside.js': 'export const secret = 1\n',
     'token': 'secret\n',
     'events.ndjson': '',
   })
-  // the page's first render asks the server to serve the plugin's module
   const page = await (await fetch(`${base}/q`)).text()
-  const client = /"client":"([^"]*probe\.client\.js)"/.exec(page)?.[1]
+  const client = /"client":"([^"]*probe\.client\.ts)"/.exec(page)?.[1]
   assert.ok(client, 'the page names the plugin\'s module')
-  // beside it, as the server names files (the temporary folder may sit behind a symlink)
-  const at = (file: string) => `${base}${client.replace(/probe\.client\.js$/, encodeURIComponent(file))}`
-  assert.equal((await fetch(`${base}${client}`)).status, 200, 'the module')
-  assert.equal((await fetch(at('helper.js'))).status, 200, 'a module beside it, which it imports')
-  for (const file of ['token', 'events.ndjson', 'config.ts']) assert.equal((await fetch(at(file))).status, 404, file)
-})
-
-test('a browser module in TypeScript is served with its types stripped, and what it imports; config.ts beside it never', async () => {
-  const { base } = await serve({
-    'config.ts': "export default { plugins: [{ name: 'typed', setup: () => ({ client: new URL('./typed.client.ts', import.meta.url) }) }] }\n",
-    'typed.client.ts': "import { twice } from './helper.ts'\nimport type { Api } from './types.ts'\nconst n: number = twice(2)\nexport default (_root: HTMLElement, _page: unknown, _api: Api) => n\n",
-    'helper.ts': 'export const twice = (x: number): number => x * 2\n',
-    'other.ts': 'export const secret = 1\n',
-  })
-  const page = await (await fetch(`${base}/q`)).text()
-  const client = /"client":"([^"]*typed\.client\.ts)"/.exec(page)?.[1]
-  assert.ok(client, 'the page names the plugin\'s module')
-  const at = (file: string) => `${base}${client.replace(/typed\.client\.ts$/, encodeURIComponent(file))}`
   const res = await fetch(`${base}${client}`)
   assert.equal(res.status, 200)
   assert.equal(res.headers.get('content-type'), 'text/javascript; charset=utf-8')
-  const code = await res.text()
-  assert.doesNotMatch(code, /: number|import type/, 'its types are gone')
-  assert.match(code, /import \{ twice \} from '\.\/helper\.ts'/)
-  const helper = await fetch(at('helper.ts'))
-  assert.equal(helper.status, 200, 'what it imports')
+  assert.doesNotMatch(await res.text(), /: number|import type/, 'its types are gone')
+  // in the folder: what the module imports, and anything else in it (the temporary folder may sit behind a symlink, so named as the server names it)
+  const at = (file: string) => `${base}${client.replace(/public\/probe\.client\.ts$/, file.split('/').map(encodeURIComponent).join('/'))}`
+  const helper = await fetch(at('public/helper.ts'))
+  assert.equal(helper.status, 200)
   assert.doesNotMatch(await helper.text(), /: number/)
-  for (const file of ['config.ts', 'other.ts', 'types.ts']) assert.equal((await fetch(at(file))).status, 404, `${file}: no module imports it (a type-only import is gone with the types)`)
+  assert.equal((await fetch(at('public/look.css'))).status, 200)
+  // beside it: never
+  for (const file of ['token', 'events.ndjson', 'config.ts', 'beside.js', 'public']) assert.equal((await fetch(at(file))).status, 404, file)
+})
+
+test('a plugin naming a file outside its public folder is a config error, shown on the page', async () => {
+  const { base } = await serve({
+    'config.ts': "export default { plugins: [{ name: 'leaky', style: new URL('./token', import.meta.url) }] }\n",
+    'token': 'secret\n',
+  })
+  const page = await (await fetch(`${base}/q`)).text()
+  assert.match(page, /plugin leaky: style: .*token is not in its public folder/)
+  assert.doesNotMatch(page, /secret/)
 })
 
 test('the built-in plugins bring their blocks without any config', async () => {
@@ -236,8 +234,8 @@ test('an iframe shows an HTML file next to the pages, as it is; a script src is 
 
 test('a config plugin with a built-in\'s name replaces it; a plugin\'s style is on every page', async () => {
   const { base, dir } = await serve({
-    'config.ts': `export default { plugins: [{ name: 'callout', style: new URL('./every.css', import.meta.url), blocks: { callout: { html: () => '<p class="mine">mine</p>' } } }] }\n`,
-    'every.css': 'p { color: red }\n',
+    'config.ts': `export default { plugins: [{ name: 'callout', style: 'every.css', blocks: { callout: { html: () => '<p class="mine">mine</p>' } } }] }\n`,
+    'public/every.css': 'p { color: red }\n',
   })
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'c.md'), ':::callout\nThere.\n:::\n')
   const page = await (await fetch(`${base}/c`)).text()

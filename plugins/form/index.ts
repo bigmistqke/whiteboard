@@ -10,8 +10,9 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { chatThread } from '../chat/index.ts'
 import { isQuestionName } from '../../src/status.ts'
+import { builtinPublic } from '../../src/package.ts'
 
-const style = new URL('./style.css', import.meta.url)
+const style = 'style.css'
 
 const CHOICES = new Set(['radio', 'check', 'select', 'hidden'])
 
@@ -106,6 +107,7 @@ const inputs: [string, Block][] = [
 export default function formPlugin(): Plugin {
   return definePlugin({
     name: 'form',
+    public: builtinPublic('form'),
     blocks: { form, ...Object.fromEntries(inputs) },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),
   })

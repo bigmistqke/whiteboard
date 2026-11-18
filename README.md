@@ -362,7 +362,7 @@ export default function checklist() {
         },
         // shown until the client mounts, then replaced
         html: () => html`<ul class="checklist"></ul>`,
-        client: new URL('./client.js', import.meta.url),
+        client: 'client.js',   // in its public/ folder
       },
     },
     // its events, and whether a `wait` on the page hands them out (a tick is information: no)
@@ -374,7 +374,7 @@ export default function checklist() {
 ```
 
 ```js
-// .whiteboard/plugins/checklist/client.js: served as it is (a .ts file has its types stripped)
+// .whiteboard/plugins/checklist/public/client.js: its public/ folder is served, nothing else of it
 export default function mount(el, { name, items }, api) {
   const ticked = () => {
     const state = new Map()
@@ -413,7 +413,7 @@ An agent can wait for a tick by asking for it: `whiteboard wait --page
 A plugin can also put something on every page, and add commands:
 
 ```ts
-// .whiteboard/plugins/votes.ts
+// .whiteboard/plugins/votes/index.ts
 import { definePlugin } from '@bigmistqke/whiteboard'
 import { read } from '@bigmistqke/whiteboard/log'
 
@@ -433,13 +433,13 @@ export default function votes() {
     },
     docs: () => 'The reader can vote a page up: a `votes:up` event. `whiteboard votes` counts them.',
     // from setup: what the running server adds (routes, markup, the browser module)
-    setup: () => ({ client: new URL('./votes.client.js', import.meta.url) }),
+    setup: () => ({ client: 'client.js' }),
   })
 }
 ```
 
 ```js
-// .whiteboard/plugins/votes.client.js: served as it is (a .ts file has its types stripped)
+// .whiteboard/plugins/votes/public/client.js
 export default function mount(root, page, api) {
   const button = document.createElement('button')
   const draw = () => { button.textContent = `👍 ${api.events().filter(e => e.type === 'votes:up').length}` }
@@ -481,12 +481,18 @@ export default function mount(root, page, api) {
   - `shell`, markup at the end of every page's `<head>` and `<body>`;
   - `client`, a module on every page, run once per page load.
 
-**Browser code is JavaScript or TypeScript**: the server sends a `.js` file
-as it is, and a `.ts` file with its types stripped (Node's type stripping, as
-for server code: types only, so no `enum` or `namespace`, and imports name
-their `.ts` files). A `.ts` file is served only as a module of its own or
-when a served module imports it, never for being next to one: a plugin's
-folder holds its server code too. JSX still needs building first. A block's `client` gets
+**A plugin's browser files live in its `public/` folder**, and only that
+folder is served: its client modules, styles, images and fonts, never its
+server code or the project's files beside it. `client` and `style` (a
+plugin's and a block's) name files in it: `'client.js'`. `definePlugin` puts
+it next to the module that calls it (`plugins/checklist/public/` for
+`plugins/checklist/index.ts`); say another with `public: new URL('./assets/',
+import.meta.url)`; a plain object plugin, or one written in the config, has
+`.whiteboard/public/`. A file named outside it is a config error. Browser
+code is JavaScript or TypeScript: a `.ts` file is served with its types
+stripped (Node's type stripping, as for server code: types only, so no
+`enum` or `namespace`, and imports name their `.ts` files). JSX still needs
+building first. A block's `client` gets
 `mount(element, props, api)` and may return a cleanup, run when the block
 is replaced on a live update; it replaces the server's HTML when it mounts.
 A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get

@@ -5,9 +5,10 @@
 //   dist/bin/, dist/src/           the engine: the command line and the server, module for module
 //   dist/src/client/page/main.js   the page in the browser, one module (morphdom included), and
 //                                  its base.css
-//   dist/plugins/<name>/…          each plugin, module for module, with its styles and readme; its
-//                                  browser code as one module (Solid included for a client.tsx)
-//   dist/plugins/terminal/         also the terminal's host, and its style.css with xterm's styles
+//   dist/plugins/<name>/…          each plugin, module for module, with its readme; in its public/,
+//                                  its browser files: its styles, and its browser code as one module
+//                                  (Solid included for a client.tsx)
+//   dist/plugins/terminal/         also the terminal's host, and its public/style.css with xterm's
 //   dist/solid/index.js            ./solid, for plugins that bundle it themselves
 //
 // Node runs TypeScript of its own, but not inside node_modules, which is where an installed package
@@ -56,7 +57,7 @@ const builds: BuildOptions[] = [
   ...plainClients.map((name): BuildOptions => ({
     input: at('plugins', name, 'client.ts'),
     platform: 'browser',
-    output: { file: path.join(DIST, 'plugins', name, 'client.js'), format: 'esm', minify: true },
+    output: { file: path.join(DIST, 'plugins', name, 'public', 'client.js'), format: 'esm', minify: true },
   })),
   // the page in the browser
   {
@@ -88,7 +89,7 @@ const builds: BuildOptions[] = [
     platform: 'browser',
     resolve: { alias: { '@bigmistqke/whiteboard/solid': at('solid/index.tsx') } },
     plugins: [solidJsx()],
-    output: { file: path.join(DIST, 'plugins', name, 'client.js'), format: 'esm', minify: true },
+    output: { file: path.join(DIST, 'plugins', name, 'public', 'client.js'), format: 'esm', minify: true },
   })),
   // the Solid adapter, for template packages: Solid stays theirs to bundle
   {
@@ -100,7 +101,11 @@ const builds: BuildOptions[] = [
   },
 ]
 
-/** Styles and readmes sit next to the modules that point at them. */
+/**
+ * Styles and readmes sit next to the modules that point at them; a plugin's public/ folder (its
+ * browser files: styles, images, fonts) is copied whole into its built public/, beside its built
+ * client module.
+ */
 function copyAssets() {
   const copyDir = (from: string, to: string) => {
     for (const f of fs.readdirSync(at(from))) {
@@ -110,10 +115,13 @@ function copyAssets() {
     }
   }
   copyDir('src/client/page', 'src/client/page')
-  for (const name of pluginDirs) copyDir(`plugins/${name}`, `plugins/${name}`)
+  for (const name of pluginDirs) {
+    copyDir(`plugins/${name}`, `plugins/${name}`)
+    if (fs.existsSync(at('plugins', name, 'public'))) fs.cpSync(at('plugins', name, 'public'), path.join(DIST, 'plugins', name, 'public'), { recursive: true })
+  }
   // the drawer's styles after xterm's own
-  fs.writeFileSync(path.join(DIST, 'plugins/terminal/style.css'),
-    fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') + '\n' + fs.readFileSync(at('plugins/terminal/style.css'), 'utf8'))
+  fs.writeFileSync(path.join(DIST, 'plugins/terminal/public/style.css'),
+    fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') + '\n' + fs.readFileSync(at('plugins/terminal/public/style.css'), 'utf8'))
 }
 
 /** Remove files under `dir` older than `since` (left from an earlier build), and folders left empty. */
@@ -132,6 +140,10 @@ const options = (b: BuildOptions): BuildOptions => ({ ...b, logLevel: 'warn', tr
 
 if (process.argv.includes('--watch')) {
   copyAssets()
+  // a plugin's public/ files aren't part of a bundle: copied again when one changes
+  for (const name of pluginDirs) {
+    if (fs.existsSync(at('plugins', name, 'public'))) fs.watch(at('plugins', name, 'public'), { recursive: true }, () => copyAssets())
+  }
   const watcher = watch(builds.map(options))
   watcher.on('event', e => {
     if (e.code === 'BUNDLE_END') { copyAssets(); e.result?.close() }

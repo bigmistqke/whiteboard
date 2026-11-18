@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
+import { builtinPublic } from '../../src/package.ts'
 
 const TYPES = new Set(['note', 'tip', 'success', 'warning', 'danger', 'question'])
 
@@ -14,10 +15,11 @@ export async function render(ctx: DirectiveContext) {
 export default function callout(): Plugin {
   return definePlugin({
     name: 'callout',
+    public: builtinPublic('callout'),
     blocks: {
       callout: {
         html: render,
-        style: new URL('./style.css', import.meta.url),
+        style: 'style.css',
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),

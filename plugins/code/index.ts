@@ -20,6 +20,7 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import type { BundledTheme, Highlighter } from 'shiki'
 import type { FenceContext } from '@bigmistqke/whiteboard'
 import { diffLines } from './diff.ts'
+import { builtinPublic } from '../../src/package.ts'
 
 export interface Options {
   /** Shiki theme names for each page theme (default: GitHub light and dark) */
@@ -81,12 +82,13 @@ export default function code(options: Options = {}): Plugin {
 
   return definePlugin({
     name: 'code',
+    public: builtinPublic('code'),
     blocks: {
       code: {
         // every code fence no other block claims by name, and the code view of repository files
         fence: 'any',
         html: ctx => highlight((ctx as FenceContext).text, (ctx as FenceContext).lang),
-        style: new URL('./style.css', import.meta.url),
+        style: 'style.css',
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),

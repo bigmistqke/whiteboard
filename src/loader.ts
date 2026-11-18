@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { importFresh, importOwn } from './load.ts'
 import { createPages, type Pages } from './pages/index.ts'
 import { pluginCommands } from './plugins.ts'
+import { inPublic, publicDirOf } from './public.ts'
 import type { Config, Plugin } from './define.ts'
 import type { Project } from './config.ts'
 
@@ -20,6 +21,8 @@ export interface LoadedConfig {
   handedOut: Set<string>
   /** the plugins' event types declared `forReader: true`: from the agent, a message for the reader */
   forReader: Set<string>
+  /** each plugin's public folder, by name: the one place its browser files are served from */
+  publicDirs: Map<string, string>
   files: boolean
   errors: unknown[]
 }
@@ -92,18 +95,20 @@ export function createConfigLoader(proj: Project, { pages: withPages = true } = 
       if (builtin.has(e.name)) plugins[plugins.findIndex(p => p.name === e.name)] = e
       else plugins.push(e)
     }
-    const blocks = plugins.flatMap(p => Object.entries(p.blocks ?? {}).map(([name, block]) => ({ name, block, plugin: p.name })))
-    const styles = plugins.map(p => p.style).filter((s): s is URL | string => !!s)
+    // each plugin's browser files are served from its public folder alone: its files are named in it
+    const publicDirs = new Map(plugins.map(p => [p.name, publicDirOf(p, proj.wb)]))
+    const blocks = plugins.flatMap(p => Object.entries(p.blocks ?? {}).map(([name, block]) => ({ name, block, plugin: p.name, public: publicDirs.get(p.name)! })))
+    const styles = plugins.filter(p => p.style).map(p => inPublic(publicDirs.get(p.name)!, p.style!, `plugin ${p.name}: style`))
     const links = plugins.flatMap(p => p.links ? [p.links.bind(p)] : [])
     const pages = withPages ? createPages({ blocks, style: config?.style, styles, links }) : null
     const declared = (flag: 'handOut' | 'forReader') => new Set(plugins.flatMap(p => Object.entries(p.events ?? {}).filter(([, spec]) => spec?.[flag]).map(([type]) => type)))
-    return { pages, plugins, handedOut: declared('handOut'), forReader: declared('forReader'), files: config?.files !== false }
+    return { pages, plugins, handedOut: declared('handOut'), forReader: declared('forReader'), publicDirs, files: config?.files !== false }
   }
 
   function config(): Promise<LoadedConfig> {
     cached ??= load().then(
       value => ({ ...value, errors: [] }),
-      error => ({ pages: null, plugins: [], handedOut: new Set<string>(), forReader: new Set<string>(), files: false, errors: [error] }),
+      error => ({ pages: null, plugins: [], handedOut: new Set<string>(), forReader: new Set<string>(), publicDirs: new Map<string, string>(), files: false, errors: [error] }),
     )
     return cached
   }

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Static block: no component, so no JavaScript on the page.
 import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
+import { builtinPublic } from '../../src/package.ts'
 
 const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
@@ -25,10 +26,11 @@ export async function render(ctx: DirectiveContext) {
 export default function grid(): Plugin {
   return definePlugin({
     name: 'grid',
+    public: builtinPublic('grid'),
     blocks: {
       grid: {
         html: render,
-        style: new URL('./style.css', import.meta.url),
+        style: 'style.css',
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),

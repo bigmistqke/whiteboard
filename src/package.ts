@@ -32,8 +32,5 @@ export const FROM_SOURCE = fileURLToPath(import.meta.url).endsWith('.ts')
  * dist/. The same whether the module runs from source (plugins/form/index.ts gives
  * dist/plugins/form/client.js) or from dist/ itself.
  */
-export function builtFile(moduleUrl: string, name: string): string {
-  const rel = path.relative(PACKAGE_DIR, path.dirname(fileURLToPath(moduleUrl)))
-  const inDist = rel === 'dist' || rel.startsWith('dist' + path.sep)
-  return path.join(PACKAGE_DIR, inDist ? '' : 'dist', rel, name)
-}
+/** A built-in plugin's public folder: its built browser modules and copied styles (build.ts). */
+export const builtinPublic = (name: string): string => packagePath('dist', 'plugins', name, 'public')

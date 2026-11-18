@@ -3,7 +3,7 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 // Turns the block's content into gallery items: one per heading (first image in the section is
 // its picture), or one per image when there are no headings.
 import { escape, type DirectiveContext } from '@bigmistqke/whiteboard'
-import { builtFile } from '../../src/package.ts'
+import { builtinPublic } from '../../src/package.ts'
 
 interface Node { type: string; depth?: number; url?: string; alt?: string; children?: Node[] }
 export interface Item { src: string | null; alt: string; title: string | null; html: string }
@@ -55,11 +55,12 @@ export async function props(ctx: DirectiveContext) {
 export default function gallery(): Plugin {
   return definePlugin({
     name: 'gallery',
+    public: builtinPublic('gallery'),
     blocks: {
       gallery: {
         props,
-        client: builtFile(import.meta.url, 'client.js'),
-        style: new URL('./style.css', import.meta.url),
+        client: 'client.js',
+        style: 'style.css',
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),

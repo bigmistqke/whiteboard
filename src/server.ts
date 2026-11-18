@@ -28,6 +28,7 @@ import { createAuth } from './auth.ts'
 import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
 import { awaiting, covers, heard, questionState, unreadMessages } from './status.ts'
 import { titleOf } from './pages/render.ts'
+import { inPublic } from './public.ts'
 import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
 
 const ENGINE_DIR = PACKAGE_DIR
@@ -94,8 +95,12 @@ export function createServer(project: Project): WhiteboardServer {
         try {
           pluginDirs.add(e.name)
           const dataDir = pluginDir(project.wb, e.name)
-          const hooks = (await e.setup?.({ project: { name: project.name, dir: project.dir, wb: project.wb }, dataDir, authorized: auth.authorized, asset })) ?? {}
-          return { name: e.name, ...hooks, table: mountRoutes(e.name, hooks.routes), plugin: e }
+          // what it serves is in its public folder: its client, and what it asks ctx.asset for
+          const dir = c.publicDirs.get(e.name)!
+          const own = (ref: URL | string) => asset(inPublic(dir, ref, `plugin ${e.name}`))
+          const hooks = (await e.setup?.({ project: { name: project.name, dir: project.dir, wb: project.wb }, dataDir, authorized: auth.authorized, asset: own })) ?? {}
+          const client = hooks.client != null ? inPublic(dir, hooks.client, `plugin ${e.name}: client`) : undefined
+          return { name: e.name, ...hooks, client, table: mountRoutes(e.name, hooks.routes), plugin: e }
         } catch (err) {
           console.error(`plugin ${e.name}:`, err)
           return { name: e.name, table: [], plugin: e, error: err as Error }
@@ -146,31 +151,25 @@ export function createServer(project: Project): WhiteboardServer {
   async function config(): Promise<LoadedConfig> {
     const c = await loader.config()
     setFiles(c.files)
+    publicDirs = [...c.publicDirs.values()]
     return c
   }
 
-  // ---- assets: files a plugin asks to serve -------------------------------------------------------
-  // Served at /_/file/<absolute path>, only once asked for. Beside a file asked for, its neighbours
-  // too, since a client module may import them, but only browser assets (scripts, styles, images,
-  // fonts): a plugin's module in .whiteboard/ must not open up the project's token, log or config.
-  // Those folders are watched from then on.
+  // ---- assets: the browser's files ----------------------------------------------------------------
+  // Served at /_/file/<absolute path>, and only these: the files the core names (its page module and
+  // styles, the project's stylesheet), and what is inside a plugin's public folder (public.ts): its
+  // client modules, styles, images, fonts. Nothing else of a plugin, and nothing beside its public
+  // folder: not its server code, not the project's token, log or config. TypeScript there is
+  // served with its types stripped (Node's own type stripping, as for server code: erasable syntax
+  // only, positions kept). The folders of what is served are watched from then on.
 
   const assets = new Set<string>()
   const assetDirs = new Set<string>()
-  const BROWSER_ASSET = /\.(m?js|css|map|svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|wasm)$/i
-  // Browser code in TypeScript: its types are stripped as it is served (Node's own type stripping,
-  // as for server code: erasable syntax only, positions kept). Not served for being next to a
-  // browser module, as a .js file is: a plugin's folder holds server code too (config.ts), so a .ts
-  // file is served only as a module of its own (`client`) or when a served module imports it.
   const TYPESCRIPT = /\.m?ts$/i
-  const IMPORTED = /(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"]+\.m?ts)\1/g
-  function typeScriptModule(file: string): string {
-    const code = stripTypeScriptTypes(fs.readFileSync(file, 'utf8'))
-    // what it imports may be served now, as it will be asked for next
-    for (const m of code.matchAll(IMPORTED)) asset(path.resolve(path.dirname(file), m[2]))
-    return code
-  }
-  const servable = (file: string) => assets.has(file) || (assetDirs.has(path.dirname(file)) && BROWSER_ASSET.test(file))
+  const typeScriptModule = (file: string): string => stripTypeScriptTypes(fs.readFileSync(file, 'utf8'))
+  // the plugins' public folders, as the config last loaded them
+  let publicDirs: string[] = []
+  const servable = (file: string) => assets.has(file) || publicDirs.some(dir => within(file, dir) && file !== dir)
 
   function asset(ref: string | URL): string {
     const file = toPath(ref)
@@ -597,9 +596,11 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
         if (owner) return sendJson(res, 404, { error: `plugin ${owner.name} has no route ${req.method} ${p}` })
       }
       if (p.startsWith('/_/file/')) {
+        await config()
         const file = path.resolve(p.slice('/_/file'.length))
-        const allowed = TYPESCRIPT.test(file) ? assets.has(file) : servable(file)
-        if (!allowed || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
+        if (!servable(file) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
+        // watched from now on, so a change to it reloads the pages that use it
+        asset(file)
         if (TYPESCRIPT.test(file)) {
           try { return send(res, 200, typeScriptModule(file), 'text/javascript; charset=utf-8') } catch (err) {
             // syntax only types can't express (an enum, a namespace) or a mistake: the browser says why

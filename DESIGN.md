@@ -163,8 +163,10 @@ Images and other binary files are served as they are.
   nothing else of markdown. It is internal, not a public concept: it is
   where another way to show pages would plug in, should one come back.
 - **Server.** The render goes into `<div id="wb-root">`. `ctx.asset(file)`
-  gives the URL a file is served at (a client module, a stylesheet); only
-  files asked for this way are served, from `/_/file/…`. `ctx.urlFor(file)`
+  gives the URL a file is served at (a client module, a stylesheet), from
+  `/_/file/…`. What is served: the core's own files (its page module and
+  styles, the project's stylesheet), and what is inside a plugin's public
+  folder (see Plugins); nothing else. `ctx.urlFor(file)`
   gives the URL that shows a file or folder on disk, for links.
 - **Browser.** The core's runtime (`src/client/runtime.ts`) imports the page
   module (`src/client/page/main.ts`) and calls `mount(root, page, api)`.
@@ -189,12 +191,22 @@ Images and other binary files are served as they are.
 
 ### Plugins
 
-A plugin's browser code can be TypeScript: a `.ts` module has its types
-stripped as it is served (`stripTypeScriptTypes`, the type stripping Node
-runs server code with), so neither side needs a build step. Unlike `.js`, a
-`.ts` file isn't served for sitting next to a browser module, since a
-plugin's folder (or `.whiteboard/` itself) holds server code too, such as
-`config.ts`: only a module named as one, and what a served module imports.
+A plugin's browser files live in its public folder (`public` on the plugin,
+`src/public.ts`), and the server serves that folder and nothing else of the
+plugin: its client modules, styles, images and fonts, never its server code,
+nor the project's token, log or config beside it. `client` and `style`, the
+plugin's and its blocks', name files in it; one named outside it is a config
+error, rather than a file that quietly isn't served. `definePlugin` defaults
+it to `public/` next to the module that calls it (from the call stack); a
+plain object plugin, or one written inline in the config, has
+`.whiteboard/public/`. A `.ts` file there has its types stripped as it is
+served (`stripTypeScriptTypes`, as Node runs server code), so neither side
+needs a build step. The built-in plugins' public folders are built:
+`dist/plugins/<name>/public/`, their compiled modules beside their copied
+`public/` files. An earlier version served a file's neighbours by type (any
+`.js`, `.css`, image beside a served file), which served a plugin's server
+code too, and needed an exception for `.ts`; an explicit folder needs no
+judgement.
 
 Every value of the browser api that changes is a `Reactive<T>`: call it for
 what it is now (`api.events()`), and `.on(fn)` to hear each change
@@ -609,8 +621,8 @@ export default () => definePlugin({
     chart: {
       props: ctx => ({ … }),     // server: JSON props for the client (optional)
       html: ctx => '…',          // server: the block's HTML; with a client, shown until it mounts (optional)
-      client: new URL('./client.js', import.meta.url),   // browser: default export mount(el, props, api) (optional)
-      style: new URL('./style.css', import.meta.url),    // linked on pages that use it (optional)
+      client: 'client.js',       // browser, in the plugin's public/: default export mount(el, props, api) (optional)
+      style: 'style.css',        // in public/ too, linked on pages that use it (optional)
     },
   },
   docs: () => '…',               // syntax and examples, for `whiteboard docs` (optional)
