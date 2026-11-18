@@ -1,6 +1,6 @@
 {
   "name": "@bigmistqke/whiteboard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A whiteboard for you and your agent: it writes markdown pages you read live in the browser, you answer through forms it waits on",
   "keywords": [
     "agent",
