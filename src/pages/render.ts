@@ -106,10 +106,13 @@ function documentList(ctx: RenderContext) {
   if (!files.length) return ''
   const rows = files.map((f, i) => {
     const abs = path.join(ctx.project.dir, f)
-    const title = titleOf(abs, f)
+    // a file without a heading goes by its name, and the line under it says the folder it is in
+    const name = path.posix.basename(f)
+    const title = titleOf(abs, name)
+    const where = title === name ? path.posix.dirname(f) : f
     let mtime = 0
     try { mtime = fs.statSync(abs).mtimeMs } catch { /* gone meanwhile */ }
-    return html`<li data-order="${i}" data-updated="${mtime}" data-title="${title.toLowerCase()}"><a href="${ctx.urlFor(abs) ?? `/-/${f}`}">${title}</a> <span class="wb-meta"><code>${f}</code>${mtime > 0 && html` · edited ${time(mtime)}`}</span></li>`
+    return html`<li data-order="${i}" data-updated="${mtime}" data-title="${title.toLowerCase()}"><a href="${ctx.urlFor(abs) ?? `/-/${f}`}">${title}</a> <span class="wb-meta">${where !== '.' && html`<code>${where === f ? f : `${where}/`}</code> · `}edited ${time(mtime)}</span></li>`
   })
   // in a section, so the heading isn't numbered like the page's own sections
   return html`<section class="wb-documents"><div class="wb-list-head"><h2>Documents</h2><label class="wb-sort">sort <select data-wb-sort="documents" aria-label="Sort the documents"><option value="order">by folder</option><option value="updated">last updated</option><option value="title">by title</option></select></label></div><ul class="wb-index">${rows}</ul></section>`
