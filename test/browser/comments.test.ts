@@ -48,6 +48,37 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   // the agent replies from the command line
   proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'because' }))
   await until('the badge shows the agent replied', () => page.$eval('.wb-comment-badge', b => b.hasAttribute('data-agent') && b.textContent === '2'))
+  assert.equal(await page.locator('.wb-toast').count(), 0, 'no toast: the reply shows in the open thread')
+
+  // with the thread closed, replies are counted in a toast that stays; a click opens the thread,
+  // and once the replies are in view there, the count goes and the toast with it
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'hidden' })
+  proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'and also\nthis' }))
+  const toast = page.locator('.wb-toast')
+  await toast.waitFor({ state: 'visible' })
+  assert.equal(await toast.textContent(), '1 unread reply to your comments')
+  proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'one more' }))
+  await until('the count goes up', async () => (await toast.textContent()) === '2 unread replies to your comments' || null)
+  await page.waitForTimeout(7500)
+  assert.equal(await toast.count(), 1, 'it stays')
+  await toast.click()
+  await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
+  assert.match((await page.textContent('.wb-thread:not(.wb-comment-new)'))!, /one more/)
+  await toast.waitFor({ state: 'detached' })
+  // read stays read across a reload
+  await page.reload()
+  await page.waitForSelector('.wb-comment-badge')
+  await page.waitForTimeout(500)
+  assert.equal(await page.locator('.wb-toast').count(), 0, 'no toast for replies read before')
+
+  // a double-click outside the open thread closes it
+  await page.click('.wb-comment-badge')
+  await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
+  await page.dblclick('h1')
+  await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'hidden' })
+  await page.click('.wb-comment-badge')
+  await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
 
   // a live edit elsewhere keeps the passage
   const file = `${proj.dir}/.whiteboard/pages/q.md`

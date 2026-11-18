@@ -171,13 +171,6 @@ details[open] > :last-child { margin-bottom: 2em; }
 }
 .wb-nav .wb-elsewhere-list a { display: block; padding: 6px 10px; border-radius: 5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-nav .wb-elsewhere-list a:hover, .wb-nav .wb-elsewhere-list a:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-/* toasts (toast.ts): above the drawer, centred */
-.wb-toasts { position: fixed; left: 50%; transform: translateX(-50%); z-index: 30; display: grid; gap: 8px; width: min(440px, 100vw - 32px); pointer-events: none; }
-.wb-toast {
-  pointer-events: auto; cursor: pointer; padding: 10px 14px; border-radius: 8px; font: .85rem/1.45 var(--sans);
-  background: var(--bg); color: var(--text); border: 1px solid var(--border); box-shadow: 0 8px 28px rgb(0 0 0 / .18);
-}
-.wb-toast[data-kind=warn] { border-left: 4px solid var(--warn, #c98a00); }
 .wb-meta { color: var(--muted); font: .8rem/1.5 var(--sans); }
 .wb-index { padding: 0; }
 .wb-index li { list-style: none; padding: 12px 0; border-bottom: 1px solid var(--border); }

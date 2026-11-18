@@ -308,7 +308,7 @@ export default defineConfig({
 ```
 
 The built-in plugins are callout, chat, code, comments, details, form,
-gallery, grid, mermaid and quiet: every project has them, and
+gallery, grid, iframe, mermaid and quiet: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent.
@@ -482,8 +482,9 @@ is replaced on a live update; it replaces the server's HTML when it mounts.
 A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get
 the page's `api`: its events and `append` (which comes back through
 `onEvents`), the listeners, `onRendered` (after a live update, to put back
-what it adds), `corner()` for floating buttons, `badge()` for counts in the
-tab title, and the theme. Files beside a browser module that are browser
+what it adds), `corner()` for floating buttons, `toast()` for a message
+at the bottom of the window, `badge()` for counts in the tab title, and the
+theme. Files beside a browser module that are browser
 assets (scripts, styles, images, fonts) are served too.
 
 Something that covers the bottom of the window says how much in
@@ -538,7 +539,8 @@ Not started.
   list of those pages, and a page in it opens at its first waiting
   question. The overview marks the same pages with the inbox.
 - **Comments.** Select any passage and comment on it; the agent replies in
-  the thread or edits the page. Passages are found again after edits.
+  the thread or edits the page. Passages are found again after edits. A
+  reply to a thread you don't have open comes as a toast that opens it.
 - **What changed.** A block you haven't seen gets a bar until it has been
   in view a moment, remembered per page, so coming back shows what changed
   since. `:::quiet` content never counts as new.

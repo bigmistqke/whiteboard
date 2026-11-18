@@ -1,7 +1,7 @@
 // Where a question stands: the one definition the server and the page share.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { questionState, statusLines } from './status.ts'
+import { questionState, statusLines, takenByOther } from './status.ts'
 import type { Listener, PageStatus, WbEvent } from './define.ts'
 
 const event = (id: string, type: string, from?: 'cli'): WbEvent =>
@@ -26,6 +26,7 @@ const cases: [string, WbEvent[], Listener[], string[], string][] = [
   ['a newer answer, not picked up yet', [answer, newer], [], ['a1'], 'pending'],
   ['an agent\'s event of its name is no answer', [reply], [], [], 'unheard'],
   ['an agent\'s event after the answer does not hide it', [answer, reply], [], ['a1'], 'decided'],
+  ['no answer, only the fallback: it waits for no question', [], [{ page: '', type: null, command: 'watch', fallback: true }], [], 'unheard'],
 ]
 
 for (const [what, events, listeners, picked, expected] of cases) {
@@ -54,4 +55,14 @@ test('statusLines: what is open, the command once, then what an agent waits on',
 
 test('statusLines: nothing open says nothing', () => {
   assert.deepEqual(statusLines(page({}), 'p.md'), [])
+})
+
+test('takenByOther: what another listener would take, by page and type; never what only the fallback would', () => {
+  const at = (page: string, type: string): WbEvent => ({ id: 'x', ts: '', page, type, action: null, data: {} })
+  const fallback: Listener = { page: '', type: null, command: 'watch', fallback: true }
+  assert.equal(takenByOther([fallback], at('p', 'pick')), false)
+  assert.equal(takenByOther([fallback, wait(null)], at('p', 'pick')), true, 'any type on its page')
+  assert.equal(takenByOther([fallback, wait(null)], at('p/sub', 'pick')), true, 'a page below it')
+  assert.equal(takenByOther([fallback, wait(null)], at('q', 'pick')), false, 'another page')
+  assert.equal(takenByOther([fallback, wait('other')], at('p', 'pick')), false, 'another type')
 })

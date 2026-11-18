@@ -9,7 +9,6 @@ import type { Api, FormState, FormStatus } from '../../define.ts'
 import { viewBottom } from './view'
 import { STATES } from '../../status.ts'
 import { WAITING_HASH } from './elsewhere'
-import { toast } from './toast'
 
 const ORDER = STATES
 const LABEL: Record<FormState, (n: number) => string> = {
@@ -129,11 +128,15 @@ export function trackWaiting(root: HTMLElement, core: Api) {
     const name = form.getAttribute('name')
     if (!name || !main.contains(form) || !forms.some(f => f.form === form)) return
     // who listens as it is sent: an agent that takes it ends its wait right after
-    if (api.listeners().some(l => l.type === name || l.type === null)) return
+    const takes = (fallback: boolean) => api.listeners().some(l => !!l.fallback === fallback && (l.type === name || l.type === null))
+    if (takes(false)) return
+    const fallback = takes(true)
     const sent = new MutationObserver(() => {
       if (form.dataset.wbState === 'sending') return
       sent.disconnect()
-      if (form.dataset.wbState === 'sent') toast('Sent, but no agent is listening right now. Your answer stays in the log until one checks this page.', { kind: 'warn' })
+      if (form.dataset.wbState !== 'sent') return
+      if (fallback) api.toast('Sent. No agent waits on this page; the fallback agent picks it up.')
+      else api.toast('Sent, but no agent is listening right now. Your answer stays in the log until one checks this page.', { kind: 'warn' })
     })
     sent.observe(form, { attributes: true, attributeFilter: ['data-wb-state'] })
   })

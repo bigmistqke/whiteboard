@@ -355,6 +355,26 @@ export interface Listener {
   page: string
   type: string | null
   command: 'wait' | 'watch'
+  /**
+   * `wait --fallback` or `watch --fallback`: it takes only what no other listener would, and waits
+   * on no question in particular, so it never makes one "waiting". At most one runs per project.
+   */
+  fallback?: boolean
+}
+
+/** How a toast looks and acts: `warn` for something that may need the reader, how long it stays. */
+export interface ToastOptions {
+  kind?: 'info' | 'warn'
+  /** milliseconds before it goes, 7000 by default; 0: it stays until closed through its `Toast` */
+  ms?: number
+  /** what a click on it does, besides closing it (a toast that stays, stays) */
+  onClick?: () => void
+}
+
+/** A toast on the screen: close it, or change what it says (a count that goes down). */
+export interface Toast {
+  close(): void
+  update(text: string): void
 }
 
 /** What the core gives the page and every plugin in the browser. Framework-free: getters and subscriptions. */
@@ -395,6 +415,13 @@ export interface Api {
   badge(key: string, text: string | null, order?: number): void
   /** the page's own title, behind the badges */
   title(title: string): void
+  /**
+   * A short message at the bottom of the window, for what the reader should know when it happens,
+   * wherever they are scrolled: an answer nobody listens for, a reply in a thread. It goes after a
+   * few seconds, or on a click, which runs `onClick` first (go to what it is about); with `ms: 0`
+   * it stays until closed through what this returns.
+   */
+  toast(text: string, options?: ToastOptions): Toast
   /**
    * The page's named forms and where each stands. The core looks after every `<form name>` without
    * an `action`: it sends a submit as an event, keeps drafts, puts the last answer back, and marks

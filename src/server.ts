@@ -25,7 +25,7 @@ import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './load
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth } from './auth.ts'
 import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
-import { questionState } from './status.ts'
+import { covers, questionState } from './status.ts'
 import { titleOf } from './pages/render.ts'
 import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
 
@@ -381,6 +381,10 @@ export function createServer(project: Project): WhiteboardServer {
   // the page's corner (api.corner()): the one thing the core puts on every page, empty, for the
   // page's and the plugins' floating buttons; above what covers the bottom of the window
   const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
+    // toasts (api.toast), centred above the same edge; in the page's theme colours where it has them
+    + '#wb-toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:30;display:grid;gap:8px;width:min(440px,100vw - 32px);pointer-events:none}'
+    + '.wb-toast{pointer-events:auto;cursor:pointer;padding:10px 14px;border-radius:8px;font:.85rem/1.45 var(--sans,system-ui,sans-serif);background:var(--bg,Canvas);color:var(--text,CanvasText);border:1px solid var(--border,#8884);box-shadow:0 8px 28px rgb(0 0 0/.18)}'
+    + '.wb-toast[data-kind=warn]{border-left:4px solid var(--warn,#c98a00)}.wb-toast[data-action]{border-left:4px solid var(--accent,#1d5bbf)}'
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
   function shell(page: StoredPage, { page: rendered, out, notices }: Render, extras: Extras = { head: [], body: [], clients: [] }): string {
@@ -406,10 +410,8 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
   /** A listener as the server holds it. */
   const listeners = new Set<Listener>()
 
-  /** Does a listener's page filter cover `page`? An empty filter covers every page. */
-  const covers = (l: Listener, page: string) => !l.page || page === l.page || page.startsWith(l.page + '/')
 
-  const listenersFor = (page: string | null): Listener[] => [...listeners].filter(l => page == null || covers(l, page)).map(({ page, type, command }) => ({ page, type, command }))
+  const listenersFor = (page: string | null): Listener[] => [...listeners].filter(l => page == null || covers(l, page)).map(({ page, type, command, fallback }) => ({ page, type, command, ...(fallback && { fallback }) }))
 
   // ---- live changes ------------------------------------------------------------------------------
   // The browser listens at /api/watch. `change`: its page changed; `events`: the log grew;
@@ -589,9 +591,12 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       if (p === '/api/status') return sendJson(res, 200, await status(q.page || null))
       if (p === '/api/listeners') return sendJson(res, 200, listenersFor(q.page ?? null))
       if (p === '/api/listen') {
+        const fallback = 'fallback' in q
+        // one fallback per project: two would split what nobody else takes between them
+        if (fallback && [...listeners].some(l => l.fallback)) return sendJson(res, 409, { error: 'another agent is the fallback already' })
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
         res.write(': listening\n\n')
-        const l: Listener = { page: q.page || '', type: q.type || null, command: q.command === 'wait' ? 'wait' : 'watch' }
+        const l: Listener = { page: q.page || '', type: q.type || null, command: q.command === 'wait' ? 'wait' : 'watch', ...(fallback && { fallback }) }
         listeners.add(l)
         notifyAll('listeners')
         const ping = setInterval(() => res.write(': ping\n\n'), 25000)

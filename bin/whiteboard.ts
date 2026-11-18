@@ -13,8 +13,8 @@ import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { packagePath } from '../src/package.ts'
 import { runningServer } from '../src/running.ts'
-import { statusLines, whose } from '../src/status.ts'
-import type { PageStatus, WbEvent } from '../src/define.ts'
+import { statusLines, takenByOther, whose } from '../src/status.ts'
+import type { Listener, PageStatus, WbEvent } from '../src/define.ts'
 
 // a failing command prints its message, not a stack trace
 const fail = (err: unknown) => {
@@ -44,6 +44,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
 
 filters: --page <page|file> (includes pages below it)  --type <type>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
+wait, watch: --fallback  only what no other wait or watch would take, on any page, also once they
+         stop; one fallback per project (a second exits 1)
 events:  --since <iso time or event id>  --last <n>
 
 Every command works on the project of the current folder: the nearest folder upward with a
@@ -62,7 +64,7 @@ const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { valu
   allowPositionals: true,
   options: {
     page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
-    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
+    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, fallback: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
   },
 })
 
@@ -135,22 +137,68 @@ async function api(route: string): Promise<any> {
  * what is waited for. Holds one connection open, the listener; reconnects when the server restarts.
  * Reading the log does not depend on it, so answers are never missed when the server is away.
  */
-function listen(f: EventFilter, command: 'wait' | 'watch') {
-  const connect = async () => {
-    let base
-    try { base = await ensureServer() } catch { return setTimeout(connect, 2000).unref() }
-    const q = new URLSearchParams({ command, ...(f.page ? { page: f.page } : {}), ...(f.type ? { type: f.type } : {}) })
+/**
+ * Tell the server who is listening, for as long as the command runs (again after a restart). The
+ * fallback is refused when another one runs: it exits, saying so. Resolves once the server took it.
+ */
+function listen(f: EventFilter, command: 'wait' | 'watch', fallback = false): Promise<void> {
+  return new Promise(registered => {
+    const connect = async () => {
+      let base
+      try { base = await ensureServer() } catch { return setTimeout(connect, 2000).unref() }
+      const q = new URLSearchParams({ command, ...(f.page ? { page: f.page } : {}), ...(f.type ? { type: f.type } : {}), ...(fallback ? { fallback: '' } : {}) })
+      let again = false
+      const retry = (ms: number) => { if (!again) { again = true; setTimeout(connect, ms).unref() } }
+      const req = http.get(`${base}/api/listen?${q}`, res => {
+        if (res.statusCode === 409) {
+          console.error('whiteboard: another agent is the fallback already (one per project); `whiteboard status` shows who listens')
+          process.exit(1)
+        }
+        res.resume()
+        registered()
+        res.on('close', () => retry(1000))
+      })
+      req.on('error', () => retry(2000))
+      // the connection alone does not keep the command running
+      req.on('socket', socket => socket.unref())
+    }
+    connect()
+  })
+}
+
+/**
+ * Who else listens, kept current: the fallback leaves to them what they would take. Calls
+ * `changed` after each change (the server's live channel says when).
+ */
+async function otherListeners(changed: () => void): Promise<() => Listener[]> {
+  let list: Listener[] = []
+  const load = async () => {
+    try { list = await (await fetch(`${await ensureServer()}/api/listeners`)).json() as Listener[] } catch { /* the server restarts */ }
+    changed()
+  }
+  const follow = async () => {
     let again = false
-    const retry = (ms: number) => { if (!again) { again = true; setTimeout(connect, ms).unref() } }
-    const req = http.get(`${base}/api/listen?${q}`, res => {
-      res.resume()
-      res.on('close', () => retry(1000))
+    const retry = () => { if (!again) { again = true; setTimeout(follow, 1000).unref() } }
+    let base
+    try { base = await ensureServer() } catch { return retry() }
+    const req = http.get(`${base}/api/watch?dir`, res => {
+      let buf = ''
+      res.setEncoding('utf8')
+      res.on('data', (chunk: string) => {
+        buf += chunk
+        if (buf.includes('event: listeners')) { buf = ''; load() }
+        if (buf.length > 4096) buf = buf.slice(-64)
+      })
+      res.on('close', retry)
+      // reconnected after a restart: who listens now
+      load()
     })
-    req.on('error', () => retry(2000))
-    // the connection alone does not keep the command running
+    req.on('error', retry)
     req.on('socket', socket => socket.unref())
   }
-  connect()
+  await load()
+  follow()
+  return () => list
 }
 
 function init(name: string | undefined) {
@@ -219,6 +267,7 @@ async function status() {
     currentSession(proj),
   ])
   const busy = pages.filter(p => p.unpicked.length || p.open.length)
+  if (pages.some(p => p.listeners.some(l => l.fallback))) console.log('a fallback listens: it takes what no other wait or watch would\n')
   if (!busy.length) { console.log('nothing open: every question is answered, and every answer picked up'); return }
   for (const p of busy) {
     console.log(`${p.page} (${whose(p, session)})`)
@@ -345,9 +394,15 @@ switch (cmd) {
     const proj = needProject()
     const f = filter()
     const { handedOut } = await projectConfig(proj)
-    handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), { count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity, forAgent: forAgent(handedOut) })
-      .then(() => process.exit(0))
-    listen(f, cmd)
+    // --fallback: only what no other listener would take, as it comes and once they stop listening
+    let recheck = () => {}
+    const others = opts.fallback ? (await listen(f, cmd, true), await otherListeners(() => recheck())) : null
+    handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), {
+      count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity,
+      forAgent: forAgent(handedOut),
+      ...(others && { skip: e => takenByOther(others(), e), recheck: again => { recheck = again } }),
+    }).then(() => process.exit(0))
+    if (!opts.fallback) listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
     break
   }

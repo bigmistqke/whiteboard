@@ -154,6 +154,13 @@ export interface HandOutOptions {
   interval?: number
   /** stops following */
   signal?: AbortSignal
+  /**
+   * Leave an event for now (the fallback: another listener would take it). A left event is looked
+   * at again each time `recheck` calls back, and handed out then if nobody picked it up meanwhile
+   * and it is no longer left.
+   */
+  skip?: (event: WbEvent) => boolean
+  recheck?: (again: () => void) => void
 }
 
 /**
@@ -168,7 +175,7 @@ export interface HandOutOptions {
  * `follow`, or when `signal` aborts.
  */
 export function handOut(file: string, filter: EventFilter, onEvent: (event: WbEvent) => void, options: HandOutOptions = {}): Promise<number> {
-  const { count = Infinity, follow: following = true, interval, signal, forAgent: isForAgent = forAgent() } = options
+  const { count = Infinity, follow: following = true, interval, signal, forAgent: isForAgent = forAgent(), skip, recheck } = options
   return new Promise(resolve => {
     let got = 0
     let stop = () => {}
@@ -181,14 +188,31 @@ export function handOut(file: string, filter: EventFilter, onEvent: (event: WbEv
       pick(file, e)
       return ++got < count
     }
+    // the events left for now (skip), by id
+    const left = new Map<string, WbEvent>()
+    // false once enough were handed out; a left event is kept to look at again
+    const offer = (e: WbEvent) => {
+      if (skip?.(e)) { left.set(e.id, e); return true }
+      return hand(e)
+    }
     if (count <= 0 || signal?.aborted) return finish()
     const { events, end } = read(file)
     const picked = pickedUp(events)
     for (const e of events) {
-      if (wanted(e) && !picked.has(e.id) && !hand(e)) return finish()
+      if (wanted(e) && !picked.has(e.id) && !offer(e)) return finish()
     }
     if (!following) return finish()
     signal?.addEventListener('abort', finish)
-    stop = follow(file, end, e => { if (got < count && wanted(e) && !hand(e)) finish() }, { interval })
+    recheck?.(() => {
+      if (!left.size || got >= count) return
+      const picked = pickedUp(read(file).events)
+      for (const [id, e] of left) {
+        if (picked.has(id)) { left.delete(id); continue }
+        if (skip?.(e)) continue
+        left.delete(id)
+        if (!hand(e)) return finish()
+      }
+    })
+    stop = follow(file, end, e => { if (got < count && wanted(e) && !offer(e)) finish() }, { interval })
   })
 }

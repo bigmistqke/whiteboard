@@ -184,3 +184,25 @@ test('a plugin\'s events reach an agent only when declared handOut, or asked for
   assert.equal(forAgent()('pick'), true)
   assert.equal(forAgent()('chat:message'), false)
 })
+
+test('skip leaves an event for now; a recheck hands it out once it is no longer left, unless picked up meanwhile', async () => {
+  const log = tempLog()
+  const taken = reader(log, 'taken')
+  const free = reader(log, 'free')
+  const gone = reader(log, 'gone')
+  let covered = new Set(['taken', 'gone'])
+  let again = () => {}
+  const got: string[] = []
+  const ac = new AbortController()
+  const done = handOut(log, {}, e => got.push(e.page), { ...FAST, signal: ac.signal, skip: e => covered.has(e.page), recheck: fn => { again = fn } })
+  await sleep(20)
+  assert.deepEqual(got, ['free'], 'only what nobody else would take')
+  // another agent picked one of the left ones up; then nobody covers either
+  pick(log, gone)
+  covered = new Set()
+  again()
+  assert.deepEqual(got, ['free', 'taken'], 'the left one, once it is free; not the one picked meanwhile')
+  void taken; void free
+  ac.abort()
+  await done
+})
