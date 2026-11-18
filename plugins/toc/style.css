@@ -1,0 +1,19 @@
+/* the table of contents (client.ts): in the margin left of the text, or opened from the header */
+.wb-toc { position: fixed; z-index: 4; font: .8rem/1.4 var(--sans, sans-serif); }
+.wb-toc[hidden], .wb-toc-toggle[hidden] { display: none; }
+.wb-toc-docked { top: 72px; left: max(16px, calc((100vw - var(--measure, 680px)) / 2 - 250px)); width: 210px; max-height: calc(100vh - 120px - var(--wb-inset-bottom, 0px)); overflow: auto; }
+.wb-toc-open:not(.wb-toc-docked) {
+  top: 52px; left: 16px; width: min(300px, 100vw - 32px); max-height: calc(100vh - 100px - var(--wb-inset-bottom, 0px)); overflow: auto;
+  padding: 6px; background: var(--bg, Canvas); border: 1px solid var(--border, #e3e5e9); border-radius: 8px; box-shadow: 0 8px 28px rgb(0 0 0 / .16);
+}
+.wb-toc ol { list-style: none; margin: 0; padding: 0; }
+.wb-toc li[data-level="3"] { padding-left: 14px; }
+.wb-toc a { display: flex; gap: 8px; align-items: baseline; padding: 3px 8px; border-radius: 5px; color: var(--muted, #696e76); text-decoration: none; border-left: 2px solid transparent; }
+.wb-toc a:hover { color: var(--text, CanvasText); background: color-mix(in srgb, var(--text, CanvasText) 6%, transparent); }
+.wb-toc a[aria-current] { color: var(--text, CanvasText); border-left-color: var(--accent, #1d5bbf); font-weight: 600; }
+.wb-toc-number { font-variant-numeric: tabular-nums; opacity: .7; flex: none; }
+.wb-toc-text { overflow: hidden; text-overflow: ellipsis; }
+/* something waits for the reader in this section */
+.wb-toc a[data-waiting]::after { content: ''; flex: none; width: 7px; height: 7px; margin-left: auto; align-self: center; border-radius: 50%; background: var(--accent, #1d5bbf); }
+.wb-toc-toggle { flex: none; display: inline-grid; place-items: center; height: 24px; box-sizing: border-box; padding: 0 7px; border-radius: 99px; border: 1px solid var(--border, #e3e5e9); background: none; color: var(--muted, #696e76); cursor: pointer; }
+.wb-toc-toggle:hover { color: var(--text, CanvasText); border-color: var(--muted, #696e76); }
