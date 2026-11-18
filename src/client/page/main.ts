@@ -286,6 +286,9 @@ async function refresh() {
   const focused = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
   const focusedTop = focused?.getBoundingClientRect().top
   morph(content, { from: blockSigs, to: nextSigs })
+  // a list the reader sorted comes back in the server's order: sorted again at once, before the
+  // rest of the update, so it never shows unsorted
+  applySorts()
   keepPlace(place, nextSigs)
   const updated = document.getElementById('wb-updated')
   if (updated && data.mtime) updated.dataset.ts = String(data.mtime)
