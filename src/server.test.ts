@@ -4,6 +4,7 @@ import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import http from 'node:http'
+import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import type { AddressInfo } from 'node:net'
@@ -144,6 +145,17 @@ test('the built-in plugins bring their blocks without any config', async () => {
   const page = await (await fetch(`${base}/blocks`)).text()
   assert.match(page, /class="wb-callout"/)
   assert.match(page, /data-chat="talk"/)
+})
+
+test('#n and !n link to the issues and merge requests of the project\'s GitLab remote', async () => {
+  const { base, dir } = await serve()
+  execFileSync('git', ['init', '-q'], { cwd: dir })
+  execFileSync('git', ['remote', 'add', 'origin', 'git@gitlab.example.com:team/app.git'], { cwd: dir })
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'refs.md'), 'Closes #7 via !8; `#9` stays.\n')
+  const page = await (await fetch(`${base}/refs`)).text()
+  assert.match(page, /<a href="https:\/\/gitlab.example.com\/team\/app\/-\/issues\/7"[^>]*>#7<\/a>/)
+  assert.match(page, /<a href="https:\/\/gitlab.example.com\/team\/app\/-\/merge_requests\/8"[^>]*>!8<\/a>/)
+  assert.match(page, /<code>#9<\/code>/)
 })
 
 test('an iframe shows an HTML file next to the pages, as it is; a script src is refused', async () => {

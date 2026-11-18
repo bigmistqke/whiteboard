@@ -307,8 +307,8 @@ export default defineConfig({
 })
 ```
 
-The built-in plugins are callout, chat, code, comments, details, form,
-gallery, grid, iframe, mermaid and quiet: every project has them, and
+The built-in plugins are callout, chat, code, comments, details, forge,
+form, gallery, grid, iframe, mermaid and quiet: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent.

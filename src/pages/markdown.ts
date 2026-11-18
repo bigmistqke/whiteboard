@@ -16,6 +16,7 @@ import { toString } from 'mdast-util-to-string'
 import { html, raw, type Html } from '../html.ts'
 import { isQuestionName } from '../status.ts'
 import type { ResolvedBlock } from './blocks.ts'
+import type { TextLink } from '../define.ts'
 
 /**
  * An mdast node, loosely: the pipeline hands nodes between remark, the directive plugin and
@@ -52,6 +53,43 @@ const SCHEME = /^[a-z][a-z0-9+.-]*:/i
  * file's own folder and handed to `linkFor(absolutePath)`, which returns the URL that serves it
  * (or null to leave the link as written).
  */
+// where text is not linked: it is code, a link already, or an inline directive (a button, a field)
+const NO_TEXT_LINKS = new Set(['link', 'linkReference', 'inlineCode', 'code', 'html', 'textDirective', 'definition'])
+
+/** Turn the plugins' text links (`#12`) into links, in plain text only. */
+function linkText(tree: MdNode, links: TextLink[]) {
+  if (!links.length) return
+  const split = (text: string): MdNode[] => {
+    let parts: MdNode[] = [{ type: 'text', value: text }]
+    for (const link of links) {
+      const flags = link.pattern.flags.includes('g') ? link.pattern.flags : link.pattern.flags + 'g'
+      parts = parts.flatMap(part => {
+        if (part.type !== 'text') return [part]
+        const out: MdNode[] = []
+        const value = part.value as string
+        const re = new RegExp(link.pattern.source, flags)
+        let at = 0
+        for (let m = re.exec(value); m; m = re.exec(value)) {
+          if (!m[0]) { re.lastIndex++; continue }
+          const href = link.href(m)
+          if (!href) continue
+          if (m.index > at) out.push({ type: 'text', value: value.slice(at, m.index) })
+          out.push({ type: 'link', url: href, title: link.title?.(m) ?? null, children: [{ type: 'text', value: m[0] }] })
+          at = m.index + m[0].length
+        }
+        if (at < value.length) out.push({ type: 'text', value: value.slice(at) })
+        return out
+      })
+    }
+    return parts
+  }
+  const walk = (node: MdNode) => {
+    if (!node.children || NO_TEXT_LINKS.has(node.type)) return
+    node.children = node.children.flatMap(child => child.type === 'text' ? split(child.value as string) : (walk(child), [child]))
+  }
+  walk(tree)
+}
+
 function rewriteLinks(tree: MdNode, file: string, linkFor?: LinkFor) {
   if (!linkFor || !file) return
   const walk = (node: MdNode) => {
@@ -118,6 +156,8 @@ export interface RenderOptions {
   code?: ResolvedBlock | null
   /** the URL that serves a file on disk, for relative links */
   linkFor?: LinkFor
+  /** the plugins' text links (`#12` → an issue), applied to plain text */
+  textLinks?: TextLink[]
 }
 
 export interface Island { block: string; client: string; props: unknown }
@@ -127,7 +167,7 @@ export interface Island { block: string; client: string; props: unknown }
  * blocks. Returns the page's HTML, its first heading, the islands to mount and the blocks'
  * stylesheets.
  */
-export async function renderMarkdown(source: string | MdNode, { page, file, resolve, code = null, linkFor }: RenderOptions) {
+export async function renderMarkdown(source: string | MdNode, { page, file, resolve, code = null, linkFor, textLinks = [] }: RenderOptions) {
   let nextId = 0
   const islands: Record<string, Island> = {}
   const keyCount: Record<string, number> = {}
@@ -200,6 +240,7 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
   const parse = (src: string) => {
     const tree = parser.parse(String(src ?? '')) as MdNode
     rewriteLinks(tree, file, linkFor)
+    linkText(tree, textLinks)
     return tree
   }
   const markdown = async (src: string) => toHtml(parse(src).children ?? [])

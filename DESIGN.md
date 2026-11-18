@@ -199,6 +199,13 @@ that name, so two plugins can't collide:
   `description` and whether it is handed out (see Events). The loader
   checks the names.
 - `style`: a stylesheet linked on every page.
+- `links({ dir })`: text that links somewhere as written (`#12` → an issue):
+  a pattern, where a match links to and its hover text. The core applies them
+  to plain text when it parses a page, never inside code, links or inline
+  directives (a button's label), so a plugin needs no hook into the markdown
+  pipeline. Asked once per project folder, so it can read the project (the
+  forge plugin reads the `origin` remote: `#n` issues and `!n` pull or merge
+  requests on GitHub or GitLab; links only, nothing is fetched).
 - `docs()`: markdown for whoever writes pages, printed by `whiteboard docs`
   under a `# Plugin: <name>` heading the core adds, with its events,
   commands and routes listed after it.

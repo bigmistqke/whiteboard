@@ -8,6 +8,7 @@ import chat from './chat/index.ts'
 import code from './code/index.ts'
 import comments from './comments/index.ts'
 import details from './details/index.ts'
+import forge from './forge/index.ts'
 import form from './form/index.ts'
 import gallery from './gallery/index.ts'
 import grid from './grid/index.ts'
@@ -16,5 +17,5 @@ import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
 
 export function builtins(): Plugin[] {
-  return [callout(), chat(), code(), comments(), details(), form(), gallery(), grid(), iframe(), mermaid(), quiet()]
+  return [callout(), chat(), code(), comments(), details(), forge(), form(), gallery(), grid(), iframe(), mermaid(), quiet()]
 }

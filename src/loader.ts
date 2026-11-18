@@ -94,7 +94,8 @@ export function createConfigLoader(proj: Project, { pages: withPages = true } = 
     }
     const blocks = plugins.flatMap(p => Object.entries(p.blocks ?? {}).map(([name, block]) => ({ name, block, plugin: p.name })))
     const styles = plugins.map(p => p.style).filter((s): s is URL | string => !!s)
-    const pages = withPages ? createPages({ blocks, style: config?.style, styles }) : null
+    const links = plugins.flatMap(p => p.links ? [p.links.bind(p)] : [])
+    const pages = withPages ? createPages({ blocks, style: config?.style, styles, links }) : null
     const declared = (flag: 'handOut' | 'forReader') => new Set(plugins.flatMap(p => Object.entries(p.events ?? {}).filter(([, spec]) => spec?.[flag]).map(([type]) => type)))
     return { pages, plugins, handedOut: declared('handOut'), forReader: declared('forReader'), files: config?.files !== false }
   }

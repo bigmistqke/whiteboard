@@ -5,6 +5,7 @@ import { resolveBlocks, type BlockEntry } from './blocks.ts'
 import { createDocs, createRender } from './render.ts'
 import { formNames } from './markdown.ts'
 import type { PageSource, RenderContext, Rendered, StoredPage } from '../define.ts'
+import type { TextLink } from '../define.ts'
 
 export interface PagesOptions {
   /** the blocks of the project's plugins, in plugin order */
@@ -13,6 +14,8 @@ export interface PagesOptions {
   style?: URL | string
   /** the plugins' stylesheets, linked on every page */
   styles?: (URL | string)[]
+  /** the plugins' text links (Plugin.links), each asked once per project folder */
+  links?: ((ctx: { dir: string }) => TextLink[])[]
 }
 
 /** How the core renders pages for one loaded config. */
@@ -29,7 +32,7 @@ export function createPages(options: PagesOptions): Pages {
   const resolved = resolveBlocks(options.blocks)
   const blocks = () => resolved
   return {
-    render: createRender(blocks, options.style, options.styles ?? []),
+    render: createRender(blocks, options.style, options.styles ?? [], options.links ?? []),
     docs: createDocs(blocks),
     questions: page => formNames(page.source),
   }

@@ -59,6 +59,12 @@ export interface Plugin {
   /** a stylesheet linked on every page (for blocks, their own `style` links it only where they're used) */
   style?: URL | string
   /**
+   * Text that links somewhere, as written in plain text (`#12` → an issue): the core turns each
+   * match into a link when it renders a page, but not inside code, links or inline directives.
+   * Called once per project folder (`dir`), so it can read the project (its git remote, say).
+   */
+  links?(ctx: { dir: string }): TextLink[]
+  /**
    * The event types it writes to the log, named `<plugin name>:<what>`, and who they're for.
    * `whiteboard docs` lists them. Only those with `handOut: true` reach an agent unasked: a `wait`
    * or `watch` on a page hands them out, `whiteboard status` counts them, and the hooks deliver them.
@@ -84,6 +90,16 @@ export interface Plugin {
 }
 
 export const definePlugin = (plugin: Plugin): Plugin => plugin
+
+/** A pattern in a page's text that links somewhere (Plugin.links). */
+export interface TextLink {
+  /** what to find; matched against each run of plain text */
+  pattern: RegExp
+  /** where a match links to; null leaves it as text */
+  href(match: RegExpExecArray): string | null
+  /** what the link says on hover */
+  title?(match: RegExpExecArray): string
+}
 
 /** One of a plugin's event types. */
 export interface EventSpec {
