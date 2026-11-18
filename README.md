@@ -270,6 +270,8 @@ upward with a `.whiteboard/` folder.
 | `whiteboard show <page\|file>` | start the server if needed, print the page's URL |
 | `whiteboard url <page\|file>` | the same |
 | `whiteboard close <page>` | a page that did its job: remove its file, and all its events from the log |
+| `whiteboard prune <page> [--type <t>] [--id <id>]` | remove a page's events from the log (all, one type, or one), keep the page |
+| `whiteboard edit <event id> --data <json>` | change an agent's own event in place: merged into its data, its id kept |
 | `whiteboard scroll <page\|file> <where>` | scroll the tabs that have the page open to a heading's text, a form's name or any text on it; exits 1 when nothing matches or no tab has it open |
 | `whiteboard docs [name]` | print how to write pages in this project: the blocks, then each plugin's docs; with a name, only that plugin's |
 | `whiteboard events [filters] [--follow]` | print recorded events; with `--follow`, then each new one as it comes, marking nothing |

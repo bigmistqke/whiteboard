@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { appendEvent, follow, forAgent, fromReader, handOut, pick, pickedUp, prune, read, readEvents } from './events.ts'
+import { appendEvent, follow, forAgent, fromReader, editEvent, handOut, pick, pickedUp, prune, read, readEvents } from './events.ts'
 import type { WbEvent } from './define.ts'
 
 const FAST = { interval: 5 }
@@ -221,4 +221,24 @@ test('prune removes a page\'s events, and a follow goes on after it without pass
   stop()
   assert.deepEqual(got, ['keep:before', 'keep:after'], 'each new one once, before and after the rewrite')
   assert.equal(prune(log, 'gone'), 0, 'nothing left of it')
+})
+
+test('editEvent: an agent\'s event changes in place, its id and time kept; the reader\'s stays as sent', () => {
+  const log = tempLog()
+  const mine = appendEvent(log, { page: 'p', type: 'chat:message', data: { chat: 'c', text: 'draft' } }, 'cli')
+  const theirs = reader(log, 'p')
+  const edited = editEvent(log, mine.id, { text: 'formatted' })
+  assert.deepEqual(edited, { ...mine, data: { chat: 'c', text: 'formatted' } })
+  assert.deepEqual(readEvents(log).map(e => e.id), [mine.id, theirs.id], 'the same events, in the same order')
+  assert.throws(() => editEvent(log, theirs.id, { text: 'x' }), /the reader's/)
+  assert.throws(() => editEvent(log, 'nope', {}), /no event nope/)
+})
+
+test('prune with a filter: one type of a page\'s events, or one event; the rest stays', () => {
+  const log = tempLog()
+  reader(log, 'p', 'pick'); agent(log, 'p', 'chat:message'); agent(log, 'p', 'chat:message'); const one = reader(log, 'p', 'other')
+  assert.equal(prune(log, 'p', e => e.type === 'chat:message'), 2)
+  assert.deepEqual(readEvents(log).map(e => e.type), ['pick', 'other'])
+  assert.equal(prune(log, 'p', e => e.id === one.id), 1)
+  assert.deepEqual(readEvents(log).map(e => e.type), ['pick'])
 })

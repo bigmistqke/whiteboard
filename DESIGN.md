@@ -313,10 +313,15 @@ submit is one: its `type` is the form's name, `action` the button that sent
 it. `whiteboard wait` and `watch` filter by page and type, and hand out each
 event once (see Projects): `watch` is `wait` that never exits.
 
-The log only grows, with one exception: `whiteboard close <page>` removes a
-page that did its job, its file and its events (`prune` in
-`src/events.ts`), so a one-off question doesn't linger in the overview, the
-status or the log. The log is written anew and put in place in one rename;
+The log only grows, with three exceptions, all through one rewrite
+(`rewrite` in `src/events.ts`): `whiteboard close <page>` removes a page
+that did its job, its file and its events, so a one-off question doesn't
+linger in the overview, the status or the log; `whiteboard prune <page>`
+removes its events (all, one type or one) and keeps the page; and
+`whiteboard edit <id>` changes an agent's own event in place, its id kept so
+what refers to it still does. What the reader sent is never edited: it
+stands as they said it. Agents had taken to editing the log by hand, which
+loses an answer that arrives meanwhile. The log is written anew and put in place in one rename;
 if an event was appended meanwhile, it starts over, so none is lost. A
 `follow` running across it (a wait, a watch) sees the log replaced or
 shorter, reads it again and goes on after the last event it passed on, so

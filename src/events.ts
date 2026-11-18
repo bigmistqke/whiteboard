@@ -143,34 +143,59 @@ export function follow(file: string, from: number, onEvent: (event: WbEvent) => 
 }
 
 /**
- * Remove a page's events from the log (`whiteboard close`): every event of exactly that page, the
- * reader's and the agents' (answers, messages, reads, picks, its claim). The log is written anew
- * and put in place in one rename; when an event was appended while it was being written, it starts
- * over, so none is lost. Returns how many were removed.
+ * Rewrite the log, event by event: `change` returns the event to keep (as it is, or changed) or
+ * null to drop it. The log is written anew and put in place in one rename; when an event was
+ * appended while it was being written, it starts over, so none is lost. A follow running across it
+ * reads it again and goes on after the last event it passed on (see follow). Lines that aren't
+ * events are kept as they are. Returns how many were dropped and changed.
  */
-export function prune(file: string, page: string): number {
+export function rewrite(file: string, change: (event: WbEvent) => WbEvent | null): { removed: number; changed: number } {
   for (let attempt = 0; attempt < 10; attempt++) {
     let buf: Buffer
-    try { buf = fs.readFileSync(file) } catch { return 0 }
-    const lines = buf.toString('utf8').split('\n')
+    try { buf = fs.readFileSync(file) } catch { return { removed: 0, changed: 0 } }
     const keep: string[] = []
-    let removed = 0
-    for (const line of lines) {
+    let removed = 0, changed = 0
+    for (const line of buf.toString('utf8').split('\n')) {
       if (!line.trim()) continue
       let ev: WbEvent | null = null
-      try { ev = JSON.parse(line) } catch { /* not ours to judge: kept */ }
-      if (ev && ev.page === page) removed++
-      else keep.push(line)
+      try { ev = JSON.parse(line) } catch { /* not an event: kept */ }
+      if (!ev) { keep.push(line); continue }
+      const next = change(ev)
+      if (!next) { removed++; continue }
+      const text = JSON.stringify(next)
+      if (text !== JSON.stringify(ev)) changed++
+      keep.push(next === ev ? line : text)
     }
-    if (!removed) return 0
+    if (!removed && !changed) return { removed, changed }
     const tmp = `${file}.${process.pid}.tmp`
     fs.writeFileSync(tmp, keep.length ? keep.join('\n') + '\n' : '')
     // appended to meanwhile: that event would be lost with the old file
     if (fs.statSync(file).size !== buf.length) { fs.rmSync(tmp, { force: true }); continue }
     fs.renameSync(tmp, file)
-    return removed
+    return { removed, changed }
   }
-  throw new Error('the log kept changing while a page was being removed from it; try again')
+  throw new Error('the log kept changing while it was being rewritten; try again')
+}
+
+/** Remove a page's events from the log (`whiteboard close`, `whiteboard prune`): those of exactly
+ *  that page, and of them only those `which` says (all by default). Returns how many. */
+export function prune(file: string, page: string, which: (event: WbEvent) => boolean = () => true): number {
+  return rewrite(file, e => (e.page === page && which(e) ? null : e)).removed
+}
+
+/**
+ * Change an agent's event in place (`whiteboard edit`): `data` is merged into its data; its id, time
+ * and everything else stay, so what refers to it (a reply, a pick, a read) still does. Only an
+ * agent's own events (`from: cli`): what the reader sent stays as they sent it. Returns the event
+ * as it is now.
+ */
+export function editEvent(file: string, id: string, data: Record<string, unknown>): WbEvent {
+  const found = readEvents(file).find(e => e.id === id)
+  if (!found) throw new Error(`no event ${id} in the log`)
+  if (fromReader(found)) throw new Error(`event ${id} is the reader's (${found.type}): what the reader sent stays as they sent it; an agent edits only its own`)
+  let edited: WbEvent | null = null
+  rewrite(file, e => (e.id === id ? (edited = { ...e, data: { ...e.data, ...data } }) : e))
+  return edited ?? found
 }
 
 /** `page` matches the page itself and every page below it, unless `exact`. */

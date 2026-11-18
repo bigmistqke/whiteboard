@@ -39,6 +39,15 @@ PATH, the project has it installed locally: run them as `npx whiteboard …`.
    `whiteboard status`. Keep pages the user may come back to (plans, reviews,
    decisions); close only your own, and ask when unsure.
 
+Never edit `.whiteboard/events.ndjson` yourself: an answer arriving while you
+write it is lost, and running waits stumble over it. To change what you wrote
+(a chat message, a reply), use `whiteboard edit <event id> --data <json>`: it
+merges into the event's data, keeps its id, and the open page shows the new
+version. To clear a page's history and keep the page, `whiteboard prune
+<file>` (all its events: its questions are open again), with `--type <type>`
+for one kind (`chat:message`) or `--id <event id>` for one. You can edit only
+your own events: what the user sent stays as they sent it.
+
 Files that already exist in the repository render too: `whiteboard show
 README.md` (any path in the project) gives a URL that renders that file, and
 relative links in it lead to the other files they name (unless the config

@@ -7,7 +7,7 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn, type Project } from '../src/config.ts'
-import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, prune, handOut, CLAIM, type EventFilter, forAgent } from '../src/events.ts'
+import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, prune, editEvent, handOut, CLAIM, type EventFilter, forAgent } from '../src/events.ts'
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
@@ -32,6 +32,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
   whiteboard close <page>          a page that did its job: remove its file, and its events from the log
+  whiteboard prune <page> [--type <t>] [--id <id>]   remove a page's events from the log, keep the page
+  whiteboard edit <event id> --data <json>   change an agent's own event in place (merged into its data)
   whiteboard scroll <page|file> <where>  scroll the tabs that have the page open to a heading's text,
                                    a form's name or any text on it (opening details around it)
   whiteboard docs [plugin]         how to write pages here: markdown, and each plugin's blocks — read before writing one;
@@ -67,7 +69,7 @@ const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { valu
   allowPositionals: true,
   options: {
     page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
-    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
+    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, id: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   },
 })
 
@@ -354,6 +356,29 @@ switch (cmd) {
     const removed = prune(proj.eventsFile, id)
     if (!exists && !removed) { console.error(`whiteboard: there is no page ${id}, nor events of it`); process.exit(1) }
     console.log(`closed ${id}: ${exists ? 'removed its file' : 'it had no file'}, and ${removed} event${removed === 1 ? '' : 's'} from the log`)
+    break
+  }
+  case 'prune': {
+    // a page's events, gone from the log, the page kept: all of them (it starts over), or one type,
+    // or one event
+    const target = positionals[0]
+    if (!target) throw new Error('usage: whiteboard prune <page|file> [--type <type>] [--id <event id>]')
+    const proj = needProject()
+    const id = pageId(proj, target)
+    const removed = prune(proj.eventsFile, id, e => (!opts.type || e.type === opts.type) && (!opts.id || e.id === opts.id))
+    const which = [opts.type && `of type ${opts.type}`, opts.id && `with id ${opts.id}`].filter(Boolean).join(', ')
+    console.log(`pruned ${removed} event${removed === 1 ? '' : 's'} of ${id}${which ? ` (${which})` : ''} from the log; the page stays`)
+    break
+  }
+  case 'edit': {
+    // an agent's own event, changed in place: --data is merged into its data
+    const eventId = positionals[0]
+    if (!eventId || !opts.data) throw new Error('usage: whiteboard edit <event id> --data <json>   (merged into the event\'s data)')
+    const proj = needProject()
+    let data: Record<string, unknown>
+    try { data = JSON.parse(opts.data) } catch { throw new Error('--data must be a JSON object') }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('--data must be a JSON object')
+    console.log(JSON.stringify(editEvent(proj.eventsFile, eventId, data)))
     break
   }
   case 'scroll': {
