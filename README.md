@@ -342,7 +342,7 @@ Every colour is a `light-dark()` pair, so one line sets it for both themes:
 ```
 
 The built-in plugins are callout, chat, code, comments, details, draft,
-forge, form, gallery, grid, iframe, mermaid, quiet, steps and window: every project has them, and
+forge, form, grid, iframe, lightbox, mermaid, quiet, steps and window: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent, and so is the
@@ -387,7 +387,7 @@ whiteboard build 'docs/guide/*.md' --out preview   # or what is given, over the 
   A plugin's `shell` is asked with no request, since no browser asked for the
   page: the terminal's drawer, which is only for the project's own browser,
   isn't there.
-- **What is for reading stays:** steps, the gallery's lightbox, ⤢ on
+- **What is for reading stays:** steps, the lightbox, ⤢ on
   windows, the theme toggle, the contents, details. Code and diagrams were
   rendered on the server, so the site loads no highlighter.
 - **`:::draft`** is for what is there while you write and not after: a note

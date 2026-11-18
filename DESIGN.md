@@ -232,6 +232,15 @@ around it, and says what it shows on its own (`open`) for a window's ↗. So
 an image, a video and a frame are themselves, and in a window when asked:
 the window was theirs before, with `bare` to leave it out.
 
+The lightbox is composed the same way, around a container rather than one
+block: `:::grid{compose=lightbox}` makes the pictures in it open large and
+step through the container's pictures and videos. Stepping is the
+container's, as context is a component tree's, so a picture is just a
+picture until something around it says otherwise; and the gallery, which was
+a grid with its own lightbox, is a grid with the lightbox composed around
+it. It marks the container (`data-lightbox` on its outer element) rather
+than wrapping it, so the page lays the container out as before.
+
 A plugin's browser files live in its public folder (`public` on the plugin,
 `src/public.ts`), and the server serves that folder and nothing else of the
 plugin: its client modules, styles, images and fonts, never its server code,
@@ -289,8 +298,8 @@ that name, so two plugins can't collide:
   `.whiteboard/<name>/`.
 
 The built-in plugins are in `plugins/<name>/`: callout, chat, code,
-comments, details, form (with its input blocks), gallery, grid, mermaid and
-quiet. Every project has them (`builtins()` in `plugins/index.ts`); a
+comments, details, draft, form (with its input blocks), grid, iframe,
+lightbox, mermaid, quiet, steps and window. Every project has them (`builtins()` in `plugins/index.ts`); a
 config's `plugins` add to them, and one with a built-in's name replaces it
 in its place, so options are given by replacing (`code({ themes })`, from
 `@bigmistqke/whiteboard/code`). The terminal (`/terminal`) and the Claude
@@ -720,8 +729,8 @@ export default () => definePlugin({
   with a subscription too. `@bigmistqke/whiteboard/solid` wraps it:
   `export default solid(Component)` and `useWhiteboard()` for signals.
 - A client is one module the browser loads as it is, so a package bundles
-  what its client needs, UI framework included. The built-in Solid clients
-  (chat, gallery) each carry their own copy of Solid; the cost is some
+  what its client needs, UI framework included. The built-in Solid client
+  (chat) carries its own copy of Solid; the cost is some
   bytes over a local connection, and in return a client needs nothing from
   the page.
 - A plugin's `docs` say how to write its blocks; there is no readme per

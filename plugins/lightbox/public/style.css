@@ -1,0 +1,66 @@
+/* The lightbox (index.ts, client.ts): pictures in a container composed with it open on a click */
+[data-lightbox] img:not(a img) {
+  cursor: zoom-in;
+}
+/* over the page: the picture or video as large as fits, its caption under it */
+.wb-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-top);
+  background: rgb(0 0 0 / 0.86);
+  display: grid;
+  place-items: center;
+  grid-template-rows: 1fr auto;
+  padding: var(--space-3xl) var(--space-2xl);
+}
+.wb-lightbox-stage {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+.wb-lightbox-stage > :is(img, video) {
+  max-width: 100%;
+  max-height: calc(100vh - 110px);
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+.wb-lightbox-caption {
+  color: #eee;
+  text-align: center;
+  padding-top: var(--space-lg);
+}
+.wb-lightbox button {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  border: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+}
+.wb-lightbox button:hover {
+  background: rgb(255 255 255 / 0.22);
+}
+.wb-lightbox-prev {
+  left: 12px;
+  top: 50%;
+  translate: 0 -50%;
+}
+.wb-lightbox-next {
+  right: 12px;
+  top: 50%;
+  translate: 0 -50%;
+}
+.wb-lightbox button[hidden] {
+  display: none;
+}
+.wb-lightbox-close {
+  right: 12px;
+  top: 12px;
+}

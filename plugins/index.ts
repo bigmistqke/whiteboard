@@ -10,7 +10,6 @@ import comments from './comments/index.ts'
 import details from './details/index.ts'
 import forge from './forge/index.ts'
 import form from './form/index.ts'
-import gallery from './gallery/index.ts'
 import grid from './grid/index.ts'
 import iframe from './iframe/index.ts'
 import mermaid from './mermaid/index.ts'
@@ -18,6 +17,7 @@ import quiet from './quiet/index.ts'
 import windows from './window/index.ts'
 import steps from './steps/index.ts'
 import draft from './draft/index.ts'
+import lightbox from './lightbox/index.ts'
 
 export function builtins(): Plugin[] {
   return [
@@ -28,7 +28,6 @@ export function builtins(): Plugin[] {
     details(),
     forge(),
     form(),
-    gallery(),
     grid(),
     iframe(),
     mermaid(),
@@ -36,5 +35,6 @@ export function builtins(): Plugin[] {
     windows(),
     steps(),
     draft(),
+    lightbox(),
   ]
 }
