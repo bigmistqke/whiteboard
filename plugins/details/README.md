@@ -1,6 +1,8 @@
 A collapsible section. The label is the summary line; the body is any
 markdown. Use it to keep in-depth explanation out of the way of the main read.
-Unlike a raw `<details>` tag, the body needs no blank-line care.
+Unlike a raw `<details>` tag, the body needs no blank-line care. While it
+is open, its title stays at the top as you scroll through it, and the title
+of a details inside it stacks below.
 
 Attributes: `open` (start expanded).
 
