@@ -16,7 +16,7 @@ import { toString } from 'mdast-util-to-string'
 import { html, raw, type Html } from '../html.ts'
 import { isQuestionName } from '../status.ts'
 import type { ResolvedBlock } from './blocks.ts'
-import type { TextLink } from '../define.ts'
+import type { Plugin, TextLink } from '../define.ts'
 
 /**
  * An mdast node, loosely: the pipeline hands nodes between remark, the directive plugin and
@@ -250,6 +250,8 @@ export interface RenderOptions {
    * written (no buttons or forms in a message); code fences and text links work as on a page
    */
   message?: boolean
+  /** the plugins that compose themselves around blocks (Plugin.compose), by name: a block with that attribute goes in it */
+  composers?: Map<string, NonNullable<Plugin['compose']>>
 }
 
 export interface Island {
@@ -265,7 +267,7 @@ export interface Island {
  */
 export async function renderMarkdown(
   source: string | MdNode,
-  { page, file, resolve, code = null, linkFor, textLinks = [], message = false }: RenderOptions,
+  { page, file, resolve, code = null, linkFor, textLinks = [], message = false, composers }: RenderOptions,
 ) {
   let nextId = 0
   const islands: Record<string, Island> = {}
@@ -322,8 +324,43 @@ export async function renderMarkdown(
   /** HTML into the markdown tree, where the rest of the pipeline takes it as it is: the one place it becomes a string. */
   const htmlNode = (markup: Html | string): MdNode => ({ type: 'html', value: String(markup) })
 
-  /** A block's output for one directive or fence: static HTML, or an island around it. */
+  /**
+   * A block's output for one directive or fence: static HTML, or an island around it; then put in
+   * what the plugins named by its attributes compose around it (Plugin.compose), in the order
+   * written: the first innermost. Not inline blocks, not a block of the wrapping plugin's own name, not one that
+   * renders nothing (left out of a build), and not one that says what's wrong with it instead.
+   */
   async function run(block: ResolvedBlock, ctx: any, fallback: () => Promise<Html | string>): Promise<Html> {
+    let out = await output(block, ctx, fallback)
+    const shown = String(out).trim()
+    if (!composers?.size || ctx.kind === 'textDirective' || !shown || shown.startsWith('<pre class="wb-error"'))
+      return out
+    const attrs: Record<string, string> = ctx.attrs ?? {}
+    let open: string | null | undefined
+    for (const name of Object.keys(attrs)) {
+      const compose = composers.get(name)
+      if (!compose || block.name === name) continue
+      try {
+        open ??= block.open?.(ctx) ?? null
+        const context = {
+          children: out,
+          block: block.name,
+          value: attrs[name] ?? '',
+          attrs,
+          label: ctx.label ?? null,
+          open,
+        }
+        out = raw(String(await compose(context)))
+      } catch (err) {
+        console.error(`plugin ${name}: compose:`, err)
+        out = html`<pre class="wb-error">
+plugin "${name}" failed to compose around block "${block.name}": ${(err as Error).message}</pre>`
+      }
+    }
+    return out
+  }
+
+  async function output(block: ResolvedBlock, ctx: any, fallback: () => Promise<Html | string>): Promise<Html> {
     used.set(block.name, block)
     try {
       // a block may return a string or an `html` result: either is HTML

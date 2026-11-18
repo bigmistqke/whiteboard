@@ -314,3 +314,47 @@ test("a plugin's event types must be named after it", async () => {
     /event type &quot;up&quot; must be named after it: votes:&lt;what&gt;/,
   )
 })
+
+test("compose: a block with a plugin's name as an attribute goes in what that plugin composes, in the order written", async () => {
+  const { base, dir, server } = await serve({
+    'config.ts': [
+      'export default { plugins: [',
+      '  { name: \'outer\', compose: ({ children, value }) => `<section class="outer" data-value="${value}">${children}</section>` },',
+      '  { name: \'inner\', compose: ({ children, block, open }) => `<div class="inner" data-block="${block}" data-open="${open}">${children}</div>` },',
+      '] }',
+      '',
+    ].join('\n'),
+    'pages/c.md': [
+      '# Composed',
+      '',
+      '::image{src="shot.png" inner outer="the title"}',
+      '',
+      ':::callout{outer}',
+      'Inside.',
+      ':::',
+      '',
+      'Inline :badge-not-a-block{outer} stays as it is.',
+      '',
+      '```text {inner}',
+      'code',
+      '```',
+      '',
+    ].join('\n'),
+  })
+  const page = await (await fetch(`${base}/c`)).text()
+  // the first attribute innermost; what the block shows on its own, as `open`
+  assert.match(
+    page,
+    /<section class="outer" data-value="the title"><div class="inner" data-block="image" data-open="shot.png"><img src="shot.png"/,
+  )
+  assert.match(page, /<section class="outer" data-value="">[\s\S]*?wb-callout/)
+  assert.match(page, /<div class="inner" data-block="code" data-open="null">/, 'fences too, nothing to open')
+  assert.doesNotMatch(page, /badge-not-a-block[^<]*<section/)
+
+  // a build that skips a plugin leaves its composing out
+  const result = await server.build({ pages: ['.whiteboard/pages/c.md'], out: 'site', skip: ['outer'] })
+  const built = fs.readFileSync(result.pages[0]!.to, 'utf8')
+  assert.doesNotMatch(built, /class="outer"/)
+  assert.match(built, /class="inner"/)
+  assert.ok(dir)
+})

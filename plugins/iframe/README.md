@@ -1,16 +1,16 @@
 Another page inside this one: a running app (a dev server), a deployed
-site, or an HTML file next to the pages. A header like a browser window's
-shows its label (or, without one, its address), opens it on its own, and fills the window with
-it (the same button, or Esc, puts it back). Drag the frame's bottom edge to
-make it taller.
+site, or an HTML file next to the pages. Drag the frame's bottom edge to
+make it taller. With `window`, it is in a window: a header with its label
+(or, without one, its address), a button that opens it on its own, and one
+that fills the browser window with it (the same button, or Esc, puts it
+back).
 
 Attributes: `src` (required: an http(s) URL, or a path such as `demo.html`
 for `.whiteboard/pages/demo.html`), `height` (a number of pixels or a CSS
-length, default 480), `wide` (wider than the text column), `bare` (no
-header: the frame alone).
+length, default 480), `window`, `wide` (wider than the text column).
 
 ```markdown
-::iframe[The app as it runs now]{src="http://localhost:5173" height=600 wide}
+::iframe[The app as it runs now]{src="http://localhost:5173" height=600 window wide}
 ```
 
 A site that forbids being framed (most large ones do, with

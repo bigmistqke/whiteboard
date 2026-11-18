@@ -536,8 +536,11 @@ export default function mount(root, page, api) {
   `sections` and more), `props(ctx)` (JSON for its client), `client` (a
   browser module, mounted per block), `style` (linked on pages that use it),
   `fence: true` to also take the code fences of its name (```` ```mermaid ````),
-  and `fence: 'any'` for the block that takes every code fence nobody else
-  claims. Block names are unique across a project's plugins.
+  `fence: 'any'` for the block that takes every code fence nobody else
+  claims, and `open(ctx)`: what it shows on its own, for a window around it.
+  Block names are unique across a project's plugins.
+- **`compose(ctx)`**: itself around any block written with an attribute of
+  the plugin's name, that block's HTML as `ctx.children` (see below).
 - **`events`**, by type (`<plugin>:<what>`): a description each, and
   `handOut: true` for those an agent should get unasked, like a chat
   message. `whiteboard docs` lists them.
@@ -560,11 +563,21 @@ export default function mount(root, page, api) {
   - `shell`, markup at the end of every page's `<head>` and `<body>`;
   - `client`, a module on every page, run once per page load.
 
-**A block can draw a window** around what it shows, the same one as
-`::iframe`, `::image`, `::video` and `:::window`: `windowFrame({ label, open,
-body })` from `@bigmistqke/whiteboard` gives it a header with its label, a
-button that opens `open` on its own, and one that fills the browser window
-(the page does that part).
+**A plugin can compose itself around other blocks.** With `compose`, any
+block written with an attribute of the plugin's name is put in what it
+returns, the block's HTML as `children`, as a component gets what it wraps.
+The window plugin is one: `::image{src window}`, ```` ```mermaid {window} ````
+and `:::grid{window}` all go in a window, and none of those blocks knows of
+windows. A block says what it shows on its own with `open` (an image's file),
+which a window's ↗ opens. Several such attributes compose in the order
+written, the first innermost.
+
+```ts
+definePlugin({
+  name: 'window',
+  compose: ({ children, label, open }) => windowFrame({ label, open, body: children }),
+})
+```
 
 **A plugin's browser files live in its `public/` folder**, and only that
 folder is served: its client modules, styles, images and fonts, never its

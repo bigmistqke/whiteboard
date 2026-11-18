@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
 import { html, raw, type Html } from '../html.ts'
 import { INBOX_ICON, awaitingLabel } from '../icons.ts'
-import type { RenderContext, Rendered, StoredPage, TextLink } from '../define.ts'
+import type { Plugin, RenderContext, Rendered, StoredPage, TextLink } from '../define.ts'
 import type { ResolvedBlock, ResolvedBlocks } from './blocks.ts'
 
 type PagesPage = Extract<StoredPage, { kind: 'pages' }>
@@ -247,6 +247,7 @@ const skipped = (name: string): ResolvedBlock => ({
   fences: true,
   props: null,
   html: () => '',
+  open: null,
   client: null,
   style: null,
   source: 'build',
@@ -257,6 +258,7 @@ export function createRender(
   style?: URL | string,
   pluginStyles: { plugin: string; file: URL | string }[] = [],
   links: ((ctx: { dir: string }) => TextLink[])[] = [],
+  composers: Map<string, NonNullable<Plugin['compose']>> = new Map(),
 ) {
   const textLinks = textLinksOf(links)
   const STYLE = stylePath(style)
@@ -277,6 +279,8 @@ export function createRender(
       code,
       linkFor: ctx.urlFor,
       textLinks: textLinks(ctx.project.dir),
+      // a build leaves out a skipped plugin's composing too
+      composers: skip ? new Map([...composers].filter(([name]) => !skip.has(name))) : composers,
     })
   }
 

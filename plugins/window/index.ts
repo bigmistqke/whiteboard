@@ -1,7 +1,8 @@
 // Windows (src/pages/window.ts): a header with a label, a button that fills the browser window, and
 // one that opens what it shows on its own. `:::window[label] … :::` puts any markdown in one (a
-// screenshot, a diagram, a table to look at large); `::image[label]{src}` and `::video[label]{src}`
-// are one image or video in one. `bare` leaves the header out.
+// table, a screenshot with text); any other block is put in one by saying `window`, which the core
+// does. `::image[label]{src}` and `::video[label]{src}` are one image or video: in a window with
+// `window`, else alone.
 import fs from 'node:fs'
 import { definePlugin, html, raw, windowFrame, type DirectiveContext, type Plugin } from '@bigmistqke/whiteboard'
 
@@ -34,7 +35,7 @@ const height = (value: string | undefined) =>
 /** http(s), protocol-relative, or a path on this server; never `javascript:` or `data:`. */
 const safeSrc = (src: string) => /^(https?:)?\/\//i.test(src) || !/^[a-z][a-z0-9+.-]*:/i.test(src)
 
-/** ::image[label]{src} and ::video[label]{src loop autoplay muted poster}: one file, in a window. */
+/** ::image[label]{src} and ::video[label]{src loop autoplay muted poster}: one file (in a window with `window`). */
 const media = (kind: 'image' | 'video') => (ctx: DirectiveContext) => {
   const src = (ctx.attrs.src ?? '').trim()
   if (!src)
@@ -55,14 +56,13 @@ ${kind}: needs a src, like ::${kind}[a label]{src="${kind === 'image' ? 'shot.pn
           preload="metadata"
           ${poster}${alt ? html` aria-label="${alt}"` : ''}
         ></video>`
-  return windowFrame({
-    label: ctx.label,
-    open: src,
-    wide: 'wide' in ctx.attrs,
-    bare: 'bare' in ctx.attrs,
-    height: height(ctx.attrs.height),
-    body,
-  })
+  return body
+}
+
+/** What an image or video shows on its own, for the ↗ of a window around it: its file. */
+const mediaOpen = (ctx: DirectiveContext) => {
+  const src = (ctx.attrs.src ?? '').trim()
+  return src && safeSrc(src) ? src : null
 }
 
 export async function render(ctx: DirectiveContext) {
@@ -70,7 +70,6 @@ export async function render(ctx: DirectiveContext) {
     label: ctx.label,
     open: openOf(ctx.children as Node[]),
     wide: 'wide' in ctx.attrs,
-    bare: 'bare' in ctx.attrs,
     height: height(ctx.attrs.height),
     body: await ctx.toHtml(ctx.children),
   })
@@ -79,7 +78,15 @@ export async function render(ctx: DirectiveContext) {
 export default function windows(): Plugin {
   return definePlugin({
     name: 'window',
-    blocks: { window: { html: render }, image: { html: media('image') }, video: { html: media('video') } },
+    // any block written with `window` goes in one: its label the title (or `window="…"`), its ↗
+    // what it shows on its own
+    compose: ({ children, value, label, open, attrs }) =>
+      windowFrame({ label: value || label, open, wide: 'wide' in attrs, body: children }),
+    blocks: {
+      window: { html: render },
+      image: { html: media('image'), open: mediaOpen },
+      video: { html: media('video'), open: mediaOpen },
+    },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),
   })
 }

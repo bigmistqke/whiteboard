@@ -1,19 +1,20 @@
-// The iframe block in the browser: its header, filling the window and back, across a page update.
+// The iframe block in the browser: a frame on its own, or in a window (`window`): its header,
+// filling the browser window and back, across a page update.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { browser, project, until } from './project.ts'
 
 const PAGE = (extra = '') => `# Frames
 
-::iframe[The demo]{src="demo.html" height=240}
+::iframe[The demo]{src="demo.html" height=240 window}
 
-::iframe{src="demo.html" bare}
+::iframe{src="demo.html"}
 
-::iframe{src="demo.html?unlabelled"}
+::iframe{src="demo.html?unlabelled" window}
 ${extra}`
 
 test(
-  'iframe: a header with its label and address; it fills the window, stays so across an update, and Esc puts it back',
+  'iframe: alone, or in a window with its label or address; it fills the window, stays so across an update, and Esc puts it back',
   { timeout: 60000 },
   async t => {
     const proj = await project({
@@ -32,9 +33,10 @@ test(
     assert.equal(await fig.locator('.wb-window-title').textContent(), 'The demo')
     assert.equal(await fig.locator('.wb-window-address').count(), 0, 'with a label, no address')
     assert.equal(await fig.locator('.wb-window-name').getAttribute('title'), 'demo.html', 'the address on hover')
-    assert.equal(await page.locator('div.wb-window').nth(1).locator('.wb-window-bar').count(), 0, 'bare: no header')
+    assert.equal(await page.locator('div.wb-window').count(), 2, 'without `window`, no window')
+    assert.equal(await page.locator('#wb-main > .wb-iframe-frame').count(), 1, 'the frame alone')
     assert.equal(
-      await page.locator('div.wb-window').nth(2).locator('.wb-window-name').textContent(),
+      await page.locator('div.wb-window').nth(1).locator('.wb-window-name').textContent(),
       'demo.html?unlabelled',
       'without a label, the address',
     )
@@ -49,6 +51,8 @@ test(
     await fig.locator('[data-wb-maximize]').click()
     let r = await box()
     assert.deepEqual([r.x, r.y, r.width, r.height], [0, 0, viewport.width, viewport.height], 'fills the window')
+    const frame = (await fig.locator('iframe').boundingBox())!
+    assert.ok(frame.y + frame.height >= viewport.height - 1, 'the frame down to the bottom')
 
     // the agent edits the page: the block is written again, and stays maximized
     proj.page('f', PAGE('\nA new paragraph.\n'))

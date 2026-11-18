@@ -217,8 +217,18 @@ own (an address, a file), one that fills the browser window (the page does
 that: `src/client/page/window.ts`, kept by the window's place across
 updates; Esc puts it back). It was the iframe block's own; it is the page's
 now, so `::image`, `::video`, `:::window` around any markdown, and any
-plugin's block share it, and `bare` leaves the header out everywhere. A block can
-put its own controls in the header: `:::steps` puts ‹ › and its tabs there.
+plugin's block share it. A block can put its own controls in the header:
+`:::steps` puts ‹ › and its tabs there.
+
+Any block goes in a window by saying `window`: the window plugin's
+`compose`. A plugin composes itself around other blocks by its name, as its
+events and routes are under its name: a block written with that attribute is
+put in what `compose` returns, its HTML as `children` (a component's
+children), in the order the attributes are written. The core only knows the
+rule (`src/pages/markdown.ts`, `run`); the block knows nothing of what goes
+around it, and says what it shows on its own (`open`) for a window's ↗. So
+an image, a video and a frame are themselves, and in a window when asked:
+the window was theirs before, with `bare` to leave it out.
 
 A plugin's browser files live in its public folder (`public` on the plugin,
 `src/public.ts`), and the server serves that folder and nothing else of the

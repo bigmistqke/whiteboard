@@ -1,11 +1,11 @@
 // Another page inside this one: a URL (a dev server, a deployed site) or an HTML file next to the
-// pages (`demo.html` in .whiteboard/pages/ is served as it is), in a window (src/pages/window.ts): a
-// header with its label or address, open on its own, fill the window; the frame can be made taller
-// by dragging its bottom edge.
+// pages (`demo.html` in .whiteboard/pages/ is served as it is), in a frame that can be made taller
+// by dragging its bottom edge. With `window`, in a window (src/pages/window.ts): a header with its
+// label, open on its own, fill the browser window.
 import fs from 'node:fs'
 import { builtinPublic } from '../../src/package.ts'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
-import { html, windowFrame, type DirectiveContext } from '@bigmistqke/whiteboard'
+import { html, type DirectiveContext } from '@bigmistqke/whiteboard'
 
 /** http(s), protocol-relative, or a path on this server; never `javascript:` or `data:`. */
 export const safeSrc = (src: string) => /^(https?:)?\/\//i.test(src) || !/^[a-z][a-z0-9+.-]*:/i.test(src)
@@ -23,17 +23,16 @@ export async function render(ctx: DirectiveContext) {
   if (!safeSrc(src))
     return html`<pre class="wb-error">iframe: src must be an http(s) URL or a path, not ${src.split(':')[0]}:</pre>`
   const title = ctx.labelText ?? ctx.attrs.title ?? src
-  // in a window (the page's: its label, or the address; open on its own; fill the window), its
-  // body the frame, which the reader can drag taller
-  return windowFrame({
-    label: ctx.label,
-    open: src,
-    wide: 'wide' in ctx.attrs,
-    bare: 'bare' in ctx.attrs,
-    bodyClass: 'wb-iframe-frame',
-    height: height(ctx.attrs.height),
-    body: html`<iframe src="${src}" title="${title}" loading="lazy" referrerpolicy="no-referrer"></iframe>`,
-  })
+  // the frame, which the reader can drag taller
+  return html`<div class="wb-iframe-frame" style="height: ${height(ctx.attrs.height)}">
+    <iframe src="${src}" title="${title}" loading="lazy" referrerpolicy="no-referrer"></iframe>
+  </div>`
+}
+
+/** What it shows on its own, for the ↗ of a window around it: its address. */
+export function open(ctx: DirectiveContext) {
+  const src = (ctx.attrs.src ?? '').trim()
+  return src && safeSrc(src) ? src : null
 }
 
 export default function iframe(): Plugin {
@@ -43,6 +42,7 @@ export default function iframe(): Plugin {
     blocks: {
       iframe: {
         html: render,
+        open,
         style: 'style.css',
       },
     },

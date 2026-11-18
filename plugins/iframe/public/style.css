@@ -11,3 +11,18 @@
   height: 100%;
   border: 0;
 }
+/* in a window (`::iframe{src window}`): the frame is its body, edge to edge; filling the browser
+   window, as tall as it is */
+.wb-window-body:has(> .wb-iframe-frame:only-child) {
+  padding: 0;
+  overflow: hidden;
+}
+.wb-window[data-wb-maximized] .wb-window-body:has(> .wb-iframe-frame:only-child) {
+  display: flex;
+  flex-direction: column;
+}
+.wb-window[data-wb-maximized] .wb-iframe-frame {
+  flex: 1;
+  height: auto !important;
+  resize: none;
+}

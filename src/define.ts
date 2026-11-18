@@ -100,6 +100,14 @@ export interface Plugin {
    * Others stay in the log, for `whiteboard events` or a `wait --type` that asks for them by name.
    */
   events?: Record<string, EventSpec>
+  /**
+   * Composes itself around other blocks: any block written with an attribute of this plugin's name
+   * (`::image{src window}`, ```` ```mermaid {window} ````, `:::grid{window}`) is put in what this
+   * returns, the block's own HTML as `children`, as a component gets what it wraps. The block needs
+   * to know nothing of it. Several such attributes compose in the order they're written, the first
+   * innermost. Not inline blocks, nor a block of this plugin's name (`:::window` is a window already).
+   */
+  compose?(ctx: ComposeContext): string | Html | Promise<string | Html>
   setup?(ctx: PluginContext): PluginHooks | Promise<PluginHooks>
   /** by subcommand: `''` is `whiteboard <name>` itself, `stop` is `whiteboard <name> stop` */
   commands?: Record<string, Command>
@@ -614,6 +622,12 @@ export interface Block<Props = unknown> {
    * output; with it, what shows until it mounts.
    */
   html?(ctx: ServerContext): string | Html | null | Promise<string | Html | null>
+  /**
+   * What the block shows, on its own: an image's file, a page's address. Any block written with
+   * `window` (`::image{src window}`, ```` ```mermaid {window} ````) is put in a window by the core;
+   * the window's ↗ opens this. Without it, the window has no ↗.
+   */
+  open?(ctx: ServerContext): string | null
   /** a browser module whose default export is a `Mount`, in its plugin's public folder: `'chart.js'` */
   client?: URL | string
   /** a stylesheet linked on every page that uses the block, in its plugin's public folder: `'chart.css'` */
@@ -684,6 +698,22 @@ export interface FenceContext extends BaseContext {
 }
 
 export type ServerContext = DirectiveContext | FenceContext
+
+/** What a plugin's `compose` gets: the block it goes around, and that block's HTML as `children`. */
+export interface ComposeContext {
+  /** the block's HTML: what is composed in */
+  children: Html
+  /** the block's name: `image`, `mermaid` */
+  block: string
+  /** the value of the plugin's attribute: `window="A title"` → 'A title'; '' when bare */
+  value: string
+  /** the block's attributes */
+  attrs: Record<string, string>
+  /** the block's label as HTML, null without one (fences have none) */
+  label: string | null
+  /** what the block shows on its own (Block.open): an image's file, a page's address; null without */
+  open: string | null
+}
 
 /** Default props of a directive without props(). */
 export interface DirectiveProps {

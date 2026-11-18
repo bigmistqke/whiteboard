@@ -1,5 +1,6 @@
-// Windows: :::window around any markdown, ::image and ::video, each with a header that opens it on
-// its own and fills the browser window; bare leaves the header out.
+// Windows: :::window around any markdown, and any block written with `window` (the window plugin
+// wraps it): a header that opens what it shows on its own and fills the browser window. Without
+// `window`, an image or a video is just itself.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { browser, project } from './project.ts'
@@ -10,10 +11,21 @@ const PNG = Buffer.from(
 ).toString('latin1')
 
 test(
-  'windows: a label, open on its own for one file, fill the window and back; bare has no header',
+  'windows: around any block that says window, its label or window="…" the title, its own file to open; fill and back',
   { timeout: 60000 },
   async t => {
-    const page_ = `# Windows\n\n:::window[A screenshot]\n![the screen](shot.png)\n:::\n\n:::window[A table]\n| a | b |\n| - | - |\n| 1 | 2 |\n:::\n\n::image[The image]{src="shot.png"}\n\n::video[The video]{src="clip.mp4" loop muted}\n\n::image{src="shot.png" bare}\n\n::image{src="javascript:alert(1)"}\n`
+    const page_ = [
+      '# Windows',
+      ':::window[A screenshot]\n![the screen](shot.png)\n:::',
+      ':::window[A table]\n| a | b |\n| - | - |\n| 1 | 2 |\n:::',
+      '::image[The image]{src="shot.png" window}',
+      '::video[The video]{src="clip.mp4" loop muted window}',
+      '::image{src="shot.png"}',
+      '```mermaid {window}\ngraph LR\n  a --> b\n```',
+      ':::grid{cols=2 window="Two cards"}\n### One\n1\n### Two\n2\n:::',
+      '::image{src="javascript:alert(1)" window}',
+      '',
+    ].join('\n\n')
     const proj = await project({ pages: { w: page_ } })
     const fs = await import('node:fs')
     fs.writeFileSync(`${proj.dir}/.whiteboard/pages/shot.png`, PNG, 'latin1')
@@ -38,8 +50,12 @@ test(
       { title: 'A table', open: null, bar: true, media: null },
       { title: 'The image', open: 'shot.png', bar: true, media: 'IMG' },
       { title: 'The video', open: 'clip.mp4', bar: true, media: 'VIDEO' },
-      { title: null, open: null, bar: false, media: 'IMG' },
+      { title: null, open: null, bar: true, media: null }, // a diagram: no label, nothing to open
+      { title: 'Two cards', open: null, bar: true, media: null },
     ])
+    assert.equal((await page.locator('.wb-window .wb-mermaid, .wb-window svg').count()) > 0, true, 'the diagram inside')
+    assert.equal(await page.locator('.wb-window .wb-grid').count(), 1, 'the grid inside')
+    assert.equal(await page.locator('#wb-main > img[src="shot.png"]').count(), 1, 'without window: the picture alone')
     assert.match(
       (await page.textContent('pre.wb-error'))!,
       /image: src must be an http\(s\) URL or a path, not javascript:/,

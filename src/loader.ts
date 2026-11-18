@@ -135,7 +135,12 @@ export function createConfigLoader(proj: Project, { pages: withPages = true } = 
       .filter(p => p.style)
       .map(p => ({ plugin: p.name, file: inPublic(publicDirs.get(p.name)!, p.style!, `plugin ${p.name}: style`) }))
     const links = plugins.flatMap(p => (p.links ? [p.links.bind(p)] : []))
-    const pages = withPages ? createPages({ blocks, style: config?.style, styles, links }) : null
+    // the plugins that compose themselves around other blocks (Plugin.compose): a block with an
+    // attribute of their name
+    const composers = new Map(
+      plugins.flatMap(p => (typeof p.compose === 'function' ? [[p.name, p.compose.bind(p)] as const] : [])),
+    )
+    const pages = withPages ? createPages({ blocks, style: config?.style, styles, links, composers }) : null
     const declared = (flag: 'handOut' | 'forReader') =>
       new Set(
         plugins.flatMap(p =>

@@ -24,10 +24,7 @@ export interface WindowOptions {
   open?: string | null
   /** wider than the text column */
   wide?: boolean
-  /** no header: the window alone, without its buttons */
-  bare?: boolean
-  /** a class for its body, and a height for it (a CSS length), for what has none of its own (an iframe) */
-  bodyClass?: string
+  /** a height for its body (a CSS length); what's taller scrolls */
   height?: string
   /** a class for the window itself, for a block's styles and browser code to find it by */
   className?: string
@@ -41,8 +38,6 @@ export function windowFrame({
   label = null,
   open = null,
   wide = false,
-  bare = false,
-  bodyClass = '',
   height,
   className = '',
   controls = '',
@@ -53,26 +48,22 @@ export function windowFrame({
       : open
         ? html`<span class="wb-window-address">${open}</span>`
         : html``
-  const header =
-    !bare &&
-    html`<div class="wb-window-bar">
-      <span class="wb-window-name" ${open ? html` title="${open}"` : ''}>${name}</span>
-      ${raw(String(controls))}
-      ${open && html`<a class="wb-window-button" href="${open}" target="_blank" rel="noopener" title="Open on its own" aria-label="Open on its own">${OPEN}</a>`}
-      <button
-        type="button"
-        class="wb-window-button"
-        data-wb-maximize
-        title="Fill the window"
-        aria-label="Fill the window"
-      >
-        <span class="wb-window-max">${MAXIMIZE}</span><span class="wb-window-restore">${RESTORE}</span>
-      </button>
-    </div>`
+  const header = html`<div class="wb-window-bar">
+    <span class="wb-window-name" ${open ? html` title="${open}"` : ''}>${name}</span>
+    ${raw(String(controls))}
+    ${open && html`<a class="wb-window-button" href="${open}" target="_blank" rel="noopener" title="Open on its own" aria-label="Open on its own">${OPEN}</a>`}
+    <button
+      type="button"
+      class="wb-window-button"
+      data-wb-maximize
+      title="Fill the window"
+      aria-label="Fill the window"
+    >
+      <span class="wb-window-max">${MAXIMIZE}</span><span class="wb-window-restore">${RESTORE}</span>
+    </button>
+  </div>`
   return html`<div class="wb-window${wide && raw(' wb-wide')}${className && raw(' ' + className)}">
     ${header}
-    <div class="wb-window-body${bodyClass && raw(' ' + bodyClass)}" ${height ? html` style="height: ${height}"` : ''}>
-      ${raw(String(body))}
-    </div>
+    <div class="wb-window-body" ${height ? html` style="height: ${height}"` : ''}>${raw(String(body))}</div>
   </div>`
 }

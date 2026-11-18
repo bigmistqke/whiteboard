@@ -5,7 +5,7 @@ import { resolveBlocks, type BlockEntry } from './blocks.ts'
 import { createDocs, createMessageRender, createRender } from './render.ts'
 import { formNames } from './markdown.ts'
 import type { PageSource, RenderContext, Rendered, StoredPage } from '../define.ts'
-import type { TextLink } from '../define.ts'
+import type { Plugin, TextLink } from '../define.ts'
 
 export interface PagesOptions {
   /** the blocks of the project's plugins, in plugin order */
@@ -16,6 +16,8 @@ export interface PagesOptions {
   styles?: { plugin: string; file: URL | string }[]
   /** the plugins' text links (Plugin.links), each asked once per project folder */
   links?: ((ctx: { dir: string }) => TextLink[])[]
+  /** the plugins that compose themselves around blocks (Plugin.compose), by name */
+  composers?: Map<string, NonNullable<Plugin['compose']>>
 }
 
 /** How the core renders pages for one loaded config. */
@@ -34,7 +36,7 @@ export function createPages(options: PagesOptions): Pages {
   const resolved = resolveBlocks(options.blocks)
   const blocks = () => resolved
   return {
-    render: createRender(blocks, options.style, options.styles ?? [], options.links ?? []),
+    render: createRender(blocks, options.style, options.styles ?? [], options.links ?? [], options.composers),
     message: createMessageRender(blocks, options.links ?? []),
     docs: createDocs(blocks),
     questions: page => formNames(page.source),

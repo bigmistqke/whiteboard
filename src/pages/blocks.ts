@@ -26,6 +26,8 @@ export interface ResolvedBlock {
   fences: boolean
   props: ((ctx: any) => unknown) | null
   html: ((ctx: any) => string | Html | null | Promise<string | Html | null>) | null
+  /** what it shows on its own, for the ↗ of a window around it (Block.open) */
+  open: ((ctx: any) => string | null) | null
   client: string | null
   style: string | null
   /** the plugin it comes from */
@@ -54,6 +56,7 @@ function normalize({ name, block: b, plugin, public: dir }: BlockEntry): Resolve
     fences: b.fence === true || b.fence === 'any',
     props: typeof b.props === 'function' ? b.props.bind(b) : null,
     html: typeof b.html === 'function' ? b.html.bind(b) : null,
+    open: typeof b.open === 'function' ? b.open.bind(b) : null,
     ...files,
     source: plugin,
   }

@@ -1073,7 +1073,7 @@ main:has(+ .wb-orphans:not([hidden])) {
 .wb-window-body > :last-child {
   margin-bottom: 0;
 }
-.wb-window-body:not(.wb-iframe-frame) {
+.wb-window-body {
   padding: var(--space-xl) var(--space-xl);
   overflow: auto;
 }

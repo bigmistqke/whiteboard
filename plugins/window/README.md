@@ -1,9 +1,26 @@
-Windows: a header with a label, a button that fills the browser window with
+A window: a header with a label, a button that fills the browser window with
 what it shows (the same button, or Esc, puts it back), and one that opens it on
-its own. `bare` leaves the header out; `wide` makes it wider than the text
-column; `height` (pixels or a CSS length) fixes its height, scrolling inside.
+its own.
 
-**One image or video**, its label the title, ↗ opening the file:
+**Any block goes in one by saying `window`**: an image, a video, another page,
+a diagram, a grid. Its label is the window's title (or `window="A title"`,
+for a block without a label, such as a fence), and ↗ opens what it shows on
+its own, an image's file or a page's address. `wide` makes it wider than the
+text column.
+
+````markdown
+::image[The new onboarding]{src="onboarding.png" window}
+
+```mermaid {window="How a page is served"}
+graph LR; file --> server --> browser
+```
+
+:::grid{cols=2 window="Two options"}
+…
+:::
+````
+
+**One image or video**, without `window`, is just itself:
 
 ```markdown
 ::image[The new onboarding]{src="onboarding.png"}
@@ -13,17 +30,19 @@ column; `height` (pixels or a CSS length) fixes its height, scrolling inside.
 
 A video has its controls; `loop`, `autoplay` (which starts it muted, as
 browsers require) and `poster` are as for a `<video>`. A plain markdown image,
-`![…](shot.png)`, stays an image without a window.
+`![…](shot.png)`, is the same as `::image` without `window`.
 
-**Any markdown**, in `:::window`: a diagram, a table, a screenshot with words
-under it. When it holds one image or video, ↗ opens that file.
+**Any markdown**, in `:::window`: a table, a screenshot with words under it,
+what has no block of its own. When it holds one image or video, ↗ opens that
+file. `height` (pixels or a CSS length) fixes its height, scrolling inside.
 
-````markdown
-:::window[How a page is served]{wide}
-```mermaid
-graph LR; file --> server --> browser
-```
+```markdown
+:::window[What each one takes]
+| block | what |
+| --- | --- |
+| `::image` | one image |
 :::
-````
+```
 
-An iframe (`::iframe`) is a window around another page.
+The `window` attribute is this plugin's `compose`: any plugin can compose
+itself around blocks the same way, by its name.
