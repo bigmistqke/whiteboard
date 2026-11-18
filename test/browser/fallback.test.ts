@@ -33,7 +33,7 @@ test('the fallback takes answers on pages nobody waits on, leaves the others, an
   await page.fill('input[name=note]', 'for whoever')
   await page.click('form[name=b-q] button')
   await until('the fallback got b', () => fallback.output().includes('"page":"b"') || null)
-  assert.match((await page.locator('.wb-toast').textContent())!, /the fallback agent picks it up/)
+  assert.match((await page.locator('[data-toast=sent]').textContent())!, /the fallback agent picks it up/)
 
   // a waits on its own wait: the fallback leaves it
   await page.goto(proj.url('a'))

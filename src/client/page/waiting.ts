@@ -1,10 +1,10 @@
 // How the page shows what waits for the reader: its open questions and the agent's messages they
 // haven't read (status.ts). The core marks each named form with where it stands (open, pending,
 // decided; see `api.onForms`); the page styles those marks (base.css), folds a decided form into
-// one line quoting its answer, sums them up in a line above the page, puts a button in the page's
-// corner that goes from one thing waiting for the reader to the next, and counts them in the tab
-// title. Unread messages also get a toast that stays while there are any. A message is found on the
-// page by its element (`data-wb-message`), or, when it isn't shown, by the element that holds it
+// one line quoting its answer, sums them up in a line above the page, counts them in the tab title,
+// and puts two toasts in the page's corner, "→ waiting for you (n)" for the questions and "→ unread
+// (n)" for the messages, each going from one to the next. A message is found on the page by its
+// element (`data-wb-message`), or, when it isn't shown, by the element that holds it
 // (`data-wb-holds`: a comment's badge), which is sent `wb-reveal` to show it. Arriving by a link that
 // ends in `#wb-waiting` (the header's menu, the overview), the page goes to the first. An answer no
 // agent is listening for says so once it is sent, in a toast: the form's own mark may be out of view.
@@ -25,10 +25,6 @@ let main: HTMLElement
 let api: Api
 let forms: FormStatus[] = []
 
-const button = document.createElement('button')
-button.type = 'button'
-button.className = 'wb-waiting-next'
-button.hidden = true
 
 // above the page's content, not in it: #wb-main is compared block by block on every update
 const summary = document.createElement('div')
@@ -58,8 +54,11 @@ function targets(kind: 'all' | 'messages' = 'all'): HTMLElement[] {
   return list.sort((a, b) => top(a) - top(b))
 }
 
-let messagesToast: Toast | null = null
+// the corner's toasts: the questions waiting, and the agent's messages unread; each goes to the next
+let waitingToast: Toast
+let unreadToast: Toast
 let toastTimer = 0
+let unreadShown = false
 
 function show(list: FormStatus[] = forms) {
   forms = list
@@ -79,20 +78,22 @@ function show(list: FormStatus[] = forms) {
     return i ? [document.createTextNode(' · '), link] : [link]
   }))
   const n = inState('open').length + unread
-  button.hidden = n === 0
-  button.textContent = `→ waiting for you (${n})`
+  const questions = inState('open').length
+  if (questions) { waitingToast.update(`→ waiting for you (${questions})`); waitingToast.show() } else waitingToast.hide()
   api.badge('waiting', n ? `!${n}` : null, -1)
-  // the agent's messages, wherever the reader is scrolled: a toast while there are any. It comes a
-  // moment late: a message that arrives in view (an open thread) is read before it would show.
-  if (!unread) { messagesToast?.close(); messagesToast = null; clearTimeout(toastTimer) }
-  else if (messagesToast) messagesToast.update(messagesLabel(unread))
-  else {
-    clearTimeout(toastTimer)
-    toastTimer = window.setTimeout(() => {
-      const left = api.unread().length
-      if (left && !messagesToast) messagesToast = api.toast(messagesLabel(left), { ms: 0, onClick: () => jump('messages') })
-    }, 1000)
-  }
+  // the agent's messages: a toast while there are any. It comes a moment late: a message that
+  // arrives in view (an open thread) is read before it would show.
+  clearTimeout(toastTimer)
+  if (!unread) unreadToast.hide()
+  else if (unreadShown) unreadToast.update(`→ unread (${unread})`)
+  else toastTimer = window.setTimeout(() => {
+    const left = api.unread().length
+    if (!left) return
+    unreadToast.update(`→ unread (${left})`)
+    unreadToast.show()
+    unreadShown = true
+  }, 1000)
+  if (!unread) unreadShown = false
   // arrived to answer: the first thing waiting, once the page knows (the log loads after the page)
   if (arriving && n) {
     arriving = false
@@ -138,8 +139,10 @@ function jumpTo(target: HTMLElement) {
 export function trackWaiting(root: HTMLElement, core: Api) {
   main = root
   api = core
-  api.corner().prepend(button)
-  button.addEventListener('click', () => jump('all'))
+  waitingToast = api.toast('', { ms: 0, name: 'waiting', order: -2, onClick: () => jump('open') })
+  unreadToast = api.toast('', { ms: 0, name: 'unread', order: -1, onClick: () => jump('messages') })
+  waitingToast.hide()
+  unreadToast.hide()
   main.before(summary)
   summary.addEventListener('click', e => {
     const state = (e.target as HTMLElement).closest<HTMLElement>('button[data-state]')?.dataset.state as FormState | 'messages' | undefined
@@ -174,8 +177,8 @@ export function trackWaiting(root: HTMLElement, core: Api) {
       if (form.dataset.wbState === 'sending') return
       sent.disconnect()
       if (form.dataset.wbState !== 'sent') return
-      if (fallback) api.toast('Sent. No agent waits on this page; the fallback agent picks it up.')
-      else api.toast('Sent, but no agent is listening right now. Your answer stays in the log until one checks this page.', { kind: 'warn' })
+      if (fallback) api.toast('Sent. No agent waits on this page; the fallback agent picks it up.', { name: 'sent' })
+      else api.toast('Sent, but no agent is listening right now. Your answer stays in the log until one checks this page.', { kind: 'warn', name: 'sent' })
     })
     sent.observe(form, { attributes: true, attributeFilter: ['data-wb-state'] })
   })

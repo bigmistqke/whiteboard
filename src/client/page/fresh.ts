@@ -4,7 +4,7 @@
 // have been in view for a moment with the tab visible. Floating buttons jump to unseen blocks.
 
 import { html } from '../../html.ts'
-import type { Api } from '../../define.ts'
+import type { Api, Toast } from '../../define.ts'
 import { viewBottom } from './view'
 
 const DWELL_MS = 600
@@ -111,16 +111,10 @@ function markNew(el: Element) {
 
 // ---- navigator ---------------------------------------------------------------------------------
 
-// the "new" bubbles, in the page's corner (the core's), and their count in the tab title
-const nav = document.createElement('div')
-nav.className = 'wb-fresh'
-
-nav.innerHTML = String(html`${['up', 'down'].map(dir =>
-  html`<button type="button" data-dir="${dir}"><span class="wb-fresh-label"></span><span class="wb-fresh-close" title="Mark everything new as seen" aria-label="Mark everything new as seen">✕</span></button>`)}`)
-const [upBtn, downBtn] = nav.querySelectorAll('button')
-// hidden until the first update has counted: it runs in an animation frame, which a hidden tab
-// does not get, so until then the bubbles would show without their labels
-nav.hidden = upBtn.hidden = downBtn.hidden = true
+// the "new" toasts, in the page's corner (api.toast): one for what is new above, one for below,
+// each going to the nearest; their ✕ counts everything new as seen. Their count is in the tab title.
+let upToast: Toast | null = null
+let downToast: Toast | null = null
 
 function split() {
   const above: Element[] = [], below: Element[] = []
@@ -141,23 +135,19 @@ function update() {
   cancelAnimationFrame(raf)
   raf = requestAnimationFrame(() => {
     const { above, below } = split()
-    upBtn.hidden = !above.length
-    downBtn.hidden = !below.length
-    upBtn.querySelector('.wb-fresh-label')!.textContent = `↑ new (${above.length})`
-    downBtn.querySelector('.wb-fresh-label')!.textContent = `↓ new (${below.length})`
-    nav.hidden = !above.length && !below.length
+    for (const [toast, list, arrow] of [[upToast, above, '↑'], [downToast, below, '↓']] as const) {
+      if (!toast) continue
+      if (list.length) { toast.update(`${arrow} new (${list.length})`); toast.show() } else toast.hide()
+    }
     core?.badge('new', unseen.size ? String(unseen.size) : null)
   })
 }
 
-nav.addEventListener('click', e => {
-  const dir = (e.target as HTMLElement).closest('button')?.dataset.dir
-  if (!dir) return
-  // the ✕ in a bubble clicks the marks away: everything new counts as seen
-  if ((e.target as HTMLElement).closest('.wb-fresh-close')) { for (const el of [...unseen]) markSeen(el); return }
+function go(dir: 'up' | 'down') {
   const { above, below } = split()
   ;(dir === 'up' ? above : below)[0]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-})
+}
+const seeAll = () => { for (const el of [...unseen]) markSeen(el) }
 addEventListener('scroll', update, { passive: true })
 addEventListener('resize', update)
 
@@ -173,7 +163,10 @@ const RECOGNISED_MIN = 0.25
  */
 export function trackInitial(main: HTMLElement, page: string, api: Api) {
   core = api
-  api.corner().append(nav)
+  upToast = api.toast('', { ms: 0, kind: 'alert', name: 'new-up', order: 1, onClick: () => go('up'), onDismiss: seeAll })
+  downToast = api.toast('', { ms: 0, kind: 'alert', name: 'new-down', order: 2, onClick: () => go('down'), onDismiss: seeAll })
+  upToast.hide()
+  downToast.hide()
   mainEl = main
   storeKey = `wb-seen:${page}`
   const blocks = [...main.children]

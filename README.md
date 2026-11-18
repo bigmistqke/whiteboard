@@ -483,9 +483,10 @@ is replaced on a live update; it replaces the server's HTML when it mounts.
 A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get
 the page's `api`: its events and `append` (which comes back through
 `onEvents`), the listeners, `onRendered` (after a live update, to put back
-what it adds), `corner()` for floating buttons, `toast()` for a message
-at the bottom of the window, `badge()` for counts in the tab title, and the
-theme. Files beside a browser module that are browser
+what it adds), `corner()` for floating buttons, `toast()` for a label in
+the corner that says what is going on and goes there (one that hides after a
+few seconds, or one that stays with a count), `badge()` for counts in the
+tab title, and the theme. Files beside a browser module that are browser
 assets (scripts, styles, images, fonts) are served too.
 
 Something that covers the bottom of the window says how much in
@@ -535,9 +536,9 @@ Not started.
   recorded in the log, so it holds in every browser. An answered form waits
   for the agent until it picks the answer up, then it is decided and folds
   to one line quoting the answer, with its chat still under it; a click
-  opens it again. A line above the page counts all this, a button goes to
-  the next thing waiting for you, unread messages get a toast that stays,
-  and the tab title gets a `(!n)` prefix. An answer sent while no agent
+  opens it again. A line above the page counts all this, the corner's
+  toasts go to the next question ("→ waiting for you (n)") and the next
+  unread message ("→ unread (n)"), and the tab title gets a `(!n)` prefix. An answer sent while no agent
   listens says so in a toast; it stays in the log for the next agent that
   checks.
 - **Whether an agent listens.** The dot at the end of the header is green

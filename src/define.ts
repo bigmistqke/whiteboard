@@ -386,19 +386,28 @@ export interface Listener {
   fallback?: boolean
 }
 
-/** How a toast looks and acts: `warn` for something that may need the reader, how long it stays. */
+/** How a toast looks and acts (Api.toast). */
 export interface ToastOptions {
-  kind?: 'info' | 'warn'
+  /** its colour: `info` (the accent, the default), `warn`, or `alert` (as for what is new) */
+  kind?: 'info' | 'warn' | 'alert'
   /** milliseconds before it goes, 7000 by default; 0: it stays until closed through its `Toast` */
   ms?: number
-  /** what a click on it does, besides closing it (a toast that stays, stays) */
+  /** what a click on it does (go to what it is about); a toast that goes by itself also closes */
   onClick?: () => void
+  /** gives it a ✕, which runs this and closes it */
+  onDismiss?: () => void
+  /** a name to find it by (`data-toast`), for its styles and for tests */
+  name?: string
+  /** where it is among the corner's toasts: lower first (default 0) */
+  order?: number
 }
 
-/** A toast on the screen: close it, or change what it says (a count that goes down). */
+/** A toast on the screen: change what it says (a count), hide it and show it again, or close it. */
 export interface Toast {
   close(): void
   update(text: string): void
+  hide(): void
+  show(): void
 }
 
 /** What the core gives the page and every plugin in the browser. Framework-free: getters and subscriptions. */
@@ -452,10 +461,10 @@ export interface Api {
   /** the page's own title, behind the badges */
   title(title: string): void
   /**
-   * A short message at the bottom of the window, for what the reader should know when it happens,
-   * wherever they are scrolled: an answer nobody listens for, a reply in a thread. It goes after a
-   * few seconds, or on a click, which runs `onClick` first (go to what it is about); with `ms: 0`
-   * it stays until closed through what this returns.
+   * A short label in the page's corner that says what is going on and takes the reader there:
+   * what waits for them, what is new, an answer nobody listens for. It goes after a few seconds,
+   * or on a click, which runs `onClick` (go to what it is about); with `ms: 0` it stays, and what
+   * this returns changes its text, hides and shows it, or closes it.
    */
   toast(text: string, options?: ToastOptions): Toast
   /**

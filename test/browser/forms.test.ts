@@ -26,7 +26,7 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
 
   const state = () => page.evaluate(() => {
     const f = document.querySelector('form[name=pick]')!
-    const button = document.querySelector<HTMLElement>('#wb-dock .wb-waiting-next')
+    const button = document.querySelector<HTMLElement>('#wb-dock [data-toast=waiting]')
     return {
       attrs: [...f.attributes].map(a => a.name).filter(n => n.startsWith('data-wb')),
       summary: document.querySelector('.wb-summary')?.textContent,
@@ -222,7 +222,7 @@ test('an answer no agent is listening for says so in a toast; one an agent waits
   await page.waitForSelector('form[name=ask][data-wb-open]')
   await page.fill('input[name=why]', 'nobody hears this')
   await page.click('form[name=ask] button')
-  const toast = page.locator('.wb-toast')
+  const toast = page.locator('[data-toast=sent]')
   await toast.waitFor({ state: 'visible' })
   assert.match((await toast.textContent())!, /no agent is listening/)
   await toast.click()
@@ -238,6 +238,6 @@ test('an answer no agent is listening for says so in a toast; one an agent waits
   await page.click('form[name=ask] button')
   await until('the wait got it', () => wait.output())
   await page.waitForTimeout(500)
-  assert.equal(await page.locator('.wb-toast').count(), 0, 'no toast when an agent took it')
+  assert.equal(await page.locator('[data-toast=sent]').count(), 0, 'no toast when an agent took it')
   assert.deepEqual(errors, [])
 })

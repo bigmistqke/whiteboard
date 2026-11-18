@@ -207,10 +207,6 @@ button:hover { border-color: var(--muted); }
 }
 .wb-wide.wb-new::after { left: -10px; }
 .wb-new.wb-new-seen::after { opacity: 0; transition-delay: 1s; }
-.wb-fresh button { display: inline-flex; align-items: center; gap: 8px; }
-.wb-fresh-close { display: inline-block; margin-right: -4px; padding: 0 4px; border-left: 1px solid rgb(255 255 255 / .35); opacity: .75; }
-.wb-fresh-close:hover { opacity: 1; }
-.wb-fresh { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 
 form.wb-form[data-wb-folded] { padding: 1em 0; gap: 0; }
 /* named forms: the core marks where each stands (data-wb-open, -pending, -decided); this is how that looks */
@@ -224,9 +220,6 @@ form.wb-form[data-wb-state=failed]::before { content: "couldn't send it: try aga
 form[data-wb-sent]:not(.wb-form)::after { content: "✓ sent " attr(data-wb-sent); display: block; margin-top: 6px; color: var(--ok); font: .8rem var(--sans); }
 form[data-wb-state=failed]:not(.wb-form)::after { content: "failed to send"; color: var(--bad); }
 
-/* the button in the page's corner that goes to the next thing waiting for the reader */
-.wb-waiting-next { background: var(--accent); color: var(--accent-text); border-color: var(--accent); border-radius: 99px; font-size: .8rem; }
-.wb-waiting-next[hidden] { display: none; }
 
 /* a question the reader hasn't answered, or one the agent asks again */
 form[data-wb-open] { outline: 2px solid var(--accent); outline-offset: 10px; border-radius: 2px; }
@@ -252,8 +245,6 @@ form[data-wb-folded]:hover::after { color: var(--accent); }
 .wb-summary { max-width: calc(var(--measure) + var(--indent, 34px) + 32px); margin: 0 auto; padding: 96px 16px 0; box-sizing: border-box; color: var(--muted); font: .8rem/1.5 var(--sans); }
 /* the summary takes the space above the title that the page would otherwise start with */
 .wb-summary:not([hidden]) + main { padding-top: 20px; }
-.wb-fresh[hidden], .wb-fresh button[hidden] { display: none; }
-.wb-fresh button { background: var(--bad); color: #fff; border-color: var(--bad); border-radius: 99px; font-size: .8rem; }
 
 @media (max-width: 600px) {
   body { font-size: 18px; }

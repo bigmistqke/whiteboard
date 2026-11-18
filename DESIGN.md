@@ -508,13 +508,19 @@ interface above; in the browser, the page module (`src/client/page/`).
    open form is outlined and says "waiting for you", a decided one folds
    into one line quoting its answer, with its thread still open under it (a
    click on the line opens the form again to change it). A line above the
-   page counts the states and unread messages and jumps through each, a
-   button in the page's corner goes from one thing waiting to the next (a
-   message not shown, such as a reply in a closed thread, is found by the
-   element holding it, `data-wb-holds`, which is sent `wb-reveal` to show
-   it), unread messages get a toast that stays, the tab title gets a
-   `(!n)` badge, and the header and the overview mark the other pages with
-   something waiting.
+   page counts the states and unread messages and jumps through each, two
+   toasts in the page's corner go from one open question to the next and
+   from one unread message to the next (a message not shown, such as a
+   reply in a closed thread, is found by the element holding it,
+   `data-wb-holds`, which is sent `wb-reveal` to show it), the tab title
+   gets a `(!n)` badge, and the header and the overview mark the other
+   pages with something waiting.
+
+   Toasts are the core's (`api.toast`): labels in the corner that say what
+   is going on and take the reader there. One goes after a few seconds, for
+   a one-off ("no agent is listening"); one with `ms: 0` stays and changes
+   its count, hides and shows again ("↓ new (3)", "→ unread (2)"). The page
+   and the plugins use the same one, so they look and stack alike.
 
 Containers are parsed as written: a `:::` closes the first open container
 whose fence is no longer than its own, so a container around another needs

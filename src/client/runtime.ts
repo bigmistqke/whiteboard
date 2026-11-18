@@ -4,7 +4,7 @@
 import type { Api, PluginMount, Listener, PageHandle, RenderedPage, StoredPage, WbEvent } from '../define'
 import { html } from '../html.ts'
 import { formsApi, trackForms } from './forms'
-import { toast } from './toast'
+import { createToast } from './toast'
 import { markRead, messagesChanged, readsArrived, trackReading, unread } from './read'
 import { READ } from '../status.ts'
 import { markdown } from './markdown'
@@ -96,7 +96,7 @@ const api: Api = {
     writeTitle()
   },
   title(title) { baseTitle = title; writeTitle() },
-  toast,
+  toast: createToast(() => corner),
   ...formsApi,
 }
 

@@ -51,7 +51,8 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   // the agent replies from the command line
   proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'because' }))
   await until('the badge shows the agent replied', () => page.$eval('.wb-comment-badge', b => b.hasAttribute('data-agent') && b.textContent === '2'))
-  assert.equal(await page.locator('.wb-toast').count(), 0, 'no toast: the reply shows in the open thread')
+  await page.waitForTimeout(1300)
+  assert.ok(await page.locator('[data-toast=unread]').isHidden(), 'no toast: the reply shows in the open thread')
 
   // with the thread closed, the agent's replies are unread: counted in a toast that stays, and a dot
   // on the badge; a click opens the thread, and once the replies are in view there, they are read
@@ -59,27 +60,27 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   await page.keyboard.press('Escape')
   await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'hidden' })
   proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'and also\nthis' }))
-  const toast = page.locator('.wb-toast')
+  const toast = page.locator('[data-toast=unread]')
   await toast.waitFor({ state: 'visible' })
-  assert.equal(await toast.textContent(), '1 unread message from the agent')
+  assert.equal(await toast.textContent(), '→ unread (1)')
   assert.ok(await page.$eval('.wb-comment-badge', b => b.hasAttribute('data-unread')), 'a dot on the badge')
   proj.cli('append', '--page', 'q', '--type', 'comments:reply', '--data', JSON.stringify({ replyTo: comment.id, text: 'one **more**' }))
-  await until('the count goes up', async () => (await toast.textContent()) === '2 unread messages from the agent' || null)
+  await until('the count goes up', async () => (await toast.textContent()) === '→ unread (2)' || null)
   await page.waitForTimeout(7500)
-  assert.equal(await toast.count(), 1, 'it stays')
+  assert.ok(await toast.isVisible(), 'it stays')
   await toast.click()
   await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
   // a message is markdown, shown as such once the server rendered it
   await page.waitForSelector('.wb-thread .wb-thread-text[data-md] strong')
   assert.match((await page.textContent('.wb-thread:not(.wb-comment-new)'))!, /one more/)
-  await toast.waitFor({ state: 'detached' })
+  await toast.waitFor({ state: 'hidden' })
   await until('the read is in the log', () => proj.events().filter(e => e.type === 'whiteboard:read').flatMap(e => e.data.ids).length === 3 || null)
   assert.ok(await page.$eval('.wb-comment-badge', b => !b.hasAttribute('data-unread')), 'no dot once read')
   // read stays read across a reload
   await page.reload()
   await page.waitForSelector('.wb-comment-badge')
   await page.waitForTimeout(500)
-  assert.equal(await page.locator('.wb-toast').count(), 0, 'no toast for replies read before')
+  assert.ok(await page.locator('[data-toast=unread]').isHidden(), 'no toast for replies read before')
 
   // a double-click outside the open thread closes it
   await page.click('.wb-comment-badge')

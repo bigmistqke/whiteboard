@@ -385,10 +385,11 @@ export function createServer(project: Project): WhiteboardServer {
   // the page's corner (api.corner()): the one thing the core puts on every page, empty, for the
   // page's and the plugins' floating buttons; above what covers the bottom of the window
   const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
-    // toasts (api.toast), centred above the same edge; in the page's theme colours where it has them
-    + '#wb-toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:30;display:grid;gap:8px;width:min(440px,100vw - 32px);pointer-events:none}'
-    + '.wb-toast{pointer-events:auto;cursor:pointer;padding:10px 14px;border-radius:8px;font:.85rem/1.45 var(--sans,system-ui,sans-serif);background:var(--bg,Canvas);color:var(--text,CanvasText);border:1px solid var(--border,#8884);box-shadow:0 8px 28px rgb(0 0 0/.18)}'
-    + '.wb-toast[data-kind=warn]{border-left:4px solid var(--warn,#c98a00)}.wb-toast[data-action]{border-left:4px solid var(--accent,#1d5bbf)}'
+    // toasts (api.toast): labels in the corner, in the page's theme colours where it has them
+    + '.wb-toasts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.wb-toasts:empty{display:none}'
+    + '.wb-toast{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 12px;border-radius:99px;font:600 .8rem/1.4 var(--sans,system-ui,sans-serif);background:var(--accent,#1d5bbf);color:var(--accent-text,#fff);border:1px solid transparent;box-shadow:0 2px 10px rgb(0 0 0/.18)}'
+    + '.wb-toast[hidden]{display:none}.wb-toast[data-kind=warn]{background:var(--warn,#6b4fc0)}.wb-toast[data-kind=alert]{background:var(--bad,#c4352b);color:#fff}'
+    + '.wb-toast-dismiss{margin-right:-4px;padding:0 4px;border-left:1px solid rgb(255 255 255/.35);opacity:.75}.wb-toast-dismiss:hover{opacity:1}'
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
   function shell(page: StoredPage, { page: rendered, out, notices }: Render, extras: Extras = { head: [], body: [], clients: [] }): string {
