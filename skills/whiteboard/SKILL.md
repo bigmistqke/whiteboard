@@ -32,6 +32,12 @@ PATH, the project has it installed locally: run them as `npx whiteboard …`.
 4. Run `whiteboard show <file>`: it starts the server if needed and prints the
    URL. Give the user the URL the first time; after that, just keep editing
    the file — the open page follows.
+5. A page that was only for the moment (one question, a check, a demo):
+   once it has done its job and you've acted on its answers, close it with
+   `whiteboard close <file>`. That removes the page and its events (answers,
+   chats, comments) from the log, so it doesn't linger in the overview or in
+   `whiteboard status`. Keep pages the user may come back to (plans, reviews,
+   decisions); close only your own, and ask when unsure.
 
 Files that already exist in the repository render too: `whiteboard show
 README.md` (any path in the project) gives a URL that renders that file, and

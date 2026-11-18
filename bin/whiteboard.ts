@@ -7,7 +7,7 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn, type Project } from '../src/config.ts'
-import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, handOut, CLAIM, type EventFilter, forAgent } from '../src/events.ts'
+import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, prune, handOut, CLAIM, type EventFilter, forAgent } from '../src/events.ts'
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
@@ -31,6 +31,7 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard new <name>            create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
+  whiteboard close <page>          a page that did its job: remove its file, and its events from the log
   whiteboard scroll <page|file> <where>  scroll the tabs that have the page open to a heading's text,
                                    a form's name or any text on it (opening details around it)
   whiteboard docs [plugin]         how to write pages here: markdown, and each plugin's blocks — read before writing one;
@@ -329,6 +330,30 @@ switch (cmd) {
     if (cmd === 'show' && !positionals[0]) throw new Error('usage: whiteboard show <page|file>')
     const base = await ensureServer()
     console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
+    break
+  }
+  case 'close': {
+    // a page that has done its job: its file goes, and its events leave the log (answers, chats,
+    // comments, what was read and picked up), so neither the page nor its history lingers
+    const target = positionals[0]
+    if (!target) throw new Error('usage: whiteboard close <page|file>')
+    const proj = needProject()
+    const id = pageId(proj, target)
+    if (id.startsWith('-/')) throw new Error(`${target} is a file of the repository, not a page: close is for the pages in ${relFile(proj.pagesDir)}`)
+    const file = path.join(proj.pagesDir, `${id}.md`)
+    const exists = fs.existsSync(file)
+    // an agent still waiting on it would wait on nothing
+    const base = await running(proj)
+    if (base) {
+      try {
+        const listening = (await (await fetch(`${base}/api/listeners?page=${encodeURIComponent(id)}`)).json() as Listener[]).filter(l => !l.fallback && l.page === id)
+        if (listening.length) console.error(`whiteboard: ${listening.length} wait or watch still listens on ${id}; stop it, it will hear nothing more`)
+      } catch { /* the server is going: nothing to say */ }
+    }
+    if (exists) fs.rmSync(file)
+    const removed = prune(proj.eventsFile, id)
+    if (!exists && !removed) { console.error(`whiteboard: there is no page ${id}, nor events of it`); process.exit(1) }
+    console.log(`closed ${id}: ${exists ? 'removed its file' : 'it had no file'}, and ${removed} event${removed === 1 ? '' : 's'} from the log`)
     break
   }
   case 'scroll': {

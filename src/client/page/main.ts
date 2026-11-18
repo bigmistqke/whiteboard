@@ -265,7 +265,13 @@ function keepPlace(place: ReturnType<typeof placeOf>, sigs: string[]) {
 
 /** The new render of the page, patched in. */
 async function refresh() {
-  const next = await currentPage.render()
+  let next: Awaited<ReturnType<PageHandle['render']>>
+  try { next = await currentPage.render() } catch (err) {
+    // the page is gone (closed, deleted): load what its address shows now, the "Not found" page,
+    // which turns into the page again if it is written back
+    if (/: 404$/.test((err as Error).message)) return location.reload()
+    throw err
+  }
   const data = next.data as Data
   islands = data.islands
   for (const href of data.styles) {

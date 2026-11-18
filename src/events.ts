@@ -87,27 +87,90 @@ export function read(file: string): { events: WbEvent[]; end: number } {
  * Call `onEvent` for each event appended to the log from byte `from` on (a line boundary, such as
  * `read`'s `end`), in order, as whole lines arrive. Checks every `interval` ms (default 200).
  * Returns a function that stops it.
+ *
+ * The log can be rewritten under it (`prune`: a page closed, its events gone): a new file, or a
+ * shorter one. Then it reads the log again and goes on after the last event it had passed on (by
+ * time, and by id among those of the same time), so nothing is passed on twice.
  */
 export function follow(file: string, from: number, onEvent: (event: WbEvent) => void, { interval = 200 } = {}): () => void {
   let offset = from
   let partial = ''
+  let inode: number | null = null
+  try { inode = fs.statSync(file).ino } catch { /* not there yet */ }
+  // where it is in the log, to find its place again after a rewrite
+  let lastTs = ''
+  let atLastTs = new Set<string>()
+  // the events before `from` count as passed on: the place starts after the last of them
+  if (from > 0) {
+    let before: WbEvent[] = []
+    try { before = parseLines(fs.readFileSync(file).subarray(0, from).toString('utf8')) } catch { /* not there */ }
+    for (const e of before) {
+      if (e.ts > lastTs) { lastTs = e.ts; atLastTs = new Set() }
+      if (e.ts === lastTs) atLastTs.add(e.id)
+    }
+  }
+  const pass = (e: WbEvent) => {
+    if (e.ts > lastTs) { lastTs = e.ts; atLastTs = new Set() }
+    atLastTs.add(e.id)
+    onEvent(e)
+  }
   const poll = () => {
-    let size: number
-    try { size = fs.statSync(file).size } catch { return }
-    if (size < offset) { offset = 0; partial = '' } // truncated
-    if (size === offset) return
+    let stat: fs.Stats
+    try { stat = fs.statSync(file) } catch { return }
+    if ((inode != null && stat.ino !== inode) || stat.size < offset) {
+      // rewritten: read it again, and go on after the place reached
+      inode = stat.ino
+      const { events, end } = read(file)
+      offset = end
+      partial = ''
+      for (const e of events) if (e.ts > lastTs || (e.ts === lastTs && !atLastTs.has(e.id))) pass(e)
+      return
+    }
+    inode = stat.ino
+    if (stat.size === offset) return
     const fd = fs.openSync(file, 'r')
-    const buf = Buffer.alloc(size - offset)
+    const buf = Buffer.alloc(stat.size - offset)
     fs.readSync(fd, buf, 0, buf.length, offset)
     fs.closeSync(fd)
-    offset = size
+    offset = stat.size
     const text = partial + buf.toString('utf8')
     const cut = text.lastIndexOf('\n')
     partial = text.slice(cut + 1)
-    for (const e of parseLines(text.slice(0, cut + 1))) onEvent(e)
+    for (const e of parseLines(text.slice(0, cut + 1))) pass(e)
   }
   const timer = setInterval(poll, interval)
   return () => clearInterval(timer)
+}
+
+/**
+ * Remove a page's events from the log (`whiteboard close`): every event of exactly that page, the
+ * reader's and the agents' (answers, messages, reads, picks, its claim). The log is written anew
+ * and put in place in one rename; when an event was appended while it was being written, it starts
+ * over, so none is lost. Returns how many were removed.
+ */
+export function prune(file: string, page: string): number {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let buf: Buffer
+    try { buf = fs.readFileSync(file) } catch { return 0 }
+    const lines = buf.toString('utf8').split('\n')
+    const keep: string[] = []
+    let removed = 0
+    for (const line of lines) {
+      if (!line.trim()) continue
+      let ev: WbEvent | null = null
+      try { ev = JSON.parse(line) } catch { /* not ours to judge: kept */ }
+      if (ev && ev.page === page) removed++
+      else keep.push(line)
+    }
+    if (!removed) return 0
+    const tmp = `${file}.${process.pid}.tmp`
+    fs.writeFileSync(tmp, keep.length ? keep.join('\n') + '\n' : '')
+    // appended to meanwhile: that event would be lost with the old file
+    if (fs.statSync(file).size !== buf.length) { fs.rmSync(tmp, { force: true }); continue }
+    fs.renameSync(tmp, file)
+    return removed
+  }
+  throw new Error('the log kept changing while a page was being removed from it; try again')
 }
 
 /** `page` matches the page itself and every page below it, unless `exact`. */

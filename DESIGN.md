@@ -313,6 +313,16 @@ submit is one: its `type` is the form's name, `action` the button that sent
 it. `whiteboard wait` and `watch` filter by page and type, and hand out each
 event once (see Projects): `watch` is `wait` that never exits.
 
+The log only grows, with one exception: `whiteboard close <page>` removes a
+page that did its job, its file and its events (`prune` in
+`src/events.ts`), so a one-off question doesn't linger in the overview, the
+status or the log. The log is written anew and put in place in one rename;
+if an event was appended meanwhile, it starts over, so none is lost. A
+`follow` running across it (a wait, a watch) sees the log replaced or
+shorter, reads it again and goes on after the last event it passed on, so
+it hands nothing out twice. A tab on a closed page reloads to the "Not
+found" page, which becomes the page again if it is written back.
+
 Events the command line appends (`whiteboard append`, an agent's reply,
 say) carry `from: "cli"`; waits skip them, so an agent never wakes on its
 own events, and the page and plugins can tell the two sides apart.

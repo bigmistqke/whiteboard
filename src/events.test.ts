@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { appendEvent, follow, forAgent, fromReader, handOut, pick, pickedUp, read, readEvents } from './events.ts'
+import { appendEvent, follow, forAgent, fromReader, handOut, pick, pickedUp, prune, read, readEvents } from './events.ts'
 import type { WbEvent } from './define.ts'
 
 const FAST = { interval: 5 }
@@ -205,4 +205,20 @@ test('skip leaves an event for now; a recheck hands it out once it is no longer 
   void taken; void free
   ac.abort()
   await done
+})
+
+test('prune removes a page\'s events, and a follow goes on after it without passing anything on twice', async () => {
+  const log = tempLog()
+  reader(log, 'keep'); reader(log, 'gone'); agent(log, 'gone'); reader(log, 'keep/below')
+  const got: string[] = []
+  const stop = follow(log, read(log).end, e => got.push(`${e.page}:${e.type}`), FAST)
+  reader(log, 'keep', 'before')
+  await sleep(30)
+  assert.equal(prune(log, 'gone'), 2)
+  assert.deepEqual(readEvents(log).map(e => e.page), ['keep', 'keep/below', 'keep'], 'only exactly that page, not one that starts like it')
+  reader(log, 'keep', 'after')
+  await sleep(40)
+  stop()
+  assert.deepEqual(got, ['keep:before', 'keep:after'], 'each new one once, before and after the rewrite')
+  assert.equal(prune(log, 'gone'), 0, 'nothing left of it')
 })
