@@ -537,7 +537,7 @@ Not started.
   for the agent until it picks the answer up, then it is decided and folds
   to one line quoting the answer, with its chat still under it; a click
   opens it again. A line above the page counts all this, the corner's
-  toasts go to the next question ("→ waiting for you (n)") and the next
+  toasts go to the next question ("→ unanswered (n)") and the next
   unread message ("→ unread (n)"), and the tab title gets a `(!n)` prefix. An answer sent while no agent
   listens says so in a toast; it stays in the log for the next agent that
   checks.

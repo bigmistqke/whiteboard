@@ -40,10 +40,10 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   let s = await until('the form is marked', async () => { const x = await state(); return x.attrs.length ? x : null })
   // unanswered, it waits for the reader, whether or not an agent listens
   assert.ok(s.attrs.includes('data-wb-open'), 'open without an answer')
-  assert.equal(s.summary, '1 waiting for you')
+  assert.equal(s.summary, '1 unanswered')
   assert.equal(s.summaryBeforeMain, 'MAIN', 'the summary line sits right before <main>')
   s = await until('the title badge', async () => { const x = await state(); return x.title.startsWith('(!1) ') ? x : null })
-  assert.equal(s.button, '→ waiting for you (1)', 'corner button')
+  assert.equal(s.button, '→ unanswered (1)', 'corner toast')
 
   // the header's dot: live, and whether an agent listens
   const dot = () => page.$eval('.wb-live', d => [d.hasAttribute('data-agent'), d.getAttribute('title') ?? ''] as const)

@@ -2,7 +2,7 @@
 // haven't read (status.ts). The core marks each named form with where it stands (open, pending,
 // decided; see `api.onForms`); the page styles those marks (base.css), folds a decided form into
 // one line quoting its answer, sums them up in a line above the page, counts them in the tab title,
-// and puts two toasts in the page's corner, "→ waiting for you (n)" for the questions and "→ unread
+// and puts two toasts in the page's corner, "→ unanswered (n)" for the questions and "→ unread
 // (n)" for the messages, each going from one to the next. A message is found on the page by its
 // element (`data-wb-message`), or, when it isn't shown, by the element that holds it
 // (`data-wb-holds`: a comment's badge), which is sent `wb-reveal` to show it. Arriving by a link that
@@ -15,7 +15,7 @@ import { WAITING_HASH } from './elsewhere'
 
 const ORDER = STATES
 const LABEL: Record<FormState, (n: number) => string> = {
-  open: n => `${n} waiting for you`,
+  open: n => `${n} unanswered`,
   pending: n => `${n} waiting for the agent`,
   decided: n => `${n} decided`,
 }
@@ -79,7 +79,7 @@ function show(list: FormStatus[] = forms) {
   }))
   const n = inState('open').length + unread
   const questions = inState('open').length
-  if (questions) { waitingToast.update(`→ waiting for you (${questions})`); waitingToast.show() } else waitingToast.hide()
+  if (questions) { waitingToast.update(`→ unanswered (${questions})`); waitingToast.show() } else waitingToast.hide()
   api.badge('waiting', n ? `!${n}` : null, -1)
   // the agent's messages: a toast while there are any. It comes a moment late: a message that
   // arrives in view (an open thread) is read before it would show.
