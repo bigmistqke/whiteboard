@@ -10,8 +10,13 @@ function place(main: HTMLElement) {
   const nav = document.querySelector<HTMLElement>('.wb-nav')
   const base = nav ? nav.getBoundingClientRect().height : 0
   for (const summary of main.querySelectorAll<HTMLElement>('details > summary')) {
-    let top = base, depth = 0
-    for (let d = summary.parentElement!.parentElement?.closest('details'); d && main.contains(d); d = d.parentElement?.closest('details')) {
+    let top = base,
+      depth = 0
+    for (
+      let d = summary.parentElement!.parentElement?.closest('details');
+      d && main.contains(d);
+      d = d.parentElement?.closest('details')
+    ) {
       const outer = d.querySelector<HTMLElement>(':scope > summary')
       if (outer && d.open) top += outer.getBoundingClientRect().height
       depth++
@@ -36,7 +41,10 @@ function keepTitle(e: MouseEvent) {
 export function trackSticky(main: HTMLElement, onRendered: (fn: () => void) => void) {
   main.addEventListener('click', keepTitle)
   let frame = 0
-  const later = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => place(main)) }
+  const later = () => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => place(main))
+  }
   // toggle doesn't bubble: listened for on the way down
   main.addEventListener('toggle', later, true)
   addEventListener('resize', later)

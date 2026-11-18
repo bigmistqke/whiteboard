@@ -10,16 +10,27 @@ async function flush() {
   const batch = queue
   queue = []
   try {
-    const res = await fetch('/api/markdown', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ texts: batch.map(b => b.text) }) })
+    const res = await fetch('/api/markdown', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ texts: batch.map(b => b.text) }),
+    })
     if (!res.ok) throw new Error(await res.text())
-    const { html, styles } = await res.json() as { html: string[]; styles: string[] }
+    const { html, styles } = (await res.json()) as { html: string[]; styles: string[] }
     for (const href of styles) {
-      if (![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(l => new URL(l.href).pathname === new URL(href, location.href).pathname))
+      if (
+        ![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(
+          l => new URL(l.href).pathname === new URL(href, location.href).pathname,
+        )
+      )
         document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${href.replace(/"/g, '&quot;')}">`)
     }
     batch.forEach((b, i) => b.resolve(html[i] ?? ''))
   } catch (err) {
-    for (const b of batch) { cache.delete(b.text); b.reject(err) }
+    for (const b of batch) {
+      cache.delete(b.text)
+      b.reject(err)
+    }
   }
 }
 

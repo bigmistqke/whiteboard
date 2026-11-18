@@ -5,7 +5,8 @@ import { reactive } from '../reactive'
 export type ThemePreference = Theme | 'auto'
 
 const media = matchMedia('(prefers-color-scheme: dark)')
-const resolve = (): Theme => (document.documentElement.dataset.theme as Theme | undefined) ?? (media.matches ? 'dark' : 'light')
+const resolve = (): Theme =>
+  (document.documentElement.dataset.theme as Theme | undefined) ?? (media.matches ? 'dark' : 'light')
 let theme = resolve()
 
 function update() {
@@ -19,7 +20,8 @@ media.addEventListener('change', update)
 /** The theme in effect, as it changes (api.theme). */
 export const currentTheme = reactive(() => theme)
 
-export const themePreference = (): ThemePreference => (document.documentElement.dataset.theme as Theme | undefined) ?? 'auto'
+export const themePreference = (): ThemePreference =>
+  (document.documentElement.dataset.theme as Theme | undefined) ?? 'auto'
 
 export function setThemePreference(pref: ThemePreference) {
   if (pref === 'auto') delete document.documentElement.dataset.theme
@@ -27,6 +29,8 @@ export function setThemePreference(pref: ThemePreference) {
   try {
     if (pref === 'auto') localStorage.removeItem('wb-theme')
     else localStorage.setItem('wb-theme', pref)
-  } catch { /* the choice still applies to this visit */ }
+  } catch {
+    /* the choice still applies to this visit */
+  }
   update()
 }

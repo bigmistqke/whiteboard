@@ -19,7 +19,9 @@
 import type { Api, PluginMount, PageHandle, WbEvent } from '../../src/define'
 import { html, raw } from '../../src/html.ts'
 
-const NEW = 'comments:new', REPLY = 'comments:reply', RESOLVE = 'comments:resolve'
+const NEW = 'comments:new',
+  REPLY = 'comments:reply',
+  RESOLVE = 'comments:resolve'
 
 interface Thread {
   id: string
@@ -57,7 +59,8 @@ function textIndex() {
   const nodes: { node: Text; start: number }[] = []
   let text = ''
   const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, {
-    acceptNode: n => (n.parentElement?.closest('script, style, textarea') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    acceptNode: n =>
+      n.parentElement?.closest('script, style, textarea') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
   })
   for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
     nodes.push({ node: n, start: text.length })
@@ -71,7 +74,8 @@ function point(index: ReturnType<typeof textIndex>, at: number, end: boolean) {
   for (let i = 0; i < index.nodes.length; i++) {
     const { node, start } = index.nodes[i]
     const stop = start + node.data.length
-    if (at < stop || (end && at === stop) || i === index.nodes.length - 1) return { node, offset: Math.min(Math.max(at - start, 0), node.data.length) }
+    if (at < stop || (end && at === stop) || i === index.nodes.length - 1)
+      return { node, offset: Math.min(Math.max(at - start, 0), node.data.length) }
   }
   return null
 }
@@ -100,8 +104,10 @@ function offsetsOf(index: ReturnType<typeof textIndex>, range: Range) {
 function locate(index: ReturnType<typeof textIndex>, data: Record<string, unknown>): Range | null {
   const quote = String(data.quote ?? '')
   if (!quote) return null
-  const before = String(data.before ?? ''), after = String(data.after ?? '')
-  let best = -1, bestScore = -1
+  const before = String(data.before ?? ''),
+    after = String(data.after ?? '')
+  let best = -1,
+    bestScore = -1
   for (let at = index.text.indexOf(quote); at >= 0; at = index.text.indexOf(quote, at + 1)) {
     const b = index.text.slice(Math.max(0, at - before.length), at)
     const a = index.text.slice(at + quote.length, at + quote.length + after.length)
@@ -109,10 +115,14 @@ function locate(index: ReturnType<typeof textIndex>, data: Record<string, unknow
     while (score < b.length && b[b.length - 1 - score] === before[before.length - 1 - score]) score++
     let s2 = 0
     while (s2 < a.length && a[s2] === after[s2]) s2++
-    if (score + s2 > bestScore) { best = at; bestScore = score + s2 }
+    if (score + s2 > bestScore) {
+      best = at
+      bestScore = score + s2
+    }
   }
   if (best < 0) return null
-  const s = point(index, best, false), e = point(index, best + quote.length, true)
+  const s = point(index, best, false),
+    e = point(index, best + quote.length, true)
   if (!s || !e) return null
   const range = document.createRange()
   range.setStart(s.node, s.offset)
@@ -143,34 +153,39 @@ function draw() {
   const highlights = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights
   const HighlightCtor = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight
   if (highlights && HighlightCtor) {
-    highlights.set('wb-comment', new HighlightCtor(...threads.filter(t => t.range && t.id !== openThread).map(t => t.range!)))
+    highlights.set(
+      'wb-comment',
+      new HighlightCtor(...threads.filter(t => t.range && t.id !== openThread).map(t => t.range!)),
+    )
     const active = threads.find(t => t.id === openThread)?.range
     if (active) highlights.set('wb-comment-active', new HighlightCtor(active))
     else highlights.delete('wb-comment-active')
   }
   const column = main.getBoundingClientRect()
   const unreadIds = new Set(api.unread().map(e => e.id))
-  layer.replaceChildren(...threads.map((t, i) => {
-    const badge = document.createElement('button')
-    badge.type = 'button'
-    badge.className = 'wb-comment-badge'
-    badge.dataset.thread = t.id
-    badge.toggleAttribute('data-agent', lastFromAgent(t))
-    // the replies it holds, for the page to find an unread one here (data-wb-holds, see the page)
-    badge.dataset.wbHolds = t.replies.map(r => r.id).join(' ')
-    const unread = t.replies.some(r => unreadIds.has(r.id))
-    badge.toggleAttribute('data-unread', unread)
-    badge.title = unread ? 'the agent replied: unread' : lastFromAgent(t) ? 'the agent replied' : 'comment'
-    badge.textContent = String(1 + t.replies.length)
-    const rect = t.range?.getClientRects()[0]
-    // a passage that is gone from the page: its badge waits at the top, still open until closed
-    const top = rect ? rect.top + scrollY : column.top + scrollY + i * 30
-    const left = Math.min(column.right + 8 + scrollX, document.documentElement.clientWidth - 36 + scrollX)
-    badge.style.top = `${top}px`
-    badge.style.left = `${left}px`
-    if (!rect) badge.dataset.detached = ''
-    return badge
-  }))
+  layer.replaceChildren(
+    ...threads.map((t, i) => {
+      const badge = document.createElement('button')
+      badge.type = 'button'
+      badge.className = 'wb-comment-badge'
+      badge.dataset.thread = t.id
+      badge.toggleAttribute('data-agent', lastFromAgent(t))
+      // the replies it holds, for the page to find an unread one here (data-wb-holds, see the page)
+      badge.dataset.wbHolds = t.replies.map(r => r.id).join(' ')
+      const unread = t.replies.some(r => unreadIds.has(r.id))
+      badge.toggleAttribute('data-unread', unread)
+      badge.title = unread ? 'the agent replied: unread' : lastFromAgent(t) ? 'the agent replied' : 'comment'
+      badge.textContent = String(1 + t.replies.length)
+      const rect = t.range?.getClientRects()[0]
+      // a passage that is gone from the page: its badge waits at the top, still open until closed
+      const top = rect ? rect.top + scrollY : column.top + scrollY + i * 30
+      const left = Math.min(column.right + 8 + scrollX, document.documentElement.clientWidth - 36 + scrollX)
+      badge.style.top = `${top}px`
+      badge.style.left = `${left}px`
+      if (!rect) badge.dataset.detached = ''
+      return badge
+    }),
+  )
   if (openThread) placePopover()
 }
 
@@ -215,35 +230,52 @@ function renderPopover() {
   const message = (e: WbEvent) => {
     const text = String(e.data.text ?? '')
     const md = rendered.get(text)
-    return html`<div class="wb-thread-message" data-from="${who(e)}" data-wb-message="${e.id}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text"${md != null ? raw(' data-md') : ''}>${md != null ? raw(md) : text}</div></div>`
+    return html`<div class="wb-thread-message" data-from="${who(e)}" data-wb-message="${e.id}">
+      <span class="wb-thread-who">${who(e)}</span>
+      <div class="wb-thread-text" ${md != null ? raw(' data-md') : ''}>${md != null ? raw(md) : text}</div>
+    </div>`
   }
   // the reply being typed: its text, and its focus and caret, which a redraw would take
   const box = popover.querySelector('textarea')
   const draft = box?.value ?? ''
   const typing = !!box && document.activeElement === box
-  const caret = box ? [box.selectionStart, box.selectionEnd] as const : null
-  popover.innerHTML = String(html`
-    <blockquote class="wb-thread-quote">${t.comment.data.quote ?? ''}</blockquote>
-    ${t.comment.data.at && html`<p class="wb-thread-at">${t.comment.data.at}</p>`}
-    ${!t.range && html`<p class="wb-thread-detached">This passage is no longer on the page.</p>`}
-    ${[t.comment, ...t.replies].map(message)}
-    <form class="wb-thread-reply">
-      <textarea rows="2" placeholder="Reply (Shift+Enter for a new line)"></textarea>
-      <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Reply</button><button type="button" class="wb-comment-button" data-close>Close thread</button></div>
-    </form>`)
+  const caret = box ? ([box.selectionStart, box.selectionEnd] as const) : null
+  popover.innerHTML = String(
+    html` <blockquote class="wb-thread-quote">${t.comment.data.quote ?? ''}</blockquote>
+      ${t.comment.data.at && html`<p class="wb-thread-at">${t.comment.data.at}</p>`}
+      ${!t.range && html`<p class="wb-thread-detached">This passage is no longer on the page.</p>`}
+      ${[t.comment, ...t.replies].map(message)}
+      <form class="wb-thread-reply">
+        <textarea rows="2" placeholder="Reply (Shift+Enter for a new line)"></textarea>
+        <div class="wb-thread-actions">
+          <button type="submit" class="wb-comment-button wb-comment-primary">Reply</button
+          ><button type="button" class="wb-comment-button" data-close>Close thread</button>
+        </div>
+      </form>`,
+  )
   const again = popover.querySelector('textarea')!
   again.value = draft
-  if (typing) { again.focus({ preventScroll: true }); if (caret) again.setSelectionRange(caret[0], caret[1]) }
+  if (typing) {
+    again.focus({ preventScroll: true })
+    if (caret) again.setSelectionRange(caret[0], caret[1])
+  }
   // the messages not rendered yet: their text only, put in place as each arrives (the rest of the
   // thread, the reply being typed among it, stays as it is)
   for (const e of [t.comment, ...t.replies]) {
     const text = String(e.data.text ?? '')
     if (rendered.has(text)) continue
-    api.markdown(text).then(md => {
-      rendered.set(text, md)
-      const el = popover.querySelector<HTMLElement>(`[data-wb-message="${CSS.escape(e.id)}"] .wb-thread-text`)
-      if (el && !el.hasAttribute('data-md')) holdTyping(() => { el.innerHTML = md; el.setAttribute('data-md', '') })
-    }, err => console.error('comments:', err))
+    api.markdown(text).then(
+      md => {
+        rendered.set(text, md)
+        const el = popover.querySelector<HTMLElement>(`[data-wb-message="${CSS.escape(e.id)}"] .wb-thread-text`)
+        if (el && !el.hasAttribute('data-md'))
+          holdTyping(() => {
+            el.innerHTML = md
+            el.setAttribute('data-md', '')
+          })
+      },
+      err => console.error('comments:', err),
+    )
   }
 }
 
@@ -252,7 +284,10 @@ function placePopover() {
   if (!badge) return
   const top = parseFloat(badge.style.top) + 28
   const width = Math.min(360, document.documentElement.clientWidth - 32)
-  const left = Math.max(16 + scrollX, Math.min(parseFloat(badge.style.left) + 28 - width, document.documentElement.clientWidth - width - 16 + scrollX))
+  const left = Math.max(
+    16 + scrollX,
+    Math.min(parseFloat(badge.style.left) + 28 - width, document.documentElement.clientWidth - width - 16 + scrollX),
+  )
   popover.style.top = `${top}px`
   popover.style.left = `${left}px`
   popover.style.width = `${width}px`
@@ -281,10 +316,17 @@ let pending: { quote: string; before: string; after: string; block: number; at?:
 function onSelection() {
   main = root.querySelector('main') ?? root
   const sel = getSelection()
-  if (!sel || sel.isCollapsed || !sel.rangeCount) { if (!startButton.matches(':focus')) startButton.hidden = true; return }
+  if (!sel || sel.isCollapsed || !sel.rangeCount) {
+    if (!startButton.matches(':focus')) startButton.hidden = true
+    return
+  }
   const range = sel.getRangeAt(0)
-  const inPage = (n: Node) => main.contains(n) && !(n instanceof Element ? n : n.parentElement)?.closest('form, input, textarea, select, button')
-  if (!inPage(range.startContainer) || !inPage(range.endContainer)) { startButton.hidden = true; return }
+  const inPage = (n: Node) =>
+    main.contains(n) && !(n instanceof Element ? n : n.parentElement)?.closest('form, input, textarea, select, button')
+  if (!inPage(range.startContainer) || !inPage(range.endContainer)) {
+    startButton.hidden = true
+    return
+  }
   startButton.hidden = !prepare(range)
 }
 
@@ -301,7 +343,8 @@ function prepare(range: Range): boolean {
   // the quote as it appears in the page's text, trimmed of the whitespace the selection had around it
   const start = index.text.indexOf(quote, at.start)
   const s = start >= 0 && start <= at.end ? start : at.start
-  let block: Element | null = (range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement)
+  let block: Element | null =
+    range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
   while (block && block.parentElement !== main) block = block.parentElement
   pending = {
     quote,
@@ -310,8 +353,11 @@ function prepare(range: Range): boolean {
     block: block ? [...main.children].indexOf(block) : -1,
   }
   // where the passage is from, when its block says (see the top of this file)
-  const places = [...main.querySelectorAll<HTMLElement>('[data-wb-at]')].filter(el => range.intersectsNode(el) && el.textContent).map(el => el.dataset.wbAt!)
-  if (places.length) pending.at = places.length > 1 && places.at(-1) !== places[0] ? `${places[0]} – ${places.at(-1)}` : places[0]
+  const places = [...main.querySelectorAll<HTMLElement>('[data-wb-at]')]
+    .filter(el => range.intersectsNode(el) && el.textContent)
+    .map(el => el.dataset.wbAt!)
+  if (places.length)
+    pending.at = places.length > 1 && places.at(-1) !== places[0] ? `${places[0]} – ${places.at(-1)}` : places[0]
   const rects = range.getClientRects()
   const last = rects[rects.length - 1] ?? range.getBoundingClientRect()
   startButton.style.top = `${last.bottom + scrollY + 6}px`
@@ -366,7 +412,8 @@ function onLinePointer(e: MouseEvent) {
       drag.to = line
       const highlights = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights
       const HighlightCtor = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight
-      if (highlights && HighlightCtor) highlights.set('wb-comment-active', new HighlightCtor(linesRange(drag.from, drag.to)))
+      if (highlights && HighlightCtor)
+        highlights.set('wb-comment-active', new HighlightCtor(linesRange(drag.from, drag.to)))
     }
     return
   }
@@ -381,16 +428,27 @@ function onLinePointer(e: MouseEvent) {
   const box = pre.getBoundingClientRect()
   const plus = lineButton.getBoundingClientRect()
   const inside = e.clientX >= plus.left - 4 && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom
-  const atHeight = inside ? codeLine(document.elementFromPoint(hovered.getBoundingClientRect().left + 4, e.clientY)) : null
+  const atHeight = inside
+    ? codeLine(document.elementFromPoint(hovered.getBoundingClientRect().left + 4, e.clientY))
+    : null
   if (atHeight && pre.contains(atHeight)) showLineButton(atHeight)
-  else if (!inside || !(e.clientY >= plus.top - 4 && e.clientY <= plus.bottom + 4)) { lineButton.hidden = true; hovered = null }
+  else if (!inside || !(e.clientY >= plus.top - 4 && e.clientY <= plus.bottom + 4)) {
+    lineButton.hidden = true
+    hovered = null
+  }
 }
 
 const composer = document.createElement('form')
 composer.className = 'wb-thread wb-comment-new'
 composer.hidden = true
-composer.innerHTML = String(html`<blockquote class="wb-thread-quote"></blockquote><textarea rows="3" placeholder="Your comment (Shift+Enter for a new line)"></textarea>
-  <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Comment</button><button type="button" class="wb-comment-button" data-cancel>Cancel</button></div>`)
+composer.innerHTML = String(
+  html`<blockquote class="wb-thread-quote"></blockquote>
+    <textarea rows="3" placeholder="Your comment (Shift+Enter for a new line)"></textarea>
+    <div class="wb-thread-actions">
+      <button type="submit" class="wb-comment-button wb-comment-primary">Comment</button
+      ><button type="button" class="wb-comment-button" data-cancel>Cancel</button>
+    </div>`,
+)
 
 function startComment() {
   if (!pending) return
@@ -426,7 +484,8 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     e.preventDefault()
     const highlights = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights
     const HighlightCtor = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight
-    if (highlights && HighlightCtor) highlights.set('wb-comment-active', new HighlightCtor(linesRange(hovered, hovered)))
+    if (highlights && HighlightCtor)
+      highlights.set('wb-comment-active', new HighlightCtor(linesRange(hovered, hovered)))
     drag = { pre: hovered.closest('pre')!, from: hovered, to: hovered }
   })
   document.addEventListener('mouseup', () => {
@@ -439,19 +498,23 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   })
 
   let selTimer = 0
-  document.addEventListener('selectionchange', () => { clearTimeout(selTimer); selTimer = window.setTimeout(onSelection, 150) })
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(selTimer)
+    selTimer = window.setTimeout(onSelection, 150)
+  })
   // keep the selection when the button is pressed
   startButton.addEventListener('mousedown', e => e.preventDefault())
   startButton.addEventListener('click', startComment)
 
   // as in a chat: Enter sends the comment or reply, Shift+Enter starts a new line; not while an
   // input method is composing
-  for (const form of [composer, popover] as HTMLElement[]) form.addEventListener('keydown', e => {
-    const box = e.target as HTMLElement
-    if (box.tagName !== 'TEXTAREA' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return
-    e.preventDefault()
-    box.closest('form')?.requestSubmit()
-  })
+  for (const form of [composer, popover] as HTMLElement[])
+    form.addEventListener('keydown', e => {
+      const box = e.target as HTMLElement
+      if (box.tagName !== 'TEXTAREA' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return
+      e.preventDefault()
+      box.closest('form')?.requestSubmit()
+    })
   composer.addEventListener('submit', async e => {
     e.preventDefault()
     const text = composer.querySelector('textarea')!.value.trim()
@@ -464,11 +527,14 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     refreshComments()
     openPopover(saved.id)
   })
-  composer.querySelector('[data-cancel]')!.addEventListener('click', () => { composer.hidden = true; pending = null })
+  composer.querySelector('[data-cancel]')!.addEventListener('click', () => {
+    composer.hidden = true
+    pending = null
+  })
 
   layer.addEventListener('click', e => {
     const id = (e.target as HTMLElement).closest<HTMLElement>('[data-thread]')?.dataset.thread
-    if (id) (openThread === id ? closePopover() : openPopover(id))
+    if (id) openThread === id ? closePopover() : openPopover(id)
   })
   popover.addEventListener('submit', async e => {
     e.preventDefault()
@@ -501,8 +567,10 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   })
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return
-    if (!composer.hidden) { composer.hidden = true; pending = null }
-    else if (openThread) closePopover()
+    if (!composer.hidden) {
+      composer.hidden = true
+      pending = null
+    } else if (openThread) closePopover()
   })
 
   api.events.on(refreshComments)

@@ -21,23 +21,62 @@ deleted file mode 100644
 
 test('diff lines: kinds, and where each line in a hunk is', () => {
   const lines = diffLines(DIFF)
-  assert.deepEqual(lines.map(l => l.kind), ['meta', 'meta', 'meta', 'file', 'hunk', 'context', 'del', 'add', 'add', 'meta', 'meta', 'meta', 'meta', 'file', 'hunk', 'del'])
-  assert.deepEqual(lines.filter(l => l.at).map(l => l.at), ['src/a.ts:3', 'src/a.ts (old):4', 'src/a.ts:4', 'src/a.ts:5', 'gone.ts (old):1'])
-  assert.deepEqual(lines.filter(l => l.n).map(l => l.n), [3, 4, 4, 5, 1])
+  assert.deepEqual(
+    lines.map(l => l.kind),
+    [
+      'meta',
+      'meta',
+      'meta',
+      'file',
+      'hunk',
+      'context',
+      'del',
+      'add',
+      'add',
+      'meta',
+      'meta',
+      'meta',
+      'meta',
+      'file',
+      'hunk',
+      'del',
+    ],
+  )
+  assert.deepEqual(
+    lines.filter(l => l.at).map(l => l.at),
+    ['src/a.ts:3', 'src/a.ts (old):4', 'src/a.ts:4', 'src/a.ts:5', 'gone.ts (old):1'],
+  )
+  assert.deepEqual(
+    lines.filter(l => l.n).map(l => l.n),
+    [3, 4, 4, 5, 1],
+  )
 })
 
 test('diff lines: what the reader sees of the headers', () => {
-  const labels = diffLines(DIFF).filter(l => l.label != null).map(l => l.label)
+  const labels = diffLines(DIFF)
+    .filter(l => l.label != null)
+    .map(l => l.label)
   assert.deepEqual(labels, ['src/a.ts', '', 'gone.ts  (deleted)', ''])
-  const renamed = diffLines('diff --git a/x.ts b/y.ts\nsimilarity index 90%\nrename from x.ts\nrename to y.ts\n--- a/x.ts\n+++ b/y.ts')
+  const renamed = diffLines(
+    'diff --git a/x.ts b/y.ts\nsimilarity index 90%\nrename from x.ts\nrename to y.ts\n--- a/x.ts\n+++ b/y.ts',
+  )
   assert.equal(renamed.find(l => l.kind === 'file')?.label, 'x.ts → y.ts')
 })
 
 test('diff lines: a diff without file headers has kinds and numbers, but no places', () => {
   const lines = diffLines('@@ -1 +1 @@\n-a\n+b')
-  assert.deepEqual(lines, [{ kind: 'hunk', label: '' }, { kind: 'del', n: 1 }, { kind: 'add', n: 1 }])
+  assert.deepEqual(lines, [
+    { kind: 'hunk', label: '' },
+    { kind: 'del', n: 1 },
+    { kind: 'add', n: 1 },
+  ])
 })
 
 test('diff lines: a snippet without hunks is added, removed and unchanged lines, nothing hidden', () => {
-  assert.deepEqual(diffLines('function f() {\n-  return 1\n+  return 2\n}'), [{ kind: 'context' }, { kind: 'del' }, { kind: 'add' }, { kind: 'context' }])
+  assert.deepEqual(diffLines('function f() {\n-  return 1\n+  return 2\n}'), [
+    { kind: 'context' },
+    { kind: 'del' },
+    { kind: 'add' },
+    { kind: 'context' },
+  ])
 })

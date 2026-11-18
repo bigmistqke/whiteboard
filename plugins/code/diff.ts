@@ -17,20 +17,33 @@ export interface DiffLineInfo {
   label?: string
 }
 
-const unprefix = (p: string) => p.replace(/\t.*$/, '').replace(/^"|"$/g, '').replace(/^[ab]\//, '')
+const unprefix = (p: string) =>
+  p
+    .replace(/\t.*$/, '')
+    .replace(/^"|"$/g, '')
+    .replace(/^[ab]\//, '')
 
 export function diffLines(text: string): DiffLineInfo[] {
   // a snippet without hunks or file headers (only +, - and unchanged lines, as people paste them):
   // every line is one of those, without numbers, as no header says where it is
   if (!/^(@@ -\d|diff --git )/m.test(text)) {
-    return text.split('\n').map((line): DiffLineInfo => ({ kind: line[0] === '+' ? 'add' : line[0] === '-' ? 'del' : 'context' }))
+    return text
+      .split('\n')
+      .map((line): DiffLineInfo => ({ kind: line[0] === '+' ? 'add' : line[0] === '-' ? 'del' : 'context' }))
   }
-  let file = '', oldFile = '', oldN = 0, newN = 0, inHunk = false
-  let status = '', renamedFrom = ''
+  let file = '',
+    oldFile = '',
+    oldN = 0,
+    newN = 0,
+    inHunk = false
+  let status = '',
+    renamedFrom = ''
   return text.split('\n').map((line): DiffLineInfo => {
     const at = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line)
     if (at) {
-      oldN = Number(at[1]); newN = Number(at[2]); inHunk = true
+      oldN = Number(at[1])
+      newN = Number(at[2])
+      inHunk = true
       // only a mark that lines were skipped: the numbers are in the gutter, and the text git adds
       // after them is a guess at the enclosing line, often just the one before
       return { kind: 'hunk', label: '' }
@@ -43,13 +56,20 @@ export function diffLines(text: string): DiffLineInfo[] {
       }
       if (sign === '+') return { kind: 'add', ...where('new', newN++) }
       if (sign === '-') return { kind: 'del', ...where('old', oldN++) }
-      if (sign === ' ') { oldN++; return { kind: 'context', ...where('new', newN++) } }
+      if (sign === ' ') {
+        oldN++
+        return { kind: 'context', ...where('new', newN++) }
+      }
       // "\ No newline at end of file" belongs to the hunk; anything else ends it
       if (sign === '\\') return { kind: 'meta' }
       inHunk = false
     }
-    if (line.startsWith('diff --git ')) { file = ''; oldFile = ''; status = ''; renamedFrom = '' }
-    else if (line.startsWith('new file mode')) status = 'new'
+    if (line.startsWith('diff --git ')) {
+      file = ''
+      oldFile = ''
+      status = ''
+      renamedFrom = ''
+    } else if (line.startsWith('new file mode')) status = 'new'
     else if (line.startsWith('deleted file mode')) status = 'deleted'
     else if (line.startsWith('rename from ')) renamedFrom = line.slice('rename from '.length)
     else if (line.startsWith('--- ')) oldFile = line === '--- /dev/null' ? '' : unprefix(line.slice(4))

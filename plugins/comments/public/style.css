@@ -3,38 +3,183 @@
  * and fonts come from the page's theme variables, else from
  * the fallbacks here.
  */
-::highlight(wb-comment) { background-color: color-mix(in srgb, var(--accent, #1d5bbf) 18%, transparent); }
-::highlight(wb-comment-active) { background-color: color-mix(in srgb, var(--accent, #1d5bbf) 34%, transparent); }
-.wb-comment-start, .wb-comment-badge, .wb-thread { position: absolute; z-index: 20; font-family: var(--sans, sans-serif); }
-.wb-comment-start[hidden], .wb-thread[hidden], .wb-line-comment[hidden] { display: none; }
-.wb-comment-start { background: var(--accent, #1d5bbf); color: var(--accent-text, #fff); border-color: var(--accent, #1d5bbf); border-radius: 99px; font-size: .78rem; padding: 3px 10px; box-shadow: 0 2px 8px rgb(0 0 0 / .15); }
-.wb-comment-badge { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px 12px 12px 3px; font-size: .72rem; font-weight: 600; background: var(--bg, Canvas); color: var(--accent, #1d5bbf); border: 1px solid color-mix(in srgb, var(--accent, #1d5bbf) 50%, transparent); }
-.wb-comment-badge[data-agent] { background: var(--accent, #1d5bbf); color: var(--accent-text, #fff); }
-.wb-comment-badge[data-detached] { border-style: dashed; }
+::highlight(wb-comment) {
+  background-color: color-mix(in srgb, var(--accent, #1d5bbf) 18%, transparent);
+}
+::highlight(wb-comment-active) {
+  background-color: color-mix(in srgb, var(--accent, #1d5bbf) 34%, transparent);
+}
+.wb-comment-start,
+.wb-comment-badge,
+.wb-thread {
+  position: absolute;
+  z-index: 20;
+  font-family: var(--sans, sans-serif);
+}
+.wb-comment-start[hidden],
+.wb-thread[hidden],
+.wb-line-comment[hidden] {
+  display: none;
+}
+.wb-comment-start {
+  background: var(--accent, #1d5bbf);
+  color: var(--accent-text, #fff);
+  border-color: var(--accent, #1d5bbf);
+  border-radius: 99px;
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+}
+.wb-comment-badge {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px 12px 12px 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--bg, Canvas);
+  color: var(--accent, #1d5bbf);
+  border: 1px solid color-mix(in srgb, var(--accent, #1d5bbf) 50%, transparent);
+}
+.wb-comment-badge[data-agent] {
+  background: var(--accent, #1d5bbf);
+  color: var(--accent-text, #fff);
+}
+.wb-comment-badge[data-detached] {
+  border-style: dashed;
+}
 /* a reply the reader hasn't read: a dot on the badge until its thread is open and it is in view */
-.wb-comment-badge[data-unread]::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad, #c4352b); border: 2px solid var(--bg, Canvas); }
-.wb-thread { background: var(--bg, Canvas); border: 1px solid var(--border, #e3e5e9); border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 28px rgb(0 0 0 / .16); display: grid; gap: 10px; font-size: .9rem; }
-.wb-thread-quote { margin: 0; padding-left: 10px; border-left: 3px solid color-mix(in srgb, var(--accent, #1d5bbf) 50%, transparent); color: var(--muted, #696e76); font-size: .85rem; max-height: 6.5em; overflow: auto; white-space: pre-wrap; }
-.wb-thread-detached { margin: 0; color: var(--muted, #696e76); font-size: .8rem; }
-.wb-thread-message { display: grid; gap: 2px; }
-.wb-thread-who { font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #696e76); }
-.wb-thread-message[data-from=agent] .wb-thread-who { color: var(--accent, #1d5bbf); }
-.wb-thread-text { white-space: pre-wrap; line-height: 1.45; }
+.wb-comment-badge[data-unread]::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bad, #c4352b);
+  border: 2px solid var(--bg, Canvas);
+}
+.wb-thread {
+  background: var(--bg, Canvas);
+  border: 1px solid var(--border, #e3e5e9);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.16);
+  display: grid;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+.wb-thread-quote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid color-mix(in srgb, var(--accent, #1d5bbf) 50%, transparent);
+  color: var(--muted, #696e76);
+  font-size: 0.85rem;
+  max-height: 6.5em;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.wb-thread-detached {
+  margin: 0;
+  color: var(--muted, #696e76);
+  font-size: 0.8rem;
+}
+.wb-thread-message {
+  display: grid;
+  gap: 2px;
+}
+.wb-thread-who {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #696e76);
+}
+.wb-thread-message[data-from='agent'] .wb-thread-who {
+  color: var(--accent, #1d5bbf);
+}
+.wb-thread-text {
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
 /* rendered from markdown: its paragraphs and code carry the spacing */
-.wb-thread-text[data-md] { white-space: normal; overflow-wrap: anywhere; }
-.wb-thread-text[data-md] > :first-child { margin-top: 0; }
-.wb-thread-text[data-md] > :last-child { margin-bottom: 0; }
-.wb-thread-text[data-md] :is(p, ul, ol, pre, blockquote) { margin: 0 0 .5em; }
-.wb-thread-text[data-md] pre { font-size: .8rem; padding: 8px 10px; border-radius: 6px; overflow-x: auto; max-width: 100%; }
-.wb-thread textarea { width: 100%; resize: vertical; font: inherit; }
-.wb-thread-reply { display: grid; gap: 8px; margin: 0; }
-.wb-thread-actions { display: flex; gap: 8px; }
+.wb-thread-text[data-md] {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wb-thread-text[data-md] > :first-child {
+  margin-top: 0;
+}
+.wb-thread-text[data-md] > :last-child {
+  margin-bottom: 0;
+}
+.wb-thread-text[data-md] :is(p, ul, ol, pre, blockquote) {
+  margin: 0 0 0.5em;
+}
+.wb-thread-text[data-md] pre {
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.wb-thread textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+.wb-thread-reply {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.wb-thread-actions {
+  display: flex;
+  gap: 8px;
+}
 /* its own buttons, styled here rather than borrowed from the page */
-.wb-comment-button { font: 500 .85rem/1.3 var(--sans, sans-serif); padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border, #e3e5e9); background: var(--surface, Canvas); color: var(--text, CanvasText); }
-.wb-comment-button:hover { border-color: var(--muted, #696e76); }
-.wb-comment-primary { background: var(--accent, #1d5bbf); color: var(--accent-text, #fff); border-color: var(--accent, #1d5bbf); }
-.wb-comment-start, .wb-comment-badge { cursor: pointer; border-style: solid; border-width: 1px; }
+.wb-comment-button {
+  font: 500 0.85rem/1.3 var(--sans, sans-serif);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border, #e3e5e9);
+  background: var(--surface, Canvas);
+  color: var(--text, CanvasText);
+}
+.wb-comment-button:hover {
+  border-color: var(--muted, #696e76);
+}
+.wb-comment-primary {
+  background: var(--accent, #1d5bbf);
+  color: var(--accent-text, #fff);
+  border-color: var(--accent, #1d5bbf);
+}
+.wb-comment-start,
+.wb-comment-badge {
+  cursor: pointer;
+  border-style: solid;
+  border-width: 1px;
+}
 
 /* "+" beside a line of code: comment on it, or drag over several */
-.wb-line-comment { position: absolute; z-index: 20; width: 20px; height: 20px; padding: 0; border-radius: 4px; cursor: pointer; font: 600 14px/1 var(--sans, sans-serif); background: var(--accent, #1d5bbf); color: var(--accent-text, #fff); border: none; box-shadow: 0 1px 4px rgb(0 0 0 / .2); }
-.wb-thread-at { margin: -4px 0 0; font: .78rem var(--mono, monospace); color: var(--muted, #696e76); }
+.wb-line-comment {
+  position: absolute;
+  z-index: 20;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font: 600 14px/1 var(--sans, sans-serif);
+  background: var(--accent, #1d5bbf);
+  color: var(--accent-text, #fff);
+  border: none;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+}
+.wb-thread-at {
+  margin: -4px 0 0;
+  font: 0.78rem var(--mono, monospace);
+  color: var(--muted, #696e76);
+}

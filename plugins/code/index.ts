@@ -58,25 +58,33 @@ export default function code(options: Options = {}): Plugin {
     } else language = 'text'
     const diff = language === 'diff' ? diffLines(code) : null
     return h.codeToHtml(code, {
-      lang: language, themes, defaultColor: false, colorReplacements,
-      transformers: diff ? [{
-        line(node, n) {
-          const info = diff[n - 1]
-          if (!info) return
-          node.properties['data-diff'] = info.kind
-          if (info.n != null) node.properties['data-n'] = String(info.n)
-          if (info.at) node.properties['data-wb-at'] = info.at
-          // a file's headers read as its name; a hunk's header as nothing but the gutter's `⋯`
-          if (info.label != null) node.children = [{ type: 'text', value: info.label }]
-        },
-        // the headers nobody reads go, with the line break after each
-        code(node) {
-          node.children = node.children.filter((child, i, all) => {
-            const isMeta = (c: typeof child | undefined) => c?.type === 'element' && c.properties['data-diff'] === 'meta'
-            return !isMeta(child) && !(child.type === 'text' && isMeta(all[i - 1]))
-          })
-        },
-      }] : [],
+      lang: language,
+      themes,
+      defaultColor: false,
+      colorReplacements,
+      transformers: diff
+        ? [
+            {
+              line(node, n) {
+                const info = diff[n - 1]
+                if (!info) return
+                node.properties['data-diff'] = info.kind
+                if (info.n != null) node.properties['data-n'] = String(info.n)
+                if (info.at) node.properties['data-wb-at'] = info.at
+                // a file's headers read as its name; a hunk's header as nothing but the gutter's `⋯`
+                if (info.label != null) node.children = [{ type: 'text', value: info.label }]
+              },
+              // the headers nobody reads go, with the line break after each
+              code(node) {
+                node.children = node.children.filter((child, i, all) => {
+                  const isMeta = (c: typeof child | undefined) =>
+                    c?.type === 'element' && c.properties['data-diff'] === 'meta'
+                  return !isMeta(child) && !(child.type === 'text' && isMeta(all[i - 1]))
+                })
+              },
+            },
+          ]
+        : [],
     })
   }
 

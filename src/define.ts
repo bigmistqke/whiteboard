@@ -101,7 +101,8 @@ export interface Plugin {
  * A plugin, with its public folder defaulted to `public/` next to the module that calls this
  * (found from the call stack), when it doesn't say one.
  */
-export const definePlugin = (plugin: Plugin): Plugin => (plugin.public != null ? plugin : { ...plugin, public: callerPublic() })
+export const definePlugin = (plugin: Plugin): Plugin =>
+  plugin.public != null ? plugin : { ...plugin, public: callerPublic() }
 
 /** `public/` next to the module that called definePlugin: the first frame of the stack in another file. */
 function callerPublic(): URL | undefined {
@@ -177,7 +178,12 @@ export interface PluginHooks {
    * pixels. The page keeps its own fixed elements clear of it and counts what is behind it as out
    * of view.
    */
-  shell?(req: import('node:http').IncomingMessage): { head?: string | Html; body?: string | Html } | null | Promise<{ head?: string | Html; body?: string | Html } | null>
+  shell?(
+    req: import('node:http').IncomingMessage,
+  ):
+    | { head?: string | Html; body?: string | Html }
+    | null
+    | Promise<{ head?: string | Html; body?: string | Html } | null>
   /**
    * A browser module whose default export is an `PluginMount`: on every page, the core imports
    * it once the page has mounted, and hands it the page and its api. For

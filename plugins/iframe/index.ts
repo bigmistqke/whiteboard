@@ -20,7 +20,8 @@ export function height(value: string | undefined): string {
 export async function render(ctx: DirectiveContext) {
   const src = (ctx.attrs.src ?? '').trim()
   if (!src) return html`<pre class="wb-error">iframe: needs a src, like ::iframe{src="http://localhost:5173"}</pre>`
-  if (!safeSrc(src)) return html`<pre class="wb-error">iframe: src must be an http(s) URL or a path, not ${src.split(':')[0]}:</pre>`
+  if (!safeSrc(src))
+    return html`<pre class="wb-error">iframe: src must be an http(s) URL or a path, not ${src.split(':')[0]}:</pre>`
   const title = ctx.labelText ?? ctx.attrs.title ?? src
   // in a window (the page's: its label, or the address; open on its own; fill the window), its
   // body the frame, which the reader can drag taller

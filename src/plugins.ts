@@ -42,7 +42,8 @@ const TYPES: Record<BaseType, (v: unknown) => boolean> = {
 function parseType(spec: FieldType | string, where: string): { type: BaseType; optional: boolean } {
   const optional = spec.endsWith('?')
   const type = optional ? spec.slice(0, -1) : spec
-  if (!(type in TYPES)) throw new Error(`${where}: unknown type "${spec}" (one of ${Object.keys(TYPES).join(', ')}, with ? when optional)`)
+  if (!(type in TYPES))
+    throw new Error(`${where}: unknown type "${spec}" (one of ${Object.keys(TYPES).join(', ')}, with ? when optional)`)
   return { type: type as BaseType, optional }
 }
 
@@ -52,7 +53,10 @@ function checkFields(spec: Record<string, FieldType> = {}, input: unknown = {}, 
   const value = input as Record<string, unknown>
   for (const [name, s] of Object.entries(spec)) {
     const { type, optional } = parseType(s, where)
-    if (value[name] === undefined) { if (!optional) return `${where}: ${name} is missing`; continue }
+    if (value[name] === undefined) {
+      if (!optional) return `${where}: ${name} is missing`
+      continue
+    }
     if (!TYPES[type](value[name])) return `${where}: ${name} must be ${type}`
   }
   for (const name of Object.keys(value)) if (!(name in spec)) return `${where}: unknown field ${name}`
@@ -81,10 +85,12 @@ export function mountRoutes(name: string, routes: Record<string, Route> = {}): M
     const m = ROUTE.exec(key)
     if (!m) throw new Error(`plugin ${name}: route "${key}" must look like "GET /path"`)
     if (typeof route?.run !== 'function') throw new Error(`plugin ${name}: route "${key}" has no run function`)
-    for (const [field, spec] of Object.entries({ ...route.body, ...route.query })) parseType(spec, `plugin ${name}, route "${key}", ${field}`)
+    for (const [field, spec] of Object.entries({ ...route.body, ...route.query }))
+      parseType(spec, `plugin ${name}, route "${key}", ${field}`)
     const [, method, at] = m as unknown as [string, string, string]
     const path = `/api/${name}${at === '/' ? '' : at.replace(/\/$/, '')}`
-    if (table.some(r => r.method === method && r.path === path)) throw new Error(`plugin ${name}: route "${key}" is declared twice`)
+    if (table.some(r => r.method === method && r.path === path))
+      throw new Error(`plugin ${name}: route "${key}" is declared twice`)
     table.push({ method, path, route, plugin: name })
   }
   return table
@@ -93,8 +99,20 @@ export function mountRoutes(name: string, routes: Record<string, Route> = {}): M
 function readJson(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let body = ''
-    req.on('data', (c: Buffer) => { body += c; if (body.length > 1e6) { reject(new Error('body too large')); req.destroy() } })
-    req.on('end', () => { try { resolve(body ? JSON.parse(body) : {}) } catch { reject(new Error('the body is not JSON')) } })
+    req.on('data', (c: Buffer) => {
+      body += c
+      if (body.length > 1e6) {
+        reject(new Error('body too large'))
+        req.destroy()
+      }
+    })
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {})
+      } catch {
+        reject(new Error('the body is not JSON'))
+      }
+    })
     req.on('error', reject)
   })
 }
@@ -110,29 +128,56 @@ const json = (res: ServerResponse, status: number, data: unknown) => {
  * JSON; a stream route (`stream: true`) writes to `res` itself. An error it throws is sent with its
  * `status` (default 500).
  */
-export async function dispatch(table: MountedRoute[], req: IncomingMessage, res: ServerResponse, url: URL, authorized: (req: IncomingMessage) => boolean): Promise<boolean> {
+export async function dispatch(
+  table: MountedRoute[],
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  authorized: (req: IncomingMessage) => boolean,
+): Promise<boolean> {
   const forPath = table.filter(r => r.path === url.pathname)
   if (!forPath.length) return false
   const hit = forPath.find(r => r.method === req.method)
-  if (!hit) { res.setHeader('allow', forPath.map(r => r.method).join(', ')); json(res, 405, { error: `use ${forPath.map(r => r.method).join(' or ')}` }); return true }
+  if (!hit) {
+    res.setHeader('allow', forPath.map(r => r.method).join(', '))
+    json(res, 405, { error: `use ${forPath.map(r => r.method).join(' or ')}` })
+    return true
+  }
   const { route } = hit
-  if (route.auth && !authorized(req)) { json(res, 403, { error: 'this needs the project\'s token: open a link from the command line, or send x-whiteboard-token' }); return true }
+  if (route.auth && !authorized(req)) {
+    json(res, 403, {
+      error: "this needs the project's token: open a link from the command line, or send x-whiteboard-token",
+    })
+    return true
+  }
   try {
     const query = fromQuery(route.query, url.searchParams)
     const queryError = route.query ? checkFields(route.query, query, 'query') : null
-    if (queryError) { json(res, 400, { error: queryError }); return true }
+    if (queryError) {
+      json(res, 400, { error: queryError })
+      return true
+    }
     let body: Record<string, unknown> = {}
     if (hit.method !== 'GET' && hit.method !== 'DELETE') {
       const input = await readJson(req)
       const bodyError = checkFields(route.body, input, 'body')
-      if (bodyError) { json(res, 400, { error: bodyError }); return true }
+      if (bodyError) {
+        json(res, 400, { error: bodyError })
+        return true
+      }
       body = input as Record<string, unknown>
     }
-    if (route.stream) { await route.run({ body, query, req, res }); return true }
+    if (route.stream) {
+      await route.run({ body, query, req, res })
+      return true
+    }
     const out = await route.run({ body, query, req })
     json(res, 200, out ?? { ok: true })
   } catch (err) {
-    if (res.headersSent) { res.end(); return true }
+    if (res.headersSent) {
+      res.end()
+      return true
+    }
     const e = err as { status?: number; message?: string } | null
     json(res, e?.status ?? 500, { error: e?.message ?? String(err) })
   }
@@ -140,10 +185,16 @@ export async function dispatch(table: MountedRoute[], req: IncomingMessage, res:
 }
 
 /** The routes for the docs: method, path, what it does, what it takes. */
-export const describeRoutes = (table: MountedRoute[]) => table.map(({ method, path, route }) => ({
-  method, path, description: route.description ?? '', auth: !!route.auth, stream: !!route.stream,
-  body: route.body ?? null, query: route.query ?? null,
-}))
+export const describeRoutes = (table: MountedRoute[]) =>
+  table.map(({ method, path, route }) => ({
+    method,
+    path,
+    description: route.description ?? '',
+    auth: !!route.auth,
+    stream: !!route.stream,
+    body: route.body ?? null,
+    query: route.query ?? null,
+  }))
 
 // ---- commands ----------------------------------------------------------------------------------
 
@@ -175,19 +226,34 @@ export function parseCommandArgs(command: Command, all: string[], name: string) 
   const cut = all.indexOf('--')
   const args = cut < 0 ? all : all.slice(0, cut)
   const rest = cut < 0 ? [] : all.slice(cut + 1)
-  if (rest.length && !command.rest) throw new Error(`whiteboard ${name} takes nothing after --\nusage: whiteboard ${name} ${usage(command)}`)
-  const options: ParseArgsOptionsConfig = Object.fromEntries(Object.entries(command.options ?? {}).map(([key, o]) => {
-    const { type } = parseType(o.type, key)
-    return [key, { type: type === 'boolean' ? 'boolean' as const : 'string' as const, ...(o.short ? { short: o.short } : {}) }]
-  }))
+  if (rest.length && !command.rest)
+    throw new Error(`whiteboard ${name} takes nothing after --\nusage: whiteboard ${name} ${usage(command)}`)
+  const options: ParseArgsOptionsConfig = Object.fromEntries(
+    Object.entries(command.options ?? {}).map(([key, o]) => {
+      const { type } = parseType(o.type, key)
+      return [
+        key,
+        {
+          type: type === 'boolean' ? ('boolean' as const) : ('string' as const),
+          ...(o.short ? { short: o.short } : {}),
+        },
+      ]
+    }),
+  )
   let parsed
-  try { parsed = parseArgs({ args, options, allowPositionals: true, strict: true }) } catch (err) {
+  try {
+    parsed = parseArgs({ args, options, allowPositionals: true, strict: true })
+  } catch (err) {
     throw new Error(`${(err as Error).message}\nusage: whiteboard ${name} ${usage(command)}`)
   }
   const values: Record<string, unknown> = { ...parsed.values }
   for (const [key, o] of Object.entries(command.options ?? {})) {
     const { type, optional } = parseType(o.type, key)
-    if (values[key] === undefined) { if (!optional && type !== 'boolean') throw new Error(`--${key} is missing\nusage: whiteboard ${name} ${usage(command)}`); continue }
+    if (values[key] === undefined) {
+      if (!optional && type !== 'boolean')
+        throw new Error(`--${key} is missing\nusage: whiteboard ${name} ${usage(command)}`)
+      continue
+    }
     if (type === 'number') {
       values[key] = Number(values[key])
       if (!Number.isFinite(values[key])) throw new Error(`--${key} must be a number`)

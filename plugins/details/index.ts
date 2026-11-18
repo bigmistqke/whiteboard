@@ -5,7 +5,10 @@ import { builtinPublic } from '../../src/package.ts'
 
 export async function render(ctx: DirectiveContext) {
   // the label and content are HTML already
-  return html`<details class="wb-details"${'open' in ctx.attrs && raw(' open')}><summary>${ctx.label ? raw(ctx.label) : 'Details'}</summary><div class="wb-details-body">${raw(await ctx.toHtml(ctx.children))}</div></details>`
+  return html`<details class="wb-details" ${'open' in ctx.attrs && raw(' open')}>
+    <summary>${ctx.label ? raw(ctx.label) : 'Details'}</summary>
+    <div class="wb-details-body">${raw(await ctx.toHtml(ctx.children))}</div>
+  </details>`
 }
 
 export default function details(): Plugin {

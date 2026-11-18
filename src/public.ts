@@ -10,8 +10,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Plugin } from './define.ts'
 
-const asPath = (ref: URL | string): string =>
-  ref instanceof URL || ref.startsWith('file:') ? fileURLToPath(ref) : ref
+const asPath = (ref: URL | string): string => (ref instanceof URL || ref.startsWith('file:') ? fileURLToPath(ref) : ref)
 
 /** The folder a plugin's browser files are served from. */
 export function publicDirOf(plugin: Plugin, wb: string): string {
@@ -30,7 +29,11 @@ export const within = (file: string, dir: string): boolean => {
  * error, said when the config loads, rather than a file that quietly isn't served.
  */
 export function inPublic(dir: string, ref: URL | string, what: string): string {
-  const file = typeof ref === 'string' && !ref.startsWith('file:') && !path.isAbsolute(ref) ? path.resolve(dir, ref) : path.resolve(asPath(ref))
-  if (!within(file, dir)) throw new Error(`${what}: ${file} is not in its public folder (${dir}); a plugin's browser files live there`)
+  const file =
+    typeof ref === 'string' && !ref.startsWith('file:') && !path.isAbsolute(ref)
+      ? path.resolve(dir, ref)
+      : path.resolve(asPath(ref))
+  if (!within(file, dir))
+    throw new Error(`${what}: ${file} is not in its public folder (${dir}); a plugin's browser files live there`)
   return file
 }

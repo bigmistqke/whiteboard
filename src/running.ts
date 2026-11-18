@@ -6,7 +6,11 @@ import type { Project } from './config.ts'
 
 /** The port the last server of this project recorded, or null. */
 export function recordedPort(project: Project): number | null {
-  try { return Number(JSON.parse(fs.readFileSync(project.serverFile, 'utf8')).port) || null } catch { return null }
+  try {
+    return Number(JSON.parse(fs.readFileSync(project.serverFile, 'utf8')).port) || null
+  } catch {
+    return null
+  }
 }
 
 /** The base URL of this project's running server, or null. `except`: a process to not count (the asking server itself). */
@@ -18,5 +22,7 @@ export async function runningServer(project: Project, { except }: { except?: num
     const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(800) })
     const health = res.ok ? await res.json() : null
     return health?.dir === project.dir && health.pid !== except ? base : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }

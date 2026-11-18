@@ -6,7 +6,6 @@
 import { builtinPublic } from '../../src/package.ts'
 import type { Plugin } from '../../src/define.ts'
 
-
 const DOCS = `## Comments
 
 The reader can select text on any page and comment on it, or comment on
@@ -42,7 +41,11 @@ export default function comments(): Plugin {
     name: 'comments',
     docs: () => DOCS,
     events: {
-      'comments:new': { handOut: true, description: 'a comment on a passage or lines of code: `{ quote, before, after, block, at?, text }`; its id is the thread\'s' },
+      'comments:new': {
+        handOut: true,
+        description:
+          "a comment on a passage or lines of code: `{ quote, before, after, block, at?, text }`; its id is the thread's",
+      },
       'comments:reply': { handOut: true, forReader: true, description: 'a reply in a thread: `{ replyTo, text }`' },
       'comments:resolve': { description: 'the reader closed a thread: `{ replyTo }`' },
     },

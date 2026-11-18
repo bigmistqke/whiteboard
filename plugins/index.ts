@@ -18,5 +18,19 @@ import quiet from './quiet/index.ts'
 import windows from './window/index.ts'
 
 export function builtins(): Plugin[] {
-  return [callout(), chat(), code(), comments(), details(), forge(), form(), gallery(), grid(), iframe(), mermaid(), quiet(), windows()]
+  return [
+    callout(),
+    chat(),
+    code(),
+    comments(),
+    details(),
+    forge(),
+    form(),
+    gallery(),
+    grid(),
+    iframe(),
+    mermaid(),
+    quiet(),
+    windows(),
+  ]
 }

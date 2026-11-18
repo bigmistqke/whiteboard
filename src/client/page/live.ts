@@ -17,11 +17,15 @@ export function trackLive(root: HTMLElement, handle: PageHandle, api: Api) {
     const anyPage = listeners.some(l => l.fallback)
     const agent = live && (own || anyPage)
     dot.toggleAttribute('data-agent', agent)
-    dot.title = !live ? 'Reconnecting… the page may be out of date'
-      : !hasAnswers ? 'Live'
-      : own ? 'Live · an agent is listening on this page'
-      : anyPage ? 'Live · an agent is listening on every page'
-      : 'Live · no agent is listening right now; answers wait in the log'
+    dot.title = !live
+      ? 'Reconnecting… the page may be out of date'
+      : !hasAnswers
+        ? 'Live'
+        : own
+          ? 'Live · an agent is listening on this page'
+          : anyPage
+            ? 'Live · an agent is listening on every page'
+            : 'Live · no agent is listening right now; answers wait in the log'
     dot.setAttribute('aria-label', dot.title)
   }
   api.listeners.on(show)

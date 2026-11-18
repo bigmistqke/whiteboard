@@ -3,9 +3,22 @@ import assert from 'node:assert/strict'
 import { height, safeSrc } from './index.ts'
 
 test('iframe: a src is a web URL or a path, never a script', () => {
-  for (const ok of ['http://localhost:5173', 'https://example.com/x', '//cdn.example.com', 'demo.html', '/demo.html', 'sub/a.html?x=1#y'])
+  for (const ok of [
+    'http://localhost:5173',
+    'https://example.com/x',
+    '//cdn.example.com',
+    'demo.html',
+    '/demo.html',
+    'sub/a.html?x=1#y',
+  ])
     assert.ok(safeSrc(ok), ok)
-  for (const bad of ['javascript:alert(1)', 'JavaScript:alert(1)', 'data:text/html,<b>x</b>', 'file:///etc/passwd', 'vbscript:x'])
+  for (const bad of [
+    'javascript:alert(1)',
+    'JavaScript:alert(1)',
+    'data:text/html,<b>x</b>',
+    'file:///etc/passwd',
+    'vbscript:x',
+  ])
     assert.ok(!safeSrc(bad), bad)
 })
 

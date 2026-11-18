@@ -39,7 +39,13 @@ export function configFileIn(whiteboardDir: string): string | null {
   return null
 }
 
-const isDir = (p: string) => { try { return fs.statSync(p).isDirectory() } catch { return false } }
+const isDir = (p: string) => {
+  try {
+    return fs.statSync(p).isDirectory()
+  } catch {
+    return false
+  }
+}
 
 /** The project folder a path is in: the nearest folder upward with a `.whiteboard/` folder. */
 export function findProjectDir(from: string = process.cwd()): string | null {
@@ -61,7 +67,9 @@ export function project(dir: string | null | undefined): Project | null {
     dir,
     wb,
     /** the config file, or null: looked up each time, since one can be added or removed while a server runs */
-    get configFile() { return configFileIn(wb) },
+    get configFile() {
+      return configFileIn(wb)
+    },
     pagesDir: path.join(wb, 'pages'),
     eventsFile: path.join(wb, 'events.ndjson'),
     serverFile: path.join(wb, 'server.json'),
@@ -69,14 +77,20 @@ export function project(dir: string | null | undefined): Project | null {
     /** shown in titles and the overview: `name` in the config if it is a plain literal, else the folder name */
     get name() {
       const file = configFileIn(wb)
-      return (file && (/\bname\s*:\s*['"]([^'"]+)['"]/.exec(fs.readFileSync(file, 'utf8')) ?? [])[1]) || path.basename(dir)
+      return (
+        (file && (/\bname\s*:\s*['"]([^'"]+)['"]/.exec(fs.readFileSync(file, 'utf8')) ?? [])[1]) || path.basename(dir)
+      )
     },
   }
 }
 
 // ---- page ids ----------------------------------------------------------------------------------
 
-const strip = (p: string) => p.replace(/\\/g, '/').replace(/\.md$/, '').replace(/^\/+|\/+$/g, '')
+const strip = (p: string) =>
+  p
+    .replace(/\\/g, '/')
+    .replace(/\.md$/, '')
+    .replace(/^\/+|\/+$/g, '')
 
 /**
  * A file path or page name → the page id used in URLs and events.
@@ -91,6 +105,7 @@ export function pageId(proj: Project | null, input: unknown, cwd: string = proce
   if (!looksLikeFile || !proj) return strip(s)
   const abs = path.resolve(cwd, s)
   if (abs.startsWith(proj.pagesDir + path.sep)) return strip(path.relative(proj.pagesDir, abs))
-  if (abs === proj.dir || abs.startsWith(proj.dir + path.sep)) return `-/${path.relative(proj.dir, abs).replace(/\\/g, '/')}`.replace(/\/$/, '')
+  if (abs === proj.dir || abs.startsWith(proj.dir + path.sep))
+    return `-/${path.relative(proj.dir, abs).replace(/\\/g, '/')}`.replace(/\/$/, '')
   return strip(s)
 }

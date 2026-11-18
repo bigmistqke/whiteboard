@@ -1,0 +1,7 @@
+dist
+node_modules
+package-lock.json
+.whiteboard
+# markdown is whiteboard's own (:::blocks), which Prettier doesn't know: it would indent a closing
+# ::: into the list before it, and change what a page shows
+*.md

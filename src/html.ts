@@ -14,8 +14,12 @@
 /** A piece of HTML that is not escaped again. `String(piece)` is its markup. */
 export class Html {
   value: string
-  constructor(value: string) { this.value = value }
-  toString() { return this.value }
+  constructor(value: string) {
+    this.value = value
+  }
+  toString() {
+    return this.value
+  }
 }
 
 const ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }

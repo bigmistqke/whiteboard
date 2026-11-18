@@ -29,7 +29,27 @@ export interface LoadedConfig {
 
 const NAME = /^[\w-]+$/
 /** The command line's own commands: a plugin can't be named like one, since its commands are `whiteboard <name>`. */
-export const BUILTIN_COMMANDS = new Set(['serve', 'init', 'root', 'new', 'show', 'url', 'docs', 'events', 'wait', 'watch', 'append', 'pick', 'status', 'scroll', 'close', 'prune', 'edit', 'skill', 'help'])
+export const BUILTIN_COMMANDS = new Set([
+  'serve',
+  'init',
+  'root',
+  'new',
+  'show',
+  'url',
+  'docs',
+  'events',
+  'wait',
+  'watch',
+  'append',
+  'pick',
+  'status',
+  'scroll',
+  'close',
+  'prune',
+  'edit',
+  'skill',
+  'help',
+])
 // folders in .whiteboard/ that are the core's or meant for the project's own plugins (a plugin's own
 // folder holds its data, ignored by git), and the built-in commands
 const RESERVED = new Set(['pages', 'plugins', ...BUILTIN_COMMANDS])
@@ -57,11 +77,14 @@ async function builtinPlugins(): Promise<Plugin[]> {
 
 /** Check a plugin, as the config gives it. */
 function checkPlugin(e: Plugin, where: string | null) {
-  if (typeof e !== 'object' || !NAME.test(e?.name ?? '')) throw new Error(`a plugin in ${where} needs a name: letters, digits, - and _`)
-  if (RESERVED.has(e.name)) throw new Error(`plugin name "${e.name}" in ${where} is taken by the core (a folder in .whiteboard/ or a command)`)
+  if (typeof e !== 'object' || !NAME.test(e?.name ?? ''))
+    throw new Error(`a plugin in ${where} needs a name: letters, digits, - and _`)
+  if (RESERVED.has(e.name))
+    throw new Error(`plugin name "${e.name}" in ${where} is taken by the core (a folder in .whiteboard/ or a command)`)
   pluginCommands(e) // checks them
   for (const type of Object.keys(e.events ?? {}))
-    if (!type.startsWith(`${e.name}:`) || type.length <= e.name.length + 1) throw new Error(`plugin ${e.name}: event type "${type}" must be named after it: ${e.name}:<what>`)
+    if (!type.startsWith(`${e.name}:`) || type.length <= e.name.length + 1)
+      throw new Error(`plugin ${e.name}: event type "${type}" must be named after it: ${e.name}:<what>`)
 }
 
 /**
@@ -97,21 +120,57 @@ export function createConfigLoader(proj: Project, { pages: withPages = true } = 
     }
     // each plugin's browser files are served from its public folder alone: its files are named in it
     const publicDirs = new Map(plugins.map(p => [p.name, publicDirOf(p, proj.wb)]))
-    const blocks = plugins.flatMap(p => Object.entries(p.blocks ?? {}).map(([name, block]) => ({ name, block, plugin: p.name, public: publicDirs.get(p.name)! })))
-    const styles = plugins.filter(p => p.style).map(p => inPublic(publicDirs.get(p.name)!, p.style!, `plugin ${p.name}: style`))
-    const links = plugins.flatMap(p => p.links ? [p.links.bind(p)] : [])
+    const blocks = plugins.flatMap(p =>
+      Object.entries(p.blocks ?? {}).map(([name, block]) => ({
+        name,
+        block,
+        plugin: p.name,
+        public: publicDirs.get(p.name)!,
+      })),
+    )
+    const styles = plugins
+      .filter(p => p.style)
+      .map(p => inPublic(publicDirs.get(p.name)!, p.style!, `plugin ${p.name}: style`))
+    const links = plugins.flatMap(p => (p.links ? [p.links.bind(p)] : []))
     const pages = withPages ? createPages({ blocks, style: config?.style, styles, links }) : null
-    const declared = (flag: 'handOut' | 'forReader') => new Set(plugins.flatMap(p => Object.entries(p.events ?? {}).filter(([, spec]) => spec?.[flag]).map(([type]) => type)))
-    return { pages, plugins, handedOut: declared('handOut'), forReader: declared('forReader'), publicDirs, files: config?.files !== false }
+    const declared = (flag: 'handOut' | 'forReader') =>
+      new Set(
+        plugins.flatMap(p =>
+          Object.entries(p.events ?? {})
+            .filter(([, spec]) => spec?.[flag])
+            .map(([type]) => type),
+        ),
+      )
+    return {
+      pages,
+      plugins,
+      handedOut: declared('handOut'),
+      forReader: declared('forReader'),
+      publicDirs,
+      files: config?.files !== false,
+    }
   }
 
   function config(): Promise<LoadedConfig> {
     cached ??= load().then(
       value => ({ ...value, errors: [] }),
-      error => ({ pages: null, plugins: [], handedOut: new Set<string>(), forReader: new Set<string>(), publicDirs: new Map<string, string>(), files: false, errors: [error] }),
+      error => ({
+        pages: null,
+        plugins: [],
+        handedOut: new Set<string>(),
+        forReader: new Set<string>(),
+        publicDirs: new Map<string, string>(),
+        files: false,
+        errors: [error],
+      }),
     )
     return cached
   }
 
-  return { config, invalidate: () => { cached = null } }
+  return {
+    config,
+    invalidate: () => {
+      cached = null
+    },
+  }
 }

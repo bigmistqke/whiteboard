@@ -24,7 +24,9 @@ const COOKIE = 'wb-token'
 /** The project's token, made on first use. */
 export function projectToken(wb: string): string {
   const file = path.join(wb, 'token')
-  try { return fs.readFileSync(file, 'utf8').trim() } catch {}
+  try {
+    return fs.readFileSync(file, 'utf8').trim()
+  } catch {}
   const token = crypto.randomBytes(24).toString('base64url')
   fs.writeFileSync(file, token + '\n', { mode: 0o600 })
   return token
@@ -32,9 +34,15 @@ export function projectToken(wb: string): string {
 
 export function createAuth(wb: string) {
   const token = projectToken(wb)
-  const same = (a: unknown, b: string): boolean => typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
+  const same = (a: unknown, b: string): boolean =>
+    typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
   const cookies = (req: IncomingMessage): Record<string, string | undefined> =>
-    Object.fromEntries((req.headers.cookie ?? '').split(';').map(c => c.trim().split('=')).filter(([k]) => k))
+    Object.fromEntries(
+      (req.headers.cookie ?? '')
+        .split(';')
+        .map(c => c.trim().split('='))
+        .filter(([k]) => k),
+    )
 
   /** Has this request the token, from this origin? */
   function authorized(req: IncomingMessage): boolean {
@@ -49,15 +57,25 @@ export function createAuth(wb: string) {
   }
 
   /** Opening a page as the tab's document: no frame, no fetch, and not an API route. */
-  const opensPage = (req: IncomingMessage) => req.method === 'GET' && req.headers['sec-fetch-mode'] === 'navigate'
-    && req.headers['sec-fetch-dest'] === 'document' && !(req.url ?? '').startsWith('/api/')
+  const opensPage = (req: IncomingMessage) =>
+    req.method === 'GET' &&
+    req.headers['sec-fetch-mode'] === 'navigate' &&
+    req.headers['sec-fetch-dest'] === 'document' &&
+    !(req.url ?? '').startsWith('/api/')
 
   /** The /_/auth route; false for any other path. */
   function handle(req: IncomingMessage, res: ServerResponse, p: string, q: Record<string, unknown>): boolean {
     if (p !== '/_/auth') return false
-    if (!same(q.token, token)) { res.writeHead(403, { 'content-type': 'text/plain' }); res.end('wrong token'); return true }
+    if (!same(q.token, token)) {
+      res.writeHead(403, { 'content-type': 'text/plain' })
+      res.end('wrong token')
+      return true
+    }
     const to = typeof q.to === 'string' && q.to.startsWith('/') && !q.to.startsWith('//') ? q.to : '/'
-    res.writeHead(302, { 'set-cookie': `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`, location: to })
+    res.writeHead(302, {
+      'set-cookie': `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`,
+      location: to,
+    })
     res.end()
     return true
   }

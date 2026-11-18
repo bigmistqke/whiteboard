@@ -42,25 +42,38 @@ const FENCE = /^(\s*)(`{3,}|~{3,})/
 
 function hideColonsInFences(source: string): string {
   let open: { char: string; length: number } | null = null
-  return source.split('\n').map(line => {
-    const fence = FENCE.exec(line)
-    if (!open) {
-      if (fence) open = { char: fence[2][0], length: fence[2].length }
-      return line
-    }
-    if (fence && fence[2][0] === open.char && fence[2].length >= open.length && !line.slice(fence[0].length).trim()) { open = null; return line }
-    return line.replace(/^(\s*)(:+)/, (_, space: string, colons: string) => space + HIDDEN_COLON.repeat(colons.length))
-  }).join('\n')
+  return source
+    .split('\n')
+    .map(line => {
+      const fence = FENCE.exec(line)
+      if (!open) {
+        if (fence) open = { char: fence[2][0], length: fence[2].length }
+        return line
+      }
+      if (fence && fence[2][0] === open.char && fence[2].length >= open.length && !line.slice(fence[0].length).trim()) {
+        open = null
+        return line
+      }
+      return line.replace(
+        /^(\s*)(:+)/,
+        (_, space: string, colons: string) => space + HIDDEN_COLON.repeat(colons.length),
+      )
+    })
+    .join('\n')
 }
 
 function showColons(node: MdNode) {
-  if (typeof node.value === 'string' && node.value.includes(HIDDEN_COLON)) node.value = node.value.replaceAll(HIDDEN_COLON, ':')
+  if (typeof node.value === 'string' && node.value.includes(HIDDEN_COLON))
+    node.value = node.value.replaceAll(HIDDEN_COLON, ':')
   node.children?.forEach(showColons)
 }
 
 /** A message's raw HTML, as text: it shows as written, and runs nothing. */
 function asText(node: MdNode) {
-  if (node.type === 'html') { node.type = 'text'; return }
+  if (node.type === 'html') {
+    node.type = 'text'
+    return
+  }
   node.children?.forEach(asText)
 }
 
@@ -70,7 +83,10 @@ function parseMarkdown(source: string): MdNode {
   showColons(tree)
   return tree
 }
-const toHast = unified().use(remarkRehype, { allowDangerousHtml: true }).use(rehypeStringify, { allowDangerousHtml: true }).freeze()
+const toHast = unified()
+  .use(remarkRehype, { allowDangerousHtml: true })
+  .use(rehypeStringify, { allowDangerousHtml: true })
+  .freeze()
 
 /** `cols=3 open title="a b"` → { cols: '3', open: '', title: 'a b' } (bare words get '' like directive attrs) */
 export function parseAttrs(s: unknown) {
@@ -81,8 +97,20 @@ export function parseAttrs(s: unknown) {
 }
 
 const DIRECTIVES = new Set(['containerDirective', 'leafDirective', 'textDirective'])
-const PHRASING = new Set(['text', 'emphasis', 'strong', 'delete', 'inlineCode', 'break', 'link', 'linkReference',
-  'image', 'imageReference', 'footnoteReference', 'textDirective'])
+const PHRASING = new Set([
+  'text',
+  'emphasis',
+  'strong',
+  'delete',
+  'inlineCode',
+  'break',
+  'link',
+  'linkReference',
+  'image',
+  'imageReference',
+  'footnoteReference',
+  'textDirective',
+])
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i
 
@@ -108,11 +136,19 @@ function linkText(tree: MdNode, links: TextLink[]) {
         const re = new RegExp(link.pattern.source, flags)
         let at = 0
         for (let m = re.exec(value); m; m = re.exec(value)) {
-          if (!m[0]) { re.lastIndex++; continue }
+          if (!m[0]) {
+            re.lastIndex++
+            continue
+          }
           const href = link.href(m)
           if (!href) continue
           if (m.index > at) out.push({ type: 'text', value: value.slice(at, m.index) })
-          out.push({ type: 'link', url: href, title: link.title?.(m) ?? null, children: [{ type: 'text', value: m[0] }] })
+          out.push({
+            type: 'link',
+            url: href,
+            title: link.title?.(m) ?? null,
+            children: [{ type: 'text', value: m[0] }],
+          })
           at = m.index + m[0].length
         }
         if (at < value.length) out.push({ type: 'text', value: value.slice(at) })
@@ -123,7 +159,9 @@ function linkText(tree: MdNode, links: TextLink[]) {
   }
   const walk = (node: MdNode) => {
     if (!node.children || NO_TEXT_LINKS.has(node.type)) return
-    node.children = node.children.flatMap(child => child.type === 'text' ? split(child.value as string) : (walk(child), [child]))
+    node.children = node.children.flatMap(child =>
+      child.type === 'text' ? split(child.value as string) : (walk(child), [child]),
+    )
   }
   walk(tree)
 }
@@ -131,11 +169,19 @@ function linkText(tree: MdNode, links: TextLink[]) {
 function rewriteLinks(tree: MdNode, file: string, linkFor?: LinkFor) {
   if (!linkFor || !file) return
   const walk = (node: MdNode) => {
-    if ((node.type === 'link' || node.type === 'image' || node.type === 'definition') && node.url &&
-        !SCHEME.test(node.url) && !/^[/#]/.test(node.url)) {
+    if (
+      (node.type === 'link' || node.type === 'image' || node.type === 'definition') &&
+      node.url &&
+      !SCHEME.test(node.url) &&
+      !/^[/#]/.test(node.url)
+    ) {
       const [, target, rest] = /^([^?#]*)(.*)$/s.exec(node.url)!
       let decoded = target
-      try { decoded = decodeURIComponent(target) } catch { /* keep as written */ }
+      try {
+        decoded = decodeURIComponent(target)
+      } catch {
+        /* keep as written */
+      }
       const url = decoded && linkFor(path.resolve(path.dirname(file), decoded))
       if (url) node.url = url + rest
     }
@@ -147,7 +193,8 @@ function rewriteLinks(tree: MdNode, file: string, linkFor?: LinkFor) {
 /** Separate a directive's `[label]` (remark-directive stores it as a flagged first paragraph). */
 function splitLabel(node: MdNode): { label: MdNode[] | null; children: MdNode[] } {
   const [head, ...rest] = node.children ?? []
-  if (node.type === 'containerDirective' && head?.data?.directiveLabel) return { label: head.children ?? null, children: rest }
+  if (node.type === 'containerDirective' && head?.data?.directiveLabel)
+    return { label: head.children ?? null, children: rest }
   if (node.type !== 'containerDirective') return { label: node.children?.length ? node.children : null, children: [] }
   return { label: null, children: node.children ?? [] }
 }
@@ -156,7 +203,9 @@ const MARKER: Record<string, string> = { textDirective: ':', leafDirective: '::'
 
 function literalDirective(node: MdNode, label: MdNode[] | null) {
   const marker = MARKER[node.type]
-  const attrs = Object.entries(node.attributes ?? {}).map(([k, v]) => (v ? `${k}="${v}"` : k)).join(' ')
+  const attrs = Object.entries(node.attributes ?? {})
+    .map(([k, v]) => (v ? `${k}="${v}"` : k))
+    .join(' ')
   return `${marker}${node.name}${label ? `[${toString({ type: 'root', children: label } as any)}]` : ''}${attrs ? `{${attrs}}` : ''}`
 }
 
@@ -203,14 +252,21 @@ export interface RenderOptions {
   message?: boolean
 }
 
-export interface Island { block: string; client: string; props: unknown }
+export interface Island {
+  block: string
+  client: string
+  props: unknown
+}
 
 /**
  * Markdown (or an mdast root, rendered as it is) → HTML, with directives and fences handed to
  * blocks. Returns the page's HTML, its first heading, the islands to mount and the blocks'
  * stylesheets.
  */
-export async function renderMarkdown(source: string | MdNode, { page, file, resolve, code = null, linkFor, textLinks = [], message = false }: RenderOptions) {
+export async function renderMarkdown(
+  source: string | MdNode,
+  { page, file, resolve, code = null, linkFor, textLinks = [], message = false }: RenderOptions,
+) {
   let nextId = 0
   const islands: Record<string, Island> = {}
   const keyCount: Record<string, number> = {}
@@ -220,13 +276,18 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
     // inline content (a label, say) is one line: as children of the root, each node would be a block
     // of its own, separated by newlines, which show as spaces
     if (nodes.length && nodes.every(n => PHRASING.has(n.type))) {
-      const out = toHast.stringify(toHast.runSync({ type: 'root', children: [{ type: 'paragraph', children: nodes }] } as any))
+      const out = toHast.stringify(
+        toHast.runSync({ type: 'root', children: [{ type: 'paragraph', children: nodes }] } as any),
+      )
       return out.replace(/^<p>([\s\S]*)<\/p>$/, '$1')
     }
     return toHast.stringify(toHast.runSync({ type: 'root', children: nodes } as any))
   }
   /** Render mdast nodes to HTML. Transforms nested directives first; safe to call twice on the same nodes. */
-  const toHtml = async (nodes: MdNode[]) => { await transform({ type: 'root', children: nodes }); return stringify(nodes) }
+  const toHtml = async (nodes: MdNode[]) => {
+    await transform({ type: 'root', children: nodes })
+    return stringify(nodes)
+  }
 
   async function sectionsOf(children: MdNode[]) {
     await transform({ type: 'root', children })
@@ -250,7 +311,11 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
     }
     return {
       intro: stringify(intro),
-      sections: out.map(s => ({ title: stringify(s.heading.children ?? []), text: toString(s.heading as any), html: stringify(s.body) })),
+      sections: out.map(s => ({
+        title: stringify(s.heading.children ?? []),
+        text: toString(s.heading as any),
+        html: stringify(s.body),
+      })),
     }
   }
 
@@ -271,7 +336,11 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
       const id = String(++nextId)
       islands[id] = { block: block.name, client: block.client, props }
       // stable across re-renders while block + props are unchanged, so the client keeps the mounted island
-      const hash = crypto.createHash('sha1').update(block.name + '\0' + JSON.stringify(props)).digest('hex').slice(0, 12)
+      const hash = crypto
+        .createHash('sha1')
+        .update(block.name + '\0' + JSON.stringify(props))
+        .digest('hex')
+        .slice(0, 12)
       const key = `${hash}-${(keyCount[hash] = (keyCount[hash] ?? 0) + 1)}`
       return html`<${tag} class="wb-island" data-block="${ctx.name}" data-wb-island="${id}" data-wb-key="${key}">${body}</${tag}>`
     } catch (err) {
@@ -298,7 +367,9 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
       if (node.type === 'textDirective') return { type: 'text', value: literalDirective(node, label) }
       // an unknown directive still shows its content: a typo never breaks the page
       const labelHtml = label && html`<p class="wb-label"><strong>${raw(await toHtml(label))}</strong></p>`
-      return htmlNode(html`<div class="wb-unknown" data-directive="${node.name}">${labelHtml}${raw(await toHtml(children))}</div>`)
+      return htmlNode(
+        html`<div class="wb-unknown" data-directive="${node.name}">${labelHtml}${raw(await toHtml(children))}</div>`,
+      )
     }
     const labelHtml = label ? await toHtml(label) : null
     let defaults: Promise<Record<string, unknown>> | undefined
@@ -312,10 +383,17 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
       children,
       node,
       sections: () => sectionsOf(children),
-      defaults: () => (defaults ??= (async () => {
-        const content = await toHtml(children)
-        return { name: node.name, attrs: { ...node.attributes }, label: labelHtml, html: content, ...(await sectionsOf(children)) }
-      })()),
+      defaults: () =>
+        (defaults ??= (async () => {
+          const content = await toHtml(children)
+          return {
+            name: node.name,
+            attrs: { ...node.attributes },
+            label: labelHtml,
+            html: content,
+            ...(await sectionsOf(children)),
+          }
+        })()),
     }
     return htmlNode(await run(block, ctx, () => toHtml(children)))
   }

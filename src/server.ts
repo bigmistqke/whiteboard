@@ -29,7 +29,16 @@ import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
 import { awaiting, covers, heard, questionState, unreadMessages } from './status.ts'
 import { titleOf } from './pages/render.ts'
 import { inPublic } from './public.ts'
-import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
+import type {
+  Listener,
+  PageSource,
+  PageStatus,
+  Plugin,
+  PluginHooks,
+  Rendered,
+  StoredPage,
+  PagesSource,
+} from './define.ts'
 
 const ENGINE_DIR = PACKAGE_DIR
 // the browser runtime, built by build.ts
@@ -37,18 +46,32 @@ const RUNTIME = path.join(ENGINE_DIR, 'dist', 'client', 'runtime.js')
 // the page in the browser (markdown live: morphing, blocks' islands, forms' marks), built by build.ts
 const PAGE_CLIENT = path.join(ENGINE_DIR, 'dist', 'src', 'client', 'page', 'main.js')
 const MIME: Record<string, string> = {
-  '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
-  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
-  '.svg': 'image/svg+xml', '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.woff': 'font/woff',
-  '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.md': 'text/markdown; charset=utf-8',
-  '.csv': 'text/csv; charset=utf-8', '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.svg': 'image/svg+xml',
+  '.pdf': 'application/pdf',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
 }
 // files in .whiteboard/ that are the server's own bookkeeping, not content
 const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server.lock', 'token'])
 const SKIP_DIRS = new Set(['node_modules', '.git'])
 // a page's frontmatter: `---` lines around `key: value` lines, at the very start
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
-
 
 /** A project's server: its request handler, and what it knows. */
 export interface WhiteboardServer {
@@ -69,7 +92,15 @@ export function createServer(project: Project): WhiteboardServer {
   const watchers = new Set<fs.FSWatcher>()
   const streams = new Set<() => void>()
   const watch = (dir: string, options: fs.WatchOptions, fn: (name: string) => void) => {
-    try { watchers.add(fs.watch(dir, options, (_evt, name) => { if (name) fn(String(name)) })) } catch { /* gone, or not built */ }
+    try {
+      watchers.add(
+        fs.watch(dir, options, (_evt, name) => {
+          if (name) fn(String(name))
+        }),
+      )
+    } catch {
+      /* gone, or not built */
+    }
   }
 
   // ---- plugins --------------------------------------------------------------------------------
@@ -91,21 +122,32 @@ export function createServer(project: Project): WhiteboardServer {
   async function pluginHooks(): Promise<SetUp[]> {
     const c = await config()
     if (!setups.has(c)) {
-      setups.set(c, Promise.all(c.plugins.map(async (e): Promise<SetUp> => {
-        try {
-          pluginDirs.add(e.name)
-          const dataDir = pluginDir(project.wb, e.name)
-          // what it serves is in its public folder: its client, and what it asks ctx.asset for
-          const dir = c.publicDirs.get(e.name)!
-          const own = (ref: URL | string) => asset(inPublic(dir, ref, `plugin ${e.name}`))
-          const hooks = (await e.setup?.({ project: { name: project.name, dir: project.dir, wb: project.wb }, dataDir, authorized: auth.authorized, asset: own })) ?? {}
-          const client = hooks.client != null ? inPublic(dir, hooks.client, `plugin ${e.name}: client`) : undefined
-          return { name: e.name, ...hooks, client, table: mountRoutes(e.name, hooks.routes), plugin: e }
-        } catch (err) {
-          console.error(`plugin ${e.name}:`, err)
-          return { name: e.name, table: [], plugin: e, error: err as Error }
-        }
-      })))
+      setups.set(
+        c,
+        Promise.all(
+          c.plugins.map(async (e): Promise<SetUp> => {
+            try {
+              pluginDirs.add(e.name)
+              const dataDir = pluginDir(project.wb, e.name)
+              // what it serves is in its public folder: its client, and what it asks ctx.asset for
+              const dir = c.publicDirs.get(e.name)!
+              const own = (ref: URL | string) => asset(inPublic(dir, ref, `plugin ${e.name}`))
+              const hooks =
+                (await e.setup?.({
+                  project: { name: project.name, dir: project.dir, wb: project.wb },
+                  dataDir,
+                  authorized: auth.authorized,
+                  asset: own,
+                })) ?? {}
+              const client = hooks.client != null ? inPublic(dir, hooks.client, `plugin ${e.name}: client`) : undefined
+              return { name: e.name, ...hooks, client, table: mountRoutes(e.name, hooks.routes), plugin: e }
+            } catch (err) {
+              console.error(`plugin ${e.name}:`, err)
+              return { name: e.name, table: [], plugin: e, error: err as Error }
+            }
+          }),
+        ),
+      )
     }
     return setups.get(c)!
   }
@@ -128,17 +170,27 @@ export function createServer(project: Project): WhiteboardServer {
   async function shellExtras(req: IncomingMessage): Promise<Extras & { notices: string[] }> {
     const hooks = await pluginHooks()
     const notices = hooks.filter(h => h.error).map(h => `plugin "${h.name}" failed to start: ${h.error!.message}`)
-    const parts = await Promise.all(hooks.map(async h => {
-      try { return (await h.shell?.(req)) ?? null } catch (err) {
-        console.error(`plugin ${h.name}:`, err)
-        notices.push(`plugin "${h.name}" failed on this page: ${(err as Error).message}`)
-        return null
-      }
-    }))
+    const parts = await Promise.all(
+      hooks.map(async h => {
+        try {
+          return (await h.shell?.(req)) ?? null
+        } catch (err) {
+          console.error(`plugin ${h.name}:`, err)
+          notices.push(`plugin "${h.name}" failed on this page: ${(err as Error).message}`)
+          return null
+        }
+      }),
+    )
     // their browser modules, which the runtime imports after the page's
     const clients = hooks.filter(h => h.client && !h.error).map(h => ({ name: h.name, client: asset(h.client!) }))
     const messages = [...(await config()).forReader]
-    return { head: parts.map(x => raw(String(x?.head ?? ''))), body: parts.map(x => raw(String(x?.body ?? ''))), clients, messages, notices }
+    return {
+      head: parts.map(x => raw(String(x?.head ?? ''))),
+      body: parts.map(x => raw(String(x?.body ?? ''))),
+      clients,
+      messages,
+      notices,
+    }
   }
 
   /** A page with what the plugins add, their notices among the page's. */
@@ -202,16 +254,25 @@ export function createServer(project: Project): WhiteboardServer {
   function frontmatter(source: string): Record<string, string> {
     const m = FRONTMATTER.exec(source)
     const out: Record<string, string> = {}
-    if (m) for (const line of m[1]!.split(/\r?\n/)) {
-      const kv = /^([\w-]+)\s*:\s*(.*)$/.exec(line)
-      if (kv) out[kv[1]!] = kv[2]!.trim().replace(/^["']|["']$/g, '')
-    }
+    if (m)
+      for (const line of m[1]!.split(/\r?\n/)) {
+        const kv = /^([\w-]+)\s*:\s*(.*)$/.exec(line)
+        if (kv) out[kv[1]!] = kv[2]!.trim().replace(/^["']|["']$/g, '')
+      }
     return out
   }
 
   function pageSource(id: string, file: string): PageSource {
     const source = fs.readFileSync(file, 'utf8')
-    return { kind: 'page', id, file, mtime: fs.statSync(file).mtimeMs, source, body: source.replace(FRONTMATTER, ''), frontmatter: frontmatter(source) }
+    return {
+      kind: 'page',
+      id,
+      file,
+      mtime: fs.statSync(file).mtimeMs,
+      source,
+      body: source.replace(FRONTMATTER, ''),
+      frontmatter: frontmatter(source),
+    }
   }
 
   /** The pages in a folder of the pages folder, newest first, with when each was last answered. */
@@ -254,13 +315,15 @@ export function createServer(project: Project): WhiteboardServer {
     if (isRepoId(id)) {
       const rel = id.slice(2)
       const target = inside(project.dir, rel)
-      if (!target || path.relative(project.dir, target).split(path.sep).includes('.git') || !fs.existsSync(target)) return null
+      if (!target || path.relative(project.dir, target).split(path.sep).includes('.git') || !fs.existsSync(target))
+        return null
       const stat = fs.statSync(target)
       if (stat.isDirectory()) {
-        const entries = fs.readdirSync(target, { withFileTypes: true })
+        const entries = fs
+          .readdirSync(target, { withFileTypes: true })
           .filter(e => !SKIP_DIRS.has(e.name) && e.name !== '.DS_Store')
           .map(e => ({ name: e.name, dir: e.isDirectory() }))
-          .sort((a, b) => (Number(b.dir) - Number(a.dir)) || a.name.localeCompare(b.name))
+          .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name))
         return { kind: 'folder', id, file: target, mtime: stat.mtimeMs, entries }
       }
       if (/\.(md|markdown)$/i.test(target)) return pageSource(id, target)
@@ -284,7 +347,12 @@ export function createServer(project: Project): WhiteboardServer {
     const rel = (dir: string) => path.relative(dir, abs).split(path.sep).map(encodeURIComponent).join('/')
     if (within(abs, project.pagesDir)) return `/${rel(project.pagesDir).replace(/\.md$/, '')}`
     if (FILES && within(abs, project.dir)) {
-      if (rel(project.dir).split('/').some(part => SKIP_DIRS.has(part))) return null
+      if (
+        rel(project.dir)
+          .split('/')
+          .some(part => SKIP_DIRS.has(part))
+      )
+        return null
       return `/-/${rel(project.dir)}`
     }
     return null
@@ -305,10 +373,19 @@ export function createServer(project: Project): WhiteboardServer {
 
   /** A config that failed to load: the page as stored, as text, under the error. */
   function rawRender(page: StoredPage): Rendered {
-    const list = (items: [string, string][]) => html`<ul>${items.map(([href, text]) => html`<li><a href="${href}">${text}</a></li>`)}</ul>`
+    const list = (items: [string, string][]) =>
+      html`<ul>
+        ${items.map(([href, text]) => html`<li><a href="${href}">${text}</a></li>`)}
+      </ul>`
     if (page.kind === 'pages') return { html: list(page.pages.map(p => [`/${p.id}`, p.id])) }
     if (page.kind === 'folder') {
-      return { html: list(page.entries.map(e => [encodeURIComponent(e.name) + (e.dir ? '/' : ''), e.name + (e.dir ? '/' : '')] as [string, string])) }
+      return {
+        html: list(
+          page.entries.map(
+            e => [encodeURIComponent(e.name) + (e.dir ? '/' : ''), e.name + (e.dir ? '/' : '')] as [string, string],
+          ),
+        ),
+      }
     }
     return { html: html`<pre>${page.source}</pre>` }
   }
@@ -355,20 +432,33 @@ export function createServer(project: Project): WhiteboardServer {
     const all = readEvents(project.eventsFile)
     const picked = pickedUp(all)
     const owner = new Map<string, string | null>()
-    for (const e of all) if (e.type === CLAIM && !fromReader(e)) owner.set(e.page, (e.data?.session as string | undefined) ?? null)
+    for (const e of all)
+      if (e.type === CLAIM && !fromReader(e)) owner.set(e.page, (e.data?.session as string | undefined) ?? null)
     const out: PageStatus[] = []
     for (const p of pagesIn(project.pagesDir)) {
       if (only && p.id !== only && !p.id.startsWith(only + '/')) continue
       const page = pageSource(p.id, p.file)
       let asks: string[] = []
-      try { asks = pages?.questions(page) ?? [] } catch (err) { console.error('questions:', err) }
+      try {
+        asks = pages?.questions(page) ?? []
+      } catch (err) {
+        console.error('questions:', err)
+      }
       const events = all.filter(e => e.page === p.id)
       const listening = listenersFor(p.id)
       // where each question stands, as the page shows it (see status.ts)
-      const questions = asks.map(name => ({ name, state: questionState(name, events, listening, id => picked.has(id)).state }))
+      const questions = asks.map(name => ({
+        name,
+        state: questionState(name, events, listening, id => picked.has(id)).state,
+      }))
       const named = (...states: string[]) => questions.filter(q => states.includes(q.state)).map(q => q.name)
       out.push({
-        page: p.id, title: titleOf(p.file, path.basename(p.id)), file: p.file, owner: owner.get(p.id) ?? null, asks, questions,
+        page: p.id,
+        title: titleOf(p.file, path.basename(p.id)),
+        file: p.file,
+        owner: owner.get(p.id) ?? null,
+        asks,
+        questions,
         open: named('open'),
         unheard: named('open').filter(name => !heard(name, listening)),
         unread: unreadMessages(events, type => forReader.has(type)),
@@ -384,14 +474,24 @@ export function createServer(project: Project): WhiteboardServer {
   async function docs() {
     const { pages, errors } = await config()
     // what each plugin declares: its routes (for an agent that wants to call them) and commands
-    const plugins = await Promise.all((await pluginHooks()).map(async h => ({
-      name: h.name,
-      error: h.error?.message ?? null,
-      docs: h.plugin.docs ? await h.plugin.docs() : null,
-      routes: describeRoutes(h.table),
-      commands: pluginCommands(h.plugin).map(c => ({ name: c.name, usage: usage(c.command), description: c.command.description })),
-      events: Object.entries(h.plugin.events ?? {}).map(([type, spec]) => ({ type, handOut: !!spec?.handOut, description: spec?.description ?? '' })),
-    })))
+    const plugins = await Promise.all(
+      (await pluginHooks()).map(async h => ({
+        name: h.name,
+        error: h.error?.message ?? null,
+        docs: h.plugin.docs ? await h.plugin.docs() : null,
+        routes: describeRoutes(h.table),
+        commands: pluginCommands(h.plugin).map(c => ({
+          name: c.name,
+          usage: usage(c.command),
+          description: c.command.description,
+        })),
+        events: Object.entries(h.plugin.events ?? {}).map(([type, spec]) => ({
+          type,
+          handOut: !!spec?.handOut,
+          description: spec?.description ?? '',
+        })),
+      })),
+    )
     return { errors: errors.map(e => (e as Error).message), pages: pages?.docs(context()) ?? null, plugins }
   }
 
@@ -401,29 +501,56 @@ export function createServer(project: Project): WhiteboardServer {
   // page's and the plugins' floating buttons and toasts; above what covers the bottom of the window.
   // Above the page and what floats on it (comment threads: 20), under what fills the window (a
   // maximized frame: 40, a lightbox or the terminal drawer: 50)
-  const DOCK_STYLE = '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:30;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}'
+  const DOCK_STYLE =
+    '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:30;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}' +
     // toasts (api.toast): labels in the corner, in the page's theme colours where it has them
-    + '.wb-toasts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.wb-toasts:empty{display:none}'
-    + '.wb-toast{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 12px;border-radius:99px;font:600 .8rem/1.4 var(--sans,system-ui,sans-serif);background:var(--accent,#1d5bbf);color:var(--accent-text,#fff);border:1px solid transparent;box-shadow:0 2px 10px rgb(0 0 0/.18)}'
-    + '.wb-toast[hidden]{display:none}.wb-toast[data-kind=warn]{background:var(--warn,#6b4fc0)}.wb-toast[data-kind=alert]{background:var(--bad,#c4352b);color:#fff}'
+    '.wb-toasts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.wb-toasts:empty{display:none}' +
+    '.wb-toast{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 12px;border-radius:99px;font:600 .8rem/1.4 var(--sans,system-ui,sans-serif);background:var(--accent,#1d5bbf);color:var(--accent-text,#fff);border:1px solid transparent;box-shadow:0 2px 10px rgb(0 0 0/.18)}' +
+    '.wb-toast[hidden]{display:none}.wb-toast[data-kind=warn]{background:var(--warn,#6b4fc0)}.wb-toast[data-kind=alert]{background:var(--bad,#c4352b);color:#fff}' +
     // where an agent scrolled the page to, lit up a moment
-    + '@keyframes wb-flash{from{outline-color:var(--accent,#1d5bbf)}to{outline-color:transparent}}.wb-flash{outline:3px solid transparent;outline-offset:6px;border-radius:4px;animation:wb-flash 2s ease-out}'
-    + '.wb-toast-dismiss{margin-right:-4px;padding:0 4px;border-left:1px solid rgb(255 255 255/.35);opacity:.75}.wb-toast-dismiss:hover{opacity:1}'
+    '@keyframes wb-flash{from{outline-color:var(--accent,#1d5bbf)}to{outline-color:transparent}}.wb-flash{outline:3px solid transparent;outline-offset:6px;border-radius:4px;animation:wb-flash 2s ease-out}' +
+    '.wb-toast-dismiss{margin-right:-4px;padding:0 4px;border-left:1px solid rgb(255 255 255/.35);opacity:.75}.wb-toast-dismiss:hover{opacity:1}'
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
-  function shell(page: StoredPage, { page: rendered, out, notices }: Render, extras: Extras = { head: [], body: [], clients: [] }): string {
-    const handoff = { id: page.id, kind: page.kind, client: rendered ? asset(PAGE_CLIENT) : null, data: out.data ?? null, frontmatter: frontmatterOf(page), plugins: extras.clients, messages: extras.messages ?? [] }
+  function shell(
+    page: StoredPage,
+    { page: rendered, out, notices }: Render,
+    extras: Extras = { head: [], body: [], clients: [] },
+  ): string {
+    const handoff = {
+      id: page.id,
+      kind: page.kind,
+      client: rendered ? asset(PAGE_CLIENT) : null,
+      data: out.data ?? null,
+      frontmatter: frontmatterOf(page),
+      plugins: extras.clients,
+      messages: extras.messages ?? [],
+    }
     // the page's head and html are HTML already; the handoff is JSON made safe for a script tag
-    return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${out.title || page.id || project.name}</title>
-<style>${DOCK_STYLE}</style>
-${raw(out.head ?? '')}${extras.head}</head>
-<body data-page="${page.id}" data-kind="${page.kind}">
-${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
-<div id="wb-root">${raw(String(out.html))}</div>
-<div id="wb-dock"></div>
-<script type="application/json" id="wb-page">${raw(json(handoff))}</script>
-<script type="module" src="/_/runtime.js"></script>${extras.body}</body></html>`)
+    return String(
+      html`<!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width,initial-scale=1" />
+            <title>${out.title || page.id || project.name}</title>
+            <style>
+              ${DOCK_STYLE}
+            </style>
+            ${raw(out.head ?? '')}${extras.head}
+          </head>
+          <body data-page="${page.id}" data-kind="${page.kind}">
+            ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
+            <div id="wb-root">${raw(String(out.html))}</div>
+            <div id="wb-dock"></div>
+            <script type="application/json" id="wb-page">
+              ${raw(json(handoff))}
+            </script>
+            <script type="module" src="/_/runtime.js"></script>
+            ${extras.body}
+          </body>
+        </html>`,
+    )
   }
 
   // ---- listeners ---------------------------------------------------------------------------------
@@ -434,8 +561,10 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
   /** A listener as the server holds it. */
   const listeners = new Set<Listener>()
 
-
-  const listenersFor = (page: string | null): Listener[] => [...listeners].filter(l => page == null || covers(l, page)).map(({ page, type, command, fallback }) => ({ page, type, command, ...(fallback && { fallback }) }))
+  const listenersFor = (page: string | null): Listener[] =>
+    [...listeners]
+      .filter(l => page == null || covers(l, page))
+      .map(({ page, type, command, fallback }) => ({ page, type, command, ...(fallback && { fallback }) }))
 
   // ---- live changes ------------------------------------------------------------------------------
   // The browser listens at /api/watch. `change`: its page changed; `events`: the log grew;
@@ -453,17 +582,21 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
   const clients = new Set<WatchClient>()
   function notify(client: WatchClient, kind: string) {
     client.pending ??= new Set()
-    if (client.pending.size === 0) setTimeout(() => {
-      for (const k of client.pending!) client.res.write(`event: ${k}\ndata: {}\n\n`)
-      client.pending!.clear()
-    }, 60)
+    if (client.pending.size === 0)
+      setTimeout(() => {
+        for (const k of client.pending!) client.res.write(`event: ${k}\ndata: {}\n\n`)
+        client.pending!.clear()
+      }, 60)
     client.pending.add(kind)
   }
-  const notifyAll = (kind: string) => { for (const c of clients) notify(c, kind) }
+  const notifyAll = (kind: string) => {
+    for (const c of clients) notify(c, kind)
+  }
 
   function pageChanged(id: string) {
     for (const c of clients) {
-      if (c.isDir ? (!c.page || id.startsWith(c.page + '/')) : (c.page === id || c.page + '/index' === id)) notify(c, 'change')
+      if (c.isDir ? !c.page || id.startsWith(c.page + '/') : c.page === id || c.page + '/index' === id)
+        notify(c, 'change')
     }
     // the overview lists every page
     for (const c of clients) if (c.isDir && !c.page) notify(c, 'change')
@@ -497,7 +630,10 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
   function setFiles(files: boolean) {
     if (files === FILES) return
     FILES = files
-    if (watcher) { watcher.close(); watchers.delete(watcher) }
+    if (watcher) {
+      watcher.close()
+      watchers.delete(watcher)
+    }
     const base = files ? project.dir : project.wb
     const prefix = files ? '' : '.whiteboard/'
     watcher = fs.watch(base, { recursive: true }, (_evt, filename) => {
@@ -537,14 +673,22 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
     res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' })
     res.end(body)
   }
-  const sendJson = (res: ServerResponse, status: number, data: unknown) => send(res, status, JSON.stringify(data), 'application/json')
-  const sendFile = (res: ServerResponse, file: string) => send(res, 200, fs.readFileSync(file), MIME[path.extname(file).toLowerCase()] || 'application/octet-stream')
+  const sendJson = (res: ServerResponse, status: number, data: unknown) =>
+    send(res, status, JSON.stringify(data), 'application/json')
+  const sendFile = (res: ServerResponse, file: string) =>
+    send(res, 200, fs.readFileSync(file), MIME[path.extname(file).toLowerCase()] || 'application/octet-stream')
 
   function readBody(req: IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
       let size = 0
-      req.on('data', (c: Buffer) => { size += c.length; if (size > 1e6) { reject(new Error('body too large')); req.destroy() } else chunks.push(c) })
+      req.on('data', (c: Buffer) => {
+        size += c.length
+        if (size > 1e6) {
+          reject(new Error('body too large'))
+          req.destroy()
+        } else chunks.push(c)
+      })
       req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
       req.on('error', reject)
     })
@@ -555,7 +699,8 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
 
   async function resolve(id: string, requested: string): Promise<Resolved> {
     await config()
-    if (isRepoId(id) && !FILES) return { notFound: 'This project does not serve its files: its config sets files: false.' }
+    if (isRepoId(id) && !FILES)
+      return { notFound: 'This project does not serve its files: its config sets files: false.' }
     if (id === '_/docs') {
       // how pages are written, then each plugin's own docs, with their examples rendered live
       const { pages, plugins } = await docs()
@@ -563,13 +708,27 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
         pages ?? '',
         ...plugins.filter(p => p.docs).map(p => `<a id="plugin-${p.name}"></a>\n\n${p.docs}`),
       ].join('\n\n---\n\n')
-      return { page: { kind: 'page', id, file: path.join(project.pagesDir, '_docs.md'), mtime: null, source, body: source, frontmatter: {} } }
+      return {
+        page: {
+          kind: 'page',
+          id,
+          file: path.join(project.pagesDir, '_docs.md'),
+          mtime: null,
+          source,
+          body: source,
+          frontmatter: {},
+        },
+      }
     }
     const found = stored(id)
-    if (!found) return { notFound: `${isRepoId(id) ? id.slice(2) : id} does not exist${isRepoId(id) ? '' : ' yet. This page loads as soon as it does'}.` }
+    if (!found)
+      return {
+        notFound: `${isRepoId(id) ? id.slice(2) : id} does not exist${isRepoId(id) ? '' : ' yet. This page loads as soon as it does'}.`,
+      }
     if ('raw' in found) return found
     // a folder is served at /dir/, so relative links resolve inside it
-    if ((found.kind === 'folder' || (found.kind === 'pages' && id)) && !requested.endsWith('/')) return { redirect: `/${id}/` }
+    if ((found.kind === 'folder' || (found.kind === 'pages' && id)) && !requested.endsWith('/'))
+      return { redirect: `/${id}/` }
     // a list of pages says which await the reader: where their questions stand takes the config
     if (found.kind === 'pages') {
       const counts = new Map((await status(found.id || null)).map(s => [s.page, awaiting(s)]))
@@ -585,7 +744,11 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       const p = decodeURIComponent(url.pathname)
       const q = Object.fromEntries(url.searchParams)
 
-      if (p === '/favicon.ico') { res.writeHead(204); res.end(); return }
+      if (p === '/favicon.ico') {
+        res.writeHead(204)
+        res.end()
+        return
+      }
       if (p === '/_/runtime.js') return sendFile(res, RUNTIME)
       if (auth.handle(req, res, p, q)) return
       if (p.startsWith('/api/')) {
@@ -598,13 +761,21 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       if (p.startsWith('/_/file/')) {
         await config()
         const file = path.resolve(p.slice('/_/file'.length))
-        if (!servable(file) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
+        if (!servable(file) || !fs.existsSync(file) || !fs.statSync(file).isFile())
+          return send(res, 404, 'not found', 'text/plain')
         // watched from now on, so a change to it reloads the pages that use it
         asset(file)
         if (TYPESCRIPT.test(file)) {
-          try { return send(res, 200, typeScriptModule(file), 'text/javascript; charset=utf-8') } catch (err) {
+          try {
+            return send(res, 200, typeScriptModule(file), 'text/javascript; charset=utf-8')
+          } catch (err) {
             // syntax only types can't express (an enum, a namespace) or a mistake: the browser says why
-            return send(res, 200, `throw new SyntaxError(${JSON.stringify(`${path.basename(file)}: ${(err as Error).message}`)})`, 'text/javascript; charset=utf-8')
+            return send(
+              res,
+              200,
+              `throw new SyntaxError(${JSON.stringify(`${path.basename(file)}: ${(err as Error).message}`)})`,
+              'text/javascript; charset=utf-8',
+            )
           }
         }
         return sendFile(res, file)
@@ -619,7 +790,8 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       // ({ page, to }: a heading's text, a form's name or any text) → { tabs }
       if (p === '/api/scroll' && req.method === 'POST') {
         const { page: id, to } = JSON.parse(await readBody(req)) as { page?: unknown; to?: unknown }
-        if (typeof id !== 'string' || typeof to !== 'string' || !to.trim()) return sendJson(res, 400, { error: 'page and to required' })
+        if (typeof id !== 'string' || typeof to !== 'string' || !to.trim())
+          return sendJson(res, 400, { error: 'page and to required' })
         let tabs = 0
         for (const c of clients) {
           if (c.isDir || (c.page !== id && c.page + '/index' !== id)) continue
@@ -633,13 +805,23 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
         const { texts } = JSON.parse(await readBody(req)) as { texts?: unknown }
         if (!Array.isArray(texts)) return sendJson(res, 400, { error: 'texts: an array of strings' })
         const { pages } = await config()
-        const out = await Promise.all(texts.map(t => pages ? pages.message(String(t ?? ''), context()) : Promise.resolve({ html: String(html`${String(t ?? '')}`), styles: [] })))
+        const out = await Promise.all(
+          texts.map(t =>
+            pages
+              ? pages.message(String(t ?? ''), context())
+              : Promise.resolve({ html: String(html`${String(t ?? '')}`), styles: [] }),
+          ),
+        )
         return sendJson(res, 200, { html: out.map(o => o.html), styles: [...new Set(out.flatMap(o => o.styles))] })
       }
       if (p === '/api/events') {
         const all = readEvents(project.eventsFile)
         const picked = pickedUp(all)
-        return sendJson(res, 200, all.filter(e => matches(e, q)).map(e => (picked.has(e.id) ? { ...e, pickedUp: true } : e)))
+        return sendJson(
+          res,
+          200,
+          all.filter(e => matches(e, q)).map(e => (picked.has(e.id) ? { ...e, pickedUp: true } : e)),
+        )
       }
       if (p === '/api/docs') return sendJson(res, 200, await docs())
       if (p === '/api/status') return sendJson(res, 200, await status(q.page || null))
@@ -647,16 +829,36 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       if (p === '/api/listen') {
         const fallback = 'fallback' in q
         // one fallback per project: two would split what nobody else takes between them
-        if (fallback && [...listeners].some(l => l.fallback)) return sendJson(res, 409, { error: 'another agent is the fallback already' })
-        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
+        if (fallback && [...listeners].some(l => l.fallback))
+          return sendJson(res, 409, { error: 'another agent is the fallback already' })
+        res.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-store',
+          connection: 'keep-alive',
+        })
         res.write(': listening\n\n')
-        const l: Listener = { page: q.page || '', type: q.type || null, command: q.command === 'wait' ? 'wait' : 'watch', ...(fallback && { fallback }) }
+        const l: Listener = {
+          page: q.page || '',
+          type: q.type || null,
+          command: q.command === 'wait' ? 'wait' : 'watch',
+          ...(fallback && { fallback }),
+        }
         listeners.add(l)
         notifyAll('listeners')
         const ping = setInterval(() => res.write(': ping\n\n'), 25000)
-        const end = () => { clearInterval(ping); listeners.delete(l); streams.delete(end) }
-        streams.add(() => { end(); res.end() })
-        req.on('close', () => { end(); notifyAll('listeners') })
+        const end = () => {
+          clearInterval(ping)
+          listeners.delete(l)
+          streams.delete(end)
+        }
+        streams.add(() => {
+          end()
+          res.end()
+        })
+        req.on('close', () => {
+          end()
+          notifyAll('listeners')
+        })
         return
       }
       if (p === '/api/page' || p === '/api/render') {
@@ -667,13 +869,24 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
         return sendJson(res, 200, { ...out, notices, mtime: r.page.mtime, frontmatter: frontmatterOf(r.page) })
       }
       if (p === '/api/watch') {
-        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
+        res.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-store',
+          connection: 'keep-alive',
+        })
         res.write(': connected\n\n')
         const client = { res, page: q.page || '', isDir: 'dir' in q }
         clients.add(client)
         const ping = setInterval(() => res.write(': ping\n\n'), 25000)
-        const end = () => { clearInterval(ping); clients.delete(client); streams.delete(end) }
-        streams.add(() => { end(); res.end() })
+        const end = () => {
+          clearInterval(ping)
+          clients.delete(client)
+          streams.delete(end)
+        }
+        streams.add(() => {
+          end()
+          res.end()
+        })
         req.on('close', end)
         return
       }
@@ -682,7 +895,11 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       // a page is named without .md; a repository path is the file's own
       const id = isRepoId(path_) ? path_ : path_.replace(/\.md$/, '')
       const r = await resolve(id, p)
-      if ('redirect' in r) { res.writeHead(302, { location: r.redirect + url.search }); res.end(); return }
+      if ('redirect' in r) {
+        res.writeHead(302, { location: r.redirect + url.search })
+        res.end()
+        return
+      }
       if ('raw' in r) return sendFile(res, r.raw)
       if ('notFound' in r) {
         // rendered as a page, with the page's styles and the plugins', and live: it becomes the page

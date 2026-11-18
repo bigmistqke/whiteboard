@@ -8,7 +8,8 @@ const session = (): Sizes => ({ cols: 100, rows: 30, viewers: new Map(), active:
 /** Report as the host does: the session takes the size report returns. */
 function sized(s: Sizes, viewer: string, cols: number, rows: number, used = false, now = 0) {
   const size = report(s, viewer, cols, rows, used, now)
-  s.cols = size.cols; s.rows = size.rows
+  s.cols = size.cols
+  s.rows = size.rows
   return `${s.cols}x${s.rows}`
 }
 
@@ -59,7 +60,7 @@ test('a page switch: the same window claims it again before the handover', () =>
   assert.equal(s.active, 'a2')
 })
 
-test('a drawer that wasn\'t the active one leaving changes nothing', () => {
+test("a drawer that wasn't the active one leaving changes nothing", () => {
   const s = session()
   sized(s, 'a', 80, 24, true, 1)
   sized(s, 'b', 160, 40)
@@ -78,7 +79,8 @@ test('the last drawer leaving leaves the size as it is', () => {
 })
 
 test('of several sessions, the one whose drawer the reader used last', () => {
-  const one = session(), two = session()
+  const one = session(),
+    two = session()
   sized(one, 'a', 80, 24, true, 5)
   sized(two, 'b', 80, 24, true, 9)
   assert.equal(lastUsed([one, two]), two)

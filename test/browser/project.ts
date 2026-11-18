@@ -30,7 +30,10 @@ export interface Project {
   /** the same, with more in its environment (as a program in a terminal tab has) */
   cliWith(extra: Record<string, string>, ...args: string[]): string
   /** run a command with something on its standard input and more in its environment: what it printed, and how it exited */
-  run(args: string[], options?: { input?: string; env?: Record<string, string> }): { stdout: string; stderr: string; status: number }
+  run(
+    args: string[],
+    options?: { input?: string; env?: Record<string, string> },
+  ): { stdout: string; stderr: string; status: number }
   /** start a long-running command (a wait), and collect what it prints */
   spawn(...args: string[]): ChildProcess & { output(): string }
   /** the project's events, as the log has them */
@@ -45,7 +48,11 @@ export interface Project {
  * A project with `config` as its config (none: the defaults) and `pages` by name, its server
  * running. `files` are other files in its folder, by path.
  */
-export async function project({ config, pages = {}, files = {} }: { config?: string; pages?: Record<string, string>; files?: Record<string, string> } = {}): Promise<Project> {
+export async function project({
+  config,
+  pages = {},
+  files = {},
+}: { config?: string; pages?: Record<string, string>; files?: Record<string, string> } = {}): Promise<Project> {
   // short: the terminal's socket lives in it
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-'))
   const port = await freePort()
@@ -71,31 +78,53 @@ export async function project({ config, pages = {}, files = {} }: { config?: str
     dir,
     url: name => `http://localhost:${port}/${name}`,
     cli,
-    cliWith: (extra, ...args) => execFileSync(process.execPath, [CLI, ...args], { cwd: dir, env: { ...env, ...extra }, encoding: 'utf8' }),
+    cliWith: (extra, ...args) =>
+      execFileSync(process.execPath, [CLI, ...args], { cwd: dir, env: { ...env, ...extra }, encoding: 'utf8' }),
     run(args, { input = '', env: extra = {} } = {}) {
-      const r = spawnSync(process.execPath, [CLI, ...args], { cwd: dir, env: { ...env, ...extra }, encoding: 'utf8', input })
+      const r = spawnSync(process.execPath, [CLI, ...args], {
+        cwd: dir,
+        env: { ...env, ...extra },
+        encoding: 'utf8',
+        input,
+      })
       return { stdout: r.stdout, stderr: r.stderr, status: r.status ?? -1 }
     },
     spawn(...args) {
       const child = spawn(process.execPath, [CLI, ...args], { cwd: dir, env })
       let out = ''
-      child.stdout!.on('data', d => { out += d })
+      child.stdout!.on('data', d => {
+        out += d
+      })
       children.push(child)
       return Object.assign(child, { output: () => out })
     },
     events() {
       const file = path.join(dir, '.whiteboard', 'events.ndjson')
-      return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : []
+      return fs.existsSync(file)
+        ? fs
+            .readFileSync(file, 'utf8')
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map(l => JSON.parse(l))
+        : []
     },
     page,
     async close() {
       for (const c of children) c.kill()
       // the terminal's host, if a test started one
-      if (fs.existsSync(path.join(dir, '.whiteboard', 'terminal'))) try { cli('terminal', 'stop') } catch { /* gone already */ }
+      if (fs.existsSync(path.join(dir, '.whiteboard', 'terminal')))
+        try {
+          cli('terminal', 'stop')
+        } catch {
+          /* gone already */
+        }
       try {
         const { pid } = JSON.parse(fs.readFileSync(path.join(dir, '.whiteboard', 'server.json'), 'utf8'))
         process.kill(pid)
-      } catch { /* gone already */ }
+      } catch {
+        /* gone already */
+      }
       fs.rmSync(dir, { recursive: true, force: true })
     },
   }
@@ -109,7 +138,9 @@ export async function browser(): Promise<{ browser: Browser; page: Page; errors:
   const errors: string[] = []
   const newPage = async () => {
     const page = await context.newPage()
-    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+    page.on('console', m => {
+      if (m.type() === 'error') errors.push(m.text())
+    })
     page.on('pageerror', e => errors.push(String(e)))
     return page
   }

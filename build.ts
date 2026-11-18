@@ -32,14 +32,19 @@ const solidJsx = (): Plugin => ({
     filter: { id: /\.[jt]sx$/ },
     handler(code: string, id: string) {
       const out = transform(code, { filename: id, generate: 'dom', moduleName: '@solidjs/web' })
-      return { code: out.code, map: out.map ?? null, moduleType: id.endsWith('.tsx') ? 'ts' as const : 'js' as const }
+      return {
+        code: out.code,
+        map: out.map ?? null,
+        moduleType: id.endsWith('.tsx') ? ('ts' as const) : ('js' as const),
+      }
     },
   },
 })
 
 const bare = (id: string) => !id.startsWith('.') && !path.isAbsolute(id)
 
-const pluginDirs = fs.readdirSync(at('plugins'), { withFileTypes: true })
+const pluginDirs = fs
+  .readdirSync(at('plugins'), { withFileTypes: true })
   .filter(e => e.isDirectory() && fs.existsSync(at('plugins', e.name, 'index.ts')))
   .map(e => e.name)
 // browser code written as Solid components (a block's client), and as plain modules (a page module)
@@ -117,11 +122,16 @@ function copyAssets() {
   copyDir('src/client/page', 'src/client/page')
   for (const name of pluginDirs) {
     copyDir(`plugins/${name}`, `plugins/${name}`)
-    if (fs.existsSync(at('plugins', name, 'public'))) fs.cpSync(at('plugins', name, 'public'), path.join(DIST, 'plugins', name, 'public'), { recursive: true })
+    if (fs.existsSync(at('plugins', name, 'public')))
+      fs.cpSync(at('plugins', name, 'public'), path.join(DIST, 'plugins', name, 'public'), { recursive: true })
   }
   // the drawer's styles after xterm's own
-  fs.writeFileSync(path.join(DIST, 'plugins/terminal/public/style.css'),
-    fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') + '\n' + fs.readFileSync(at('plugins/terminal/public/style.css'), 'utf8'))
+  fs.writeFileSync(
+    path.join(DIST, 'plugins/terminal/public/style.css'),
+    fs.readFileSync(at('node_modules/@xterm/xterm/css/xterm.css'), 'utf8') +
+      '\n' +
+      fs.readFileSync(at('plugins/terminal/public/style.css'), 'utf8'),
+  )
 }
 
 /** Remove files under `dir` older than `since` (left from an earlier build), and folders left empty. */
@@ -136,18 +146,29 @@ function prune(dir: string, since: number) {
   }
 }
 
-const options = (b: BuildOptions): BuildOptions => ({ ...b, logLevel: 'warn', transform: { define: { 'process.env.NODE_ENV': '"production"' } } })
+const options = (b: BuildOptions): BuildOptions => ({
+  ...b,
+  logLevel: 'warn',
+  transform: { define: { 'process.env.NODE_ENV': '"production"' } },
+})
 
 if (process.argv.includes('--watch')) {
   copyAssets()
   // a plugin's public/ files aren't part of a bundle: copied again when one changes
   for (const name of pluginDirs) {
-    if (fs.existsSync(at('plugins', name, 'public'))) fs.watch(at('plugins', name, 'public'), { recursive: true }, () => copyAssets())
+    if (fs.existsSync(at('plugins', name, 'public')))
+      fs.watch(at('plugins', name, 'public'), { recursive: true }, () => copyAssets())
   }
   const watcher = watch(builds.map(options))
   watcher.on('event', e => {
-    if (e.code === 'BUNDLE_END') { copyAssets(); e.result?.close() }
-    if (e.code === 'ERROR') { console.error(e.error?.message ?? e.error); e.result?.close() }
+    if (e.code === 'BUNDLE_END') {
+      copyAssets()
+      e.result?.close()
+    }
+    if (e.code === 'ERROR') {
+      console.error(e.error?.message ?? e.error)
+      e.result?.close()
+    }
   })
   console.log('build: watching')
 } else {

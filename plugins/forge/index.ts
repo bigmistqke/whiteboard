@@ -9,7 +9,11 @@ import { execFileSync } from 'node:child_process'
 import { definePlugin, type Plugin, type TextLink } from '@bigmistqke/whiteboard'
 
 export type ForgeKind = 'github' | 'gitlab'
-export interface Forge { kind: ForgeKind; host: string; repo: string }
+export interface Forge {
+  kind: ForgeKind
+  host: string
+  repo: string
+}
 
 /** A git remote's URL → its host and repository path: https, ssh (`git@host:path`), ssh://. */
 export function parseRemote(url: string): { host: string; repo: string } | null {
@@ -22,7 +26,8 @@ export function parseRemote(url: string): { host: string; repo: string } | null 
 }
 
 /** GitHub or GitLab, by the host's name; null for any other. */
-export const kindOf = (host: string): ForgeKind | null => /(^|\.)github\./.test(host) ? 'github' : /(^|\.)gitlab\./.test(host) || /^gitlab/.test(host) ? 'gitlab' : null
+export const kindOf = (host: string): ForgeKind | null =>
+  /(^|\.)github\./.test(host) ? 'github' : /(^|\.)gitlab\./.test(host) || /^gitlab/.test(host) ? 'gitlab' : null
 
 /** The links for one forge: issues (`#n`) and pull or merge requests (`!n`), here or in `owner/repo`. */
 export function forgeLinks({ kind, host, repo }: Forge): TextLink[] {
@@ -42,7 +47,15 @@ export function forgeLinks({ kind, host, repo }: Forge): TextLink[] {
 /** The project's forge, from its `origin` remote; null without one it knows. */
 export function detect(dir: string): Forge | null {
   let url: string
-  try { url = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null }
+  try {
+    url = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+  } catch {
+    return null
+  }
   const remote = parseRemote(url)
   const kind = remote && kindOf(remote.host)
   return remote && kind ? { kind, ...remote } : null

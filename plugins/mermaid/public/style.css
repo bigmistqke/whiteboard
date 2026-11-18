@@ -1,7 +1,9 @@
 /* Pele reads its colours from --pele-* variables; map them onto the page's tokens so diagrams
    follow the theme without being re-rendered. */
 .wb-diagram {
-  margin: 4em 0; overflow-x: auto; text-align: center;
+  margin: 4em 0;
+  overflow-x: auto;
+  text-align: center;
   --pele-bg: transparent;
   --pele-fg: var(--text);
   --pele-muted: var(--muted);
@@ -13,4 +15,7 @@
   --pele-font: var(--sans);
   --pele-radius: 6px;
 }
-.wb-diagram svg { max-width: 100%; height: auto; }
+.wb-diagram svg {
+  max-width: 100%;
+  height: auto;
+}

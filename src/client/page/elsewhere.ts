@@ -12,7 +12,8 @@ export const WAITING_HASH = '#wb-waiting'
 const box = document.createElement('div')
 box.className = 'wb-elsewhere'
 box.hidden = true
-box.innerHTML = '<button type="button" class="wb-elsewhere-toggle wb-awaiting" aria-haspopup="true" aria-expanded="false"></button><ul class="wb-elsewhere-list" hidden></ul>'
+box.innerHTML =
+  '<button type="button" class="wb-elsewhere-toggle wb-awaiting" aria-haspopup="true" aria-expanded="false"></button><ul class="wb-elsewhere-list" hidden></ul>'
 const toggle = box.querySelector('button')!
 // an inbox, and how many questions wait in it
 toggle.innerHTML = `${INBOX_ICON}<span class="wb-elsewhere-count"></span>`
@@ -28,7 +29,11 @@ let current = ''
 
 async function load() {
   let pages: PageStatus[]
-  try { pages = await (await fetch('/api/status', { cache: 'no-store' })).json() } catch { return }
+  try {
+    pages = await (await fetch('/api/status', { cache: 'no-store' })).json()
+  } catch {
+    return
+  }
   const waiting = pages
     .filter(p => p.page !== current)
     .map(p => ({ p, n: awaiting(p) }))
@@ -39,19 +44,24 @@ async function load() {
   count.textContent = String(total)
   toggle.title = awaitingLabel(total, ` on ${waiting.length === 1 ? 'another page' : `${waiting.length} other pages`}`)
   toggle.setAttribute('aria-label', toggle.title)
-  list.replaceChildren(...waiting.map(({ p, n }) => {
-    const li = document.createElement('li')
-    const a = document.createElement('a')
-    a.href = `/${p.page.split('/').map(encodeURIComponent).join('/')}${WAITING_HASH}`
-    a.textContent = `${p.title} (${n})`
-    li.append(a)
-    return li
-  }))
+  list.replaceChildren(
+    ...waiting.map(({ p, n }) => {
+      const li = document.createElement('li')
+      const a = document.createElement('a')
+      a.href = `/${p.page.split('/').map(encodeURIComponent).join('/')}${WAITING_HASH}`
+      a.textContent = `${p.title} (${n})`
+      li.append(a)
+      return li
+    }),
+  )
 }
 
 // several changes at once (an answer is an event and a listener less) load once
 let timer = 0
-const reload = () => { clearTimeout(timer); timer = window.setTimeout(load, 100) }
+const reload = () => {
+  clearTimeout(timer)
+  timer = window.setTimeout(load, 100)
+}
 
 export function trackElsewhere(root: HTMLElement, handle: PageHandle, core: Api) {
   current = handle.id
@@ -59,8 +69,15 @@ export function trackElsewhere(root: HTMLElement, handle: PageHandle, core: Api)
   if (!nav) return
   nav.querySelector('.wb-theme')?.before(box)
   toggle.addEventListener('click', () => open(!!list.hidden))
-  document.addEventListener('click', e => { if (!box.contains(e.target as Node)) open(false) })
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !list.hidden) { open(false); toggle.focus() } })
+  document.addEventListener('click', e => {
+    if (!box.contains(e.target as Node)) open(false)
+  })
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !list.hidden) {
+      open(false)
+      toggle.focus()
+    }
+  })
   // what waits changes with an answer (events), a wait starting or ending (listeners), and a page's
   // forms (a page changed)
   core.events.on(reload)

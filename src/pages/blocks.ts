@@ -8,7 +8,12 @@ import { inPublic } from '../public.ts'
 
 /** A block as the plugins bring it: its name, and the plugin it comes from. */
 /** A block of a plugin, with the plugin's public folder, where its files are. */
-export interface BlockEntry { name: string; block: Block<any>; plugin: string; public: string }
+export interface BlockEntry {
+  name: string
+  block: Block<any>
+  plugin: string
+  public: string
+}
 
 const NAME = /^[\w-]+$/
 
@@ -27,16 +32,22 @@ export interface ResolvedBlock {
   source: string
 }
 
-export interface ResolvedBlocks { blocks: Map<string, ResolvedBlock>; code: ResolvedBlock | null }
+export interface ResolvedBlocks {
+  blocks: Map<string, ResolvedBlock>
+  code: ResolvedBlock | null
+}
 
 /** Check and resolve one block into what the engine uses: its files in its plugin's public folder. */
 function normalize({ name, block: b, plugin, public: dir }: BlockEntry): ResolvedBlock {
   if (typeof b !== 'object' || !b) throw new Error(`plugin ${plugin}: block "${name}" is not an object`)
-  if (!NAME.test(name)) throw new Error(`plugin ${plugin}: block name ${JSON.stringify(name)}: use letters, digits, - and _`)
-  const file = (ref: URL | string | undefined, field: string) => (ref == null ? null : inPublic(dir, ref, `plugin ${plugin}, block "${name}": ${field}`))
+  if (!NAME.test(name))
+    throw new Error(`plugin ${plugin}: block name ${JSON.stringify(name)}: use letters, digits, - and _`)
+  const file = (ref: URL | string | undefined, field: string) =>
+    ref == null ? null : inPublic(dir, ref, `plugin ${plugin}, block "${name}": ${field}`)
   const files = { client: file(b.client, 'client'), style: file(b.style, 'style') }
   for (const [field, file] of Object.entries(files))
-    if (file && !fs.existsSync(file)) throw new Error(`plugin ${plugin}, block "${name}": ${field} file not found: ${file}`)
+    if (file && !fs.existsSync(file))
+      throw new Error(`plugin ${plugin}, block "${name}": ${field} file not found: ${file}`)
   return {
     name,
     code: b.fence === 'any',

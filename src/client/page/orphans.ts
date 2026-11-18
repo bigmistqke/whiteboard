@@ -29,15 +29,30 @@ export function trackOrphanThreads(main: HTMLElement, api: Api) {
     }
     box.hidden = threads.size === 0
     if (box.hidden) return box.replaceChildren()
-    box.innerHTML = String(html`<h2>Chats no longer on this page</h2>
-${[...threads].map(([chat, messages]) => {
-  // a message can take the place of an earlier one (`replaces`), to correct it
-  const replaced = new Set(messages.map(m => m.data.replaces).filter(Boolean).map(String))
-  return html`<div class="wb-orphan" data-chat="${chat}"><h3>${chat}</h3>${messages.filter(m => !replaced.has(m.id)).map(m => {
-    const who = m.from === 'cli' ? 'agent' : 'you'
-    return html`<div class="wb-orphan-message" data-from="${who}"><span class="wb-orphan-who">${who}</span><span class="wb-orphan-text">${String(m.data.text ?? '')}</span></div>`
-  })}</div>`
-})}`)
+    box.innerHTML = String(
+      html`<h2>Chats no longer on this page</h2>
+        ${[...threads].map(([chat, messages]) => {
+          // a message can take the place of an earlier one (`replaces`), to correct it
+          const replaced = new Set(
+            messages
+              .map(m => m.data.replaces)
+              .filter(Boolean)
+              .map(String),
+          )
+          return html`<div class="wb-orphan" data-chat="${chat}">
+            <h3>${chat}</h3>
+            ${messages
+              .filter(m => !replaced.has(m.id))
+              .map(m => {
+                const who = m.from === 'cli' ? 'agent' : 'you'
+                return html`<div class="wb-orphan-message" data-from="${who}">
+                  <span class="wb-orphan-who">${who}</span
+                  ><span class="wb-orphan-text">${String(m.data.text ?? '')}</span>
+                </div>`
+              })}
+          </div>`
+        })}`,
+    )
   }
 
   api.events.on(draw)

@@ -50,10 +50,16 @@ function Gallery(props: { items: Item[]; min: string | null; narrow: boolean }) 
             <img src={item().src ?? ''} alt={item().alt} />
             <div class="wb-lightbox-caption" innerHTML={item().title ?? ''} />
             <Show when={props.items.length > 1}>
-              <button type="button" class="wb-lightbox-prev" aria-label="Previous" onClick={() => step(-1)}>‹</button>
-              <button type="button" class="wb-lightbox-next" aria-label="Next" onClick={() => step(1)}>›</button>
+              <button type="button" class="wb-lightbox-prev" aria-label="Previous" onClick={() => step(-1)}>
+                ‹
+              </button>
+              <button type="button" class="wb-lightbox-next" aria-label="Next" onClick={() => step(1)}>
+                ›
+              </button>
             </Show>
-            <button type="button" class="wb-lightbox-close" aria-label="Close" onClick={() => setOpen(null)}>×</button>
+            <button type="button" class="wb-lightbox-close" aria-label="Close" onClick={() => setOpen(null)}>
+              ×
+            </button>
           </div>
         )}
       </Show>

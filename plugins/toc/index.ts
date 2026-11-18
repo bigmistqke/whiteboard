@@ -26,9 +26,11 @@ export interface TocOptions {
 export default function toc(options: TocOptions = {}): Plugin {
   return {
     name: 'toc',
-    docs: () => options.always
-      ? DOCS + '\nIn this project every page has it; a page without it says `toc: false` in its frontmatter.\n'
-      : DOCS + '\nA page has it when its frontmatter says `toc: true`:\n\n```markdown\n---\ntoc: true\n---\n# A long page\n```\n',
+    docs: () =>
+      options.always
+        ? DOCS + '\nIn this project every page has it; a page without it says `toc: false` in its frontmatter.\n'
+        : DOCS +
+          '\nA page has it when its frontmatter says `toc: true`:\n\n```markdown\n---\ntoc: true\n---\n# A long page\n```\n',
     public: builtinPublic('toc'),
     style: 'style.css',
     setup: () => ({

@@ -7,7 +7,21 @@ import http from 'node:http'
 import { parseArgs } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { pageId, findProjectDir, project as projectAt, configFileIn, type Project } from '../src/config.ts'
-import { appendEvent, read, readEvents, follow, matches, pickedUp, pick, prune, editEvent, handOut, CLAIM, type EventFilter, forAgent } from '../src/events.ts'
+import {
+  appendEvent,
+  read,
+  readEvents,
+  follow,
+  matches,
+  pickedUp,
+  pick,
+  prune,
+  editEvent,
+  handOut,
+  CLAIM,
+  type EventFilter,
+  forAgent,
+} from '../src/events.ts'
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
@@ -64,14 +78,25 @@ const [first, ...rest] = process.argv.slice(2)
 // `whiteboard --help` and `-h`, where a command goes, ask for the help as `whiteboard help` does
 const cmd = first === '--help' || first === '-h' ? 'help' : first
 // a plugin's command parses its own arguments
-const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { values: {}, positionals: [] } : parseArgs({
-  args: rest,
-  allowPositionals: true,
-  options: {
-    page: { type: 'string' }, type: { type: 'string' }, data: { type: 'string' }, timeout: { type: 'string' }, count: { type: 'string' },
-    since: { type: 'string' }, last: { type: 'string' }, follow: { type: 'boolean' }, id: { type: 'string' }, help: { type: 'boolean', short: 'h' },
-  },
-})
+const { values: opts, positionals } =
+  cmd && !BUILTIN_COMMANDS.has(cmd)
+    ? { values: {}, positionals: [] }
+    : parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          page: { type: 'string' },
+          type: { type: 'string' },
+          data: { type: 'string' },
+          timeout: { type: 'string' },
+          count: { type: 'string' },
+          since: { type: 'string' },
+          last: { type: 'string' },
+          follow: { type: 'boolean' },
+          id: { type: 'string' },
+          help: { type: 'boolean', short: 'h' },
+        },
+      })
 
 const project = projectAt(findProjectDir())
 
@@ -98,7 +123,10 @@ async function ensureServer(): Promise<string> {
   // is left over, and taken over. (Should two servers still start, the server lets one survive.)
   const lock = path.join(proj.wb, 'server.lock')
   const claim = () => {
-    try { fs.writeFileSync(lock, String(process.pid), { flag: 'wx' }); return true } catch (err) {
+    try {
+      fs.writeFileSync(lock, String(process.pid), { flag: 'wx' })
+      return true
+    } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
       return false
     }
@@ -110,16 +138,31 @@ async function ensureServer(): Promise<string> {
     let stale = false
     try {
       const owner = Number(fs.readFileSync(lock, 'utf8'))
-      try { process.kill(owner, 0) } catch (err) { stale = (err as NodeJS.ErrnoException).code === 'ESRCH' }
-    } catch { /* removed meanwhile */ }
+      try {
+        process.kill(owner, 0)
+      } catch (err) {
+        stale = (err as NodeJS.ErrnoException).code === 'ESRCH'
+      }
+    } catch {
+      /* removed meanwhile */
+    }
     if (stale) {
-      try { fs.unlinkSync(lock) } catch { /* another command removed it first */ }
+      try {
+        fs.unlinkSync(lock)
+      } catch {
+        /* another command removed it first */
+      }
       mine = claim()
     }
   }
   if (mine) {
     const log = fs.openSync(proj.logFile, 'a')
-    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { cwd: proj.dir, detached: true, stdio: ['ignore', log, log], env: process.env })
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], {
+      cwd: proj.dir,
+      detached: true,
+      stdio: ['ignore', log, log],
+      env: process.env,
+    })
     child.unref()
   }
   for (let i = 0; i < 75; i++) {
@@ -150,13 +193,29 @@ function listen(f: EventFilter, command: 'wait' | 'watch', fallback = false): Pr
   return new Promise(registered => {
     const connect = async () => {
       let base
-      try { base = await ensureServer() } catch { return setTimeout(connect, 2000).unref() }
-      const q = new URLSearchParams({ command, ...(f.page ? { page: f.page } : {}), ...(f.type ? { type: f.type } : {}), ...(fallback ? { fallback: '' } : {}) })
+      try {
+        base = await ensureServer()
+      } catch {
+        return setTimeout(connect, 2000).unref()
+      }
+      const q = new URLSearchParams({
+        command,
+        ...(f.page ? { page: f.page } : {}),
+        ...(f.type ? { type: f.type } : {}),
+        ...(fallback ? { fallback: '' } : {}),
+      })
       let again = false
-      const retry = (ms: number) => { if (!again) { again = true; setTimeout(connect, ms).unref() } }
+      const retry = (ms: number) => {
+        if (!again) {
+          again = true
+          setTimeout(connect, ms).unref()
+        }
+      }
       const req = http.get(`${base}/api/listen?${q}`, res => {
         if (res.statusCode === 409) {
-          console.error('whiteboard: another agent already takes what no other listener does (a wait or watch without --page; one per project). Add --page to wait on a page of your own.')
+          console.error(
+            'whiteboard: another agent already takes what no other listener does (a wait or watch without --page; one per project). Add --page to wait on a page of your own.',
+          )
           process.exit(1)
         }
         res.resume()
@@ -178,20 +237,36 @@ function listen(f: EventFilter, command: 'wait' | 'watch', fallback = false): Pr
 async function otherListeners(changed: () => void): Promise<() => Listener[]> {
   let list: Listener[] = []
   const load = async () => {
-    try { list = await (await fetch(`${await ensureServer()}/api/listeners`)).json() as Listener[] } catch { /* the server restarts */ }
+    try {
+      list = (await (await fetch(`${await ensureServer()}/api/listeners`)).json()) as Listener[]
+    } catch {
+      /* the server restarts */
+    }
     changed()
   }
   const follow = async () => {
     let again = false
-    const retry = () => { if (!again) { again = true; setTimeout(follow, 1000).unref() } }
+    const retry = () => {
+      if (!again) {
+        again = true
+        setTimeout(follow, 1000).unref()
+      }
+    }
     let base
-    try { base = await ensureServer() } catch { return retry() }
+    try {
+      base = await ensureServer()
+    } catch {
+      return retry()
+    }
     const req = http.get(`${base}/api/watch?dir`, res => {
       let buf = ''
       res.setEncoding('utf8')
       res.on('data', (chunk: string) => {
         buf += chunk
-        if (buf.includes('event: listeners')) { buf = ''; load() }
+        if (buf.includes('event: listeners')) {
+          buf = ''
+          load()
+        }
         if (buf.length > 4096) buf = buf.slice(-64)
       })
       res.on('close', retry)
@@ -219,12 +294,18 @@ function init(name: string | undefined) {
   const named = name && name !== path.basename(dir)
   fs.mkdirSync(path.join(wb, 'pages'), { recursive: true })
   // a config only for what differs from the defaults
-  if (named || home) fs.writeFileSync(path.join(wb, 'config.ts'), `import { defineConfig } from '@bigmistqke/whiteboard'
+  if (named || home)
+    fs.writeFileSync(
+      path.join(wb, 'config.ts'),
+      `import { defineConfig } from '@bigmistqke/whiteboard'
 
 export default defineConfig({
 ${named ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served: this folder is not a repository\n  files: false,\n' : ''}})
-`)
-  fs.writeFileSync(path.join(wb, '.gitignore'), `# pages are working documents; remove this line to keep them in git
+`,
+    )
+  fs.writeFileSync(
+    path.join(wb, '.gitignore'),
+    `# pages are working documents; remove this line to keep them in git
 pages/
 # events from the pages (and which ones an agent picked up), and the running server's port and output
 events.ndjson
@@ -233,7 +314,8 @@ server.log
 server.lock
 # the secret for anything that runs code (a plugin like the terminal)
 token
-`)
+`,
+  )
   console.log(`project: ${wb}
   pages:     ${path.join(wb, 'pages')} (gitignored); \`whiteboard show <page>\` starts the server
   config:    ${configFileIn(wb) ?? `none: the defaults (markdown with the built-in plugins); add ${path.join(wb, 'config.ts')} to change them`}`)
@@ -260,10 +342,11 @@ async function currentSession(proj: Project): Promise<string | null> {
       const session = typeof e.session === 'function' ? await e.session() : null
       if (session) return String(session)
     }
-  } catch (err) { console.error(`whiteboard: which session runs this: ${(err as Error).message}`) }
+  } catch (err) {
+    console.error(`whiteboard: which session runs this: ${(err as Error).message}`)
+  }
   return null
 }
-
 
 async function status() {
   const proj = needProject()
@@ -272,8 +355,12 @@ async function status() {
     currentSession(proj),
   ])
   const busy = pages.filter(p => p.unpicked.length || p.open.length)
-  if (pages.some(p => p.listeners.some(l => l.fallback))) console.log('a fallback listens: it takes what no other wait or watch would\n')
-  if (!busy.length) { console.log('nothing open: every question is answered, and every answer picked up'); return }
+  if (pages.some(p => p.listeners.some(l => l.fallback)))
+    console.log('a fallback listens: it takes what no other wait or watch would\n')
+  if (!busy.length) {
+    console.log('nothing open: every question is answered, and every answer picked up')
+    return
+  }
   for (const p of busy) {
     console.log(`${p.page} (${whose(p, session)})`)
     for (const l of statusLines(p, relFile(p.file))) console.log(`  ${l}`)
@@ -284,7 +371,10 @@ switch (cmd) {
   case 'serve': {
     const proj = needProject()
     const base = await running(proj)
-    if (base) { console.error(`whiteboard: ${proj.name} is already served at ${base}`); process.exit(1) }
+    if (base) {
+      console.error(`whiteboard: ${proj.name} is already served at ${base}`)
+      process.exit(1)
+    }
     const { start } = await import('../src/serve.ts')
     await start(proj)
     break
@@ -302,7 +392,10 @@ switch (cmd) {
   case 'new': {
     // claim a page: the exclusive create fails when the file exists, so two agents asking at once
     // never get the same page; the second gets name-2
-    const name = (positionals[0] ?? '').replace(/\\/g, '/').replace(/\.md$/, '').replace(/^\/+|\/+$/g, '')
+    const name = (positionals[0] ?? '')
+      .replace(/\\/g, '/')
+      .replace(/\.md$/, '')
+      .replace(/^\/+|\/+$/g, '')
     if (!name || name.split('/').some(part => !part || part === '.' || part === '..' || part === '-' || part === '_'))
       throw new Error('usage: whiteboard new <name>   (a page name like plan or task/plan)')
     const proj = needProject()
@@ -341,21 +434,36 @@ switch (cmd) {
     if (!target) throw new Error('usage: whiteboard close <page|file>')
     const proj = needProject()
     const id = pageId(proj, target)
-    if (id.startsWith('-/')) throw new Error(`${target} is a file of the repository, not a page: close is for the pages in ${relFile(proj.pagesDir)}`)
+    if (id.startsWith('-/'))
+      throw new Error(
+        `${target} is a file of the repository, not a page: close is for the pages in ${relFile(proj.pagesDir)}`,
+      )
     const file = path.join(proj.pagesDir, `${id}.md`)
     const exists = fs.existsSync(file)
     // an agent still waiting on it would wait on nothing
     const base = await running(proj)
     if (base) {
       try {
-        const listening = (await (await fetch(`${base}/api/listeners?page=${encodeURIComponent(id)}`)).json() as Listener[]).filter(l => !l.fallback && l.page === id)
-        if (listening.length) console.error(`whiteboard: ${listening.length} wait or watch still listens on ${id}; stop it, it will hear nothing more`)
-      } catch { /* the server is going: nothing to say */ }
+        const listening = (
+          (await (await fetch(`${base}/api/listeners?page=${encodeURIComponent(id)}`)).json()) as Listener[]
+        ).filter(l => !l.fallback && l.page === id)
+        if (listening.length)
+          console.error(
+            `whiteboard: ${listening.length} wait or watch still listens on ${id}; stop it, it will hear nothing more`,
+          )
+      } catch {
+        /* the server is going: nothing to say */
+      }
     }
     if (exists) fs.rmSync(file)
     const removed = prune(proj.eventsFile, id)
-    if (!exists && !removed) { console.error(`whiteboard: there is no page ${id}, nor events of it`); process.exit(1) }
-    console.log(`closed ${id}: ${exists ? 'removed its file' : 'it had no file'}, and ${removed} event${removed === 1 ? '' : 's'} from the log`)
+    if (!exists && !removed) {
+      console.error(`whiteboard: there is no page ${id}, nor events of it`)
+      process.exit(1)
+    }
+    console.log(
+      `closed ${id}: ${exists ? 'removed its file' : 'it had no file'}, and ${removed} event${removed === 1 ? '' : 's'} from the log`,
+    )
     break
   }
   case 'prune': {
@@ -365,18 +473,29 @@ switch (cmd) {
     if (!target) throw new Error('usage: whiteboard prune <page|file> [--type <type>] [--id <event id>]')
     const proj = needProject()
     const id = pageId(proj, target)
-    const removed = prune(proj.eventsFile, id, e => (!opts.type || e.type === opts.type) && (!opts.id || e.id === opts.id))
+    const removed = prune(
+      proj.eventsFile,
+      id,
+      e => (!opts.type || e.type === opts.type) && (!opts.id || e.id === opts.id),
+    )
     const which = [opts.type && `of type ${opts.type}`, opts.id && `with id ${opts.id}`].filter(Boolean).join(', ')
-    console.log(`pruned ${removed} event${removed === 1 ? '' : 's'} of ${id}${which ? ` (${which})` : ''} from the log; the page stays`)
+    console.log(
+      `pruned ${removed} event${removed === 1 ? '' : 's'} of ${id}${which ? ` (${which})` : ''} from the log; the page stays`,
+    )
     break
   }
   case 'edit': {
     // an agent's own event, changed in place: --data is merged into its data
     const eventId = positionals[0]
-    if (!eventId || !opts.data) throw new Error('usage: whiteboard edit <event id> --data <json>   (merged into the event\'s data)')
+    if (!eventId || !opts.data)
+      throw new Error("usage: whiteboard edit <event id> --data <json>   (merged into the event's data)")
     const proj = needProject()
     let data: Record<string, unknown>
-    try { data = JSON.parse(opts.data) } catch { throw new Error('--data must be a JSON object') }
+    try {
+      data = JSON.parse(opts.data)
+    } catch {
+      throw new Error('--data must be a JSON object')
+    }
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('--data must be a JSON object')
     console.log(JSON.stringify(editEvent(proj.eventsFile, eventId, data)))
     break
@@ -390,15 +509,31 @@ switch (cmd) {
     const id = pageId(proj, target)
     const base = await ensureServer()
     // what the page shows, to say now when nothing on it matches
-    const rendered = await (await fetch(`${base}/api/render?page=${encodeURIComponent(id)}`)).json().catch(() => null) as { html?: string; data?: unknown } | null
-    const text = (rendered?.html ?? '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').toLowerCase()
-    const named = new RegExp(`<form[^>]*\\bname="${to.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`).test(rendered?.html ?? '')
+    const rendered = (await (
+      await fetch(`${base}/api/render?page=${encodeURIComponent(id)}`)
+    )
+      .json()
+      .catch(() => null)) as { html?: string; data?: unknown } | null
+    const text = (rendered?.html ?? '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&[a-z#0-9]+;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+    const named = new RegExp(`<form[^>]*\\bname="${to.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`).test(
+      rendered?.html ?? '',
+    )
     if (rendered && !named && !text.includes(to.replace(/\s+/g, ' ').toLowerCase())) {
-      console.error(`whiteboard: nothing on ${id} matches ${JSON.stringify(to)} (a heading's text, a form's name, or text on the page)`)
+      console.error(
+        `whiteboard: nothing on ${id} matches ${JSON.stringify(to)} (a heading's text, a form's name, or text on the page)`,
+      )
       process.exit(1)
     }
-    const res = await fetch(`${base}/api/scroll`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ page: id, to }) })
-    const { tabs } = await res.json() as { tabs: number }
+    const res = await fetch(`${base}/api/scroll`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ page: id, to }),
+    })
+    const { tabs } = (await res.json()) as { tabs: number }
     if (!tabs) {
       console.error(`whiteboard: no browser has ${id} open; \`whiteboard show ${target}\` prints its URL`)
       process.exit(1)
@@ -415,21 +550,37 @@ switch (cmd) {
     const names = (info.plugins ?? []).map((x: { name: string }) => x.name)
     if (only && !names.includes(only)) throw new Error(`no plugin named "${only}" here: ${names.join(', ')}`)
     const shown = (x: { name: string }) => !only || x.name === only
-    if (!only) console.log(info.pages ? `${info.pages.trim()}\n` : 'The config failed to load, so pages show as their raw text.\n')
+    if (!only)
+      console.log(
+        info.pages ? `${info.pages.trim()}\n` : 'The config failed to load, so pages show as their raw text.\n',
+      )
     for (const e of (info.plugins ?? []).filter(shown)) {
       console.log(`<!-- plugin: ${e.name} -->\n# Plugin: ${e.name}\n`)
       if (e.error) console.log(`It failed to load: ${e.error}\n`)
       if (e.docs) console.log(`${e.docs.trim()}\n`)
       if (e.events?.length) {
-        console.log('Events it writes (handed out: a `wait` or `watch` on the page gets them, and `status` counts them; the others only when asked for by type):\n')
-        for (const v of e.events) console.log(`- \`${v.type}\`${v.handOut ? ' (handed out)' : ''}${v.description ? `: ${v.description}` : ''}`)
+        console.log(
+          'Events it writes (handed out: a `wait` or `watch` on the page gets them, and `status` counts them; the others only when asked for by type):\n',
+        )
+        for (const v of e.events)
+          console.log(`- \`${v.type}\`${v.handOut ? ' (handed out)' : ''}${v.description ? `: ${v.description}` : ''}`)
         console.log()
       }
-      for (const c of e.commands) console.log(`- \`whiteboard ${[c.name, c.usage].filter(Boolean).join(' ')}\`: ${c.description}`)
-      if (e.routes.length) console.log(`\nRoutes (\`auth\`: needs the project's token, header \`x-whiteboard-token\`):\n`)
+      for (const c of e.commands)
+        console.log(`- \`whiteboard ${[c.name, c.usage].filter(Boolean).join(' ')}\`: ${c.description}`)
+      if (e.routes.length)
+        console.log(`\nRoutes (\`auth\`: needs the project's token, header \`x-whiteboard-token\`):\n`)
       for (const r of e.routes) {
-        const takes = [r.body && `body ${JSON.stringify(r.body)}`, r.query && `query ${JSON.stringify(r.query)}`, r.stream && 'server-sent events'].filter(Boolean).join(', ')
-        console.log(`- \`${r.method} ${r.path}\`${r.auth ? ' (auth)' : ''}: ${r.description}${takes ? ` (${takes})` : ''}`)
+        const takes = [
+          r.body && `body ${JSON.stringify(r.body)}`,
+          r.query && `query ${JSON.stringify(r.query)}`,
+          r.stream && 'server-sent events',
+        ]
+          .filter(Boolean)
+          .join(', ')
+        console.log(
+          `- \`${r.method} ${r.path}\`${r.auth ? ' (auth)' : ''}: ${r.description}${takes ? ` (${takes})` : ''}`,
+        )
       }
       console.log()
     }
@@ -448,7 +599,10 @@ switch (cmd) {
     }
     if (opts.last) list = list.slice(-Number(opts.last))
     for (const e of list) console.log(JSON.stringify(e))
-    if (opts.follow) follow(log, end, e => { if (matches(e, f)) console.log(JSON.stringify(e)) })
+    if (opts.follow)
+      follow(log, end, e => {
+        if (matches(e, f)) console.log(JSON.stringify(e))
+      })
     break
   }
   case 'pick': {
@@ -459,7 +613,10 @@ switch (cmd) {
     const events = readEvents(proj.eventsFile)
     const event = events.find(e => e.id === id)
     if (!event) throw new Error(`no event ${id} in ${proj.eventsFile}`)
-    if (pickedUp(events).has(id)) { console.error(`whiteboard: ${id} was picked up already`); break }
+    if (pickedUp(events).has(id)) {
+      console.error(`whiteboard: ${id} was picked up already`)
+      break
+    }
     console.log(JSON.stringify(pick(proj.eventsFile, event)))
     break
   }
@@ -480,38 +637,67 @@ switch (cmd) {
     // it holds each event briefly before deciding: by then that wait took it, or the copy knows.
     const held = new Set<string>()
     const skip = (e: WbEvent) => {
-      if (!held.has(e.id)) { held.add(e.id); setTimeout(() => recheck(), 500).unref(); return true }
+      if (!held.has(e.id)) {
+        held.add(e.id)
+        setTimeout(() => recheck(), 500).unref()
+        return true
+      }
       return takenByOther(others!(), e)
     }
     handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), {
       count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity,
       forAgent: forAgent(handedOut),
-      ...(others && { skip, recheck: again => { recheck = again } }),
+      ...(others && {
+        skip,
+        recheck: again => {
+          recheck = again
+        },
+      }),
     }).then(async () => {
       // a wait on a page ends with an answer, and the agent acts on it; what is still unanswered
       // there needs the next wait, which is easily forgotten: say so, right with the answer
       if (cmd === 'wait' && !fallback) {
         try {
-          const pages = await api(`/api/status?page=${encodeURIComponent(f.page!)}`) as PageStatus[]
-          for (const p of pages) if (p.open.length) console.error(`whiteboard: still unanswered on ${p.page}: ${p.open.join(', ')} → run \`whiteboard wait --page ${relFile(p.file)}\` again, in the background, once you've acted on this`)
-        } catch { /* no status: the answer is what matters */ }
+          const pages = (await api(`/api/status?page=${encodeURIComponent(f.page!)}`)) as PageStatus[]
+          for (const p of pages)
+            if (p.open.length)
+              console.error(
+                `whiteboard: still unanswered on ${p.page}: ${p.open.join(', ')} → run \`whiteboard wait --page ${relFile(p.file)}\` again, in the background, once you've acted on this`,
+              )
+        } catch {
+          /* no status: the answer is what matters */
+        }
       }
       process.exit(0)
     })
     if (!fallback) listen(f, cmd)
-    if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
+    if (opts.timeout && cmd === 'wait')
+      setTimeout(
+        () => {
+          console.error('timeout')
+          process.exit(2)
+        },
+        Number(opts.timeout) * 1000,
+      )
     break
   }
   case 'append': {
     // the agent's side of the log: anything a page's plugins understand, such as a reply to a
     // comment. Waits skip what is appended here, so an agent does not hear its own events.
     const proj = needProject()
-    if (!opts.page || !opts.type) throw new Error("usage: whiteboard append --page <page|file> --type <type> [--data '<json>']")
+    if (!opts.page || !opts.type)
+      throw new Error("usage: whiteboard append --page <page|file> --type <type> [--data '<json>']")
     let data = {}
     if (opts.data) {
-      try { data = JSON.parse(opts.data) } catch { throw new Error('--data must be JSON, e.g. \'{"text":"…"}\'') }
+      try {
+        data = JSON.parse(opts.data)
+      } catch {
+        throw new Error('--data must be JSON, e.g. \'{"text":"…"}\'')
+      }
     }
-    console.log(JSON.stringify(appendEvent(proj.eventsFile, { page: pageId(proj, opts.page), type: opts.type, data }, 'cli')))
+    console.log(
+      JSON.stringify(appendEvent(proj.eventsFile, { page: pageId(proj, opts.page), type: opts.type, data }, 'cli')),
+    )
     break
   }
   case 'status':
@@ -520,10 +706,15 @@ switch (cmd) {
   case 'skill': {
     // the agent skill ships in this package; link it into whatever folder an agent reads skills from
     const source = packagePath('skills', 'whiteboard')
-    if (!positionals[0]) { console.log(source); break }
+    if (!positionals[0]) {
+      console.log(source)
+      break
+    }
     const target = path.join(path.resolve(positionals[0].replace(/^~(?=$|\/)/, os.homedir())), 'whiteboard')
     let existing = null
-    try { existing = fs.lstatSync(target) } catch {}
+    try {
+      existing = fs.lstatSync(target)
+    } catch {}
     if (existing) {
       if (existing.isSymbolicLink() && path.resolve(path.dirname(target), fs.readlinkSync(target)) === source) {
         console.log(`already linked: ${target} -> ${source}`)
@@ -556,8 +747,13 @@ switch (cmd) {
         server: ensureServer,
         pagePath: page => `/${pageId(project, page ?? '')}`,
         status: async page => api(`/api/status${page ? `?page=${encodeURIComponent(pageId(project, page))}` : ''}`),
-        handOut: async (filter, onEvent, options) => handOut(project.eventsFile, { ...filter, page: filter.page ? pageId(project, filter.page) : null }, onEvent, { ...options, forAgent: forAgent((await projectConfig(project)).handedOut) }),
-        authLink: async to => `${await ensureServer()}/_/auth?token=${encodeURIComponent(projectToken(project.wb))}&to=${encodeURIComponent(to)}`,
+        handOut: async (filter, onEvent, options) =>
+          handOut(project.eventsFile, { ...filter, page: filter.page ? pageId(project, filter.page) : null }, onEvent, {
+            ...options,
+            forAgent: forAgent((await projectConfig(project)).handedOut),
+          }),
+        authLink: async to =>
+          `${await ensureServer()}/_/auth?token=${encodeURIComponent(projectToken(project.wb))}&to=${encodeURIComponent(to)}`,
       })
       break
     }
@@ -567,7 +763,8 @@ switch (cmd) {
     print(HELP)
     if (commands.length) {
       print(`\nfrom this project's plugins:\n`)
-      for (const c of commands) print(`  whiteboard ${[c.name, usage(c.command)].filter(Boolean).join(' ')}\n      ${c.command.description}`)
+      for (const c of commands)
+        print(`  whiteboard ${[c.name, usage(c.command)].filter(Boolean).join(' ')}\n      ${c.command.description}`)
     }
     if (mine.length) console.error(`\nwhiteboard: ${cmd} has no command ${JSON.stringify(rest[0] ?? '')}`)
     if (!asked) process.exit(1)

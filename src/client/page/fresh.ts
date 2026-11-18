@@ -19,7 +19,16 @@ let core: Api | undefined
 
 // the data-wb-* attributes the server writes into a page; every other one is the browser's (a
 // form's state, a mark, a key), and not part of what the server sent
-const SERVER_MARKS = new Set(['data-wb-at', 'data-wb-key', 'data-wb-maximize', 'data-wb-other', 'data-wb-other-text', 'data-wb-quiet', 'data-wb-self', 'data-wb-sort'])
+const SERVER_MARKS = new Set([
+  'data-wb-at',
+  'data-wb-key',
+  'data-wb-maximize',
+  'data-wb-other',
+  'data-wb-other-text',
+  'data-wb-quiet',
+  'data-wb-self',
+  'data-wb-sort',
+])
 
 /**
  * FNV-1a over the block's HTML as the server sent it, ignoring anything quiet: content inside
@@ -33,7 +42,8 @@ export function signature(el: Element): string {
   const clone = el.cloneNode(true) as Element
   for (const q of clone.querySelectorAll('[data-wb-quiet], .wb-folded')) q.remove()
   for (const n of [clone, ...clone.querySelectorAll('*')]) {
-    for (const { name } of [...n.attributes]) if (name.startsWith('data-wb-') && !SERVER_MARKS.has(name)) n.removeAttribute(name)
+    for (const { name } of [...n.attributes])
+      if (name.startsWith('data-wb-') && !SERVER_MARKS.has(name)) n.removeAttribute(name)
     n.classList.remove('wb-new', 'wb-new-seen')
     if (!n.classList.length) n.removeAttribute('class')
   }
@@ -55,14 +65,21 @@ function loadSeen(): Set<string> | null {
   try {
     const raw = localStorage.getItem(storeKey)
     return raw ? new Set(JSON.parse(raw)) : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 function saveSeen(main: HTMLElement) {
   try {
-    const seen = [...main.children].filter(el => !unseen.has(el)).map(el => sigOf.get(el)).filter(Boolean)
+    const seen = [...main.children]
+      .filter(el => !unseen.has(el))
+      .map(el => sigOf.get(el))
+      .filter(Boolean)
     localStorage.setItem(storeKey, JSON.stringify(seen))
-  } catch { /* storage unavailable: tracking still works for this visit */ }
+  } catch {
+    /* storage unavailable: tracking still works for this visit */
+  }
 }
 
 // ---- seen detection ----------------------------------------------------------------------------
@@ -84,10 +101,20 @@ function inView(el: Element) {
 function check() {
   const active = document.visibilityState === 'visible'
   for (const el of unseen) {
-    if (!el.isConnected) { unseen.delete(el); continue }
+    if (!el.isConnected) {
+      unseen.delete(el)
+      continue
+    }
     const pending = timers.has(el)
     if (active && inView(el)) {
-      if (!pending) timers.set(el, window.setTimeout(() => { timers.delete(el); markSeen(el) }, DWELL_MS))
+      if (!pending)
+        timers.set(
+          el,
+          window.setTimeout(() => {
+            timers.delete(el)
+            markSeen(el)
+          }, DWELL_MS),
+        )
     } else if (pending) {
       clearTimeout(timers.get(el))
       timers.delete(el)
@@ -96,11 +123,16 @@ function check() {
 }
 
 let checkFrame = 0
-const scheduleCheck = () => { cancelAnimationFrame(checkFrame); checkFrame = requestAnimationFrame(check) }
+const scheduleCheck = () => {
+  cancelAnimationFrame(checkFrame)
+  checkFrame = requestAnimationFrame(check)
+}
 addEventListener('scroll', scheduleCheck, { passive: true })
 addEventListener('resize', scheduleCheck)
 document.addEventListener('visibilitychange', scheduleCheck)
-setInterval(() => { if (unseen.size) check() }, 500)
+setInterval(() => {
+  if (unseen.size) check()
+}, 500)
 
 function markSeen(el: Element) {
   if (!unseen.delete(el)) return
@@ -127,9 +159,13 @@ let upToast: Toast | null = null
 let downToast: Toast | null = null
 
 function split() {
-  const above: Element[] = [], below: Element[] = []
+  const above: Element[] = [],
+    below: Element[] = []
   for (const el of unseen) {
-    if (!el.isConnected) { unseen.delete(el); continue }
+    if (!el.isConnected) {
+      unseen.delete(el)
+      continue
+    }
     const r = el.getBoundingClientRect()
     if (r.bottom < 60) above.push(el)
     else if (r.top > viewBottom()) below.push(el)
@@ -145,9 +181,15 @@ function update() {
   cancelAnimationFrame(raf)
   raf = requestAnimationFrame(() => {
     const { above, below } = split()
-    for (const [toast, list, arrow] of [[upToast, above, '↑'], [downToast, below, '↓']] as const) {
+    for (const [toast, list, arrow] of [
+      [upToast, above, '↑'],
+      [downToast, below, '↓'],
+    ] as const) {
       if (!toast) continue
-      if (list.length) { toast.update(`${arrow} new (${list.length})`); toast.show() } else toast.hide()
+      if (list.length) {
+        toast.update(`${arrow} new (${list.length})`)
+        toast.show()
+      } else toast.hide()
     }
     core?.badge('new', unseen.size ? String(unseen.size) : null)
   })
@@ -157,7 +199,9 @@ function go(dir: 'up' | 'down') {
   const { above, below } = split()
   ;(dir === 'up' ? above : below)[0]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
-const seeAll = () => { for (const el of [...unseen]) markSeen(el) }
+const seeAll = () => {
+  for (const el of [...unseen]) markSeen(el)
+}
 addEventListener('scroll', update, { passive: true })
 addEventListener('resize', update)
 
@@ -173,8 +217,22 @@ const RECOGNISED_MIN = 0.25
  */
 export function trackInitial(main: HTMLElement, page: string, api: Api) {
   core = api
-  upToast = api.toast('', { ms: 0, kind: 'alert', name: 'new-up', order: 1, onClick: () => go('up'), onDismiss: seeAll })
-  downToast = api.toast('', { ms: 0, kind: 'alert', name: 'new-down', order: 2, onClick: () => go('down'), onDismiss: seeAll })
+  upToast = api.toast('', {
+    ms: 0,
+    kind: 'alert',
+    name: 'new-up',
+    order: 1,
+    onClick: () => go('up'),
+    onDismiss: seeAll,
+  })
+  downToast = api.toast('', {
+    ms: 0,
+    kind: 'alert',
+    name: 'new-down',
+    order: 2,
+    onClick: () => go('down'),
+    onDismiss: seeAll,
+  })
   upToast.hide()
   downToast.hide()
   mainEl = main
@@ -185,7 +243,9 @@ export function trackInitial(main: HTMLElement, page: string, api: Api) {
   const seen = loadSeen()
   const recognised = seen ? sigs.filter(s => seen.has(s)).length : 0
   if (seen && recognised >= blocks.length * RECOGNISED_MIN)
-    blocks.forEach((el, i) => { if (!seen.has(sigs[i])) markNew(el) })
+    blocks.forEach((el, i) => {
+      if (!seen.has(sigs[i])) markNew(el)
+    })
   saveSeen(main)
   update()
 }

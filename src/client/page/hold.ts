@@ -5,7 +5,10 @@
 // sets the new place.
 
 const typing = (el: Element | null): el is HTMLElement =>
-  el instanceof HTMLElement && (el.matches('input:not([type=radio], [type=checkbox], [type=button], [type=submit]), textarea, select, [contenteditable]'))
+  el instanceof HTMLElement &&
+  el.matches(
+    'input:not([type=radio], [type=checkbox], [type=button], [type=submit]), textarea, select, [contenteditable]',
+  )
 
 let held: HTMLElement | null = null
 let top = 0
@@ -31,7 +34,13 @@ export function trackHold() {
   document.addEventListener('focusin', note)
   document.addEventListener('focusout', () => queueMicrotask(note))
   // the reader scrolled (or the page did, to keep it): that is the place now
-  addEventListener('scroll', () => { if (held) top = held.getBoundingClientRect().top }, { passive: true })
+  addEventListener(
+    'scroll',
+    () => {
+      if (held) top = held.getBoundingClientRect().top
+    },
+    { passive: true },
+  )
   new MutationObserver(hold).observe(document.body, { childList: true, subtree: true, characterData: true })
   addEventListener('resize', note)
 }

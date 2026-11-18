@@ -14,16 +14,41 @@ import type { ResolvedBlock, ResolvedBlocks } from './blocks.ts'
 
 type PagesPage = Extract<StoredPage, { kind: 'pages' }>
 type FolderPage = Extract<StoredPage, { kind: 'folder' }>
-interface Content { html: string | Html; title?: string | null; islands: Record<string, Island>; styles: string[] }
+interface Content {
+  html: string | Html
+  title?: string | null
+  islands: Record<string, Island>
+  styles: string[]
+}
 
 const BASE_CSS = new URL('../client/page/base.css', import.meta.url)
 
 // before the stylesheets, so the page never flashes the wrong theme. A plain string, not part of an
 // `html` template: the bundler writes `</script` in strings as `<\/script`, which in a tagged
 // template would change the raw text the tag gets, so it rewrites the template into a helper call
-const THEME_SCRIPT = raw(`<script>try{const t=localStorage.getItem('wb-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch{}</script>`)
+const THEME_SCRIPT = raw(
+  `<script>try{const t=localStorage.getItem('wb-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch{}</script>`,
+)
 
-const CODE_LANG: Record<string, string> = { js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'tsx', jsx: 'jsx', json: 'json', css: 'css', html: 'html', sh: 'bash', zsh: 'bash', py: 'python', rs: 'rust', go: 'go', toml: 'toml', yml: 'yaml', yaml: 'yaml' }
+const CODE_LANG: Record<string, string> = {
+  js: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'tsx',
+  jsx: 'jsx',
+  json: 'json',
+  css: 'css',
+  html: 'html',
+  sh: 'bash',
+  zsh: 'bash',
+  py: 'python',
+  rs: 'rust',
+  go: 'go',
+  toml: 'toml',
+  yml: 'yaml',
+  yaml: 'yaml',
+}
 
 /** Frontmatter is the core's; the page starts after it. */
 const body = (source: string) => source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
@@ -33,20 +58,41 @@ export function titleOf(file: string, fallback: string) {
   try {
     const h1 = /^#\s+(.+)$/m.exec(body(fs.readFileSync(file, 'utf8')))
     return h1 ? h1[1].replace(/[*_`]/g, '') : fallback
-  } catch { return fallback }
+  } catch {
+    return fallback
+  }
 }
 
 function crumbs(id: string, name: string) {
   const parts = id ? id.split('/') : []
-  return html`<a href="/">${name}</a>${parts.map((p, i) => html` / <a href="/${parts.slice(0, i + 1).join('/')}">${p}</a>`)}`
+  return html`<a href="/">${name}</a
+    >${parts.map((p, i) => html` / <a href="/${parts.slice(0, i + 1).join('/')}">${p}</a>`)}`
 }
 
 const time = (ts: number) => html`<time data-ts="${ts}"></time>`
 
 function pageList(pages: PagesPage['pages']) {
-  return html`<ul class="wb-index">${pages.map(p => html`<li><a href="/${p.id}">${titleOf(p.file, path.basename(p.id))}</a>${
-    p.awaiting > 0 && html` <a class="wb-awaiting" href="/${p.id}#wb-waiting" title="${awaitingLabel(p.awaiting)}" aria-label="${awaitingLabel(p.awaiting)}">${raw(INBOX_ICON)}${p.awaiting}</a>`} <span class="wb-meta"><code>${p.id}</code> · edited ${time(p.mtime)}${
-    p.lastEvent && html` · last submit ${time(Date.parse(p.lastEvent))}`}</span></li>`)}</ul>`
+  return html`<ul class="wb-index">
+    ${pages.map(
+      p =>
+        html`<li>
+          <a href="/${p.id}">${titleOf(p.file, path.basename(p.id))}</a>${
+            p.awaiting > 0 &&
+            html` <a
+              class="wb-awaiting"
+              href="/${p.id}#wb-waiting"
+              title="${awaitingLabel(p.awaiting)}"
+              aria-label="${awaitingLabel(p.awaiting)}"
+              >${raw(INBOX_ICON)}${p.awaiting}</a
+            >`
+          }
+          <span class="wb-meta"
+            ><code>${p.id}</code> · edited
+            ${time(p.mtime)}${p.lastEvent && html` · last submit ${time(Date.parse(p.lastEvent))}`}</span
+          >
+        </li>`,
+    )}
+  </ul>`
 }
 
 /** The folder's README, when it has one. */
@@ -78,16 +124,26 @@ const MARKDOWN = /\.(md|markdown)$/i
 function documentsIn(dir: string) {
   let files: string[]
   try {
-    files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ':(icase)*.md', ':(icase)*.markdown'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-      .split('\n').filter(f => f && !f.startsWith('.whiteboard/') && fs.existsSync(path.join(dir, f)))
+    files = execFileSync(
+      'git',
+      ['ls-files', '--cached', '--others', '--exclude-standard', '--', ':(icase)*.md', ':(icase)*.markdown'],
+      { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+      .split('\n')
+      .filter(f => f && !f.startsWith('.whiteboard/') && fs.existsSync(path.join(dir, f)))
   } catch {
     files = []
     const walk = (rel: string) => {
       let entries: fs.Dirent[] = []
-      try { entries = fs.readdirSync(path.join(dir, rel), { withFileTypes: true }) } catch { return }
+      try {
+        entries = fs.readdirSync(path.join(dir, rel), { withFileTypes: true })
+      } catch {
+        return
+      }
       for (const e of entries) {
-        if (e.isDirectory()) { if (!SKIP.has(e.name) && !e.name.startsWith('.')) walk(path.posix.join(rel, e.name)) }
-        else if (MARKDOWN.test(e.name)) files.push(path.posix.join(rel, e.name))
+        if (e.isDirectory()) {
+          if (!SKIP.has(e.name) && !e.name.startsWith('.')) walk(path.posix.join(rel, e.name))
+        } else if (MARKDOWN.test(e.name)) files.push(path.posix.join(rel, e.name))
       }
     }
     walk('')
@@ -111,11 +167,35 @@ function documentList(ctx: RenderContext) {
     const title = titleOf(abs, name)
     const where = title === name ? path.posix.dirname(f) : f
     let mtime = 0
-    try { mtime = fs.statSync(abs).mtimeMs } catch { /* gone meanwhile */ }
-    return html`<li data-order="${i}" data-updated="${mtime}" data-title="${title.toLowerCase()}"><a href="${ctx.urlFor(abs) ?? `/-/${f}`}">${title}</a> <span class="wb-meta">${where !== '.' && html`<code>${where === f ? f : `${where}/`}</code> · `}edited ${time(mtime)}</span></li>`
+    try {
+      mtime = fs.statSync(abs).mtimeMs
+    } catch {
+      /* gone meanwhile */
+    }
+    return html`<li data-order="${i}" data-updated="${mtime}" data-title="${title.toLowerCase()}">
+      <a href="${ctx.urlFor(abs) ?? `/-/${f}`}">${title}</a>
+      <span class="wb-meta"
+        >${where !== '.' && html`<code>${where === f ? f : `${where}/`}</code> · `}edited ${time(mtime)}</span
+      >
+    </li>`
   })
   // in a section, so the heading isn't numbered like the page's own sections
-  return html`<section class="wb-documents"><div class="wb-list-head"><h2>Documents</h2><label class="wb-sort">sort <select data-wb-sort="documents" aria-label="Sort the documents"><option value="order">by folder</option><option value="updated">last updated</option><option value="title">by title</option></select></label></div><ul class="wb-index">${rows}</ul></section>`
+  return html`<section class="wb-documents">
+    <div class="wb-list-head">
+      <h2>Documents</h2>
+      <label class="wb-sort"
+        >sort
+        <select data-wb-sort="documents" aria-label="Sort the documents">
+          <option value="order">by folder</option>
+          <option value="updated">last updated</option>
+          <option value="title">by title</option>
+        </select></label
+      >
+    </div>
+    <ul class="wb-index">
+      ${rows}
+    </ul>
+  </section>`
 }
 
 /** The plugins' text links for a project folder, asked once per folder. */
@@ -124,7 +204,14 @@ function textLinksOf(links: ((ctx: { dir: string }) => TextLink[])[]) {
   return (dir: string) => {
     let got = linksFor.get(dir)
     if (!got) {
-      got = links.flatMap(fn => { try { return fn({ dir }) } catch (err) { console.error('links:', err); return [] } })
+      got = links.flatMap(fn => {
+        try {
+          return fn({ dir })
+        } catch (err) {
+          console.error('links:', err)
+          return []
+        }
+      })
       linksFor.set(dir, got)
     }
     return got
@@ -135,21 +222,43 @@ function textLinksOf(links: ((ctx: { dir: string }) => TextLink[])[]) {
  * A message (a comment, a chat message) as HTML: markdown as on a page, but its raw HTML as text and
  * its directives as written. Code fences go to the code block, so `styles` are what it needs linked.
  */
-export function createMessageRender(blocks: () => ResolvedBlocks, links: ((ctx: { dir: string }) => TextLink[])[] = []) {
+export function createMessageRender(
+  blocks: () => ResolvedBlocks,
+  links: ((ctx: { dir: string }) => TextLink[])[] = [],
+) {
   const textLinks = textLinksOf(links)
   return async (text: string, ctx: RenderContext) => {
-    const out = await renderMarkdown(String(text ?? ''), { page: '', file: '', resolve: () => null, code: blocks().code, textLinks: textLinks(ctx.project.dir), message: true })
+    const out = await renderMarkdown(String(text ?? ''), {
+      page: '',
+      file: '',
+      resolve: () => null,
+      code: blocks().code,
+      textLinks: textLinks(ctx.project.dir),
+      message: true,
+    })
     return { html: out.html, styles: out.styles.map(s => ctx.asset(s)) }
   }
 }
 
-export function createRender(blocks: () => ResolvedBlocks, style?: URL | string, pluginStyles: (URL | string)[] = [], links: ((ctx: { dir: string }) => TextLink[])[] = []) {
+export function createRender(
+  blocks: () => ResolvedBlocks,
+  style?: URL | string,
+  pluginStyles: (URL | string)[] = [],
+  links: ((ctx: { dir: string }) => TextLink[])[] = [],
+) {
   const textLinks = textLinksOf(links)
   const STYLE = stylePath(style)
   const PLUGIN_STYLES = pluginStyles.map(stylePath).filter((f): f is string => !!f)
   async function markdown(source: string, page: string, file: string, ctx: RenderContext) {
     const { blocks: set, code } = blocks()
-    return renderMarkdown(body(source), { page, file, resolve: name => set.get(name) ?? null, code, linkFor: ctx.urlFor, textLinks: textLinks(ctx.project.dir) })
+    return renderMarkdown(body(source), {
+      page,
+      file,
+      resolve: name => set.get(name) ?? null,
+      code,
+      linkFor: ctx.urlFor,
+      textLinks: textLinks(ctx.project.dir),
+    })
   }
 
   async function content(page: StoredPage, ctx: RenderContext): Promise<Content> {
@@ -160,27 +269,58 @@ export function createRender(blocks: () => ResolvedBlocks, style?: URL | string,
       case 'pages': {
         const list = page.pages.length ? pageList(page.pages) : html`<p class="wb-meta">No pages yet.</p>`
         const view = page.id
-          ? html`<h1>${page.id}</h1>${list}<p class="wb-meta">${page.file}</p>`
-          : html`<h1>${project.name}</h1>${list}${project.files && documentList(ctx)}<p class="wb-meta"><code>${project.dir}</code>${project.files && html` · <a href="/-/">files</a>`} · <a href="/_/docs">how to write pages</a></p>`
+          ? html`<h1>${page.id}</h1>
+              ${list}
+              <p class="wb-meta">${page.file}</p>`
+          : html`<h1>${project.name}</h1>
+              ${list}${project.files && documentList(ctx)}
+              <p class="wb-meta">
+                <code>${project.dir}</code>${project.files && html` · <a href="/-/">files</a>`} ·
+                <a href="/_/docs">how to write pages</a>
+              </p>`
         return { html: view, title: page.id || project.name, islands: {}, styles: [] }
       }
       case 'folder': {
         const rel = page.id.slice(2)
-        const rows = page.entries.map(e => html`<li><a href="${encodeURIComponent(e.name) + (e.dir ? '/' : '')}">${e.name + (e.dir ? '/' : '')}</a></li>`)
-        const listing = html`<h1>${rel || project.name}</h1><ul class="wb-files">${rel && html`<li><a href="../">../</a></li>`}${rows}</ul><p class="wb-meta">${page.file} · <code>${page.id}</code></p>`
+        const rows = page.entries.map(
+          e =>
+            html`<li>
+              <a href="${encodeURIComponent(e.name) + (e.dir ? '/' : '')}">${e.name + (e.dir ? '/' : '')}</a>
+            </li>`,
+        )
+        const listing = html`<h1>${rel || project.name}</h1>
+          <ul class="wb-files">
+            ${rel && html`<li><a href="../">../</a></li>`}${rows}
+          </ul>
+          <p class="wb-meta">${page.file} · <code>${page.id}</code></p>`
         const readme = readmeOf(page)
         if (!readme) return { html: listing, title: rel || project.name, islands: {}, styles: [] }
         // markdown's output is HTML already
         const r = await markdown(readme.source, page.id, readme.file, ctx)
-        return { ...r, html: html`${raw(r.html)}<hr>${listing}` }
+        return {
+          ...r,
+          html: html`${raw(r.html)}
+            <hr />
+            ${listing}`,
+        }
       }
       case 'file': {
         // the file as one code block, rendered by the code block (or as plain code)
         const { code } = blocks()
         const ext = path.extname(page.file).slice(1).toLowerCase()
-        const tree: MdNode = { type: 'root', children: [{ type: 'code', lang: CODE_LANG[ext] ?? (ext || null), meta: null, value: page.source }] }
-        const out = await renderMarkdown(tree, { page: page.id, file: page.file, resolve: () => null, code, linkFor: ctx.urlFor })
-        const view = html`<h1 class="wb-code-title wb-wide">${page.id.slice(2)}</h1><div class="wb-code wb-wide">${raw(out.html)}</div>`
+        const tree: MdNode = {
+          type: 'root',
+          children: [{ type: 'code', lang: CODE_LANG[ext] ?? (ext || null), meta: null, value: page.source }],
+        }
+        const out = await renderMarkdown(tree, {
+          page: page.id,
+          file: page.file,
+          resolve: () => null,
+          code,
+          linkFor: ctx.urlFor,
+        })
+        const view = html`<h1 class="wb-code-title wb-wide">${page.id.slice(2)}</h1>
+          <div class="wb-code wb-wide">${raw(out.html)}</div>`
         return { html: view, title: path.basename(page.file), islands: out.islands, styles: out.styles }
       }
     }
@@ -194,17 +334,33 @@ export function createRender(blocks: () => ResolvedBlocks, style?: URL | string,
       // blocks that do not resolve (a bad block in a plugin)
       out = { html: html`<pre class="wb-error">${(err as Error).message}</pre>`, islands: {}, styles: [] }
     }
-    const islands = Object.fromEntries(Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]))
+    const islands = Object.fromEntries(
+      Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]),
+    )
     const styles = out.styles.map(s => ctx.asset(s))
-    const nav = html`<nav class="wb-nav"><span>${crumbs(page.id, ctx.project.name)}</span>${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark" aria-label="Theme"></button><span class="wb-live" role="img" title="Connecting…" aria-label="Connecting…"></span></nav>`
+    const nav = html`<nav class="wb-nav">
+      <span>${crumbs(page.id, ctx.project.name)}</span
+      >${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button
+        type="button"
+        class="wb-theme"
+        title="Theme: follow the system, light or dark"
+        aria-label="Theme"
+      ></button
+      ><span class="wb-live" role="img" title="Connecting…" aria-label="Connecting…"></span>
+    </nav>`
     // the page's own, the plugins' (every page), the blocks' on this page, then the project's
-    const links = [ctx.asset(BASE_CSS), ...PLUGIN_STYLES.map(f => ctx.asset(f)), ...styles, ...(STYLE ? [ctx.asset(STYLE)] : [])]
+    const links = [
+      ctx.asset(BASE_CSS),
+      ...PLUGIN_STYLES.map(f => ctx.asset(f)),
+      ...styles,
+      ...(STYLE ? [ctx.asset(STYLE)] : []),
+    ]
     return {
       title: out.title || page.id || ctx.project.name,
-      head: html`${THEME_SCRIPT}
-${links.map(href => html`<link rel="stylesheet" href="${href}">`)}`,
+      head: html`${THEME_SCRIPT} ${links.map(href => html`<link rel="stylesheet" href="${href}" />`)}`,
       // the page's content is HTML already: markdown's output, or what was built above
-      html: html`${nav}<main id="wb-main">${raw(out.html)}</main>`,
+      html: html`${nav}
+        <main id="wb-main">${raw(out.html)}</main>`,
       // the client mounts `islands` and links `styles`
       data: { islands, styles, mtime: page.mtime },
     }
@@ -218,8 +374,13 @@ ${links.map(href => html`<link rel="stylesheet" href="${href}">`)}`,
 export function createDocs(blocks: () => ResolvedBlocks) {
   return function docs(_ctx: RenderContext) {
     const byPlugin = new Map<string, string[]>()
-    for (const t of blocks().blocks.values()) byPlugin.set(t.source, [...(byPlugin.get(t.source) ?? []), t.code ? `${t.name} (every other code fence)` : t.name])
-    const list = [...byPlugin].sort(([a], [b]) => a.localeCompare(b))
+    for (const t of blocks().blocks.values())
+      byPlugin.set(t.source, [
+        ...(byPlugin.get(t.source) ?? []),
+        t.code ? `${t.name} (every other code fence)` : t.name,
+      ])
+    const list = [...byPlugin]
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([plugin, blocks]) => `- **${plugin}**: ${blocks.map(b => `\`${b}\``).join(', ')}`)
     return `# Pages
 

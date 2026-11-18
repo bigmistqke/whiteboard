@@ -12,7 +12,9 @@ import { scrollToTarget } from './scroll'
 import { reactive } from './reactive'
 
 interface Handoff {
-  id: string; kind: StoredPage['kind']; data: unknown
+  id: string
+  kind: StoredPage['kind']
+  data: unknown
   /** the page module; null for raw text */
   client: string | null
   /** the plugins' browser modules */
@@ -48,7 +50,11 @@ async function loadEvents() {
   setEvents(all.filter(e => e.page === page))
 }
 
-async function append(type: string, data: Record<string, unknown> = {}, action: string | null = null): Promise<WbEvent> {
+async function append(
+  type: string,
+  data: Record<string, unknown> = {},
+  action: string | null = null,
+): Promise<WbEvent> {
   const res = await fetch('/api/events', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -73,7 +79,9 @@ const renderedListeners = new Set<() => void>()
 // ---- the corner and the title ------------------------------------------------------------------
 
 // the server puts it in the page; a page from a server older than this runtime has none
-const corner = document.getElementById('wb-dock') ?? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'wb-dock' }))
+const corner =
+  document.getElementById('wb-dock') ??
+  document.body.appendChild(Object.assign(document.createElement('div'), { id: 'wb-dock' }))
 let baseTitle = document.title
 const badges = new Map<string, { text: string; order: number; since: number }>()
 let badgeCount = 0
@@ -88,7 +96,10 @@ const api: Api = {
   last: type => events.findLast(e => e.type === type),
   pickedUp: id => !!events.find(e => e.id === id)?.pickedUp,
   unread,
-  markRead: ids => { markRead(ids); unread.notify() },
+  markRead: ids => {
+    markRead(ids)
+    unread.notify()
+  },
   markdown,
   append,
   listeners: listenersValue,
@@ -102,14 +113,20 @@ const api: Api = {
     dataValue.notify()
     if (frontmatterChanged) frontmatterValue.notify()
   },
-  onRendered(fn) { renderedListeners.add(fn); return () => renderedListeners.delete(fn) },
+  onRendered(fn) {
+    renderedListeners.add(fn)
+    return () => renderedListeners.delete(fn)
+  },
   corner: () => corner,
   badge(key, text, order = 0) {
     if (text == null) badges.delete(key)
     else badges.set(key, { text, order, since: badges.get(key)?.since ?? badgeCount++ })
     writeTitle()
   },
-  title(title) { baseTitle = title; writeTitle() },
+  title(title) {
+    baseTitle = title
+    writeTitle()
+  },
   toast: createToast(() => corner),
   ...formsApi,
 }
@@ -137,7 +154,10 @@ const handle: PageHandle = {
   kind: handoff.kind,
   data: dataValue,
   frontmatter: frontmatterValue,
-  onChange(fn) { changeListeners.add(fn); return () => changeListeners.delete(fn) },
+  onChange(fn) {
+    changeListeners.add(fn)
+    return () => changeListeners.delete(fn)
+  },
   render: async () => {
     const next = await getJson<RenderedPage>(`/api/render?page=${encodeURIComponent(page)}`)
     nextData = next.data ?? null
@@ -150,13 +170,23 @@ const handle: PageHandle = {
 /** Did the page change since it was rendered here (its file's time, or it came to be)? Then say so. */
 async function caughtUp() {
   let now: number | null
-  try { now = (await getJson<RenderedPage & { mtime: number | null }>(`/api/render?page=${encodeURIComponent(page)}`)).mtime ?? null } catch { now = null }
+  try {
+    now =
+      (await getJson<RenderedPage & { mtime: number | null }>(`/api/render?page=${encodeURIComponent(page)}`)).mtime ??
+      null
+  } catch {
+    now = null
+  }
   const shown = (data as { mtime?: number | null } | null)?.mtime ?? null
   if (now !== shown) for (const fn of changeListeners) fn()
 }
 
 // raw text: the server's HTML is the page, replaced when the page changes
-if (!handoff.client) handle.onChange(async () => { root.innerHTML = (await handle.render()).html; api.rendered() })
+if (!handoff.client)
+  handle.onChange(async () => {
+    root.innerHTML = (await handle.render()).html
+    api.rendered()
+  })
 
 // ---- live channel ------------------------------------------------------------------------------
 
@@ -172,8 +202,12 @@ function connect() {
     // nothing still redraws, sorts and scrolls, under the reader's hands
     caughtUp()
   }
-  es.onerror = () => { delete document.documentElement.dataset.wbLive }
-  es.addEventListener('change', () => { for (const fn of changeListeners) fn() })
+  es.onerror = () => {
+    delete document.documentElement.dataset.wbLive
+  }
+  es.addEventListener('change', () => {
+    for (const fn of changeListeners) fn()
+  })
   es.addEventListener('events', () => loadEvents())
   es.addEventListener('listeners', () => loadListeners())
   // browser code changed; the page keeps what matters across a reload itself. Reload only once
@@ -181,7 +215,11 @@ function connect() {
   // has nothing left in it to recover with.
   es.addEventListener('reload', () => {
     const go = async () => {
-      try { if ((await fetch('/api/health', { cache: 'no-store' })).ok) return location.reload() } catch { /* not up yet */ }
+      try {
+        if ((await fetch('/api/health', { cache: 'no-store' })).ok) return location.reload()
+      } catch {
+        /* not up yet */
+      }
       setTimeout(go, 500)
     }
     go()
@@ -208,21 +246,39 @@ if (handoff.client) {
     await mount(root, handle, api)
   } catch (err) {
     console.error('page:', err)
-    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">the page failed to start: ${(err as Error).message}</pre>`))
+    root.insertAdjacentHTML(
+      'afterbegin',
+      String(html`<pre class="wb-error" role="alert">the page failed to start: ${(err as Error).message}</pre>`),
+    )
   }
 }
 // named forms, once the page is on the page
 trackForms(root, page, api)
-trackReading({ messages: handoff.messages ?? [], events: () => events, send: ids => { append(READ, { ids }).catch(err => console.error('marking read:', err)) } })
+trackReading({
+  messages: handoff.messages ?? [],
+  events: () => events,
+  send: ids => {
+    append(READ, { ids }).catch(err => console.error('marking read:', err))
+  },
+})
 // the plugins' modules after the page, so that what they work on is there; one failing leaves the others
-await Promise.all((handoff.plugins ?? []).map(async ext => {
-  try {
-    const mount: PluginMount = (await import(ext.client)).default
-    if (typeof mount !== 'function') throw new Error('the client module must export a mount(root, page, api) function as default')
-    await mount(root, handle, api)
-  } catch (err) {
-    console.error(`plugin ${ext.name}:`, err)
-    root.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error" role="alert">plugin "${ext.name}" failed in the browser: ${(err as Error).message}</pre>`))
-  }
-}))
+await Promise.all(
+  (handoff.plugins ?? []).map(async ext => {
+    try {
+      const mount: PluginMount = (await import(ext.client)).default
+      if (typeof mount !== 'function')
+        throw new Error('the client module must export a mount(root, page, api) function as default')
+      await mount(root, handle, api)
+    } catch (err) {
+      console.error(`plugin ${ext.name}:`, err)
+      root.insertAdjacentHTML(
+        'afterbegin',
+        String(
+          html`<pre class="wb-error" role="alert">
+plugin "${ext.name}" failed in the browser: ${(err as Error).message}</pre>`,
+        ),
+      )
+    }
+  }),
+)
 connect()

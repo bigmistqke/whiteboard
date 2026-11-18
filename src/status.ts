@@ -36,7 +36,8 @@ export const STATES: FormState[] = ['open', 'pending', 'decided']
 export const fromReader = (event: WbEvent): boolean => event.from !== 'cli'
 
 /** Does a listener's page filter cover `page`? An empty filter covers every page. */
-export const covers = (l: Listener, page: string): boolean => !l.page || page === l.page || page.startsWith(l.page + '/')
+export const covers = (l: Listener, page: string): boolean =>
+  !l.page || page === l.page || page.startsWith(l.page + '/')
 
 /**
  * Would a listener other than the fallback take this event, by its page and type? What the
@@ -59,11 +60,7 @@ export function questionState(
 ): { state: FormState; last: WbEvent | undefined } {
   const last = events.findLast(e => e.type === name && fromReader(e))
   const askedAgain = listeners.some(l => !l.fallback && l.type === name)
-  const state: FormState =
-    !last ? 'open'
-    : !pickedUp(last.id) ? 'pending'
-    : askedAgain ? 'open'
-    : 'decided'
+  const state: FormState = !last ? 'open' : !pickedUp(last.id) ? 'pending' : askedAgain ? 'open' : 'decided'
   return { state, last }
 }
 
@@ -83,7 +80,8 @@ export function unreadMessages(events: WbEvent[], isMessage: (type: string) => b
   const read = new Set<string>()
   const replaced = new Set<string>()
   for (const e of events) {
-    if (e.type === READ && fromReader(e)) for (const id of (e.data?.ids as unknown[] | undefined) ?? []) read.add(String(id))
+    if (e.type === READ && fromReader(e))
+      for (const id of (e.data?.ids as unknown[] | undefined) ?? []) read.add(String(id))
     if (e.data?.replaces) replaced.add(String(e.data.replaces))
   }
   return events.filter(e => !fromReader(e) && isMessage(e.type) && !read.has(e.id) && !replaced.has(e.id))
@@ -99,9 +97,17 @@ export const awaiting = (p: Pick<PageStatus, 'open' | 'unread'>): number => p.op
  */
 export function statusLines(p: PageStatus, file: string, { waiting = true } = {}): string[] {
   const lines: string[] = []
-  if (p.unpicked.length) lines.push(`${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent picked up (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`)
+  if (p.unpicked.length)
+    lines.push(
+      `${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent picked up (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`,
+    )
   const fallback = p.listeners.some(l => l.fallback)
-  if (p.unheard.length) lines.push(fallback ? `no agent waits for ${p.unheard.join(', ')}; the fallback picks the answers up` : `nobody listens for ${p.unheard.join(', ')}`)
+  if (p.unheard.length)
+    lines.push(
+      fallback
+        ? `no agent waits for ${p.unheard.join(', ')}; the fallback picks the answers up`
+        : `nobody listens for ${p.unheard.join(', ')}`,
+    )
   if (lines.length && !(fallback && !p.unpicked.length)) lines.push(`→ whiteboard wait --page ${file}`)
   const listened = p.open.filter(t => !p.unheard.includes(t))
   if (waiting && listened.length) lines.push(`waiting for the reader: ${listened.join(', ')}`)

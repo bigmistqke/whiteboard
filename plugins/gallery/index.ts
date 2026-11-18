@@ -5,18 +5,33 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { escape, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'
 
-interface Node { type: string; depth?: number; url?: string; alt?: string; children?: Node[] }
-export interface Item { src: string | null; alt: string; title: string | null; html: string }
+interface Node {
+  type: string
+  depth?: number
+  url?: string
+  alt?: string
+  children?: Node[]
+}
+export interface Item {
+  src: string | null
+  alt: string
+  title: string | null
+  html: string
+}
 
 /** Remove and return the first image in a list of nodes (searching inside paragraphs). */
 function takeImage(nodes: Node[]): Node | null {
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i]
-    if (n.type === 'image') { nodes.splice(i, 1); return n }
+    if (n.type === 'image') {
+      nodes.splice(i, 1)
+      return n
+    }
     if (n.children) {
       const found = takeImage(n.children)
       if (found) {
-        if (n.type === 'paragraph' && n.children.every(c => c.type === 'text' && !String((c as any).value).trim())) nodes.splice(i, 1)
+        if (n.type === 'paragraph' && n.children.every(c => c.type === 'text' && !String((c as any).value).trim()))
+          nodes.splice(i, 1)
         return found
       }
     }
@@ -38,12 +53,18 @@ export async function props(ctx: DirectiveContext) {
     }
     for (const g of groups) {
       const img = takeImage(g.body)
-      items.push({ src: img?.url ?? null, alt: img?.alt ?? '', title: await ctx.toHtml(g.heading.children ?? []), html: await ctx.toHtml(g.body) })
+      items.push({
+        src: img?.url ?? null,
+        alt: img?.alt ?? '',
+        title: await ctx.toHtml(g.heading.children ?? []),
+        html: await ctx.toHtml(g.body),
+      })
     }
   } else {
     const walk = (nodes: Node[]) => {
       for (const n of nodes) {
-        if (n.type === 'image') items.push({ src: n.url!, alt: n.alt ?? '', title: n.alt ? escape(n.alt) : null, html: '' })
+        if (n.type === 'image')
+          items.push({ src: n.url!, alt: n.alt ?? '', title: n.alt ? escape(n.alt) : null, html: '' })
         else if (n.children) walk(n.children)
       }
     }

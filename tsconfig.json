@@ -9,26 +9,11 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "lib": [
-      "ES2023",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "types": [
-      "node"
-    ],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
-    "customConditions": [
-      "source"
-    ]
+    "customConditions": ["source"]
   },
-  "include": [
-    "src/**/*",
-    "bin/**/*",
-    "build.ts",
-    "solid/**/*",
-    "test/**/*",
-    "plugins/**/*"
-  ]
+  "include": ["src/**/*", "bin/**/*", "build.ts", "solid/**/*", "test/**/*", "plugins/**/*"]
 }

@@ -1,29 +1,68 @@
 /* Code blocks highlighted by Shiki: tokens carry both colours; pick the one for the current theme.
    The block keeps the page's own code background. */
-pre.shiki { background: var(--code-bg); }
+pre.shiki {
+  background: var(--code-bg);
+}
 .shiki span {
-  color: var(--shiki-light); font-style: var(--shiki-light-font-style);
-  font-weight: var(--shiki-light-font-weight); text-decoration: var(--shiki-light-text-decoration);
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+  font-weight: var(--shiki-light-font-weight);
+  text-decoration: var(--shiki-light-text-decoration);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .shiki span {
-    color: var(--shiki-dark); font-style: var(--shiki-dark-font-style);
-    font-weight: var(--shiki-dark-font-weight); text-decoration: var(--shiki-dark-text-decoration);
+  :root:not([data-theme='light']) .shiki span {
+    color: var(--shiki-dark);
+    font-style: var(--shiki-dark-font-style);
+    font-weight: var(--shiki-dark-font-weight);
+    text-decoration: var(--shiki-dark-text-decoration);
   }
 }
-:root[data-theme="dark"] .shiki span {
-  color: var(--shiki-dark); font-style: var(--shiki-dark-font-style);
-  font-weight: var(--shiki-dark-font-weight); text-decoration: var(--shiki-dark-text-decoration);
+:root[data-theme='dark'] .shiki span {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+  font-weight: var(--shiki-dark-font-weight);
+  text-decoration: var(--shiki-dark-text-decoration);
 }
 
 /* a diff: one row per line, as wide as the longest (a grid leaves out the line breaks between them,
    which stay in the text), tinted by what it is, with its number in a gutter */
-.shiki code:has(> .line[data-diff]) { display: grid; width: max-content; min-width: 100%; }
-.shiki .line[data-diff=add] { background: color-mix(in srgb, #16a34a 14%, transparent); }
-.shiki .line[data-diff=del] { background: color-mix(in srgb, #dc2626 14%, transparent); }
-.shiki .line[data-diff]::before { content: attr(data-n); display: inline-block; width: 4ch; margin-right: 1.5ch; text-align: right; color: var(--muted, #696e76); opacity: .7; user-select: none; }
-:root .shiki .line[data-diff=hunk] { color: var(--muted, #696e76); line-height: 1.2; margin: 2px 0; }
-.shiki .line[data-diff=hunk]::before { content: '⋯'; text-align: center; }
-.shiki .line[data-diff=file] { font-weight: 600; margin-bottom: 8px; }
-.shiki .line[data-diff=file]::before { content: none; }
-.shiki .line[data-diff=file] + .line[data-diff=hunk] { margin-top: 0; }
+.shiki code:has(> .line[data-diff]) {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+.shiki .line[data-diff='add'] {
+  background: color-mix(in srgb, #16a34a 14%, transparent);
+}
+.shiki .line[data-diff='del'] {
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+}
+.shiki .line[data-diff]::before {
+  content: attr(data-n);
+  display: inline-block;
+  width: 4ch;
+  margin-right: 1.5ch;
+  text-align: right;
+  color: var(--muted, #696e76);
+  opacity: 0.7;
+  user-select: none;
+}
+:root .shiki .line[data-diff='hunk'] {
+  color: var(--muted, #696e76);
+  line-height: 1.2;
+  margin: 2px 0;
+}
+.shiki .line[data-diff='hunk']::before {
+  content: '⋯';
+  text-align: center;
+}
+.shiki .line[data-diff='file'] {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.shiki .line[data-diff='file']::before {
+  content: none;
+}
+.shiki .line[data-diff='file'] + .line[data-diff='hunk'] {
+  margin-top: 0;
+}

@@ -17,21 +17,50 @@ export interface AutosizeOptions {
 }
 
 const SIZING_STYLE = [
-  'border-bottom-width', 'border-left-width', 'border-right-width', 'border-top-width', 'box-sizing',
-  'font-family', 'font-size', 'font-style', 'font-weight', 'letter-spacing', 'line-height',
-  'padding-bottom', 'padding-left', 'padding-right', 'padding-top', 'tab-size', 'text-indent',
-  'text-rendering', 'text-transform', 'width', 'word-break',
+  'border-bottom-width',
+  'border-left-width',
+  'border-right-width',
+  'border-top-width',
+  'box-sizing',
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+  'letter-spacing',
+  'line-height',
+  'padding-bottom',
+  'padding-left',
+  'padding-right',
+  'padding-top',
+  'tab-size',
+  'text-indent',
+  'text-rendering',
+  'text-transform',
+  'width',
+  'word-break',
 ] as const
 
 // forced on the measuring textarea, over anything a page's stylesheet gives textareas (a page's
 // `max-width: 100%` resolves against the body here, and would squeeze it to nothing)
 const HIDDEN_STYLE: Record<string, string> = {
-  'min-height': '0', 'max-height': 'none', 'min-width': '0', 'max-width': 'none', height: '0',
-  visibility: 'hidden', overflow: 'hidden',
-  position: 'absolute', 'z-index': '-1000', top: '0', right: '0',
+  'min-height': '0',
+  'max-height': 'none',
+  'min-width': '0',
+  'max-width': 'none',
+  height: '0',
+  visibility: 'hidden',
+  overflow: 'hidden',
+  position: 'absolute',
+  'z-index': '-1000',
+  top: '0',
+  right: '0',
 }
 
-interface Sizing { style: Record<string, string>; padding: number; border: number }
+interface Sizing {
+  style: Record<string, string>
+  padding: number
+  border: number
+}
 
 function sizingOf(node: HTMLElement): Sizing | null {
   const computed = getComputedStyle(node)
@@ -77,7 +106,12 @@ export function autosize(options: AutosizeOptions = {}) {
     if (!node) return
     const sizing = sizingOf(node)
     if (!sizing) return
-    const height = heightFor(sizing, node.value || node.placeholder || 'x', options.minRows ?? 1, options.maxRows ?? Infinity)
+    const height = heightFor(
+      sizing,
+      node.value || node.placeholder || 'x',
+      options.minRows ?? 1,
+      options.maxRows ?? Infinity,
+    )
     if (height === last) return
     last = height
     node.style.setProperty('height', `${height}px`, 'important')

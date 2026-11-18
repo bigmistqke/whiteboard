@@ -10,7 +10,11 @@ import { autosize } from './autosize'
 /** A message in a chat: the chat block's own event type. */
 const MESSAGE = 'chat:message'
 
-interface Message { id: string; from: 'you' | 'agent'; text: string }
+interface Message {
+  id: string
+  from: 'you' | 'agent'
+  text: string
+}
 
 /**
  * What the reader wrote in a submit of a form: every text in it that is not one of the form's
@@ -32,11 +36,17 @@ function Chat(props: ChatProps) {
   const messages = createMemo((): Message[] => {
     const events = wb.events()
     const own = events.filter(e => e.type === MESSAGE && e.data.chat === props.chat)
-    const replaced = new Set(own.map(e => e.data.replaces).filter(Boolean).map(String))
+    const replaced = new Set(
+      own
+        .map(e => e.data.replaces)
+        .filter(Boolean)
+        .map(String),
+    )
     const out: Message[] = []
     for (const e of own) {
       if (replaced.has(e.id)) continue
-      const to = props.form && e.data.replyTo ? events.find(x => x.id === e.data.replyTo && x.type === props.form) : undefined
+      const to =
+        props.form && e.data.replyTo ? events.find(x => x.id === e.data.replyTo && x.type === props.form) : undefined
       const asked = to ? written(to, props.choices) : ''
       if (to && asked && !out.some(m => m.id === to.id)) out.push({ id: to.id, from: 'you', text: asked })
       out.push({ id: e.id, from: e.from === 'cli' ? 'agent' : 'you', text: String(e.data.text ?? '') })
@@ -71,9 +81,16 @@ function Chat(props: ChatProps) {
           rows={1}
           placeholder={props.form ? "Ask about this question (doesn't choose anything)" : 'Write a message'}
           // Enter sends, Shift+Enter starts a new line; not while an input method is composing
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); post() } }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+              e.preventDefault()
+              post()
+            }
+          }}
         />
-        <button type="button" onClick={post}>{props.form ? 'Ask' : 'Send'}</button>
+        <button type="button" onClick={post}>
+          {props.form ? 'Ask' : 'Send'}
+        </button>
       </div>
     </div>
   )

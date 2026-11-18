@@ -52,7 +52,14 @@ type Reply = Record<string, any>
 const require = createRequire(import.meta.url)
 const HOST = fileURLToPath(new URL(`./host${path.extname(fileURLToPath(import.meta.url))}`, import.meta.url))
 
-const hasPty = () => { try { require.resolve('node-pty'); return true } catch { return false } }
+const hasPty = () => {
+  try {
+    require.resolve('node-pty')
+    return true
+  } catch {
+    return false
+  }
+}
 
 /**
  * Where the host listens: `host.sock` in the terminal's folder, or, when that path is too long for
@@ -60,7 +67,9 @@ const hasPty = () => { try { require.resolve('node-pty'); return true } catch { 
  */
 export function hostSocket(home: string): string {
   const own = path.join(home, 'host.sock')
-  return Buffer.byteLength(own) < 100 ? own : path.join('/tmp', `wb-term-${crypto.createHash('sha1').update(home).digest('hex').slice(0, 12)}.sock`)
+  return Buffer.byteLength(own) < 100
+    ? own
+    : path.join('/tmp', `wb-term-${crypto.createHash('sha1').update(home).digest('hex').slice(0, 12)}.sock`)
 }
 
 /** `dir` the folder the sessions run in, `home` where the socket and log go */
@@ -85,10 +94,24 @@ export function createTerminal({ dir, home }: { dir: string; home: string }) {
     if (!conn) return null
     return new Promise(resolve => {
       let buf = ''
-      const done = (value: Reply | null) => { clearTimeout(timer); conn.destroy(); resolve(value) }
+      const done = (value: Reply | null) => {
+        clearTimeout(timer)
+        conn.destroy()
+        resolve(value)
+      }
       const timer = setTimeout(() => done(null), timeout)
       conn.setEncoding('utf8')
-      conn.on('data', (c: string) => { buf += c; const nl = buf.indexOf('\n'); if (nl >= 0) { try { done(JSON.parse(buf.slice(0, nl))) } catch { done(null) } } })
+      conn.on('data', (c: string) => {
+        buf += c
+        const nl = buf.indexOf('\n')
+        if (nl >= 0) {
+          try {
+            done(JSON.parse(buf.slice(0, nl)))
+          } catch {
+            done(null)
+          }
+        }
+      })
       conn.on('error', () => done(null))
       conn.on('end', () => done(null))
       conn.write(JSON.stringify(req) + '\n')
@@ -98,7 +121,12 @@ export function createTerminal({ dir, home }: { dir: string; home: string }) {
   /** Start the host (detached: it outlives this server) and wait until it answers. */
   async function startHost(): Promise<boolean> {
     const out = fs.openSync(log, 'a')
-    const child = spawn(process.execPath, [HOST, dir, own], { cwd: dir, detached: true, stdio: ['ignore', out, out], env: process.env })
+    const child = spawn(process.execPath, [HOST, dir, own], {
+      cwd: dir,
+      detached: true,
+      stdio: ['ignore', out, out],
+      env: process.env,
+    })
     child.unref()
     fs.closeSync(out)
     for (let i = 0; i < 40; i++) {
@@ -119,7 +147,11 @@ export function createTerminal({ dir, home }: { dir: string; home: string }) {
   /** The screens as HTML rows by session id, for a page's first render. */
   async function screens(list: Session[]): Promise<Record<string, string>> {
     const out: Record<string, string> = {}
-    await Promise.all(list.map(async s => { out[s.id] = (await ask({ t: 'html', id: s.id }, 300))?.html ?? '' }))
+    await Promise.all(
+      list.map(async s => {
+        out[s.id] = (await ask({ t: 'html', id: s.id }, 300))?.html ?? ''
+      }),
+    )
     return out
   }
 
@@ -134,7 +166,14 @@ export function createTerminal({ dir, home }: { dir: string; home: string }) {
   async function start({ id, program = [], restart = false }: StartOptions = {}) {
     if (!hasPty()) throw failure('the terminal needs node-pty: npm install node-pty')
     const request = program.length
-      ? { t: 'start', id, command: shell, args: ['-c', '"$@"; exec "$0" -l', shell, ...program], label: path.basename(program[0]!), restart }
+      ? {
+          t: 'start',
+          id,
+          command: shell,
+          args: ['-c', '"$@"; exec "$0" -l', shell, ...program],
+          label: path.basename(program[0]!),
+          restart,
+        }
       : restart && id != null
         ? { t: 'start', id, restart }
         : { t: 'start', id, command: shell, args: ['-l'], label: path.basename(shell), restart }
@@ -147,9 +186,13 @@ export function createTerminal({ dir, home }: { dir: string; home: string }) {
     return { available: true, session: reply.session ?? '1', already: !!reply.already }
   }
 
-  const input = async (id: string, data: string) => { await ask({ t: 'input', id, d: data }) }
+  const input = async (id: string, data: string) => {
+    await ask({ t: 'input', id, d: data })
+  }
   /** The size that fits drawer `viewer`; `active`: the reader is using that drawer now (see host.ts, Sizes). */
-  const resize = async (id: string, viewer: string, cols: number, rows: number, active = false) => { await ask({ t: 'resize', id, viewer, cols, rows, active }) }
+  const resize = async (id: string, viewer: string, cols: number, rows: number, active = false) => {
+    await ask({ t: 'resize', id, viewer, cols, rows, active })
+  }
 
   /** End one session and drop its tab. */
   async function close(id: string) {
@@ -185,13 +228,20 @@ export function createTerminal({ dir, home }: { dir: string; home: string }) {
         try {
           const { t, ...data } = JSON.parse(line)
           res.write(`event: ${t}\ndata: ${JSON.stringify(data)}\n\n`)
-        } catch { /* not a message */ }
+        } catch {
+          /* not a message */
+        }
       }
     })
     // the host went away (stopped, or its program ended and it left): the page shows it as stopped
-    conn.on('close', () => { if (!res.writableEnded) res.write('event: exit\ndata: {"code":null}\n\n') })
+    conn.on('close', () => {
+      if (!res.writableEnded) res.write('event: exit\ndata: {"code":null}\n\n')
+    })
     conn.on('error', () => {})
-    req.on('close', () => { clearInterval(ping); conn.destroy() })
+    req.on('close', () => {
+      clearInterval(ping)
+      conn.destroy()
+    })
     conn.write(JSON.stringify({ t: 'attach', id, viewer }) + '\n')
   }
 
@@ -205,7 +255,8 @@ export function createTerminal({ dir, home }: { dir: string; home: string }) {
    * last: for session `id`, or without one, of all sessions.
    */
   async function open(id: string | undefined, path: string) {
-    if (!path.startsWith('/') || path.startsWith('//')) throw failure('open takes a path on this server, like /plan', 400)
+    if (!path.startsWith('/') || path.startsWith('//'))
+      throw failure('open takes a path on this server, like /plan', 400)
     const reply = await ask({ t: 'open', id, path })
     if (!reply) throw failure('no terminal host runs', 404)
     return { shown: Number(reply.shown ?? 0) }

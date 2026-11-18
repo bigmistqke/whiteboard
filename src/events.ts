@@ -61,7 +61,11 @@ export function parseLines(text: string): WbEvent[] {
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
     let event
-    try { event = JSON.parse(line) } catch { continue /* a corrupt line */ }
+    try {
+      event = JSON.parse(line)
+    } catch {
+      continue /* a corrupt line */
+    }
     out.push(event)
   }
   return out
@@ -78,7 +82,11 @@ export function readEvents(file: string): WbEvent[] {
  */
 export function read(file: string): { events: WbEvent[]; end: number } {
   let buf: Buffer
-  try { buf = fs.readFileSync(file) } catch { return { events: [], end: 0 } }
+  try {
+    buf = fs.readFileSync(file)
+  } catch {
+    return { events: [], end: 0 }
+  }
   const end = buf.lastIndexOf(0x0a) + 1
   return { events: parseLines(buf.subarray(0, end).toString('utf8')), end }
 }
@@ -92,31 +100,54 @@ export function read(file: string): { events: WbEvent[]; end: number } {
  * shorter one. Then it reads the log again and goes on after the last event it had passed on (by
  * time, and by id among those of the same time), so nothing is passed on twice.
  */
-export function follow(file: string, from: number, onEvent: (event: WbEvent) => void, { interval = 200 } = {}): () => void {
+export function follow(
+  file: string,
+  from: number,
+  onEvent: (event: WbEvent) => void,
+  { interval = 200 } = {},
+): () => void {
   let offset = from
   let partial = ''
   let inode: number | null = null
-  try { inode = fs.statSync(file).ino } catch { /* not there yet */ }
+  try {
+    inode = fs.statSync(file).ino
+  } catch {
+    /* not there yet */
+  }
   // where it is in the log, to find its place again after a rewrite
   let lastTs = ''
   let atLastTs = new Set<string>()
   // the events before `from` count as passed on: the place starts after the last of them
   if (from > 0) {
     let before: WbEvent[] = []
-    try { before = parseLines(fs.readFileSync(file).subarray(0, from).toString('utf8')) } catch { /* not there */ }
+    try {
+      before = parseLines(fs.readFileSync(file).subarray(0, from).toString('utf8'))
+    } catch {
+      /* not there */
+    }
     for (const e of before) {
-      if (e.ts > lastTs) { lastTs = e.ts; atLastTs = new Set() }
+      if (e.ts > lastTs) {
+        lastTs = e.ts
+        atLastTs = new Set()
+      }
       if (e.ts === lastTs) atLastTs.add(e.id)
     }
   }
   const pass = (e: WbEvent) => {
-    if (e.ts > lastTs) { lastTs = e.ts; atLastTs = new Set() }
+    if (e.ts > lastTs) {
+      lastTs = e.ts
+      atLastTs = new Set()
+    }
     atLastTs.add(e.id)
     onEvent(e)
   }
   const poll = () => {
     let stat: fs.Stats
-    try { stat = fs.statSync(file) } catch { return }
+    try {
+      stat = fs.statSync(file)
+    } catch {
+      return
+    }
     if ((inode != null && stat.ino !== inode) || stat.size < offset) {
       // rewritten: read it again, and go on after the place reached
       inode = stat.ino
@@ -149,19 +180,37 @@ export function follow(file: string, from: number, onEvent: (event: WbEvent) => 
  * reads it again and goes on after the last event it passed on (see follow). Lines that aren't
  * events are kept as they are. Returns how many were dropped and changed.
  */
-export function rewrite(file: string, change: (event: WbEvent) => WbEvent | null): { removed: number; changed: number } {
+export function rewrite(
+  file: string,
+  change: (event: WbEvent) => WbEvent | null,
+): { removed: number; changed: number } {
   for (let attempt = 0; attempt < 10; attempt++) {
     let buf: Buffer
-    try { buf = fs.readFileSync(file) } catch { return { removed: 0, changed: 0 } }
+    try {
+      buf = fs.readFileSync(file)
+    } catch {
+      return { removed: 0, changed: 0 }
+    }
     const keep: string[] = []
-    let removed = 0, changed = 0
+    let removed = 0,
+      changed = 0
     for (const line of buf.toString('utf8').split('\n')) {
       if (!line.trim()) continue
       let ev: WbEvent | null = null
-      try { ev = JSON.parse(line) } catch { /* not an event: kept */ }
-      if (!ev) { keep.push(line); continue }
+      try {
+        ev = JSON.parse(line)
+      } catch {
+        /* not an event: kept */
+      }
+      if (!ev) {
+        keep.push(line)
+        continue
+      }
       const next = change(ev)
-      if (!next) { removed++; continue }
+      if (!next) {
+        removed++
+        continue
+      }
       const text = JSON.stringify(next)
       if (text !== JSON.stringify(ev)) changed++
       keep.push(next === ev ? line : text)
@@ -170,7 +219,10 @@ export function rewrite(file: string, change: (event: WbEvent) => WbEvent | null
     const tmp = `${file}.${process.pid}.tmp`
     fs.writeFileSync(tmp, keep.length ? keep.join('\n') + '\n' : '')
     // appended to meanwhile: that event would be lost with the old file
-    if (fs.statSync(file).size !== buf.length) { fs.rmSync(tmp, { force: true }); continue }
+    if (fs.statSync(file).size !== buf.length) {
+      fs.rmSync(tmp, { force: true })
+      continue
+    }
     fs.renameSync(tmp, file)
     return { removed, changed }
   }
@@ -192,7 +244,10 @@ export function prune(file: string, page: string, which: (event: WbEvent) => boo
 export function editEvent(file: string, id: string, data: Record<string, unknown>): WbEvent {
   const found = readEvents(file).find(e => e.id === id)
   if (!found) throw new Error(`no event ${id} in the log`)
-  if (fromReader(found)) throw new Error(`event ${id} is the reader's (${found.type}): what the reader sent stays as they sent it; an agent edits only its own`)
+  if (fromReader(found))
+    throw new Error(
+      `event ${id} is the reader's (${found.type}): what the reader sent stays as they sent it; an agent edits only its own`,
+    )
   let edited: WbEvent | null = null
   rewrite(file, e => (e.id === id ? (edited = { ...e, data: { ...e.data, ...data } }) : e))
   return edited ?? found
@@ -228,8 +283,10 @@ export function pick(file: string, event: WbEvent): WbEvent {
  * Which event types reach an agent unasked: a form's answers (types without a colon) always, and of
  * the plugins' events (`<plugin>:<what>`) those declared `handOut: true`, given in `handedOut`.
  */
-export const forAgent = (handedOut: ReadonlySet<string> = new Set()) => (type: string): boolean =>
-  !type.includes(':') || handedOut.has(type)
+export const forAgent =
+  (handedOut: ReadonlySet<string> = new Set()) =>
+  (type: string): boolean =>
+    !type.includes(':') || handedOut.has(type)
 
 export interface HandOutOptions {
   /** which event types it hands out unasked (see forAgent); a filter's `type` is handed out always */
@@ -262,12 +319,29 @@ export interface HandOutOptions {
  * Resolves with how many were handed out: once `count` is reached, after the backlog without
  * `follow`, or when `signal` aborts.
  */
-export function handOut(file: string, filter: EventFilter, onEvent: (event: WbEvent) => void, options: HandOutOptions = {}): Promise<number> {
-  const { count = Infinity, follow: following = true, interval, signal, forAgent: isForAgent = forAgent(), skip, recheck } = options
+export function handOut(
+  file: string,
+  filter: EventFilter,
+  onEvent: (event: WbEvent) => void,
+  options: HandOutOptions = {},
+): Promise<number> {
+  const {
+    count = Infinity,
+    follow: following = true,
+    interval,
+    signal,
+    forAgent: isForAgent = forAgent(),
+    skip,
+    recheck,
+  } = options
   return new Promise(resolve => {
     let got = 0
     let stop = () => {}
-    const finish = () => { stop(); signal?.removeEventListener('abort', finish); resolve(got) }
+    const finish = () => {
+      stop()
+      signal?.removeEventListener('abort', finish)
+      resolve(got)
+    }
     // the reader's events, and of those, the ones for an agent, unless the filter names a type
     const wanted = (e: WbEvent) => fromReader(e) && matches(e, filter) && (!!filter.type || isForAgent(e.type))
     // false once enough were handed out
@@ -280,7 +354,10 @@ export function handOut(file: string, filter: EventFilter, onEvent: (event: WbEv
     const left = new Map<string, WbEvent>()
     // false once enough were handed out; a left event is kept to look at again
     const offer = (e: WbEvent) => {
-      if (skip?.(e)) { left.set(e.id, e); return true }
+      if (skip?.(e)) {
+        left.set(e.id, e)
+        return true
+      }
       return hand(e)
     }
     if (count <= 0 || signal?.aborted) return finish()
@@ -295,12 +372,22 @@ export function handOut(file: string, filter: EventFilter, onEvent: (event: WbEv
       if (!left.size || got >= count) return
       const picked = pickedUp(read(file).events)
       for (const [id, e] of left) {
-        if (picked.has(id)) { left.delete(id); continue }
+        if (picked.has(id)) {
+          left.delete(id)
+          continue
+        }
         if (skip?.(e)) continue
         left.delete(id)
         if (!hand(e)) return finish()
       }
     })
-    stop = follow(file, end, e => { if (got < count && wanted(e) && !offer(e)) finish() }, { interval })
+    stop = follow(
+      file,
+      end,
+      e => {
+        if (got < count && wanted(e) && !offer(e)) finish()
+      },
+      { interval },
+    )
   })
 }

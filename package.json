@@ -88,6 +88,7 @@
     "release": "npm run check && npm test && bumpp --commit 'Release v%s' && npm publish --access public",
     "start": "node bin/whiteboard.ts serve",
     "check": "tsc -p tsconfig.json",
+    "format": "prettier --write .",
     "test": "node --test --test-force-exit 'src/**/*.test.ts' 'plugins/**/*.test.ts'",
     "test:browser": "node --test --test-force-exit --test-concurrency=1 'test/browser/*.test.ts'"
   },
@@ -128,6 +129,7 @@
     "bumpp": "^12.3.0",
     "morphdom": "^2.7.7",
     "playwright": "^1.60.0",
+    "prettier": "^3.10.1",
     "rolldown": "^1.2.19",
     "solid-js": "^2.0.0-rc.21",
     "typescript": "^7.0.2"

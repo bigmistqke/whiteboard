@@ -17,8 +17,16 @@ import { trackWindows } from './window'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
 
-interface Island { block: string; client: string; props: unknown }
-interface Data { islands: Record<string, Island>; styles: string[]; mtime: number | null }
+interface Island {
+  block: string
+  client: string
+  props: unknown
+}
+interface Data {
+  islands: Record<string, Island>
+  styles: string[]
+  mtime: number | null
+}
 
 let main: HTMLElement
 let page = ''
@@ -36,21 +44,26 @@ async function mountOne(el: HTMLElement) {
     const mod = await import(island.client)
     if (!el.isConnected) return
     const mount: Mount = mod.default
-    if (typeof mount !== 'function') throw new Error('the client module must export a mount(element, props, api) function as default')
+    if (typeof mount !== 'function')
+      throw new Error('the client module must export a mount(element, props, api) function as default')
     el.replaceChildren()
     const dispose = await mount(el, island.props, api)
     if (typeof dispose === 'function') disposers.set(el, dispose)
   } catch (err) {
     console.error(`island ${island.block}:`, err)
-    el.insertAdjacentHTML('afterbegin', String(html`<pre class="wb-error">block "${island.block}" failed to mount: ${(err as Error).message}</pre>`))
+    el.insertAdjacentHTML(
+      'afterbegin',
+      String(html`<pre class="wb-error">block "${island.block}" failed to mount: ${(err as Error).message}</pre>`),
+    )
   }
 }
 
 /** Mount islands outermost first; nested islands show up once their parent has rendered. */
 async function mountIslands(root: ParentNode = main): Promise<void> {
   for (;;) {
-    const pending = [...root.querySelectorAll<HTMLElement>('[data-wb-island]:not([data-wb-mounted])')]
-      .filter(el => !el.parentElement?.closest('[data-wb-island]:not([data-wb-mounted])'))
+    const pending = [...root.querySelectorAll<HTMLElement>('[data-wb-island]:not([data-wb-mounted])')].filter(
+      el => !el.parentElement?.closest('[data-wb-island]:not([data-wb-mounted])'),
+    )
     if (!pending.length) return
     await Promise.all(pending.map(mountOne))
   }
@@ -58,10 +71,12 @@ async function mountIslands(root: ParentNode = main): Promise<void> {
 
 function disposeWithin(node: Node) {
   for (const [el, dispose] of disposers) {
-    if (node === el || node.contains(el)) { dispose(); disposers.delete(el) }
+    if (node === el || node.contains(el)) {
+      dispose()
+      disposers.delete(el)
+    }
   }
 }
-
 
 // ---- theme -------------------------------------------------------------------------------------
 
@@ -69,11 +84,21 @@ const NEXT: Record<ThemePreference, ThemePreference> = { auto: 'light', light: '
 // the preference as an icon: half a circle for following the system, a sun, a moon
 const svg = (d: string) => `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">${d}</svg>`
 const THEME_ICON: Record<ThemePreference, string> = {
-  auto: svg('<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor"/>'),
-  light: svg('<circle cx="8" cy="8" r="2.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.2v1.8M8 13v1.8M1.2 8H3M13 8h1.8M3.2 3.2l1.3 1.3M11.5 11.5l1.3 1.3M3.2 12.8l1.3-1.3M11.5 4.5l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'),
-  dark: svg('<path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>'),
+  auto: svg(
+    '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor"/>',
+  ),
+  light: svg(
+    '<circle cx="8" cy="8" r="2.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.2v1.8M8 13v1.8M1.2 8H3M13 8h1.8M3.2 3.2l1.3 1.3M11.5 11.5l1.3 1.3M3.2 12.8l1.3-1.3M11.5 4.5l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  ),
+  dark: svg(
+    '<path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>',
+  ),
 }
-const THEME_LABEL: Record<ThemePreference, string> = { auto: 'Theme: follows the system', light: 'Theme: light', dark: 'Theme: dark' }
+const THEME_LABEL: Record<ThemePreference, string> = {
+  auto: 'Theme: follows the system',
+  light: 'Theme: light',
+  dark: 'Theme: dark',
+}
 
 function themeToggle(root: HTMLElement) {
   const button = root.querySelector<HTMLButtonElement>('.wb-theme')
@@ -134,7 +159,10 @@ function detailsKeys(root: HTMLElement): Map<HTMLDetailsElement, string> {
     while (block.parentElement && block.parentElement !== root) block = block.parentElement
     let heading = ''
     for (let b: Element | null = block; b; b = b.previousElementSibling) {
-      if (/^H[1-6]$/.test(b.tagName)) { heading = b.textContent?.trim() ?? ''; break }
+      if (/^H[1-6]$/.test(b.tagName)) {
+        heading = b.textContent?.trim() ?? ''
+        break
+      }
     }
     const base = `${heading}\u0000${el.querySelector(':scope > summary')?.textContent?.trim() ?? ''}`
     const n = seen.get(base) ?? 0
@@ -161,8 +189,14 @@ function focusOf() {
   const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
   if (!el || el === document.body || !main.contains(el)) return null
   const form = el.closest('form')?.getAttribute('name')
-  let start: number | null = null, end: number | null = null
-  try { start = el.selectionStart; end = el.selectionEnd } catch { /* not a text field */ }
+  let start: number | null = null,
+    end: number | null = null
+  try {
+    start = el.selectionStart
+    end = el.selectionEnd
+  } catch {
+    /* not a text field */
+  }
   return { el, form, name: el.getAttribute('name'), start, end }
 }
 
@@ -170,10 +204,16 @@ function giveFocusBack(f: ReturnType<typeof focusOf>) {
   if (!f || document.activeElement === f.el) return
   let el: HTMLElement | null = f.el.isConnected ? f.el : null
   // replaced: the field of the same name in the form of the same name
-  if (!el && f.form && f.name) el = main.querySelector<HTMLElement>(`form[name="${CSS.escape(f.form)}"] [name="${CSS.escape(f.name)}"]`)
+  if (!el && f.form && f.name)
+    el = main.querySelector<HTMLElement>(`form[name="${CSS.escape(f.form)}"] [name="${CSS.escape(f.name)}"]`)
   if (!el) return
   el.focus({ preventScroll: true })
-  if (f.start != null && 'setSelectionRange' in el) try { (el as HTMLInputElement).setSelectionRange(f.start, f.end ?? f.start) } catch { /* not a text field */ }
+  if (f.start != null && 'setSelectionRange' in el)
+    try {
+      ;(el as HTMLInputElement).setSelectionRange(f.start, f.end ?? f.start)
+    } catch {
+      /* not a text field */
+    }
 }
 
 /** Are two elements, before and after a patch, the same field of the same form? */
@@ -182,7 +222,11 @@ function sameField(from: Element, to: Element) {
   const formOf = (el: Element) => el.closest('form')?.getAttribute('name') ?? null
   if (formOf(from) !== formOf(to)) return false
   const type = from.getAttribute('type')
-  if ((type === 'radio' || type === 'checkbox') && (to.getAttribute('type') !== type || from.getAttribute('value') !== to.getAttribute('value'))) return false
+  if (
+    (type === 'radio' || type === 'checkbox') &&
+    (to.getAttribute('type') !== type || from.getAttribute('value') !== to.getAttribute('value'))
+  )
+    return false
   return true
 }
 
@@ -198,7 +242,8 @@ function morph(html: string, sigs: { from: string[]; to: string[] }) {
   keyBlocks(next, sigs.to)
   for (const [el, key] of detailsKeys(next)) el.open = open.has(key)
   morphdom(main, next, {
-    getNodeKey: n => (n as HTMLElement).dataset?.wbKey || (n as HTMLElement).dataset?.wbBlock || (n as HTMLElement).id || undefined,
+    getNodeKey: n =>
+      (n as HTMLElement).dataset?.wbKey || (n as HTMLElement).dataset?.wbBlock || (n as HTMLElement).id || undefined,
     onBeforeElUpdated(from, to) {
       if (from.dataset.wbKey) {
         if (from.dataset.wbKey === to.dataset.wbKey && 'wbMounted' in from.dataset) {
@@ -221,7 +266,8 @@ function morph(html: string, sigs: { from: string[]; to: string[] }) {
       // what a plugin marked on an element (`data-wb-*`) stays, unless the new render sets it;
       // data-wb-mounted is the page's own, and a replaced island must mount afresh
       for (const { name, value } of [...from.attributes])
-        if (name.startsWith('data-wb-') && name !== 'data-wb-mounted' && !to.hasAttribute(name)) to.setAttribute(name, value)
+        if (name.startsWith('data-wb-') && name !== 'data-wb-mounted' && !to.hasAttribute(name))
+          to.setAttribute(name, value)
       for (const c of KEEP_CLASSES) if (from.classList.contains(c)) to.classList.add(c)
       return true
     },
@@ -230,7 +276,10 @@ function morph(html: string, sigs: { from: string[]; to: string[] }) {
     // form's new place). So islands are not disposed here, but after the patch, if gone.
   })
   for (const [el, dispose] of disposers) {
-    if (!el.isConnected) { dispose(); disposers.delete(el) }
+    if (!el.isConnected) {
+      dispose()
+      disposers.delete(el)
+    }
   }
   giveFocusBack(focus)
 }
@@ -267,7 +316,9 @@ function keepPlace(place: ReturnType<typeof placeOf>, sigs: string[]) {
 /** The new render of the page, patched in. */
 async function refresh() {
   let next: Awaited<ReturnType<PageHandle['render']>>
-  try { next = await currentPage.render() } catch (err) {
+  try {
+    next = await currentPage.render()
+  } catch (err) {
     // the page is gone (closed, deleted): load what its address shows now, the "Not found" page,
     // which turns into the page again if it is written back. Already that page (it has no file, so
     // no time it was edited): still not there, nothing to do
@@ -280,15 +331,22 @@ async function refresh() {
   const data = next.data as Data
   islands = data.islands
   for (const href of data.styles) {
-    if (![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(l => new URL(l.href).pathname === new URL(href, location.href).pathname))
-      document.head.insertAdjacentHTML('beforeend', String(html`<link rel="stylesheet" href="${href}">`))
+    if (
+      ![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(
+        l => new URL(l.href).pathname === new URL(href, location.href).pathname,
+      )
+    )
+      document.head.insertAdjacentHTML('beforeend', String(html`<link rel="stylesheet" href="${href}" />`))
   }
   const content = new DOMParser().parseFromString(next.html, 'text/html').getElementById('wb-main')?.innerHTML ?? ''
   const nextSigs = signaturesOf(content)
   const place = placeOf(nextSigs)
   // what the reader is typing in stays where it is on screen, wherever the change is: measured now,
   // and held once the update and what the plugins redraw on it are done
-  const focused = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+  const focused =
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null
   const focusedTop = focused?.getBoundingClientRect().top
   morph(content, { from: blockSigs, to: nextSigs })
   // a list the reader sorted comes back in the server's order: sorted again at once, before the
@@ -307,7 +365,12 @@ async function refresh() {
   // plugins put back what they add to the content
   api.rendered()
   const now = document.activeElement
-  if (focused && focusedTop != null && now instanceof HTMLElement && (now === focused || focused.isConnected === false)) {
+  if (
+    focused &&
+    focusedTop != null &&
+    now instanceof HTMLElement &&
+    (now === focused || focused.isConnected === false)
+  ) {
     const moved = now.getBoundingClientRect().top - focusedTop
     if (Math.abs(moved) >= 1) scrollBy(0, moved)
   }
@@ -343,7 +406,10 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   if (!isDir) trackWaiting(main, core)
   trackElsewhere(root, handle, core)
   trackLive(root, handle, core)
-  if (isDir) { trackSorts(); core.onRendered(applySorts) }
+  if (isDir) {
+    trackSorts()
+    core.onRendered(applySorts)
+  }
   trackSticky(main, fn => core.onRendered(fn))
   trackHold()
   trackWindows(core)

@@ -1,24 +1,98 @@
 /* A chat: the reader's messages on the right, the agent's on the left; never part of an answer. */
-.wb-chat { display: flex; flex-direction: column; gap: 10px; font: .92rem/1.45 var(--sans); }
+.wb-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font: 0.92rem/1.45 var(--sans);
+}
 /* under a form: set off from the question by a dashed rule */
-.wb-chat[data-under-form] { margin-top: 4px; padding-top: 12px; border-top: 1px dashed var(--border); }
-.wb-chat-message { display: flex; flex-direction: column; gap: 3px; max-width: 85%; align-self: flex-start; align-items: flex-start; }
-.wb-chat-message[data-from=you] { align-self: flex-end; align-items: flex-end; }
-.wb-chat-who { font: 600 .68rem/1.3 var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 0 4px; }
-.wb-chat-message[data-from=agent] .wb-chat-who { color: var(--accent); }
-.wb-chat-bubble { white-space: pre-wrap; padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--tint); border: 1px solid var(--border); }
+.wb-chat[data-under-form] {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.wb-chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 85%;
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.wb-chat-message[data-from='you'] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.wb-chat-who {
+  font: 600 0.68rem/1.3 var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.wb-chat-message[data-from='agent'] .wb-chat-who {
+  color: var(--accent);
+}
+.wb-chat-bubble {
+  white-space: pre-wrap;
+  padding: 8px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--tint);
+  border: 1px solid var(--border);
+}
 /* rendered from markdown: its paragraphs and code carry the spacing */
-.wb-chat-bubble[data-md] { white-space: normal; overflow-wrap: anywhere; }
-.wb-chat-bubble[data-md] > :first-child { margin-top: 0; }
-.wb-chat-bubble[data-md] > :last-child { margin-bottom: 0; }
-.wb-chat-bubble[data-md] :is(p, ul, ol, pre, blockquote) { margin: 0 0 .5em; }
-.wb-chat-bubble[data-md] pre { font-size: .8rem; padding: 8px 10px; border-radius: 6px; overflow-x: auto; max-width: 100%; }
-.wb-chat-message[data-from=you] .wb-chat-bubble[data-md] a { color: inherit; }
-.wb-chat-message[data-from=you] .wb-chat-bubble { border-radius: 14px 14px 4px 14px; background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-.wb-chat-new { display: flex; gap: 8px; align-items: flex-start; }
-.wb-chat-new textarea { flex: 1; resize: none; font: inherit; }
+.wb-chat-bubble[data-md] {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wb-chat-bubble[data-md] > :first-child {
+  margin-top: 0;
+}
+.wb-chat-bubble[data-md] > :last-child {
+  margin-bottom: 0;
+}
+.wb-chat-bubble[data-md] :is(p, ul, ol, pre, blockquote) {
+  margin: 0 0 0.5em;
+}
+.wb-chat-bubble[data-md] pre {
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.wb-chat-message[data-from='you'] .wb-chat-bubble[data-md] a {
+  color: inherit;
+}
+.wb-chat-message[data-from='you'] .wb-chat-bubble {
+  border-radius: 14px 14px 4px 14px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.wb-chat-new {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.wb-chat-new textarea {
+  flex: 1;
+  resize: none;
+  font: inherit;
+}
 
 /* :::chat on its own: set off from the article like a form, hairlines above and below */
-.wb-chat-block { margin: 3.6em 0; padding: 1.6em 0 1.7em; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: grid; gap: 16px; }
-.wb-chat-block > :first-child { margin-top: 0; }
-.wb-chat-block > :is(p, ul, ol) { margin: 0; }
+.wb-chat-block {
+  margin: 3.6em 0;
+  padding: 1.6em 0 1.7em;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 16px;
+}
+.wb-chat-block > :first-child {
+  margin-top: 0;
+}
+.wb-chat-block > :is(p, ul, ol) {
+  margin: 0;
+}

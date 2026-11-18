@@ -8,9 +8,13 @@ import { fileURLToPath } from 'node:url'
 function findRoot(from: string): string {
   for (let dir = from; ; dir = path.dirname(dir)) {
     try {
-      if (JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).name === '@bigmistqke/whiteboard') return dir
-    } catch { /* no package.json here, or not ours */ }
-    if (path.dirname(dir) === dir) throw new Error(`whiteboard: no package.json of @bigmistqke/whiteboard above ${from}`)
+      if (JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).name === '@bigmistqke/whiteboard')
+        return dir
+    } catch {
+      /* no package.json here, or not ours */
+    }
+    if (path.dirname(dir) === dir)
+      throw new Error(`whiteboard: no package.json of @bigmistqke/whiteboard above ${from}`)
   }
 }
 

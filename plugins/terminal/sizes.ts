@@ -20,9 +20,16 @@ export interface Sizes {
  * A drawer reports the size that fits it; `used`: the reader uses it now. Returns the size the
  * session should have: its own when the drawer is (now) the active one, else the session's as it is.
  */
-export function report(s: Sizes, viewer: string, cols: number, rows: number, used: boolean, now = Date.now()): { cols: number; rows: number } {
+export function report(
+  s: Sizes,
+  viewer: string,
+  cols: number,
+  rows: number,
+  used: boolean,
+  now = Date.now(),
+): { cols: number; rows: number } {
   const known = s.viewers.get(viewer)
-  s.viewers.set(viewer, { cols, rows, used: used ? now : known?.used ?? 0 })
+  s.viewers.set(viewer, { cols, rows, used: used ? now : (known?.used ?? 0) })
   if (used || !s.active || !s.viewers.has(s.active)) s.active = viewer
   return s.active === viewer ? { cols, rows } : { cols: s.cols, rows: s.rows }
 }
@@ -54,7 +61,10 @@ export function lastUsed<S extends Sizes>(sessions: S[]): S | undefined {
   let at = -1
   for (const s of sessions) {
     const viewer = s.active ? s.viewers.get(s.active) : undefined
-    if (viewer && viewer.used > at) { best = s; at = viewer.used }
+    if (viewer && viewer.used > at) {
+      best = s
+      at = viewer.used
+    }
   }
   return best
 }

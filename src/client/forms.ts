@@ -29,7 +29,8 @@ let api: Api
 let page = ''
 
 /** The forms the core looks after: named (a name without a colon: see isQuestionName), without an action. */
-const managed = (form: HTMLFormElement) => isQuestionName(form.getAttribute('name') ?? '') && !form.hasAttribute('action')
+const managed = (form: HTMLFormElement) =>
+  isQuestionName(form.getAttribute('name') ?? '') && !form.hasAttribute('action')
 const forms = () => [...root.querySelectorAll('form')].filter(managed)
 const keepsOwnFields = (form: HTMLFormElement) => !!form.closest('[data-wb-self]')
 
@@ -39,7 +40,8 @@ const keepsOwnFields = (form: HTMLFormElement) => !!form.closest('[data-wb-self]
 // marked `data-wb-other`, with a text box (`data-wb-other-text`, no name of its own) in its label.
 // It sends what was typed; typing picks it; an answer that is none of the other options goes back
 // into its box.
-const otherText = (option: HTMLInputElement) => option.closest('label')?.querySelector<HTMLInputElement>('[data-wb-other-text]') ?? null
+const otherText = (option: HTMLInputElement) =>
+  option.closest('label')?.querySelector<HTMLInputElement>('[data-wb-other-text]') ?? null
 const isOther = (el: Element): boolean => el instanceof HTMLInputElement && el.hasAttribute('data-wb-other')
 
 function readForm(form: HTMLFormElement): Data {
@@ -51,10 +53,12 @@ function readForm(form: HTMLFormElement): Data {
     if (!el.name || el.type === 'submit' || el.type === 'button' || el.type === 'reset' || el.type === 'file') continue
     // an other-option sends what was typed in its box: read, not written into the option (for a
     // radio or checkbox that would change its value attribute, and so the page's HTML)
-    const value = isOther(el) ? otherText(el)?.value.trim() ?? '' : el.value
+    const value = isOther(el) ? (otherText(el)?.value.trim() ?? '') : el.value
     if (el.type === 'checkbox') {
-      if (boxes[el.name] > 1) { const list = (data[el.name] ??= []) as string[]; if (el.checked) list.push(value) }
-      else data[el.name] = el.checked
+      if (boxes[el.name] > 1) {
+        const list = (data[el.name] ??= []) as string[]
+        if (el.checked) list.push(value)
+      } else data[el.name] = el.checked
     } else if (el.type === 'radio') {
       if (el.checked) data[el.name] = value
       else data[el.name] ??= null
@@ -68,13 +72,18 @@ function readForm(form: HTMLFormElement): Data {
 function writeForm(form: HTMLFormElement, data: Data) {
   const elements = [...form.elements] as HTMLInputElement[]
   // what the listed options of a name send, so an answer that is none of them is the other one's
-  const listed = (name: string) => elements.filter(e => e.name === name && !isOther(e) && (e.type === 'radio' || e.type === 'checkbox')).map(e => e.value)
+  const listed = (name: string) =>
+    elements
+      .filter(e => e.name === name && !isOther(e) && (e.type === 'radio' || e.type === 'checkbox'))
+      .map(e => e.value)
   for (const el of elements) {
     if (!el.name || !(el.name in data) || ['submit', 'button', 'hidden', 'file'].includes(el.type)) continue
     const v = data[el.name]
     if (isOther(el)) {
       const own = listed(el.name)
-      const rest = (Array.isArray(v) ? v : [v]).filter(x => typeof x === 'string' && x !== '' && !own.includes(x)) as string[]
+      const rest = (Array.isArray(v) ? v : [v]).filter(
+        x => typeof x === 'string' && x !== '' && !own.includes(x),
+      ) as string[]
       el.checked = rest.length > 0
       const text = otherText(el)
       if (text && text !== document.activeElement) text.value = rest.join(', ')
@@ -103,7 +112,11 @@ const draftKey = (form: HTMLFormElement) => `wb-draft:${page}:${form.getAttribut
 function saveDraft(e: Event) {
   const form = (e.target as Element | null)?.closest?.('form')
   if (!form || !managed(form) || !root.contains(form) || keepsOwnFields(form)) return
-  try { localStorage.setItem(draftKey(form), JSON.stringify(readForm(form))) } catch { /* storage unavailable */ }
+  try {
+    localStorage.setItem(draftKey(form), JSON.stringify(readForm(form)))
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 /** Unsent drafts back into their forms; a form being typed in is left alone. */
@@ -111,12 +124,22 @@ function restoreDrafts() {
   for (const form of forms()) {
     if (keepsOwnFields(form) || form.contains(document.activeElement)) continue
     let draft: Data | null = null
-    try { draft = JSON.parse(localStorage.getItem(draftKey(form)) ?? 'null') } catch { /* storage unavailable */ }
+    try {
+      draft = JSON.parse(localStorage.getItem(draftKey(form)) ?? 'null')
+    } catch {
+      /* storage unavailable */
+    }
     if (draft) writeForm(form, draft)
   }
 }
 
-const dropDraft = (form: HTMLFormElement) => { try { localStorage.removeItem(draftKey(form)) } catch { /* storage unavailable */ } }
+const dropDraft = (form: HTMLFormElement) => {
+  try {
+    localStorage.removeItem(draftKey(form))
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 /** Each form's last answer: its button in data-wb-sent, and with `prefill` its fields. */
 function restoreLast(prefill: boolean) {
@@ -144,7 +167,10 @@ async function onSubmit(e: SubmitEvent) {
     // folds because an agent picked the answer up at once
     form.toggleAttribute('data-wb-just-sent', true)
     clearTimeout(justSent.get(form))
-    justSent.set(form, setTimeout(() => form.removeAttribute('data-wb-just-sent'), 3000))
+    justSent.set(
+      form,
+      setTimeout(() => form.removeAttribute('data-wb-just-sent'), 3000),
+    )
   } catch (err) {
     form.dataset.wbState = 'failed'
     console.error(err)
@@ -160,12 +186,17 @@ const ATTR: Record<FormState, string> = { open: 'data-wb-open', pending: 'data-w
  * An answer, told apart: the button it was sent with (none for a plain Send), what was chosen
  * (options, short values), and what was written.
  */
-export function answerParts(data: Data, action: string | null): { action: string | null; chosen: string[]; written: string[] } {
-  const chosen: string[] = [], written: string[] = []
+export function answerParts(
+  data: Data,
+  action: string | null,
+): { action: string | null; chosen: string[]; written: string[] } {
+  const chosen: string[] = [],
+    written: string[] = []
   for (const v of Object.values(data)) {
     if (v == null || v === '' || v === false) continue
-    if (Array.isArray(v)) { if (v.length) chosen.push(v.join(', ')) }
-    else if (v === true) continue
+    if (Array.isArray(v)) {
+      if (v.length) chosen.push(v.join(', '))
+    } else if (v === true) continue
     else if (String(v).length > 60 || String(v).includes('\n')) written.push(String(v))
     else chosen.push(String(v))
   }
@@ -175,7 +206,10 @@ export function answerParts(data: Data, action: string | null): { action: string
 /** One line quoting an answer: what was chosen, then what was written. */
 function outcome(data: Data, action: string | null) {
   const { action: button, chosen, written } = answerParts(data, action)
-  return [[button, ...chosen].filter(Boolean).join(' · ') || 'sent', ...written.map(w => `“${w.length > 240 ? w.slice(0, 240) + '…' : w}”`)].join('\n')
+  return [
+    [button, ...chosen].filter(Boolean).join(' · ') || 'sent',
+    ...written.map(w => `“${w.length > 240 ? w.slice(0, 240) + '…' : w}”`),
+  ].join('\n')
 }
 
 let current: FormStatus[] = []
@@ -214,7 +248,10 @@ export function trackForms(el: HTMLElement, pageId: string, core: Api) {
   document.addEventListener('submit', onSubmit)
   api.onRendered(refresh)
   api.listeners.on(mark)
-  api.events.on(() => { restoreLast(false); mark() })
+  api.events.on(() => {
+    restoreLast(false)
+    mark()
+  })
   restoreLast(true)
   restoreDrafts()
   mark()

@@ -20,7 +20,10 @@ export function markRead(ids: string[]) {
   const open = new Set(unread().map(e => e.id))
   const fresh = ids.filter(id => open.has(id))
   if (!fresh.length) return
-  for (const id of fresh) { sending.add(id); queued.add(id) }
+  for (const id of fresh) {
+    sending.add(id)
+    queued.add(id)
+  }
   clearTimeout(timer)
   timer = window.setTimeout(() => {
     const batch = [...queued]
@@ -31,19 +34,23 @@ export function markRead(ids: string[]) {
 
 /** Once the log has the reads, they need no holding. */
 export function readsArrived(events: WbEvent[]) {
-  for (const e of events) if (e.type === READ) for (const id of (e.data?.ids as unknown[] | undefined) ?? []) sending.delete(String(id))
+  for (const e of events)
+    if (e.type === READ) for (const id of (e.data?.ids as unknown[] | undefined) ?? []) sending.delete(String(id))
 }
 
 // what is in view now, read once the tab is visible too
 const inView = new Set<string>()
-const seen = new IntersectionObserver(entries => {
-  for (const entry of entries) {
-    const id = (entry.target as HTMLElement).dataset.wbMessage!
-    if (entry.isIntersecting) inView.add(id)
-    else inView.delete(id)
-  }
-  readVisible()
-}, { threshold: 0.6 })
+const seen = new IntersectionObserver(
+  entries => {
+    for (const entry of entries) {
+      const id = (entry.target as HTMLElement).dataset.wbMessage!
+      if (entry.isIntersecting) inView.add(id)
+      else inView.delete(id)
+    }
+    readVisible()
+  },
+  { threshold: 0.6 },
+)
 
 function readVisible() {
   if (document.visibilityState === 'visible' && inView.size) markRead([...inView])

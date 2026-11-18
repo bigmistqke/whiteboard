@@ -5,7 +5,15 @@ import type { Reactive } from '../define.ts'
 export function reactive<T>(get: () => T): Reactive<T> & { notify(): void } {
   const listeners = new Set<(value: T) => void>()
   const value = (() => get()) as Reactive<T> & { notify(): void }
-  value.on = fn => { listeners.add(fn); return () => { listeners.delete(fn) } }
-  value.notify = () => { const now = get(); for (const fn of [...listeners]) fn(now) }
+  value.on = fn => {
+    listeners.add(fn)
+    return () => {
+      listeners.delete(fn)
+    }
+  }
+  value.notify = () => {
+    const now = get()
+    for (const fn of [...listeners]) fn(now)
+  }
   return value
 }

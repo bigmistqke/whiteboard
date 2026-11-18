@@ -31,7 +31,10 @@ export function trackWindows(api: Api) {
     apply()
   })
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && maximized != null) { maximized = null; apply() }
+    if (e.key === 'Escape' && maximized != null) {
+      maximized = null
+      apply()
+    }
   })
   api.onRendered(apply)
 }

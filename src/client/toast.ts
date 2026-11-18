@@ -19,7 +19,10 @@ function place(corner: HTMLElement) {
 }
 
 export function createToast(corner: () => HTMLElement) {
-  return function toast(text: string, { kind = 'info', ms = 7000, onClick, onDismiss, name, order = 0 }: ToastOptions = {}): Toast {
+  return function toast(
+    text: string,
+    { kind = 'info', ms = 7000, onClick, onDismiss, name, order = 0 }: ToastOptions = {},
+  ): Toast {
     const el = document.createElement('button')
     el.type = 'button'
     el.className = 'wb-toast'
@@ -39,7 +42,11 @@ export function createToast(corner: () => HTMLElement) {
     }
     const close = () => el.remove()
     el.addEventListener('click', e => {
-      if (onDismiss && (e.target as HTMLElement).closest('.wb-toast-dismiss')) { close(); onDismiss(); return }
+      if (onDismiss && (e.target as HTMLElement).closest('.wb-toast-dismiss')) {
+        close()
+        onDismiss()
+        return
+      }
       if (ms) close()
       onClick?.()
     })
@@ -47,9 +54,16 @@ export function createToast(corner: () => HTMLElement) {
     place(corner()).append(el)
     return {
       close,
-      update: next => { label.textContent = next },
-      hide: () => { el.hidden = true },
-      show: () => { if (!el.isConnected) place(corner()).append(el); el.hidden = false },
+      update: next => {
+        label.textContent = next
+      },
+      hide: () => {
+        el.hidden = true
+      },
+      show: () => {
+        if (!el.isConnected) place(corner()).append(el)
+        el.hidden = false
+      },
     }
   }
 }

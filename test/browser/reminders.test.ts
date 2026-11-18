@@ -7,43 +7,62 @@ import { browser, project, until } from './project.ts'
 
 const FORM = (name: string) => `:::form{name=${name}}\n:text[Why]{name=why}\n:::\n`
 
-test('wait: with the answer, what is still unanswered on the page and the command to wait again', { timeout: 60000 }, async t => {
-  const proj = await project({ pages: { p: `# Two\n\n${FORM('first')}\n${FORM('second')}` } })
-  const { browser: b, page, errors } = await browser()
-  t.after(async () => { await b.close(); await proj.close() })
-  const wait = proj.spawn('wait', '--page', 'p')
-  let stderr = ''
-  wait.stderr!.on('data', d => { stderr += d })
-  await page.goto(proj.url('p'))
-  await page.fill('form[name=first] input[name=why]', 'because')
-  await page.click('form[name=first] button')
-  const out = await until('the answer', () => wait.output())
-  assert.equal(JSON.parse(out).type, 'first')
-  // it may have exited already by the time the answer is read
-  if (wait.exitCode === null) await new Promise(r => wait.on('exit', r))
-  assert.match(stderr, /still unanswered on p: second → run `whiteboard wait --page \S*p\.md` again/)
-  assert.deepEqual(errors, [])
-})
+test(
+  'wait: with the answer, what is still unanswered on the page and the command to wait again',
+  { timeout: 60000 },
+  async t => {
+    const proj = await project({ pages: { p: `# Two\n\n${FORM('first')}\n${FORM('second')}` } })
+    const { browser: b, page, errors } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    const wait = proj.spawn('wait', '--page', 'p')
+    let stderr = ''
+    wait.stderr!.on('data', d => {
+      stderr += d
+    })
+    await page.goto(proj.url('p'))
+    await page.fill('form[name=first] input[name=why]', 'because')
+    await page.click('form[name=first] button')
+    const out = await until('the answer', () => wait.output())
+    assert.equal(JSON.parse(out).type, 'first')
+    // it may have exited already by the time the answer is read
+    if (wait.exitCode === null) await new Promise(r => wait.on('exit', r))
+    assert.match(stderr, /still unanswered on p: second → run `whiteboard wait --page \S*p\.md` again/)
+    assert.deepEqual(errors, [])
+  },
+)
 
-test('the Stop hook: a turn ending with nobody listening goes on once, to start a wait; a continued one ends', { timeout: 60000 }, async t => {
-  const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
-  const proj = await project({ config: CONFIG })
-  t.after(() => proj.close())
-  const session = 'session-1234'
-  const file = proj.run(['new', 'mine'], { env: { CLAUDE_CODE_SESSION_ID: session } }).stdout.trim()
-  assert.ok(file.endsWith('mine.md'), file)
-  fs.writeFileSync(file, `# Mine\n\n${FORM('ask')}`)
-  const stop = (active: boolean) => proj.run(['claude-code', 'hook', 'stop'], { input: JSON.stringify({ session_id: session, stop_hook_active: active }) })
+test(
+  'the Stop hook: a turn ending with nobody listening goes on once, to start a wait; a continued one ends',
+  { timeout: 60000 },
+  async t => {
+    const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
+    const proj = await project({ config: CONFIG })
+    t.after(() => proj.close())
+    const session = 'session-1234'
+    const file = proj.run(['new', 'mine'], { env: { CLAUDE_CODE_SESSION_ID: session } }).stdout.trim()
+    assert.ok(file.endsWith('mine.md'), file)
+    fs.writeFileSync(file, `# Mine\n\n${FORM('ask')}`)
+    const stop = (active: boolean) =>
+      proj.run(['claude-code', 'hook', 'stop'], {
+        input: JSON.stringify({ session_id: session, stop_hook_active: active }),
+      })
 
-  const first = JSON.parse(stop(false).stdout)
-  assert.equal(first.decision, 'block')
-  assert.match(first.reason, /On your whiteboard page mine: nobody listens for ask\. Run `whiteboard wait --page \S*mine\.md` in the background before ending your turn\./)
-  const again = JSON.parse(stop(true).stdout)
-  assert.equal(again.decision, undefined, 'a turn the hook continued ends')
-  assert.match(again.systemMessage, /mine: nobody listens for ask/)
+    const first = JSON.parse(stop(false).stdout)
+    assert.equal(first.decision, 'block')
+    assert.match(
+      first.reason,
+      /On your whiteboard page mine: nobody listens for ask\. Run `whiteboard wait --page \S*mine\.md` in the background before ending your turn\./,
+    )
+    const again = JSON.parse(stop(true).stdout)
+    assert.equal(again.decision, undefined, 'a turn the hook continued ends')
+    assert.match(again.systemMessage, /mine: nobody listens for ask/)
 
-  // with a wait on the page, nothing to say
-  const wait = proj.spawn('wait', '--page', 'mine')
-  await until('the wait listens', async () => !stop(false).stdout.trim() || null)
-  wait.kill()
-})
+    // with a wait on the page, nothing to say
+    const wait = proj.spawn('wait', '--page', 'mine')
+    await until('the wait listens', async () => !stop(false).stdout.trim() || null)
+    wait.kill()
+  },
+)

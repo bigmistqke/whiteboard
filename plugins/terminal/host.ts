@@ -48,13 +48,23 @@ import { handOver, lastUsed, leave, report, type Sizes } from './sizes.ts'
 
 const require = createRequire(import.meta.url)
 const [dir, socket] = process.argv.slice(2)
-if (!dir || !socket) { console.error('usage: host <project dir> <socket path>'); process.exit(2) }
+if (!dir || !socket) {
+  console.error('usage: host <project dir> <socket path>')
+  process.exit(2)
+}
 
 /** node-pty. Its prebuilt helper ships without execute permission (1.1.0): add it. */
 function loadPty(): typeof import('node-pty') {
   const pty = require('node-pty')
-  const helper = path.join(path.dirname(require.resolve('node-pty/package.json')), 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
-  try { if (fs.existsSync(helper) && !(fs.statSync(helper).mode & 0o111)) fs.chmodSync(helper, 0o755) } catch {}
+  const helper = path.join(
+    path.dirname(require.resolve('node-pty/package.json')),
+    'prebuilds',
+    `${process.platform}-${process.arch}`,
+    'spawn-helper',
+  )
+  try {
+    if (fs.existsSync(helper) && !(fs.statSync(helper).mode & 0o111)) fs.chmodSync(helper, 0o755)
+  } catch {}
   return pty
 }
 
@@ -99,16 +109,27 @@ const watchers = new Set<Conn>()
 let idle: ReturnType<typeof setTimeout> | undefined
 function checkIdle() {
   clearTimeout(idle)
-  if (![...sessions.values()].some(s => s.exited == null)) idle = setTimeout(() => quit('no program ran for ten minutes'), 10 * 60 * 1000)
+  if (![...sessions.values()].some(s => s.exited == null))
+    idle = setTimeout(() => quit('no program ran for ten minutes'), 10 * 60 * 1000)
 }
 
-const list = () => [...sessions.values()].map(s => ({ id: s.id, label: s.label, running: s.exited == null, exited: s.exited, started: s.started }))
-function announce() { for (const c of watchers) send(c, { t: 'sessions', sessions: list() }) }
+const list = () =>
+  [...sessions.values()].map(s => ({
+    id: s.id,
+    label: s.label,
+    running: s.exited == null,
+    exited: s.exited,
+    started: s.started,
+  }))
+function announce() {
+  for (const c of watchers) send(c, { t: 'sessions', sessions: list() })
+}
 
 function start(id: string, command: string, args: string[], label: string): Session {
   const pty = loadPty()
   const before = sessions.get(id)
-  const cols = before?.cols ?? 100, rows = before?.rows ?? 30
+  const cols = before?.cols ?? 100,
+    rows = before?.rows ?? 30
   const attached = before?.attached ?? new Set<Conn>()
   const viewers = before?.viewers ?? new Map()
   const active = before?.active ?? null
@@ -118,11 +139,30 @@ function start(id: string, command: string, args: string[], label: string): Sess
   screen.loadAddon(serializer)
   const mouseEncoding = followMouseEncoding(screen)
   const proc = pty.spawn(command, args, {
-    name: 'xterm-256color', cols, rows, cwd: dir,
+    name: 'xterm-256color',
+    cols,
+    rows,
+    cwd: dir,
     // WHITEBOARD_TERMINAL: which tab a program runs in, so it can show a page where its drawer is (`open`)
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', WHITEBOARD_TERMINAL: id },
   })
-  const s: Session = { id, label, command, args, proc, screen, serializer, mouseEncoding, cols, rows, attached, viewers, active, exited: null, started: new Date().toISOString() }
+  const s: Session = {
+    id,
+    label,
+    command,
+    args,
+    proc,
+    screen,
+    serializer,
+    mouseEncoding,
+    cols,
+    rows,
+    attached,
+    viewers,
+    active,
+    exited: null,
+    started: new Date().toISOString(),
+  }
   proc.onData(d => {
     screen.write(d)
     for (const c of s.attached) send(c, { t: 'data', d })
@@ -143,7 +183,9 @@ function start(id: string, command: string, args: string[], label: string): Sess
 }
 
 function endProcess(s: Session) {
-  try { if (s.exited == null) s.proc.kill() } catch {}
+  try {
+    if (s.exited == null) s.proc.kill()
+  } catch {}
   s.screen.dispose()
 }
 
@@ -167,7 +209,9 @@ function quit(reason: string) {
   const running = [...sessions.values()].filter(s => s.exited == null).length
   log(`leaves: ${reason}${running ? `, ending ${running} running tab${running > 1 ? 's' : ''}` : ''}`)
   for (const id of [...sessions.keys()]) close(id)
-  try { fs.unlinkSync(socket) } catch {}
+  try {
+    fs.unlinkSync(socket)
+  } catch {}
   process.exit(0)
 }
 
@@ -176,7 +220,8 @@ function quit(reason: string) {
 /** Give a session a size, and tell the drawers showing it. */
 function resize(s: Session, cols: number, rows: number) {
   if (cols !== s.cols || rows !== s.rows) {
-    s.cols = cols; s.rows = rows
+    s.cols = cols
+    s.rows = rows
     s.screen.resize(cols, rows)
     if (s.exited == null) s.proc.resize(cols, rows)
   }
@@ -209,7 +254,16 @@ function send(conn: Conn, msg: unknown) {
 function sendScreen(conn: Conn, s: Session) {
   conn.queue = []
   s.screen.write('', () => {
-    conn.socket.write(JSON.stringify({ t: 'screen', d: s.serializer.serialize() + s.mouseEncoding(), cols: s.cols, rows: s.rows, active: s.active, exited: s.exited }) + '\n')
+    conn.socket.write(
+      JSON.stringify({
+        t: 'screen',
+        d: s.serializer.serialize() + s.mouseEncoding(),
+        cols: s.cols,
+        rows: s.rows,
+        active: s.active,
+        exited: s.exited,
+      }) + '\n',
+    )
     const queued = conn.queue ?? []
     conn.queue = null
     for (const msg of queued) send(conn, msg)
@@ -222,14 +276,19 @@ function html(s: Session | undefined): string {
     // the rows, without the wrapper that sets the serializer's own colors and font; text is escaped
     const m = /<pre><div style='[^']*'>([\s\S]*)<\/div><\/pre>/.exec(s.serializer.serializeAsHTML())
     return m ? m[1] : ''
-  } catch { return '' }
+  } catch {
+    return ''
+  }
 }
 
 function handle(conn: Conn, req: Record<string, any>) {
-  const reply = (msg: unknown) => { conn.socket.end(JSON.stringify(msg) + '\n') }
+  const reply = (msg: unknown) => {
+    conn.socket.end(JSON.stringify(msg) + '\n')
+  }
   const s = req.id != null ? sessions.get(String(req.id)) : undefined
   switch (req.t) {
-    case 'list': return reply({ sessions: list() })
+    case 'list':
+      return reply({ sessions: list() })
     case 'start': {
       const id = req.id != null ? String(req.id) : String(nextId)
       const running = sessions.get(id)
@@ -237,9 +296,18 @@ function handle(conn: Conn, req: Record<string, any>) {
       // without a command: start it again as it was (restarting a tab)
       const command = typeof req.command === 'string' && req.command ? req.command : running?.command
       if (!command) return reply({ error: 'start needs a command' })
-      const args = typeof req.command === 'string' && req.command ? (Array.isArray(req.args) ? req.args.map(String) : []) : running!.args
+      const args =
+        typeof req.command === 'string' && req.command
+          ? Array.isArray(req.args)
+            ? req.args.map(String)
+            : []
+          : running!.args
       const label = String(req.label ?? (req.command ? path.basename(req.command) : running!.label))
-      try { start(id, command, args, label) } catch (e) { return reply({ error: (e as Error).message }) }
+      try {
+        start(id, command, args, label)
+      } catch (e) {
+        return reply({ error: (e as Error).message })
+      }
       log(`tab ${id} (${label}) ${running ? 'restarted' : 'started'}`)
       // ids are never reused while the host runs, so a closed tab's id can't come back as another
       if (Number(id) >= nextId) nextId = Number(id) + 1
@@ -251,19 +319,36 @@ function handle(conn: Conn, req: Record<string, any>) {
     case 'resize': {
       const { cols, rows } = req
       const viewer = String(req.viewer ?? '')
-      if (s && viewer && Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1 && cols < 1000 && rows < 500) {
+      if (
+        s &&
+        viewer &&
+        Number.isInteger(cols) &&
+        Number.isInteger(rows) &&
+        cols > 1 &&
+        rows > 1 &&
+        cols < 1000 &&
+        rows < 500
+      ) {
         const size = report(s, viewer, cols, rows, !!req.active)
         resize(s, size.cols, size.rows)
       }
       return reply({ ok: true })
     }
-    case 'html': return reply({ html: html(s ?? sessions.values().next().value) })
-    case 'close': close(String(req.id)); return reply({ ok: true })
+    case 'html':
+      return reply({ html: html(s ?? sessions.values().next().value) })
+    case 'close':
+      close(String(req.id))
+      return reply({ ok: true })
     case 'open': {
       // show a page in the browser tab whose drawer the reader used last: for session `id`, or
       // without one, across all of them (where the reader is). With none active, in every drawer
       // that shows the session.
-      const target = s ?? (req.id == null ? lastUsed([...sessions.values()].filter(x => x.attached.size)) ?? [...sessions.values()].find(x => x.attached.size) : undefined)
+      const target =
+        s ??
+        (req.id == null
+          ? (lastUsed([...sessions.values()].filter(x => x.attached.size)) ??
+            [...sessions.values()].find(x => x.attached.size))
+          : undefined)
       if (!target || typeof req.path !== 'string') return reply({ shown: 0 })
       const mine = [...target.attached].filter(c => c.viewer && c.viewer === target.active)
       const to = mine.length ? mine : [...target.attached]
@@ -271,7 +356,9 @@ function handle(conn: Conn, req: Record<string, any>) {
       for (const c of to) send(c, { t: 'navigate', path: req.path })
       return reply({ shown: to.length })
     }
-    case 'stop': reply({ ok: true }); return void setTimeout(() => quit('asked to stop (whiteboard terminal stop)'), 50)
+    case 'stop':
+      reply({ ok: true })
+      return void setTimeout(() => quit('asked to stop (whiteboard terminal stop)'), 50)
     case 'attach': {
       watchers.add(conn)
       if (req.viewer) conn.viewer = String(req.viewer)
@@ -285,7 +372,8 @@ function handle(conn: Conn, req: Record<string, any>) {
       sendScreen(conn, s)
       return
     }
-    default: return reply({ error: `unknown request ${req.t}` })
+    default:
+      return reply({ error: `unknown request ${req.t}` })
   }
 }
 
@@ -302,7 +390,11 @@ const server = net.createServer(socketConn => {
     buf = ''
     socketConn.removeAllListeners('data')
     let req
-    try { req = JSON.parse(line) } catch { return socketConn.end(JSON.stringify({ error: 'not JSON' }) + '\n') }
+    try {
+      req = JSON.parse(line)
+    } catch {
+      return socketConn.end(JSON.stringify({ error: 'not JSON' }) + '\n')
+    }
     handle(conn, req)
   })
 })
@@ -311,15 +403,25 @@ const server = net.createServer(socketConn => {
 try {
   await new Promise<void>((resolve, reject) => {
     const probe = net.connect(socket)
-    probe.on('connect', () => { probe.destroy(); reject(new Error('running')) })
+    probe.on('connect', () => {
+      probe.destroy()
+      reject(new Error('running'))
+    })
     probe.on('error', () => resolve())
   })
-  try { fs.unlinkSync(socket) } catch {}
-} catch { console.error('terminal host: another host answers on', socket); process.exit(0) }
+  try {
+    fs.unlinkSync(socket)
+  } catch {}
+} catch {
+  console.error('terminal host: another host answers on', socket)
+  process.exit(0)
+}
 
 server.listen(socket, () => {
   // only its owner may talk to it: the socket runs code
-  try { fs.chmodSync(socket, 0o600) } catch {}
+  try {
+    fs.chmodSync(socket, 0o600)
+  } catch {}
   log(`listening on ${socket}`)
   checkIdle()
 })

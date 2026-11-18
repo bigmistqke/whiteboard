@@ -14,7 +14,8 @@ const toggle = document.createElement('button')
 toggle.type = 'button'
 toggle.className = 'wb-toc-toggle'
 toggle.title = toggle.ariaLabel = 'Contents'
-toggle.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>'
+toggle.innerHTML =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>'
 
 let main: HTMLElement
 let api: Api
@@ -39,22 +40,25 @@ function wanted() {
 
 function build() {
   headings = wanted() ? [...main.querySelectorAll<HTMLElement>(':scope > h2, :scope > h3')] : []
-  let h2 = 0, h3 = 0
-  list.replaceChildren(...headings.map((h, i) => {
-    // the page's numbers: 1, 1.1, 1.2, 2 (base.css counts ## and ### alike)
-    const number = h.tagName === 'H2' ? `${++h2}` : `${h2}.${++h3}`
-    if (h.tagName === 'H2') h3 = 0
-    const li = document.createElement('li')
-    li.dataset.level = h.tagName === 'H2' ? '2' : '3'
-    const a = document.createElement('a')
-    a.href = '#'
-    a.dataset.index = String(i)
-    a.innerHTML = `<span class="wb-toc-number"></span><span class="wb-toc-text"></span>`
-    a.querySelector('.wb-toc-number')!.textContent = number
-    a.querySelector('.wb-toc-text')!.textContent = h.textContent ?? ''
-    li.append(a)
-    return li
-  }))
+  let h2 = 0,
+    h3 = 0
+  list.replaceChildren(
+    ...headings.map((h, i) => {
+      // the page's numbers: 1, 1.1, 1.2, 2 (base.css counts ## and ### alike)
+      const number = h.tagName === 'H2' ? `${++h2}` : `${h2}.${++h3}`
+      if (h.tagName === 'H2') h3 = 0
+      const li = document.createElement('li')
+      li.dataset.level = h.tagName === 'H2' ? '2' : '3'
+      const a = document.createElement('a')
+      a.href = '#'
+      a.dataset.index = String(i)
+      a.innerHTML = `<span class="wb-toc-number"></span><span class="wb-toc-text"></span>`
+      a.querySelector('.wb-toc-number')!.textContent = number
+      a.querySelector('.wb-toc-text')!.textContent = h.textContent ?? ''
+      li.append(a)
+      return li
+    }),
+  )
   const any = headings.length > 1
   toggle.hidden = !any || fits()
   panel.hidden = !any || (!fits() && !panel.classList.contains('wb-toc-open'))
@@ -87,7 +91,9 @@ function mark() {
     if (!badge.dataset.wbHolds!.split(' ').some(id => unread.has(id))) continue
     const y = badge.getBoundingClientRect().top
     let at = -1
-    headings.forEach((h, i) => { if (h.getBoundingClientRect().top <= y) at = i })
+    headings.forEach((h, i) => {
+      if (h.getBoundingClientRect().top <= y) at = i
+    })
     waiting.add(at)
   }
   list.querySelectorAll<HTMLElement>('a').forEach((a, i) => a.toggleAttribute('data-waiting', waiting.has(i)))
@@ -97,15 +103,22 @@ function mark() {
 function current() {
   const line = navHeight() + 40
   let at = 0
-  headings.forEach((h, i) => { if (h.getBoundingClientRect().top <= line) at = i })
-  list.querySelectorAll<HTMLElement>('a').forEach((a, i) => a.toggleAttribute('aria-current', i === at && headings.length > 0))
+  headings.forEach((h, i) => {
+    if (h.getBoundingClientRect().top <= line) at = i
+  })
+  list
+    .querySelectorAll<HTMLElement>('a')
+    .forEach((a, i) => a.toggleAttribute('aria-current', i === at && headings.length > 0))
 }
 
 function go(i: number) {
   const h = headings[i]
   if (!h) return
   scrollTo({ top: Math.max(0, scrollY + h.getBoundingClientRect().top - navHeight() - 12), behavior: 'smooth' })
-  if (!fits()) { panel.classList.remove('wb-toc-open'); panel.hidden = true }
+  if (!fits()) {
+    panel.classList.remove('wb-toc-open')
+    panel.hidden = true
+  }
 }
 
 const mount: PluginMount = (root, page, core) => {
@@ -126,9 +139,14 @@ const mount: PluginMount = (root, page, core) => {
     panel.classList.toggle('wb-toc-open', open)
     panel.hidden = !open
   })
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('wb-toc-open')) toggle.click() })
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && panel.classList.contains('wb-toc-open')) toggle.click()
+  })
   let frame = 0
-  const soon = (fn: () => void) => () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(fn) }
+  const soon = (fn: () => void) => () => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(fn)
+  }
   addEventListener('scroll', soon(current), { passive: true })
   addEventListener('resize', soon(build))
   api.onRendered(build)

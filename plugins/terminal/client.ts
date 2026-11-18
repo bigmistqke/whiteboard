@@ -10,11 +10,28 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 
 const store = {
-  get: (k: string) => { try { return sessionStorage.getItem(k) } catch { return null } },
-  set: (k: string, v: string) => { try { sessionStorage.setItem(k, v) } catch { /* storage unavailable */ } },
+  get: (k: string) => {
+    try {
+      return sessionStorage.getItem(k)
+    } catch {
+      return null
+    }
+  },
+  set: (k: string, v: string) => {
+    try {
+      sessionStorage.setItem(k, v)
+    } catch {
+      /* storage unavailable */
+    }
+  },
 }
 
-interface Session { id: string; label: string; running: boolean; exited: number | null }
+interface Session {
+  id: string
+  label: string
+  running: boolean
+  exited: number | null
+}
 
 function init(drawer: HTMLElement) {
   const screen = drawer.querySelector<HTMLElement>('.wb-term-screen')!
@@ -25,7 +42,12 @@ function init(drawer: HTMLElement) {
   const grip = drawer.querySelector<HTMLElement>('.wb-term-grip')!
   // the sessions as the server wrote them into the page, and the tab this browser tab shows
   let sessions: Session[] = []
-  try { ({ sessions } = JSON.parse(drawer.dataset.sessions ?? '{}')); sessions ??= [] } catch { /* none */ }
+  try {
+    ;({ sessions } = JSON.parse(drawer.dataset.sessions ?? '{}'))
+    sessions ??= []
+  } catch {
+    /* none */
+  }
   let current: string | null = drawer.dataset.tab ?? sessions[0]?.id ?? null
 
   const term = new Terminal({
@@ -77,7 +99,10 @@ function init(drawer: HTMLElement) {
       sent = key
       post('/api/terminal/resize', { id: current, viewer, cols: dims.cols, rows: dims.rows, active: claim })
       // it is ours from now on; the host confirms with a `size`
-      if (claim) { active = viewer; claim = false }
+      if (claim) {
+        active = viewer
+        claim = false
+      }
     }
     show()
   }
@@ -86,7 +111,8 @@ function init(drawer: HTMLElement) {
   function show() {
     const dims = fit.proposeDimensions()
     const size = mine() || !session ? dims : session
-    if (size?.cols && size?.rows && (size.cols !== term.cols || size.rows !== term.rows)) term.resize(size.cols, size.rows)
+    if (size?.cols && size?.rows && (size.cols !== term.cols || size.rows !== term.rows))
+      term.resize(size.cols, size.rows)
   }
 
   /** The reader uses this drawer: the session takes its size. */
@@ -109,11 +135,18 @@ function init(drawer: HTMLElement) {
     const vt = (document as any).startViewTransition
     if (vt && !matchMedia('(prefers-reduced-motion: reduce)').matches) vt.call(document, apply)
     else apply()
-    requestAnimationFrame(() => { if (open) use(); refit(); if (open) term.focus() })
+    requestAnimationFrame(() => {
+      if (open) use()
+      refit()
+      if (open) term.focus()
+    })
   }
   toggle.addEventListener('click', () => setOpen(!isOpen()))
   addEventListener('keydown', e => {
-    if (e.ctrlKey && e.key === '`') { e.preventDefault(); setOpen(!isOpen()) }
+    if (e.ctrlKey && e.key === '`') {
+      e.preventDefault()
+      setOpen(!isOpen())
+    }
   })
 
   // ---- height --------------------------------------------------------------------------------
@@ -145,50 +178,60 @@ function init(drawer: HTMLElement) {
     if (!current) return
     use()
     const id = current
-    if (!pending) queueMicrotask(() => {
-      const data = pending
-      pending = ''
-      chain = chain.then(() => post('/api/terminal/input', { id, data })).then(() => {}, () => {})
-    })
+    if (!pending)
+      queueMicrotask(() => {
+        const data = pending
+        pending = ''
+        chain = chain
+          .then(() => post('/api/terminal/input', { id, data }))
+          .then(
+            () => {},
+            () => {},
+          )
+      })
     pending += d
   })
 
   // ---- the session ---------------------------------------------------------------------------
   function setStatus(text: string, buttons: [string, () => void][] = []) {
     status.textContent = text
-    actions.replaceChildren(...buttons.map(([label, run]) => {
-      const b = document.createElement('button')
-      b.type = 'button'
-      b.textContent = label
-      b.addEventListener('click', run)
-      return b
-    }))
+    actions.replaceChildren(
+      ...buttons.map(([label, run]) => {
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.textContent = label
+        b.addEventListener('click', run)
+        return b
+      }),
+    )
   }
 
   // ---- tabs ----------------------------------------------------------------------------------
   function drawTabs() {
-    tabs.replaceChildren(...sessions.map(x => {
-      const tab = document.createElement('span')
-      tab.className = 'wb-term-tab'
-      tab.dataset.id = x.id
-      tab.classList.toggle('wb-current', x.id === current)
-      tab.toggleAttribute('data-exited', !x.running)
-      const name = document.createElement('button')
-      name.type = 'button'
-      name.className = 'wb-term-tab-name'
-      name.textContent = x.label
-      name.title = x.running ? x.label : `${x.label}: exited (${x.exited})`
-      name.addEventListener('click', () => select(x.id))
-      tab.append(name)
-      const close = document.createElement('button')
-      close.type = 'button'
-      close.className = 'wb-term-tab-close'
-      close.title = 'Close this tab (ends its program)'
-      close.textContent = '×'
-      close.addEventListener('click', () => closeTab(x.id))
-      tab.append(close)
-      return tab
-    }))
+    tabs.replaceChildren(
+      ...sessions.map(x => {
+        const tab = document.createElement('span')
+        tab.className = 'wb-term-tab'
+        tab.dataset.id = x.id
+        tab.classList.toggle('wb-current', x.id === current)
+        tab.toggleAttribute('data-exited', !x.running)
+        const name = document.createElement('button')
+        name.type = 'button'
+        name.className = 'wb-term-tab-name'
+        name.textContent = x.label
+        name.title = x.running ? x.label : `${x.label}: exited (${x.exited})`
+        name.addEventListener('click', () => select(x.id))
+        tab.append(name)
+        const close = document.createElement('button')
+        close.type = 'button'
+        close.className = 'wb-term-tab-close'
+        close.title = 'Close this tab (ends its program)'
+        close.textContent = '×'
+        close.addEventListener('click', () => closeTab(x.id))
+        tab.append(close)
+        return tab
+      }),
+    )
     showStatus()
   }
 
@@ -206,12 +249,17 @@ function init(drawer: HTMLElement) {
     // no tab yet: "+" opens one
     if (!x) return setStatus('', [])
     if (x.running) return setStatus('', [])
-    setStatus(x.exited == null ? 'stopped' : `exited (${x.exited})`, [['Start again', () => start({ id: x.id, restart: true })]])
+    setStatus(x.exited == null ? 'stopped' : `exited (${x.exited})`, [
+      ['Start again', () => start({ id: x.id, restart: true })],
+    ])
   }
 
   function select(id: string | null) {
     // the tab that shows already: just give it the keyboard back
-    if (id === current && stream) { if (isOpen()) term.focus(); return }
+    if (id === current && stream) {
+      if (isOpen()) term.focus()
+      return
+    }
     current = id
     if (id) store.set('wb-terminal-tab', id)
     drawTabs()
@@ -242,7 +290,9 @@ function init(drawer: HTMLElement) {
     try {
       const res = await fetch('/api/terminal/sessions')
       if (res.ok) ({ sessions } = await res.json())
-    } catch { /* the server is away: the stream reconnects */ }
+    } catch {
+      /* the server is away: the stream reconnects */
+    }
     drawTabs()
   }
 
@@ -253,7 +303,9 @@ function init(drawer: HTMLElement) {
     sent = ''
     if (!current) showStatus()
     // without a tab too: the host tells it when one appears (started from the command line, say)
-    stream = new EventSource(`/api/terminal/stream?${current ? `id=${encodeURIComponent(current)}&` : ''}viewer=${viewer}`)
+    stream = new EventSource(
+      `/api/terminal/stream?${current ? `id=${encodeURIComponent(current)}&` : ''}viewer=${viewer}`,
+    )
     stream.addEventListener('sessions', e => {
       sessions = JSON.parse((e as MessageEvent).data).sessions
       // the current tab is gone, or there was none and one appeared: show the last
@@ -297,13 +349,18 @@ function init(drawer: HTMLElement) {
     stream.addEventListener('exit', e => {
       const code = JSON.parse((e as MessageEvent).data).code
       const x = sessions.find(y => y.id === current)
-      if (x) { x.running = false; x.exited = code }
+      if (x) {
+        x.running = false
+        x.exited = code
+      }
       drawTabs()
     })
   }
 
   // whether the terminal had the keyboard, for the next page
-  addEventListener('pagehide', () => store.set('wb-terminal-focus', drawer.contains(document.activeElement) ? '1' : '0'))
+  addEventListener('pagehide', () =>
+    store.set('wb-terminal-focus', drawer.contains(document.activeElement) ? '1' : '0'),
+  )
 
   drawTabs()
   connect()

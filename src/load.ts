@@ -22,7 +22,11 @@ const PACKAGE = '@bigmistqke/whiteboard'
 function ownFile(specifier: string): string | null {
   if (specifier !== PACKAGE && !specifier.startsWith(PACKAGE + '/')) return null
   let exports: Record<string, string | { source?: string; default?: string }> | undefined
-  try { exports = JSON.parse(fs.readFileSync(path.join(ENGINE_DIR, 'package.json'), 'utf8')).exports } catch { return null }
+  try {
+    exports = JSON.parse(fs.readFileSync(path.join(ENGINE_DIR, 'package.json'), 'utf8')).exports
+  } catch {
+    return null
+  }
   const target = exports?.[specifier === PACKAGE ? '.' : `./${specifier.slice(PACKAGE.length + 1)}`]
   const file = typeof target === 'string' ? target : (FROM_SOURCE && target?.source) || target?.default
   return file ? path.join(ENGINE_DIR, file) : null
@@ -57,7 +61,11 @@ export function installHooks() {
       // would load the config as CommonJS and fail on its imports. What is in .whiteboard/ is always
       // a module, by its extension; other local files keep the format their package gives them.
       const inProject = url.pathname.split('/').includes('.whiteboard')
-      return { ...resolved, url: url.href, format: inProject ? moduleFormat(url.pathname) : resolved.format ?? moduleFormat(url.pathname) }
+      return {
+        ...resolved,
+        url: url.href,
+        format: inProject ? moduleFormat(url.pathname) : (resolved.format ?? moduleFormat(url.pathname)),
+      }
     },
   })
 }

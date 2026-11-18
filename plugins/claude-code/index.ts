@@ -44,17 +44,23 @@ export default function claudeCode(): Plugin {
     session: () => process.env.CLAUDE_CODE_SESSION_ID || null,
     commands: {
       hook: {
-        description: 'what Claude Code runs on an event (stop, prompt or session): report what is open on the session\'s pages; a stop with questions nobody listens for continues the turn once, to start a wait',
+        description:
+          "what Claude Code runs on an event (stop, prompt or session): report what is open on the session's pages; a stop with questions nobody listens for continues the turn once, to start a wait",
         args: '<stop|prompt|session>',
         async run(ctx) {
           const mode = ctx.positionals[0] as Mode
-          if (!mode || !(mode in MODES)) throw new Error(`usage: whiteboard claude-code hook <${Object.keys(MODES).join('|')}>`)
+          if (!mode || !(mode in MODES))
+            throw new Error(`usage: whiteboard claude-code hook <${Object.keys(MODES).join('|')}>`)
           // a hook that fails must not get in the way of the session it runs in: say why, and exit cleanly
-          try { await hook(ctx, mode) } catch (err) { console.error(`whiteboard claude-code hook ${mode}: ${(err as Error).message}`) }
+          try {
+            await hook(ctx, mode)
+          } catch (err) {
+            console.error(`whiteboard claude-code hook ${mode}: ${(err as Error).message}`)
+          }
         },
       },
       install: {
-        description: 'add the hooks to this project\'s .claude/settings.json',
+        description: "add the hooks to this project's .claude/settings.json",
         run: ctx => install(ctx.project.dir),
       },
     },
@@ -64,7 +70,11 @@ export default function claudeCode(): Plugin {
 /** The JSON Claude Code passes a hook on its standard input, or nothing. */
 function hookInput(): { session_id?: string; stop_hook_active?: boolean } {
   if (process.stdin.isTTY) return {}
-  try { return JSON.parse(fs.readFileSync(0, 'utf8') || '{}') } catch { return {} }
+  try {
+    return JSON.parse(fs.readFileSync(0, 'utf8') || '{}')
+  } catch {
+    return {}
+  }
 }
 
 const relFile = (file: string) => path.relative(process.cwd(), file) || file
@@ -82,10 +92,21 @@ async function hook(ctx: CommandContext, mode: Mode) {
     // one ends, with what is open shown to the reader instead.
     const loose = mine.filter(p => p.unheard.length || p.unpicked.length)
     if (!loose.length) return
-    const said = (p: PageStatus) => { const l = openOn(p, { waiting: false }); return `${l.slice(0, -1).join('; ')} ${l.at(-1)}` }
+    const said = (p: PageStatus) => {
+      const l = openOn(p, { waiting: false })
+      return `${l.slice(0, -1).join('; ')} ${l.at(-1)}`
+    }
     const shown = `whiteboard: ${loose.map(p => `${p.page}: ${said(p)}`).join(' · ')}`
-    if (input.stop_hook_active) { console.log(JSON.stringify({ systemMessage: shown })); return }
-    const reason = loose.map(p => `On your whiteboard page ${p.page}: ${openOn(p, { waiting: false }).slice(0, -1).join('; ')}. Run \`whiteboard wait --page ${relFile(p.file)}\` in the background before ending your turn.`).join('\n')
+    if (input.stop_hook_active) {
+      console.log(JSON.stringify({ systemMessage: shown }))
+      return
+    }
+    const reason = loose
+      .map(
+        p =>
+          `On your whiteboard page ${p.page}: ${openOn(p, { waiting: false }).slice(0, -1).join('; ')}. Run \`whiteboard wait --page ${relFile(p.file)}\` in the background before ending your turn.`,
+      )
+      .join('\n')
     console.log(JSON.stringify({ decision: 'block', reason, systemMessage: shown }))
     return
   }
@@ -98,16 +119,23 @@ async function hook(ctx: CommandContext, mode: Mode) {
     const handed: WbEvent[] = []
     await ctx.handOut({ page: p.page, exact: true }, e => handed.push(e), { follow: false })
     if (handed.length) {
-      out.push(`Answers on your page ${p.page} (${relFile(p.file)}) that no wait picked up; they count as picked up now:`)
+      out.push(
+        `Answers on your page ${p.page} (${relFile(p.file)}) that no wait picked up; they count as picked up now:`,
+      )
       for (const e of handed) out.push(JSON.stringify(e))
     }
-    if (p.unheard.length) out.push(`Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}: run \`whiteboard wait --page ${relFile(p.file)}\` in the background.`)
+    if (p.unheard.length)
+      out.push(
+        `Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}: run \`whiteboard wait --page ${relFile(p.file)}\` in the background.`,
+      )
   }
   if (mode === 'session') {
     // a new session may carry on work another one started: say what is open elsewhere, without handing it over
     const others = busy.filter(p => !mine.includes(p))
     if (others.length) {
-      out.push('Other pages in this whiteboard project with something open (not this session\'s; their answers stay for whoever waits on them):')
+      out.push(
+        "Other pages in this whiteboard project with something open (not this session's; their answers stay for whoever waits on them):",
+      )
       for (const p of others) out.push(`- ${p.page} (${whose(p, session)}): ${openOn(p).join(' ')}`)
     }
   }
@@ -119,13 +147,17 @@ function install(dir: string) {
   const file = path.join(dir, '.claude', 'settings.json')
   let settings: Settings = {}
   if (fs.existsSync(file)) {
-    try { settings = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { throw new Error(`${file} is not valid JSON; fix it first`) }
+    try {
+      settings = JSON.parse(fs.readFileSync(file, 'utf8'))
+    } catch {
+      throw new Error(`${file} is not valid JSON; fix it first`)
+    }
   }
   // the hooks run outside any project folder's node_modules/.bin, so name the command that works here
   const onPath = spawnSync('sh', ['-c', 'command -v whiteboard'], { encoding: 'utf8' }).status === 0
   const bin = onPath ? 'whiteboard' : 'npx whiteboard'
   const changed: string[] = []
-  const hooks = settings.hooks ??= {}
+  const hooks = (settings.hooks ??= {})
   for (const [mode, event] of Object.entries(MODES)) {
     const command = `${bin} claude-code hook ${mode}`
     const groups = hooks[event] ?? []
@@ -137,7 +169,10 @@ function install(dir: string) {
     hooks[event] = [...kept, { hooks: [{ type: 'command', command }] }]
     changed.push(event)
   }
-  if (!changed.length) { console.log(`hooks already installed: ${file}`); return }
+  if (!changed.length) {
+    console.log(`hooks already installed: ${file}`)
+    return
+  }
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(`${file}.tmp`, JSON.stringify(settings, null, 2) + '\n')
   fs.renameSync(`${file}.tmp`, file)
