@@ -1,4 +1,4 @@
-// The iframe block in the browser: a frame on its own, or in a window (`window`): its header,
+// The iframe block in the browser: a frame on its own, or in a window (`compose=window`): its header,
 // filling the browser window and back, across a page update.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -6,11 +6,11 @@ import { browser, project, until } from './project.ts'
 
 const PAGE = (extra = '') => `# Frames
 
-::iframe[The demo]{src="demo.html" height=240 window}
+::iframe[The demo]{src="demo.html" height=240 compose=window}
 
 ::iframe{src="demo.html"}
 
-::iframe{src="demo.html?unlabelled" window}
+::iframe{src="demo.html?unlabelled" compose=window}
 ${extra}`
 
 test(
@@ -33,7 +33,7 @@ test(
     assert.equal(await fig.locator('.wb-window-title').textContent(), 'The demo')
     assert.equal(await fig.locator('.wb-window-address').count(), 0, 'with a label, no address')
     assert.equal(await fig.locator('.wb-window-name').getAttribute('title'), 'demo.html', 'the address on hover')
-    assert.equal(await page.locator('div.wb-window').count(), 2, 'without `window`, no window')
+    assert.equal(await page.locator('div.wb-window').count(), 2, 'without compose=window, no window')
     assert.equal(await page.locator('#wb-main > .wb-iframe-frame').count(), 1, 'the frame alone')
     assert.equal(
       await page.locator('div.wb-window').nth(1).locator('.wb-window-name').textContent(),

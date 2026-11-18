@@ -1,6 +1,6 @@
 // Another page inside this one: a URL (a dev server, a deployed site) or an HTML file next to the
 // pages (`demo.html` in .whiteboard/pages/ is served as it is), in a frame that can be made taller
-// by dragging its bottom edge. With `window`, in a window (src/pages/window.ts): a header with its
+// by dragging its bottom edge. With `compose=window`, in a window (src/pages/window.ts): a header with its
 // label, open on its own, fill the browser window.
 import fs from 'node:fs'
 import { builtinPublic } from '../../src/package.ts'

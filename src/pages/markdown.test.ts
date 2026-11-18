@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { formNames, renderMarkdown } from './markdown.ts'
+import { formNames, renderMarkdown, parseAttrs } from './markdown.ts'
 
 test('a code fence inside a container keeps its ::: lines, and the container stays open around it', async () => {
   const fences: string[] = []
@@ -55,4 +55,10 @@ test('blocks that share a stylesheet link it once', async () => {
     resolve: name => block(name),
   })
   assert.deepEqual(styles, [style])
+})
+
+test('parseAttrs: a fence attributes, in braces too; an unquoted value ends at the closing brace', () => {
+  assert.deepEqual(parseAttrs('cols=3 open title="a b"'), { cols: '3', open: '', title: 'a b' })
+  assert.deepEqual(parseAttrs('{compose=window}'), { compose: 'window' })
+  assert.deepEqual(parseAttrs('{compose=window,badge title="A b"}'), { compose: 'window,badge', title: 'A b' })
 })

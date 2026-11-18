@@ -88,10 +88,13 @@ const toHast = unified()
   .use(rehypeStringify, { allowDangerousHtml: true })
   .freeze()
 
-/** `cols=3 open title="a b"` → { cols: '3', open: '', title: 'a b' } (bare words get '' like directive attrs) */
+/**
+ * `cols=3 open title="a b"` → { cols: '3', open: '', title: 'a b' } (bare words get '' like directive
+ * attrs). In braces too, as a fence writes them: `{compose=window}` (an unquoted value ends at `}`).
+ */
 export function parseAttrs(s: unknown) {
   const out: Record<string, string> = {}
-  for (const m of String(s ?? '').matchAll(/([\w-]+)(?:=("[^"]*"|'[^']*'|\S+))?/g))
+  for (const m of String(s ?? '').matchAll(/([\w-]+)(?:=("[^"]*"|'[^']*'|[^\s}]+))?/g))
     out[m[1]] = m[2] ? m[2].replace(/^["']|["']$/g, '') : ''
   return out
 }
@@ -250,7 +253,7 @@ export interface RenderOptions {
    * written (no buttons or forms in a message); code fences and text links work as on a page
    */
   message?: boolean
-  /** the plugins that compose themselves around blocks (Plugin.compose), by name: a block with that attribute goes in it */
+  /** the plugins that compose themselves around blocks (Plugin.compose), by name: a block names them in `compose` */
   composers?: Map<string, NonNullable<Plugin['compose']>>
 }
 
@@ -326,31 +329,31 @@ export async function renderMarkdown(
 
   /**
    * A block's output for one directive or fence: static HTML, or an island around it; then put in
-   * what the plugins named by its attributes compose around it (Plugin.compose), in the order
-   * written: the first innermost. Not inline blocks, not a block of the wrapping plugin's own name, not one that
-   * renders nothing (left out of a build), and not one that says what's wrong with it instead.
+   * what the plugins its `compose` attribute names compose around it (Plugin.compose), in the order
+   * written, the first innermost: `{compose=window,badge}`. A name no plugin composes is said in
+   * place. Not inline blocks, not a block of the composing plugin's own name, not one that renders
+   * nothing (left out of a build), and not one that says what's wrong with it instead.
    */
   async function run(block: ResolvedBlock, ctx: any, fallback: () => Promise<Html | string>): Promise<Html> {
     let out = await output(block, ctx, fallback)
-    const shown = String(out).trim()
-    if (!composers?.size || ctx.kind === 'textDirective' || !shown || shown.startsWith('<pre class="wb-error"'))
-      return out
     const attrs: Record<string, string> = ctx.attrs ?? {}
+    const names = String(attrs.compose ?? '')
+      .split(/[\s,]+/)
+      .filter(Boolean)
+    const shown = String(out).trim()
+    if (!names.length || ctx.kind === 'textDirective' || !shown || shown.startsWith('<pre class="wb-error"')) return out
     let open: string | null | undefined
-    for (const name of Object.keys(attrs)) {
-      const compose = composers.get(name)
-      if (!compose || block.name === name) continue
+    for (const name of names) {
+      if (block.name === name) continue
+      const compose = composers?.get(name)
+      if (!compose) {
+        out = html`<pre class="wb-error">compose: no plugin named "${name}" composes around blocks</pre>
+          ${out}`
+        continue
+      }
       try {
         open ??= block.open?.(ctx) ?? null
-        const context = {
-          children: out,
-          block: block.name,
-          value: attrs[name] ?? '',
-          attrs,
-          label: ctx.label ?? null,
-          open,
-        }
-        out = raw(String(await compose(context)))
+        out = raw(String(await compose({ children: out, block: block.name, attrs, label: ctx.label ?? null, open })))
       } catch (err) {
         console.error(`plugin ${name}: compose:`, err)
         out = html`<pre class="wb-error">

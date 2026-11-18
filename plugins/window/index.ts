@@ -1,8 +1,8 @@
 // Windows (src/pages/window.ts): a header with a label, a button that fills the browser window, and
 // one that opens what it shows on its own. `:::window[label] … :::` puts any markdown in one (a
-// table, a screenshot with text); any other block is put in one by saying `window`, which the core
-// does. `::image[label]{src}` and `::video[label]{src}` are one image or video: in a window with
-// `window`, else alone.
+// table, a screenshot with text); any other block is put in one with `compose=window` (this plugin's
+// compose). `::image[label]{src}` and `::video[label]{src}` are one image or video: alone, or in a
+// window with `compose=window`.
 import fs from 'node:fs'
 import { definePlugin, html, raw, windowFrame, type DirectiveContext, type Plugin } from '@bigmistqke/whiteboard'
 
@@ -35,7 +35,7 @@ const height = (value: string | undefined) =>
 /** http(s), protocol-relative, or a path on this server; never `javascript:` or `data:`. */
 const safeSrc = (src: string) => /^(https?:)?\/\//i.test(src) || !/^[a-z][a-z0-9+.-]*:/i.test(src)
 
-/** ::image[label]{src} and ::video[label]{src loop autoplay muted poster}: one file (in a window with `window`). */
+/** ::image[label]{src} and ::video[label]{src loop autoplay muted poster}: one file (in a window with `compose=window`). */
 const media = (kind: 'image' | 'video') => (ctx: DirectiveContext) => {
   const src = (ctx.attrs.src ?? '').trim()
   if (!src)
@@ -78,10 +78,10 @@ export async function render(ctx: DirectiveContext) {
 export default function windows(): Plugin {
   return definePlugin({
     name: 'window',
-    // any block written with `window` goes in one: its label the title (or `window="…"`), its ↗
-    // what it shows on its own
-    compose: ({ children, value, label, open, attrs }) =>
-      windowFrame({ label: value || label, open, wide: 'wide' in attrs, body: children }),
+    // any block that says `compose=window` goes in one: its `title` or label the window's title,
+    // its ↗ what the block shows on its own
+    compose: ({ children, label, open, attrs }) =>
+      windowFrame({ label: attrs.title ? html`${attrs.title}` : label, open, wide: 'wide' in attrs, body: children }),
     blocks: {
       window: { html: render },
       image: { html: media('image'), open: mediaOpen },

@@ -1,6 +1,6 @@
-// Windows: :::window around any markdown, and any block written with `window` (the window plugin
-// wraps it): a header that opens what it shows on its own and fills the browser window. Without
-// `window`, an image or a video is just itself.
+// Windows: :::window around any markdown, and any block that says `compose=window` (the window
+// plugin composes around it): a header that opens what it shows on its own and fills the browser window. Without
+// it, an image or a video is just itself.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { browser, project } from './project.ts'
@@ -11,19 +11,19 @@ const PNG = Buffer.from(
 ).toString('latin1')
 
 test(
-  'windows: around any block that says window, its label or window="…" the title, its own file to open; fill and back',
+  'windows: around any block that says compose=window, its label or title the title, its own file to open; fill and back',
   { timeout: 60000 },
   async t => {
     const page_ = [
       '# Windows',
       ':::window[A screenshot]\n![the screen](shot.png)\n:::',
       ':::window[A table]\n| a | b |\n| - | - |\n| 1 | 2 |\n:::',
-      '::image[The image]{src="shot.png" window}',
-      '::video[The video]{src="clip.mp4" loop muted window}',
+      '::image[The image]{src="shot.png" compose=window}',
+      '::video[The video]{src="clip.mp4" loop muted compose=window}',
       '::image{src="shot.png"}',
-      '```mermaid {window}\ngraph LR\n  a --> b\n```',
-      ':::grid{cols=2 window="Two cards"}\n### One\n1\n### Two\n2\n:::',
-      '::image{src="javascript:alert(1)" window}',
+      '```mermaid {compose=window}\ngraph LR\n  a --> b\n```',
+      ':::grid{cols=2 compose=window title="Two cards"}\n### One\n1\n### Two\n2\n:::',
+      '::image{src="javascript:alert(1)" compose=window}',
       '',
     ].join('\n\n')
     const proj = await project({ pages: { w: page_ } })

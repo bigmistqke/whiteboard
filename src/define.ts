@@ -101,11 +101,12 @@ export interface Plugin {
    */
   events?: Record<string, EventSpec>
   /**
-   * Composes itself around other blocks: any block written with an attribute of this plugin's name
-   * (`::image{src window}`, ```` ```mermaid {window} ````, `:::grid{window}`) is put in what this
+   * Composes itself around other blocks: a block whose `compose` attribute names this plugin
+   * (`::image{src compose=window}`, ```` ```mermaid {compose=window} ````) is put in what this
    * returns, the block's own HTML as `children`, as a component gets what it wraps. The block needs
-   * to know nothing of it. Several such attributes compose in the order they're written, the first
-   * innermost. Not inline blocks, nor a block of this plugin's name (`:::window` is a window already).
+   * to know nothing of it. Several named (`compose=window,badge`) compose in the order written, the
+   * first innermost. Not inline blocks, nor a block of this plugin's name (`:::window` is one already).
+   * What it reads of the block's attributes (the window's `title`) its docs say.
    */
   compose?(ctx: ComposeContext): string | Html | Promise<string | Html>
   setup?(ctx: PluginContext): PluginHooks | Promise<PluginHooks>
@@ -623,9 +624,8 @@ export interface Block<Props = unknown> {
    */
   html?(ctx: ServerContext): string | Html | null | Promise<string | Html | null>
   /**
-   * What the block shows, on its own: an image's file, a page's address. Any block written with
-   * `window` (`::image{src window}`, ```` ```mermaid {window} ````) is put in a window by the core;
-   * the window's ↗ opens this. Without it, the window has no ↗.
+   * What the block shows, on its own: an image's file, a page's address: what a plugin composed
+   * around it gets as `open` (Plugin.compose), the window's ↗. Without it, the window has no ↗.
    */
   open?(ctx: ServerContext): string | null
   /** a browser module whose default export is a `Mount`, in its plugin's public folder: `'chart.js'` */
@@ -705,8 +705,6 @@ export interface ComposeContext {
   children: Html
   /** the block's name: `image`, `mermaid` */
   block: string
-  /** the value of the plugin's attribute: `window="A title"` → 'A title'; '' when bare */
-  value: string
   /** the block's attributes */
   attrs: Record<string, string>
   /** the block's label as HTML, null without one (fences have none) */

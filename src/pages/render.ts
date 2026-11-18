@@ -279,8 +279,14 @@ export function createRender(
       code,
       linkFor: ctx.urlFor,
       textLinks: textLinks(ctx.project.dir),
-      // a build leaves out a skipped plugin's composing too
-      composers: skip ? new Map([...composers].filter(([name]) => !skip.has(name))) : composers,
+      // a build leaves out a skipped plugin's composing too: the block as it is
+      composers: skip
+        ? new Map(
+            [...composers].map(([name, compose]) =>
+              skip.has(name) ? [name, ({ children }: { children: unknown }) => String(children)] : [name, compose],
+            ),
+          )
+        : composers,
     })
   }
 

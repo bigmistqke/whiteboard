@@ -220,11 +220,13 @@ now, so `::image`, `::video`, `:::window` around any markdown, and any
 plugin's block share it. A block can put its own controls in the header:
 `:::steps` puts ‹ › and its tabs there.
 
-Any block goes in a window by saying `window`: the window plugin's
-`compose`. A plugin composes itself around other blocks by its name, as its
-events and routes are under its name: a block written with that attribute is
-put in what `compose` returns, its HTML as `children` (a component's
-children), in the order the attributes are written. The core only knows the
+Any block goes in a window with `compose=window`: the window plugin's
+`compose`. A plugin composes itself around other blocks: a block whose
+`compose` attribute names it is put in what `compose` returns, its HTML as
+`children` (a component's children), several in the order written. One
+attribute the core reserves, rather than one per plugin (`{window}`, which it
+was first): a plugin's name could be an attribute of a block's own (`name`,
+`height`), and `{window}` didn't say what answers it. The core only knows the
 rule (`src/pages/markdown.ts`, `run`); the block knows nothing of what goes
 around it, and says what it shows on its own (`open`) for a window's ↗. So
 an image, a video and a frame are themselves, and in a window when asked:

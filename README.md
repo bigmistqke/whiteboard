@@ -539,8 +539,8 @@ export default function mount(root, page, api) {
   `fence: 'any'` for the block that takes every code fence nobody else
   claims, and `open(ctx)`: what it shows on its own, for a window around it.
   Block names are unique across a project's plugins.
-- **`compose(ctx)`**: itself around any block written with an attribute of
-  the plugin's name, that block's HTML as `ctx.children` (see below).
+- **`compose(ctx)`**: itself around any block that names the plugin in its
+  `compose` attribute, that block's HTML as `ctx.children` (see below).
 - **`events`**, by type (`<plugin>:<what>`): a description each, and
   `handOut: true` for those an agent should get unasked, like a chat
   message. `whiteboard docs` lists them.
@@ -563,14 +563,15 @@ export default function mount(root, page, api) {
   - `shell`, markup at the end of every page's `<head>` and `<body>`;
   - `client`, a module on every page, run once per page load.
 
-**A plugin can compose itself around other blocks.** With `compose`, any
-block written with an attribute of the plugin's name is put in what it
-returns, the block's HTML as `children`, as a component gets what it wraps.
-The window plugin is one: `::image{src window}`, ```` ```mermaid {window} ````
-and `:::grid{window}` all go in a window, and none of those blocks knows of
-windows. A block says what it shows on its own with `open` (an image's file),
-which a window's ↗ opens. Several such attributes compose in the order
-written, the first innermost.
+**A plugin can compose itself around other blocks.** With `compose`, a
+block whose `compose` attribute names the plugin is put in what it returns,
+the block's HTML as `children`, as a component gets what it wraps. The
+window plugin is one: `::image{src compose=window}`, ```` ```mermaid {compose=window} ````
+and `:::grid{compose=window}` all go in a window, and none of those blocks
+knows of windows. A block says what it shows on its own with `open` (an
+image's file), which a window's ↗ opens. Several named compose in the order
+written, the first innermost: `compose=window,badge`. A name no plugin
+composes is said in place.
 
 ```ts
 definePlugin({
