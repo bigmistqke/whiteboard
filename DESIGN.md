@@ -392,6 +392,18 @@ this, a page-less listener competed with every page's own agent and was
 rarely what anyone meant. Reading the log never depends on the
 connection, so no answer is missed while the server is away.
 
+### Pointing at a place
+
+An agent can show the reader a place on a page they have open:
+`whiteboard scroll <page> <where>` posts to `/api/scroll`, and the server
+sends `scroll` on the live channel of every tab with that page. The tab finds
+the place, in this order: a heading or details title by its text (exact,
+then containing), a form by its name, an id, then the first text containing
+it; it opens the details around it, scrolls it in below the header and the
+titles that stick above it, and lights it up a moment. The command checks the
+rendered page first, so a place that isn't there fails at once (exit 1), as
+does a page no tab has open.
+
 ### Status and hooks
 
 What is open is a fact the core can state without asking the agent, so the

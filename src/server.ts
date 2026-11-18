@@ -389,6 +389,8 @@ export function createServer(project: Project): WhiteboardServer {
     + '.wb-toasts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.wb-toasts:empty{display:none}'
     + '.wb-toast{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 12px;border-radius:99px;font:600 .8rem/1.4 var(--sans,system-ui,sans-serif);background:var(--accent,#1d5bbf);color:var(--accent-text,#fff);border:1px solid transparent;box-shadow:0 2px 10px rgb(0 0 0/.18)}'
     + '.wb-toast[hidden]{display:none}.wb-toast[data-kind=warn]{background:var(--warn,#6b4fc0)}.wb-toast[data-kind=alert]{background:var(--bad,#c4352b);color:#fff}'
+    // where an agent scrolled the page to, lit up a moment
+    + '@keyframes wb-flash{from{outline-color:var(--accent,#1d5bbf)}to{outline-color:transparent}}.wb-flash{outline:3px solid transparent;outline-offset:6px;border-radius:4px;animation:wb-flash 2s ease-out}'
     + '.wb-toast-dismiss{margin-right:-4px;padding:0 4px;border-left:1px solid rgb(255 255 255/.35);opacity:.75}.wb-toast-dismiss:hover{opacity:1}'
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
@@ -421,7 +423,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
   // ---- live changes ------------------------------------------------------------------------------
   // The browser listens at /api/watch. `change`: its page changed; `events`: the log grew;
   // `listeners`: an agent started or stopped waiting; `style`: a stylesheet changed; `reload`:
-  // browser code changed.
+  // browser code changed; `scroll`: an agent shows the reader a place on the page ({ to }).
 
   /** A browser following its page at /api/watch; `pending`: what it will be told in a moment. */
   interface WatchClient {
@@ -586,6 +588,19 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
         const body = JSON.parse(await readBody(req))
         if (!body.type) return sendJson(res, 400, { error: 'event type required' })
         return sendJson(res, 200, appendEvent(project.eventsFile, body))
+      }
+      // an agent shows the reader a place on a page: every tab with it open scrolls there
+      // ({ page, to }: a heading's text, a form's name or any text) → { tabs }
+      if (p === '/api/scroll' && req.method === 'POST') {
+        const { page: id, to } = JSON.parse(await readBody(req)) as { page?: unknown; to?: unknown }
+        if (typeof id !== 'string' || typeof to !== 'string' || !to.trim()) return sendJson(res, 400, { error: 'page and to required' })
+        let tabs = 0
+        for (const c of clients) {
+          if (c.isDir || (c.page !== id && c.page + '/index' !== id)) continue
+          c.res.write(`event: scroll\ndata: ${JSON.stringify({ to })}\n\n`)
+          tabs++
+        }
+        return sendJson(res, 200, { tabs })
       }
       // messages (comments, chat) written in markdown, as HTML: { texts } → { html, styles }
       if (p === '/api/markdown' && req.method === 'POST') {

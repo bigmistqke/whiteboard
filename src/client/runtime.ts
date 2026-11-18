@@ -8,6 +8,7 @@ import { createToast } from './toast'
 import { markRead, messagesChanged, readsArrived, trackReading, unread } from './read'
 import { READ } from '../status.ts'
 import { markdown } from './markdown'
+import { scrollToTarget } from './scroll'
 
 interface Handoff {
   id: string; kind: StoredPage['kind']; data: unknown
@@ -145,6 +146,11 @@ function connect() {
       setTimeout(go, 500)
     }
     go()
+  })
+  // an agent shows the reader a place on the page
+  es.addEventListener('scroll', e => {
+    const { to } = JSON.parse((e as MessageEvent).data) as { to: string }
+    if (!scrollToTarget(root, to)) console.warn(`whiteboard scroll: nothing on the page matches ${JSON.stringify(to)}`)
   })
   es.addEventListener('style', () => {
     for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')) {

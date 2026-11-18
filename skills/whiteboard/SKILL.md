@@ -178,6 +178,15 @@ herdr pane close <id>
 - `herdr pane read` returns no text for a pane showing the browser itself,
   since it draws with graphics.
 
+### Pointing at a place on the page
+
+`whiteboard scroll <file> <where>` scrolls every tab that has the page open
+to a heading (by its text), a form (by its name) or any text on it, opens a
+details around it, and lights it up a moment. Use it when you talk about a
+part of a long page ("see the risks section"), or to bring the user to a
+question you just added. It exits 1 when nothing on the page matches, or when
+no browser has the page open (then `show` it first).
+
 ## Getting answers
 
 Each submit of a named form appends one line to the project's

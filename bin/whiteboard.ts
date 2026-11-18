@@ -31,6 +31,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard new <name>            create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
+  whiteboard scroll <page|file> <where>  scroll the tabs that have the page open to a heading's text,
+                                   a form's name or any text on it (opening details around it)
   whiteboard docs [plugin]         how to write pages here: markdown, and each plugin's blocks — read before writing one;
                                    with a plugin's name, only its docs
   whiteboard events [filters]      print recorded events as ndjson; --follow: then each new one as it comes
@@ -327,6 +329,31 @@ switch (cmd) {
     if (cmd === 'show' && !positionals[0]) throw new Error('usage: whiteboard show <page|file>')
     const base = await ensureServer()
     console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
+    break
+  }
+  case 'scroll': {
+    // show the reader a place on a page they have open: every tab with it scrolls there
+    const [target, ...where] = positionals
+    const to = where.join(' ').trim()
+    if (!target || !to) throw new Error('usage: whiteboard scroll <page|file> <heading, form name or text>')
+    const proj = needProject()
+    const id = pageId(proj, target)
+    const base = await ensureServer()
+    // what the page shows, to say now when nothing on it matches
+    const rendered = await (await fetch(`${base}/api/render?page=${encodeURIComponent(id)}`)).json().catch(() => null) as { html?: string; data?: unknown } | null
+    const text = (rendered?.html ?? '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').toLowerCase()
+    const named = new RegExp(`<form[^>]*\\bname="${to.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`).test(rendered?.html ?? '')
+    if (rendered && !named && !text.includes(to.replace(/\s+/g, ' ').toLowerCase())) {
+      console.error(`whiteboard: nothing on ${id} matches ${JSON.stringify(to)} (a heading's text, a form's name, or text on the page)`)
+      process.exit(1)
+    }
+    const res = await fetch(`${base}/api/scroll`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ page: id, to }) })
+    const { tabs } = await res.json() as { tabs: number }
+    if (!tabs) {
+      console.error(`whiteboard: no browser has ${id} open; \`whiteboard show ${target}\` prints its URL`)
+      process.exit(1)
+    }
+    console.log(`scrolled ${tabs} tab${tabs > 1 ? 's' : ''} of ${id} to ${JSON.stringify(to)}`)
     break
   }
   case 'docs': {
