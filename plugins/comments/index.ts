@@ -35,7 +35,9 @@ page until the reader closes it. Answer a comment the way it asks:
   \`whiteboard append --page <file> --type comments:reply --data '{"replyTo":"<comment id>","text":"…"}'\`
 
 Your replies show as the agent's, and \`wait\` and \`watch\` skip what you
-append, so you don't hear your own replies.`
+append, so you don't hear your own replies. Comments and replies are
+markdown: code in backticks or fences, lists, links, \`#12\`; raw HTML and
+blocks (\`:::…\`, \`:button\`) show as written.`
 
 export default function comments(): Plugin {
   return {

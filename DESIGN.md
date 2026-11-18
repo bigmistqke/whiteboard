@@ -337,6 +337,14 @@ and an agent can see what was read. A message the agent replaced
 (`replaces`) no longer counts, and closing a comment thread reads its
 replies.
 
+A message (a comment, a reply, a chat message) is markdown, rendered by the
+server like a page (`/api/markdown`, `api.markdown` in the browser: batched,
+cached), so code fences are highlighted and text links work as on a page,
+without a second markdown parser in the browser. A message is no page: its
+raw HTML is text and its directives show as written, so a comment can't put
+a form or a script on the page. Until the server answers, it shows as its
+plain text.
+
 Which events reach an agent unasked is stated, not guessed. A form's
 answers (types without a colon) always do. Of a plugin's events, only
 those it declares `handOut: true` do (`forAgent` in `src/events.ts`): a

@@ -147,6 +147,19 @@ test('the built-in plugins bring their blocks without any config', async () => {
   assert.match(page, /data-chat="talk"/)
 })
 
+test('a message is markdown, rendered like a page, without raw HTML or directives', async () => {
+  const { base } = await serve()
+  const res = await fetch(`${base}/api/markdown`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ texts: ['**bold**, `code` and <b onclick="x()">raw</b> :button[Go]{name=go}', '```ts\nconst a = 1\n```'] }) })
+  const { html, styles } = await res.json() as { html: string[]; styles: string[] }
+  assert.match(html[0], /<strong>bold<\/strong>, <code>code<\/code>/)
+  assert.doesNotMatch(html[0], /<b onclick/, 'raw HTML is text')
+  assert.match(html[0], /&#x3C;b onclick="x\(\)">raw&#x3C;\/b>|&lt;b onclick/)
+  assert.match(html[0], /:button\[Go\]\{name="go"\}/, 'a directive as written')
+  assert.doesNotMatch(html[0], /<button/)
+  assert.match(html[1], /<pre class="shiki/, 'a fence goes to the code block')
+  assert.ok(styles.length >= 1, 'with the code block\'s stylesheet')
+})
+
 test('#n and !n link to the issues and merge requests of the project\'s GitLab remote', async () => {
   const { base, dir } = await serve()
   execFileSync('git', ['init', '-q'], { cwd: dir })

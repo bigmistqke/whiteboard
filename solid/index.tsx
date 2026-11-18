@@ -22,6 +22,8 @@ export interface Whiteboard {
   append: ClientApi['append']
   /** the theme in effect. Reactive. */
   theme(): Theme
+  /** a message's markdown as HTML, rendered by the server (see Api.markdown) */
+  markdown: ClientApi['markdown']
 }
 
 const WhiteboardContext = createContext<Whiteboard>()
@@ -46,6 +48,7 @@ export function solid<Props extends object>(Component: Component<Props>): Mount<
         last: type => events().findLast(e => e.type === type),
         append: api.append,
         theme,
+        markdown: api.markdown,
       }
       return (
         <WhiteboardContext value={value}>

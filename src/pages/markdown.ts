@@ -58,6 +58,12 @@ function showColons(node: MdNode) {
   node.children?.forEach(showColons)
 }
 
+/** A message's raw HTML, as text: it shows as written, and runs nothing. */
+function asText(node: MdNode) {
+  if (node.type === 'html') { node.type = 'text'; return }
+  node.children?.forEach(asText)
+}
+
 /** Markdown → mdast: GFM and directives, with code fences safe inside containers. */
 function parseMarkdown(source: string): MdNode {
   const tree = parser.parse(hideColonsInFences(source)) as MdNode
@@ -190,6 +196,11 @@ export interface RenderOptions {
   linkFor?: LinkFor
   /** the plugins' text links (`#12` → an issue), applied to plain text */
   textLinks?: TextLink[]
+  /**
+   * a message (a comment, a chat message), not a page: raw HTML shows as text, and directives as
+   * written (no buttons or forms in a message); code fences and text links work as on a page
+   */
+  message?: boolean
 }
 
 export interface Island { block: string; client: string; props: unknown }
@@ -199,7 +210,7 @@ export interface Island { block: string; client: string; props: unknown }
  * blocks. Returns the page's HTML, its first heading, the islands to mount and the blocks'
  * stylesheets.
  */
-export async function renderMarkdown(source: string | MdNode, { page, file, resolve, code = null, linkFor, textLinks = [] }: RenderOptions) {
+export async function renderMarkdown(source: string | MdNode, { page, file, resolve, code = null, linkFor, textLinks = [], message = false }: RenderOptions) {
   let nextId = 0
   const islands: Record<string, Island> = {}
   const keyCount: Record<string, number> = {}
@@ -271,6 +282,7 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
 
   const parse = (src: string) => {
     const tree = parseMarkdown(String(src ?? ''))
+    if (message) asText(tree)
     rewriteLinks(tree, file, linkFor)
     linkText(tree, textLinks)
     return tree

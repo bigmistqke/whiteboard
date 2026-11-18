@@ -422,6 +422,11 @@ export interface Api {
    */
   unread(): WbEvent[]
   markRead(ids: string[]): void
+  /**
+   * A message's markdown (a comment, a chat message) as HTML, rendered by the server like a page:
+   * code fences highlighted, text links (`#12`), but raw HTML as text and no directives. Cached.
+   */
+  markdown(text: string): Promise<string>
   /** the agents waiting for answers on this page right now */
   listeners(): Listener[]
   onListeners(fn: (listeners: Listener[]) => void): () => void

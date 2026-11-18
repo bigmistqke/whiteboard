@@ -1,6 +1,7 @@
 A chat between the reader and you: the reader types (Enter sends,
 Shift+Enter starts a new line), you answer, the reader's messages on one side
-and yours on the other. Every form has one under it, for questions about the
+and yours on the other. Messages are markdown (code, lists, links, `#12`);
+raw HTML and blocks show as written. Every form has one under it, for questions about the
 question; a `chat` block puts one anywhere, for talk that isn't about a form.
 
 ```markdown

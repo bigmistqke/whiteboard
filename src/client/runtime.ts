@@ -7,6 +7,7 @@ import { formsApi, trackForms } from './forms'
 import { toast } from './toast'
 import { markRead, messagesChanged, readsArrived, trackReading, unread } from './read'
 import { READ } from '../status.ts'
+import { markdown } from './markdown'
 
 interface Handoff {
   id: string; kind: StoredPage['kind']; data: unknown
@@ -82,6 +83,7 @@ const api: Api = {
   pickedUp: id => !!events.find(e => e.id === id)?.pickedUp,
   unread,
   markRead,
+  markdown,
   append,
   listeners: () => listeners,
   onListeners(fn) { listenerListeners.add(fn); return () => listenerListeners.delete(fn) },

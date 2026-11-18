@@ -20,6 +20,12 @@
 .wb-thread-who { font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #696e76); }
 .wb-thread-message[data-from=agent] .wb-thread-who { color: var(--accent, #1d5bbf); }
 .wb-thread-text { white-space: pre-wrap; line-height: 1.45; }
+/* rendered from markdown: its paragraphs and code carry the spacing */
+.wb-thread-text[data-md] { white-space: normal; overflow-wrap: anywhere; }
+.wb-thread-text[data-md] > :first-child { margin-top: 0; }
+.wb-thread-text[data-md] > :last-child { margin-bottom: 0; }
+.wb-thread-text[data-md] :is(p, ul, ol, pre, blockquote) { margin: 0 0 .5em; }
+.wb-thread-text[data-md] pre { font-size: .8rem; padding: 8px 10px; border-radius: 6px; overflow-x: auto; max-width: 100%; }
 .wb-thread textarea { width: 100%; resize: vertical; font: inherit; }
 .wb-thread-reply { display: grid; gap: 8px; margin: 0; }
 .wb-thread-actions { display: flex; gap: 8px; }

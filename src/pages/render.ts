@@ -118,10 +118,10 @@ function documentList(ctx: RenderContext) {
   return html`<section class="wb-documents"><div class="wb-list-head"><h2>Documents</h2><label class="wb-sort">sort <select data-wb-sort="documents" aria-label="Sort the documents"><option value="order">by folder</option><option value="updated">last updated</option><option value="title">by title</option></select></label></div><ul class="wb-index">${rows}</ul></section>`
 }
 
-export function createRender(blocks: () => ResolvedBlocks, style?: URL | string, pluginStyles: (URL | string)[] = [], links: ((ctx: { dir: string }) => TextLink[])[] = []) {
-  // the plugins' text links, asked once per project folder
+/** The plugins' text links for a project folder, asked once per folder. */
+function textLinksOf(links: ((ctx: { dir: string }) => TextLink[])[]) {
   const linksFor = new Map<string, TextLink[]>()
-  const textLinks = (dir: string) => {
+  return (dir: string) => {
     let got = linksFor.get(dir)
     if (!got) {
       got = links.flatMap(fn => { try { return fn({ dir }) } catch (err) { console.error('links:', err); return [] } })
@@ -129,6 +129,22 @@ export function createRender(blocks: () => ResolvedBlocks, style?: URL | string,
     }
     return got
   }
+}
+
+/**
+ * A message (a comment, a chat message) as HTML: markdown as on a page, but its raw HTML as text and
+ * its directives as written. Code fences go to the code block, so `styles` are what it needs linked.
+ */
+export function createMessageRender(blocks: () => ResolvedBlocks, links: ((ctx: { dir: string }) => TextLink[])[] = []) {
+  const textLinks = textLinksOf(links)
+  return async (text: string, ctx: RenderContext) => {
+    const out = await renderMarkdown(String(text ?? ''), { page: '', file: '', resolve: () => null, code: blocks().code, textLinks: textLinks(ctx.project.dir), message: true })
+    return { html: out.html, styles: out.styles.map(s => ctx.asset(s)) }
+  }
+}
+
+export function createRender(blocks: () => ResolvedBlocks, style?: URL | string, pluginStyles: (URL | string)[] = [], links: ((ctx: { dir: string }) => TextLink[])[] = []) {
+  const textLinks = textLinksOf(links)
   const STYLE = stylePath(style)
   const PLUGIN_STYLES = pluginStyles.map(stylePath).filter((f): f is string => !!f)
   async function markdown(source: string, page: string, file: string, ctx: RenderContext) {

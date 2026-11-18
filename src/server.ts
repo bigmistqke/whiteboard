@@ -586,6 +586,14 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
         if (!body.type) return sendJson(res, 400, { error: 'event type required' })
         return sendJson(res, 200, appendEvent(project.eventsFile, body))
       }
+      // messages (comments, chat) written in markdown, as HTML: { texts } → { html, styles }
+      if (p === '/api/markdown' && req.method === 'POST') {
+        const { texts } = JSON.parse(await readBody(req)) as { texts?: unknown }
+        if (!Array.isArray(texts)) return sendJson(res, 400, { error: 'texts: an array of strings' })
+        const { pages } = await config()
+        const out = await Promise.all(texts.map(t => pages ? pages.message(String(t ?? ''), context()) : Promise.resolve({ html: String(html`${String(t ?? '')}`), styles: [] })))
+        return sendJson(res, 200, { html: out.map(o => o.html), styles: [...new Set(out.flatMap(o => o.styles))] })
+      }
       if (p === '/api/events') {
         const all = readEvents(project.eventsFile)
         const picked = pickedUp(all)

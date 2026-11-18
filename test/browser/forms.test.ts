@@ -157,6 +157,11 @@ test('a chat block: the reader writes, the agent answers, and a wait hands the m
   proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'notes', text: 'noted' }))
   await until('the answer, as the agent', () => page.evaluate(() =>
     [...document.querySelectorAll('[data-chat=notes] .wb-chat-message[data-from=agent]')].some(m => m.textContent!.includes('noted'))))
+  // a message is markdown
+  proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'notes', text: 'a **bold** answer with `code`' }))
+  await page.waitForSelector('[data-chat=notes] .wb-chat-bubble[data-md] strong')
+  assert.equal(await page.textContent('[data-chat=notes] .wb-chat-bubble[data-md] code'), 'code')
+
   // the agent's message is for the reader: in view, it is read, in the log
   const noted = proj.events().find(e => e.type === 'chat:message' && e.data.text === 'noted')!
   await until('the message is read', () => proj.events().some(e => e.type === 'whiteboard:read' && e.data.ids.includes(noted.id)) || null)

@@ -1,7 +1,7 @@
 // A chat (rendered by the chat block, on its own or under a form): the reader writes, the agent
 // answers (`whiteboard append --type chat:message --data '{"chat":"<name>","text":"…"}'`). A message
 // is a `chat:message` event, never an answer, so talking about a form's choice never makes it.
-import { createMemo, For } from 'solid-js'
+import { createMemo, For, Loading } from 'solid-js'
 import { solid, useWhiteboard } from '@bigmistqke/whiteboard/solid'
 import type { ChatProps } from './index'
 import type { WbEvent } from '@bigmistqke/whiteboard'
@@ -61,7 +61,7 @@ function Chat(props: ChatProps) {
           // the agent's: read once in view (the core marks it, see EventSpec.forReader)
           <div class="wb-chat-message" data-from={m.from} data-wb-message={m.from === 'agent' ? m.id : undefined}>
             <span class="wb-chat-who">{m.from}</span>
-            <div class="wb-chat-bubble">{m.text}</div>
+            <Bubble text={m.text} />
           </div>
         )}
       </For>
@@ -76,6 +76,17 @@ function Chat(props: ChatProps) {
         <button type="button" onClick={post}>{props.form ? 'Ask' : 'Send'}</button>
       </div>
     </div>
+  )
+}
+
+/** A message as markdown, rendered by the server; its plain text until then. */
+function Bubble(props: { text: string }) {
+  const wb = useWhiteboard()
+  const md = createMemo(() => wb.markdown(props.text))
+  return (
+    <Loading fallback={<div class="wb-chat-bubble">{props.text}</div>}>
+      <div class="wb-chat-bubble" data-md="" innerHTML={md()} />
+    </Loading>
   )
 }
 

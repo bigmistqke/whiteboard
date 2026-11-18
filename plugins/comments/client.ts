@@ -17,7 +17,7 @@
 // on the page, and highlighted with the CSS Highlight API: the page's own markup is never touched,
 // so updates and new-content marks don't see comments at all.
 import type { Api, PluginMount, PageHandle, WbEvent } from '../../src/define'
-import { html } from '../../src/html.ts'
+import { html, raw } from '../../src/html.ts'
 
 const NEW = 'comments:new', REPLY = 'comments:reply', RESOLVE = 'comments:resolve'
 
@@ -186,13 +186,20 @@ function refreshComments() {
 
 // ---- the thread popover ------------------------------------------------------------------------
 
+// messages as markdown, rendered by the server, by their text
+const rendered = new Map<string, string>()
+
 function renderPopover() {
   const t = threads.find(x => x.id === openThread)
   if (!t) return
   const who = (e: WbEvent) => (e.from === 'cli' ? 'agent' : 'you')
   // the quote and every message are text from the reader or the agent: `html` escapes them
-  const message = (e: WbEvent) =>
-    html`<div class="wb-thread-message" data-from="${who(e)}" data-wb-message="${e.id}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text">${e.data.text ?? ''}</div></div>`
+  // a message is markdown: as rendered, once the server has (api.markdown), as plain text till then
+  const message = (e: WbEvent) => {
+    const text = String(e.data.text ?? '')
+    const md = rendered.get(text)
+    return html`<div class="wb-thread-message" data-from="${who(e)}" data-wb-message="${e.id}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text"${md != null ? raw(' data-md') : ''}>${md != null ? raw(md) : text}</div></div>`
+  }
   const draft = popover.querySelector('textarea')?.value ?? ''
   popover.innerHTML = String(html`
     <blockquote class="wb-thread-quote">${t.comment.data.quote ?? ''}</blockquote>
@@ -204,6 +211,17 @@ function renderPopover() {
       <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Reply</button><button type="button" class="wb-comment-button" data-close>Close thread</button></div>
     </form>`)
   popover.querySelector('textarea')!.value = draft
+  // the messages not rendered yet: their text only, put in place as each arrives (the rest of the
+  // thread, the reply being typed among it, stays as it is)
+  for (const e of [t.comment, ...t.replies]) {
+    const text = String(e.data.text ?? '')
+    if (rendered.has(text)) continue
+    api.markdown(text).then(md => {
+      rendered.set(text, md)
+      const el = popover.querySelector<HTMLElement>(`[data-wb-message="${CSS.escape(e.id)}"] .wb-thread-text`)
+      if (el && !el.hasAttribute('data-md')) { el.innerHTML = md; el.setAttribute('data-md', '') }
+    }, err => console.error('comments:', err))
+  }
 }
 
 function placePopover() {

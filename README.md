@@ -546,6 +546,9 @@ Not started.
   waits for you on other pages; it opens a list of those pages, and a page
   in it opens at the first thing. The overview marks the same pages with
   the inbox.
+- **Messages are markdown.** Comments, replies and chat messages, yours
+  and the agent's: code, lists, links, `#12`, rendered like a page, but raw
+  HTML and blocks show as written.
 - **Comments.** Select any passage and comment on it; the agent replies in
   the thread or edits the page. Passages are found again after edits. A
   thread with a reply you haven't read has a dot on its badge.
