@@ -17,6 +17,7 @@
 // text.
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import fs from 'node:fs'
+import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
 import { appendEvent, readEvents, matches, pickedUp, fromReader, forAgent, CLAIM } from './events.ts'
@@ -157,6 +158,18 @@ export function createServer(project: Project): WhiteboardServer {
   const assets = new Set<string>()
   const assetDirs = new Set<string>()
   const BROWSER_ASSET = /\.(m?js|css|map|svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|wasm)$/i
+  // Browser code in TypeScript: its types are stripped as it is served (Node's own type stripping,
+  // as for server code: erasable syntax only, positions kept). Not served for being next to a
+  // browser module, as a .js file is: a plugin's folder holds server code too (config.ts), so a .ts
+  // file is served only as a module of its own (`client`) or when a served module imports it.
+  const TYPESCRIPT = /\.m?ts$/i
+  const IMPORTED = /(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"]+\.m?ts)\1/g
+  function typeScriptModule(file: string): string {
+    const code = stripTypeScriptTypes(fs.readFileSync(file, 'utf8'))
+    // what it imports may be served now, as it will be asked for next
+    for (const m of code.matchAll(IMPORTED)) asset(path.resolve(path.dirname(file), m[2]))
+    return code
+  }
   const servable = (file: string) => assets.has(file) || (assetDirs.has(path.dirname(file)) && BROWSER_ASSET.test(file))
 
   function asset(ref: string | URL): string {
@@ -585,7 +598,14 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       }
       if (p.startsWith('/_/file/')) {
         const file = path.resolve(p.slice('/_/file'.length))
-        if (!servable(file) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
+        const allowed = TYPESCRIPT.test(file) ? assets.has(file) : servable(file)
+        if (!allowed || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found', 'text/plain')
+        if (TYPESCRIPT.test(file)) {
+          try { return send(res, 200, typeScriptModule(file), 'text/javascript; charset=utf-8') } catch (err) {
+            // syntax only types can't express (an enum, a namespace) or a mistake: the browser says why
+            return send(res, 200, `throw new SyntaxError(${JSON.stringify(`${path.basename(file)}: ${(err as Error).message}`)})`, 'text/javascript; charset=utf-8')
+          }
+        }
         return sendFile(res, file)
       }
       if (p === '/api/health') return sendJson(res, 200, { ok: true, dir: project.dir, pid: process.pid })

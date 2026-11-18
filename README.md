@@ -374,7 +374,7 @@ export default function checklist() {
 ```
 
 ```js
-// .whiteboard/plugins/checklist/client.js: plain JavaScript, served as it is
+// .whiteboard/plugins/checklist/client.js: served as it is (a .ts file has its types stripped)
 export default function mount(el, { name, items }, api) {
   const ticked = () => {
     const state = new Map()
@@ -439,7 +439,7 @@ export default function votes() {
 ```
 
 ```js
-// .whiteboard/plugins/votes.client.js: plain JavaScript, served as it is
+// .whiteboard/plugins/votes.client.js: served as it is (a .ts file has its types stripped)
 export default function mount(root, page, api) {
   const button = document.createElement('button')
   const draw = () => { button.textContent = `👍 ${api.events().filter(e => e.type === 'votes:up').length}` }
@@ -481,8 +481,12 @@ export default function mount(root, page, api) {
   - `shell`, markup at the end of every page's `<head>` and `<body>`;
   - `client`, a module on every page, run once per page load.
 
-**Browser code is plain JavaScript**: the server sends it as it is, so one
-written in TypeScript needs building first. A block's `client` gets
+**Browser code is JavaScript or TypeScript**: the server sends a `.js` file
+as it is, and a `.ts` file with its types stripped (Node's type stripping, as
+for server code: types only, so no `enum` or `namespace`, and imports name
+their `.ts` files). A `.ts` file is served only as a module of its own or
+when a served module imports it, never for being next to one: a plugin's
+folder holds its server code too. JSX still needs building first. A block's `client` gets
 `mount(element, props, api)` and may return a cleanup, run when the block
 is replaced on a live update; it replaces the server's HTML when it mounts.
 A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get

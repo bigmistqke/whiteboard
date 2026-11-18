@@ -139,6 +139,29 @@ test('a served file opens up its folder only for browser assets, never the token
   for (const file of ['token', 'events.ndjson', 'config.ts']) assert.equal((await fetch(at(file))).status, 404, file)
 })
 
+test('a browser module in TypeScript is served with its types stripped, and what it imports; config.ts beside it never', async () => {
+  const { base } = await serve({
+    'config.ts': "export default { plugins: [{ name: 'typed', setup: () => ({ client: new URL('./typed.client.ts', import.meta.url) }) }] }\n",
+    'typed.client.ts': "import { twice } from './helper.ts'\nimport type { Api } from './types.ts'\nconst n: number = twice(2)\nexport default (_root: HTMLElement, _page: unknown, _api: Api) => n\n",
+    'helper.ts': 'export const twice = (x: number): number => x * 2\n',
+    'other.ts': 'export const secret = 1\n',
+  })
+  const page = await (await fetch(`${base}/q`)).text()
+  const client = /"client":"([^"]*typed\.client\.ts)"/.exec(page)?.[1]
+  assert.ok(client, 'the page names the plugin\'s module')
+  const at = (file: string) => `${base}${client.replace(/typed\.client\.ts$/, encodeURIComponent(file))}`
+  const res = await fetch(`${base}${client}`)
+  assert.equal(res.status, 200)
+  assert.equal(res.headers.get('content-type'), 'text/javascript; charset=utf-8')
+  const code = await res.text()
+  assert.doesNotMatch(code, /: number|import type/, 'its types are gone')
+  assert.match(code, /import \{ twice \} from '\.\/helper\.ts'/)
+  const helper = await fetch(at('helper.ts'))
+  assert.equal(helper.status, 200, 'what it imports')
+  assert.doesNotMatch(await helper.text(), /: number/)
+  for (const file of ['config.ts', 'other.ts', 'types.ts']) assert.equal((await fetch(at(file))).status, 404, `${file}: no module imports it (a type-only import is gone with the types)`)
+})
+
 test('the built-in plugins bring their blocks without any config', async () => {
   const { base, dir } = await serve()
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'blocks.md'), ':::callout[Hi]\nThere.\n:::\n\n:::chat{name=talk}\n:::\n')

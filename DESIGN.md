@@ -189,6 +189,13 @@ Images and other binary files are served as they are.
 
 ### Plugins
 
+A plugin's browser code can be TypeScript: a `.ts` module has its types
+stripped as it is served (`stripTypeScriptTypes`, the type stripping Node
+runs server code with), so neither side needs a build step. Unlike `.js`, a
+`.ts` file isn't served for sitting next to a browser module, since a
+plugin's folder (or `.whiteboard/` itself) holds server code too, such as
+`config.ts`: only a module named as one, and what a served module imports.
+
 Every value of the browser api that changes is a `Reactive<T>`: call it for
 what it is now (`api.events()`), and `.on(fn)` to hear each change
 (`api.events.on(draw)`, which returns an unsubscribe). One shape for all of
