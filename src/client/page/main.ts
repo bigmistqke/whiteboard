@@ -268,8 +268,12 @@ async function refresh() {
   let next: Awaited<ReturnType<PageHandle['render']>>
   try { next = await currentPage.render() } catch (err) {
     // the page is gone (closed, deleted): load what its address shows now, the "Not found" page,
-    // which turns into the page again if it is written back
-    if (/: 404$/.test((err as Error).message)) return location.reload()
+    // which turns into the page again if it is written back. Already that page (it has no file, so
+    // no time it was edited): still not there, nothing to do
+    if (/: 404$/.test((err as Error).message)) {
+      if ((currentPage.data() as Data | null)?.mtime == null) return
+      return location.reload()
+    }
     throw err
   }
   const data = next.data as Data

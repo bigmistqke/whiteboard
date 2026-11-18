@@ -147,6 +147,14 @@ const handle: PageHandle = {
   stored: () => getJson<StoredPage>(`/api/page?page=${encodeURIComponent(page)}`),
 }
 
+/** Did the page change since it was rendered here (its file's time, or it came to be)? Then say so. */
+async function caughtUp() {
+  let now: number | null
+  try { now = (await getJson<RenderedPage & { mtime: number | null }>(`/api/render?page=${encodeURIComponent(page)}`)).mtime ?? null } catch { now = null }
+  const shown = (data as { mtime?: number | null } | null)?.mtime ?? null
+  if (now !== shown) for (const fn of changeListeners) fn()
+}
+
 // raw text: the server's HTML is the page, replaced when the page changes
 if (!handoff.client) handle.onChange(async () => { root.innerHTML = (await handle.render()).html; api.rendered() })
 
@@ -159,6 +167,10 @@ function connect() {
     // after a server restart: who is listening now, and what was answered meanwhile
     loadListeners()
     loadEvents()
+    // and the page, if it changed while the channel wasn't open yet (just after loading, or while
+    // the server restarted): that change was never announced. Only then: an update that changes
+    // nothing still redraws, sorts and scrolls, under the reader's hands
+    caughtUp()
   }
   es.onerror = () => { delete document.documentElement.dataset.wbLive }
   es.addEventListener('change', () => { for (const fn of changeListeners) fn() })
