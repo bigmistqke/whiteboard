@@ -105,6 +105,13 @@ test('comments on lines of a diff: tinted lines, a drag over two, and where they
   await page.mouse.move(start.x + 40, start.y + start.height / 2)
   await page.mouse.move(from.x + 10, from.y + 10, { steps: 12 })
   assert.ok(await plus.isVisible(), 'the "+" stays on the way to it')
+  // or diagonally, from further down the block across other lines: the "+" follows the pointer's
+  // height and is there when the pointer arrives
+  const below = (await line('export { a }').boundingBox())!
+  await page.mouse.move(below.x + 30, below.y + below.height / 2)
+  await page.mouse.move(from.x + 10, from.y + 10, { steps: 30 })
+  assert.ok(await plus.isVisible(), 'the "+" stays when the pointer comes diagonally')
+  assert.equal(Math.round((await plus.boundingBox())!.y), Math.round(from.y), 'the "+" is for the line at the pointer\'s height')
   await page.mouse.down()
   await page.mouse.move(from.x + 10, to.y + to.height / 2, { steps: 4 })
   await page.mouse.up()
