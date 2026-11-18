@@ -175,6 +175,16 @@ function giveFocusBack(f: ReturnType<typeof focusOf>) {
   if (f.start != null && 'setSelectionRange' in el) try { (el as HTMLInputElement).setSelectionRange(f.start, f.end ?? f.start) } catch { /* not a text field */ }
 }
 
+/** Are two elements, before and after a patch, the same field of the same form? */
+function sameField(from: Element, to: Element) {
+  if (from.tagName !== to.tagName || from.getAttribute('name') !== to.getAttribute('name')) return false
+  const formOf = (el: Element) => el.closest('form')?.getAttribute('name') ?? null
+  if (formOf(from) !== formOf(to)) return false
+  const type = from.getAttribute('type')
+  if ((type === 'radio' || type === 'checkbox') && (to.getAttribute('type') !== type || from.getAttribute('value') !== to.getAttribute('value'))) return false
+  return true
+}
+
 function morph(html: string, sigs: { from: string[]; to: string[] }) {
   const open = new Set<string>()
   for (const [el, key] of detailsKeys(main)) if (el.open) open.add(key)
@@ -198,8 +208,13 @@ function morph(html: string, sigs: { from: string[]; to: string[] }) {
       }
       if (FIELD(from)) {
         if (from === document.activeElement) return false
-        ;(to as typeof from).value = from.value
-        if (from instanceof HTMLInputElement) (to as HTMLInputElement).checked = from.checked
+        // what the reader typed or picked goes over only to the same field: the same form, name and
+        // (for a radio or checkbox) value. Patched into another field (a block moved), it would
+        // answer another question.
+        if (sameField(from, to)) {
+          ;(to as typeof from).value = from.value
+          if (from instanceof HTMLInputElement) (to as HTMLInputElement).checked = from.checked
+        }
       }
       // <details> open state was set on the new tree by detailsKeys(), matched by identity, not position
       // what a plugin marked on an element (`data-wb-*`) stays, unless the new render sets it;
