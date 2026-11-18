@@ -200,13 +200,12 @@ button:hover { border-color: var(--muted); }
 
 /* new content since the reader last saw the page */
 #wb-main > * { scroll-margin-top: 72px; }
-.wb-new { position: relative; }
-.wb-new::after {
-  content: ""; position: absolute; left: -14px; top: 3px; bottom: 3px; width: 3px; border-radius: 2px;
-  background: var(--bad); transition: opacity 1.2s ease;
-}
-.wb-wide.wb-new::after { left: -10px; }
-.wb-new.wb-new-seen::after { opacity: 0; transition-delay: 1s; }
+/* a 3px bar left of the block, drawn as two shadows (red, with the page's colour over all but its
+   last 3px), not as ::before or ::after: blocks use those themselves (a heading's number, a folded
+   form's lines), and a bar laid over them squeezed their text into its width */
+.wb-new { --wb-new-at: 14px; box-shadow: calc(3px - var(--wb-new-at)) 0 0 var(--bg), calc(0px - var(--wb-new-at)) 0 0 var(--bad); transition: box-shadow 1.2s ease; }
+.wb-wide.wb-new { --wb-new-at: 10px; }
+.wb-new.wb-new-seen { box-shadow: calc(3px - var(--wb-new-at)) 0 0 var(--bg), calc(0px - var(--wb-new-at)) 0 0 transparent; transition-delay: 1s; }
 
 form.wb-form[data-wb-folded] { padding: 1em 0; gap: 0; }
 /* named forms: the core marks where each stands (data-wb-open, -pending, -decided); this is how that looks */
@@ -250,7 +249,7 @@ form[data-wb-folded]:hover::after { color: var(--accent); }
   body { font-size: 18px; }
   main { padding-top: 32px; }
   h1 { font-size: 2.2rem; }
-  .wb-new::after { left: -9px; }
+  .wb-new { --wb-new-at: 9px; }
 }
 
 /* repository views: folder listings and code */
