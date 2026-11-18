@@ -28,7 +28,7 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
 
   whiteboard init [name]           make this folder a project: .whiteboard/pages/
   whiteboard root                  print where pages go (this project's .whiteboard/pages)
-  whiteboard new <name>           create a page under a name no other page has (name, name-2, …), print its path
+  whiteboard new <name>            create a page under a name no other page has (name, name-2, …), print its path
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
   whiteboard docs [plugin]         how to write pages here: markdown, and each plugin's blocks — read before writing one;
@@ -40,7 +40,7 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard pick <event id>       record an event as picked up, as wait does when it hands one out
   whiteboard status [--page <p>]   per page: questions without an answer, answers no agent picked up, who listens
   whiteboard serve                 run this project's server in the foreground
-  whiteboard skill [dir]          print where the agent skill is, or link it into a skills folder
+  whiteboard skill [dir]           print where the agent skill is, or link it into a skills folder
 
 filters: --page <page|file> (includes pages below it)  --type <type>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
@@ -53,7 +53,9 @@ A page appends events {id, ts, page, type, action, data} to .whiteboard/events.n
 which types it sends is up to its plugins (\`whiteboard docs\` says). The project's plugins
 can add commands of their own; \`whiteboard help\` in a project lists them.`
 
-const [cmd, ...rest] = process.argv.slice(2)
+const [first, ...rest] = process.argv.slice(2)
+// `whiteboard --help` and `-h`, where a command goes, ask for the help as `whiteboard help` does
+const cmd = first === '--help' || first === '-h' ? 'help' : first
 // a plugin's command parses its own arguments
 const { values: opts, positionals } = cmd && !BUILTIN_COMMANDS.has(cmd) ? { values: {}, positionals: [] } : parseArgs({
   args: rest,

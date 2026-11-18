@@ -79,6 +79,7 @@
     "build": "node build.ts",
     "dev": "node build.ts --watch",
     "prepare": "node build.ts",
+    "prepublishOnly": "npm run check && npm test",
     "start": "node bin/whiteboard.ts serve",
     "check": "tsc -p tsconfig.json",
     "test": "node --test --test-force-exit 'src/**/*.test.ts' 'plugins/**/*.test.ts'",
