@@ -12,6 +12,7 @@ import { trackElsewhere } from './elsewhere'
 import { trackLive } from './live'
 import { applySorts, trackSorts } from './sort'
 import { trackSticky } from './sticky'
+import { trackHold } from './hold'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
 
@@ -259,6 +260,10 @@ async function refresh() {
   const content = new DOMParser().parseFromString(next.html, 'text/html').getElementById('wb-main')?.innerHTML ?? ''
   const nextSigs = signaturesOf(content)
   const place = placeOf(nextSigs)
+  // what the reader is typing in stays where it is on screen, wherever the change is: measured now,
+  // and held once the update and what the plugins redraw on it are done
+  const focused = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+  const focusedTop = focused?.getBoundingClientRect().top
   morph(content, { from: blockSigs, to: nextSigs })
   keepPlace(place, nextSigs)
   const updated = document.getElementById('wb-updated')
@@ -272,6 +277,11 @@ async function refresh() {
   tickTimes()
   // plugins put back what they add to the content
   api.rendered()
+  const now = document.activeElement
+  if (focused && focusedTop != null && now instanceof HTMLElement && (now === focused || focused.isConnected === false)) {
+    const moved = now.getBoundingClientRect().top - focusedTop
+    if (Math.abs(moved) >= 1) scrollBy(0, moved)
+  }
 }
 
 let currentPage: PageHandle
@@ -306,6 +316,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   trackLive(root, handle, core)
   if (isDir) { trackSorts(); core.onRendered(applySorts) }
   trackSticky(main, fn => core.onRendered(fn))
+  trackHold()
   if (!isDir) trackOrphanThreads(main, core)
   await mountIslands()
   tickTimes()

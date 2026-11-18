@@ -493,7 +493,11 @@ interface above; in the browser, the page module (`src/client/page/`).
    signature, and which of the blocks with it), so new content above a block
    is inserted before it rather than each block below being patched into the
    next, which replaced the field being typed in. Should the patch take the
-   focus anyway, it is given back, with the caret where it was.
+   focus anyway, it is given back, with the caret where it was. And the
+   field being typed in stays where it is on screen (`hold.ts`): when
+   anything on the page changes around it (an update, a message arriving
+   above a chat's box, a thread growing) and it moved without the reader
+   scrolling, the page scrolls by as much.
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab

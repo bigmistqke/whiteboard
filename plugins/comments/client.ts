@@ -175,13 +175,30 @@ function draw() {
 }
 
 /** Called after the page re-rendered, and whenever the log changed. */
+/**
+ * Change the thread around a reply being typed, and keep that box where it is on screen: a new
+ * message above it, or one shown as markdown, would push it down.
+ */
+function holdTyping(change: () => void) {
+  const box = popover.querySelector('textarea')
+  const typing = !!box && document.activeElement === box
+  const top = typing ? box!.getBoundingClientRect().top : 0
+  change()
+  const now = popover.querySelector('textarea')
+  if (!typing || !now || document.activeElement !== now) return
+  const moved = now.getBoundingClientRect().top - top
+  if (Math.abs(moved) >= 1) scrollBy(0, moved)
+}
+
 function refreshComments() {
   if (!root) return
   main = root.querySelector('main') ?? root
-  threads = collect()
-  if (openThread && !threads.some(t => t.id === openThread)) closePopover()
-  else if (openThread) renderPopover()
-  draw()
+  holdTyping(() => {
+    threads = collect()
+    if (openThread && !threads.some(t => t.id === openThread)) closePopover()
+    else if (openThread) renderPopover()
+    draw()
+  })
 }
 
 // ---- the thread popover ------------------------------------------------------------------------
@@ -225,7 +242,7 @@ function renderPopover() {
     api.markdown(text).then(md => {
       rendered.set(text, md)
       const el = popover.querySelector<HTMLElement>(`[data-wb-message="${CSS.escape(e.id)}"] .wb-thread-text`)
-      if (el && !el.hasAttribute('data-md')) { el.innerHTML = md; el.setAttribute('data-md', '') }
+      if (el && !el.hasAttribute('data-md')) holdTyping(() => { el.innerHTML = md; el.setAttribute('data-md', '') })
     }, err => console.error('comments:', err))
   }
 }
