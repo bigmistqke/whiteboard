@@ -52,9 +52,17 @@ const form: Block = {
 /** The label of an inline input as HTML, else its fallback. */
 const labelOf = (c: DirectiveContext, fallback = '') => (c.label ? raw(c.label) : fallback)
 
-/** :radio[label]{name=… value=… recommended checked} and :check[…]{…} */
+/**
+ * :radio[label]{name=… value=… recommended checked} and :check[…]{…}. With `other`, an answer not on
+ * the list: the option has a text box, typing in it picks the option, and it sends what was typed
+ * (the core's forms.ts, `data-wb-other`).
+ */
 const option = (type: 'radio' | 'checkbox'): Block['html'] => (ctx) => {
   const c = ctx as DirectiveContext
+  if ('other' in c.attrs) {
+    const placeholder = c.attrs.placeholder ?? 'something else'
+    return html`<label class="wb-form-option wb-form-other"><input type="${type}" name="${c.attrs.name}" value="" data-wb-other><span class="wb-form-option-label">${labelOf(c, 'Other')}</span><input type="text" class="wb-form-other-text" data-wb-other-text placeholder="${placeholder}" aria-label="${c.labelText ?? 'Other'}"></label>`
+  }
   const value = c.attrs.value ?? c.labelText ?? ''
   return html`<label class="wb-form-option"><input type="${type}" name="${c.attrs.name}" value="${value}"${'checked' in c.attrs && raw(' checked')}><span class="wb-form-option-label">${labelOf(c, value)}</span>${'recommended' in c.attrs && recommendedTag}</label>`
 }

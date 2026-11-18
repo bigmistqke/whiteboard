@@ -11,6 +11,7 @@ explains it.
 | input | written as | sends |
 | --- | --- | --- |
 | one choice | `:radio[This week]{name=when}` per option | the picked label's text, or `null` |
+| an answer not on the list | `:radio[Other]{name=when other}` (or `:check[…]{… other}`) | what the reader typed in its box |
 | several choices | `:check[Android]{name=phones}` per option | an array of the checked labels |
 | one checkbox | `:check[I read it]{name=read}` | `true` or `false` |
 | text | `:text[Title]{name=title placeholder="a short name"}` | the text |
@@ -23,6 +24,9 @@ explains it.
 - The label in `[…]` is markdown. An option sends its label as plain text
   (`:radio[This **week**]` sends `This week`), unless `value=…` says what
   to send instead.
+- `other` makes an option for an answer not on the list: it has a text box,
+  typing in it picks the option, and it sends what was typed (`placeholder`
+  says what goes in the box). Prefer it to a separate free-text field.
 - `recommended` tags an option as the writer's recommendation; it is never
   preselected, so a choice is only made by picking it. `checked` does
   preselect one; use it for defaults, not for decisions.
@@ -43,6 +47,7 @@ under it. Such an item reads as a row to pick:
   Simple, and the agent waits on one file.
 - :radio[One log per page]{name=where}
   Pages can be moved with their answers.
+- :radio[Somewhere else]{name=where other placeholder="where?"}
 :::
 ````
 
@@ -53,6 +58,7 @@ under it. Such an item reads as a row to pick:
   Simple, and the agent waits on one file.
 - :radio[One log per page]{name=where}
   Pages can be moved with their answers.
+- :radio[Somewhere else]{name=where other placeholder="where?"}
 :::
 
 An option's explanation can be any markdown: a code block, a table, a
@@ -75,8 +81,6 @@ Runs the migration on a copy first.
 The migration is reversible.
 :::
 
-:textarea[Notes]{name=notes placeholder="anything to check first"}
-
 :button[Approve] :button[Hold]
 ::::
 ````
@@ -91,8 +95,6 @@ Runs the migration on a copy first.
 ### :radio[Production]{name=env recommended}
 The migration is reversible.
 :::
-
-:textarea[Notes]{name=notes placeholder="anything to check first"}
 
 :button[Approve] :button[Hold]
 ::::

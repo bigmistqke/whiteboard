@@ -56,8 +56,10 @@ Write for a reader who comes back later:
 - A send is a choice, and only that. Questions and remarks about a form go
   in the chat under it (`chat:message` events, see the chat plugin's docs):
   answer them there, and never read a chat message, or a note sent along
-  with a submit, as a choice. Don't add a notes field to a decision form for
-  questions; its chat is for that.
+  with a submit, as a choice. Don't add a notes field to a form; its chat is
+  for that. When the user may want an answer you didn't list, add an option
+  for it, `:radio[Other]{name=… other}`: it has a text box, and sends what
+  they typed.
 - For talk that isn't about a question, put a chat on the page:
   `:::chat{name=…}`, at the end or in a section. It is the same chat as
   under a form, without the question.
@@ -297,7 +299,7 @@ git add -N .   # new files show in the diff too
     git diff HEAD -- "$f"
     printf '````\n:::\n\n'
   done
-  printf ':::form{name=review}\n:textarea[Anything else]{name=note}\n\n:button[Approve] :button[Request changes]\n:::\n'
+  printf ':::form{name=review}\n:button[Approve] :button[Request changes]\n:::\n'
 } > .whiteboard/pages/review.md
 ```
 

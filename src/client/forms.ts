@@ -35,6 +35,13 @@ const keepsOwnFields = (form: HTMLFormElement) => !!form.closest('[data-wb-self]
 
 // ---- reading and writing a form ----------------------------------------------------------------
 
+// An option for an answer not on the list (`:radio[Other]{name=… other}`): a radio or checkbox
+// marked `data-wb-other`, with a text box (`data-wb-other-text`, no name of its own) in its label.
+// It sends what was typed; typing picks it; an answer that is none of the other options goes back
+// into its box.
+const otherText = (option: HTMLInputElement) => option.closest('label')?.querySelector<HTMLInputElement>('[data-wb-other-text]') ?? null
+const isOther = (el: Element): boolean => el instanceof HTMLInputElement && el.hasAttribute('data-wb-other')
+
 function readForm(form: HTMLFormElement): Data {
   const data: Data = {}
   const elements = [...form.elements] as HTMLInputElement[]
@@ -42,6 +49,7 @@ function readForm(form: HTMLFormElement): Data {
   for (const el of elements) if (el.name && el.type === 'checkbox') boxes[el.name] = (boxes[el.name] ?? 0) + 1
   for (const el of elements) {
     if (!el.name || el.type === 'submit' || el.type === 'button' || el.type === 'reset' || el.type === 'file') continue
+    if (isOther(el)) el.value = otherText(el)?.value.trim() ?? ''
     if (el.type === 'checkbox') {
       if (boxes[el.name] > 1) { const list = (data[el.name] ??= []) as string[]; if (el.checked) list.push(el.value) }
       else data[el.name] = el.checked
@@ -56,13 +64,34 @@ function readForm(form: HTMLFormElement): Data {
 }
 
 function writeForm(form: HTMLFormElement, data: Data) {
-  for (const el of [...form.elements] as HTMLInputElement[]) {
+  const elements = [...form.elements] as HTMLInputElement[]
+  // what the listed options of a name send, so an answer that is none of them is the other one's
+  const listed = (name: string) => elements.filter(e => e.name === name && !isOther(e) && (e.type === 'radio' || e.type === 'checkbox')).map(e => e.value)
+  for (const el of elements) {
     if (!el.name || !(el.name in data) || ['submit', 'button', 'hidden', 'file'].includes(el.type)) continue
     const v = data[el.name]
+    if (isOther(el)) {
+      const own = listed(el.name)
+      const rest = (Array.isArray(v) ? v : [v]).filter(x => typeof x === 'string' && x !== '' && !own.includes(x)) as string[]
+      el.checked = rest.length > 0
+      const text = otherText(el)
+      if (text && text !== document.activeElement) text.value = rest.join(', ')
+      continue
+    }
     if (el.type === 'checkbox') el.checked = Array.isArray(v) ? v.includes(el.value) : !!v
     else if (el.type === 'radio') el.checked = v === el.value
     else el.value = v == null ? '' : String(v)
   }
+}
+
+/** Typing in an other-option's box picks it (and an empty box, for a checkbox, unpicks it). */
+function onOtherInput(e: Event) {
+  const text = e.target as HTMLInputElement
+  if (!text.matches?.('[data-wb-other-text]')) return
+  const option = text.closest('label')?.querySelector<HTMLInputElement>('[data-wb-other]')
+  if (!option) return
+  if (text.value.trim()) option.checked = true
+  else if (option.type === 'checkbox') option.checked = false
 }
 
 // ---- drafts ------------------------------------------------------------------------------------
@@ -167,6 +196,8 @@ export function trackForms(el: HTMLElement, pageId: string, core: Api) {
   root = el
   page = pageId
   api = core
+  // before the draft is saved: what was typed picks its option
+  document.addEventListener('input', onOtherInput)
   document.addEventListener('input', saveDraft)
   document.addEventListener('change', saveDraft)
   document.addEventListener('submit', onSubmit)

@@ -14,6 +14,9 @@
 .wb-form-option + .wb-form-option { margin-left: 18px; }
 .wb-form-option input { margin: 0; translate: 0 .1em; }
 .wb-form-option-label { font-weight: 600; }
+/* an answer not on the list: a text box in the option's line (`other`) */
+.wb-form-other { align-items: center; }
+.wb-form-other .wb-form-other-text { translate: none; font: inherit; padding: 3px 8px; min-width: 12em; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
 .wb-form-recommended { font: 500 .7rem/1.4 var(--sans); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin-left: 10px; }
 
 /* a list item that starts with an option is a row to pick: no bullet, the picked one tinted, and
