@@ -200,7 +200,7 @@ function renderPopover() {
     ${!t.range && html`<p class="wb-thread-detached">This passage is no longer on the page.</p>`}
     ${[t.comment, ...t.replies].map(message)}
     <form class="wb-thread-reply">
-      <textarea rows="2" placeholder="Reply"></textarea>
+      <textarea rows="2" placeholder="Reply (Shift+Enter for a new line)"></textarea>
       <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Reply</button><button type="button" class="wb-comment-button" data-close>Close thread</button></div>
     </form>`)
   popover.querySelector('textarea')!.value = draft
@@ -348,7 +348,7 @@ function onLinePointer(e: MouseEvent) {
 const composer = document.createElement('form')
 composer.className = 'wb-thread wb-comment-new'
 composer.hidden = true
-composer.innerHTML = String(html`<blockquote class="wb-thread-quote"></blockquote><textarea rows="3" placeholder="Your comment"></textarea>
+composer.innerHTML = String(html`<blockquote class="wb-thread-quote"></blockquote><textarea rows="3" placeholder="Your comment (Shift+Enter for a new line)"></textarea>
   <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Comment</button><button type="button" class="wb-comment-button" data-cancel>Cancel</button></div>`)
 
 function startComment() {
@@ -403,6 +403,14 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   startButton.addEventListener('mousedown', e => e.preventDefault())
   startButton.addEventListener('click', startComment)
 
+  // as in a chat: Enter sends the comment or reply, Shift+Enter starts a new line; not while an
+  // input method is composing
+  for (const form of [composer, popover] as HTMLElement[]) form.addEventListener('keydown', e => {
+    const box = e.target as HTMLElement
+    if (box.tagName !== 'TEXTAREA' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return
+    e.preventDefault()
+    box.closest('form')?.requestSubmit()
+  })
   composer.addEventListener('submit', async e => {
     e.preventDefault()
     const text = composer.querySelector('textarea')!.value.trim()

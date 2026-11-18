@@ -36,12 +36,15 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   })
   await page.waitForSelector('.wb-comment-start', { state: 'visible' })
   await page.click('.wb-comment-start')
-  await page.fill('.wb-comment-new textarea', 'why these words?')
-  await page.click('.wb-comment-new button[type=submit]')
+  // as in a chat: Shift+Enter is a new line, Enter sends
+  await page.fill('.wb-comment-new textarea', 'why these')
+  await page.press('.wb-comment-new textarea', 'Shift+Enter')
+  await page.type('.wb-comment-new textarea', 'words?')
+  await page.press('.wb-comment-new textarea', 'Enter')
 
   const comment = await until('the comment is in the log', () => proj.events().find(e => e.type === 'comments:new'))
   assert.equal(comment.data.quote, 'some words')
-  assert.equal(comment.data.text, 'why these words?')
+  assert.equal(comment.data.text, 'why these\nwords?')
   await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
   assert.equal(await page.$$eval('.wb-comment-badge', b => b.length), 1, 'one badge')
 
@@ -94,6 +97,11 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
 
   // forms work next to it
   assert.ok(await page.$eval('form[name=pick]', f => f.hasAttribute('data-wb-open')))
+
+  // a reply goes on Enter too
+  await page.fill('.wb-thread-reply textarea', 'thanks')
+  await page.press('.wb-thread-reply textarea', 'Enter')
+  await until('the reply is in the log', () => proj.events().some(e => e.type === 'comments:reply' && e.from !== 'cli' && e.data.text === 'thanks') || null)
 
   await page.click('.wb-thread [data-close]')
   await until('closing the thread removes it', async () => (await page.$$eval('.wb-comment-badge', b => b.length)) === 0)
