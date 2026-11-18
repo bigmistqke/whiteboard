@@ -170,11 +170,13 @@ function morph(html: string) {
       for (const c of KEEP_CLASSES) if (from.classList.contains(c)) to.classList.add(c)
       return true
     },
-    onBeforeNodeDiscarded(node) {
-      disposeWithin(node)
-      return true
-    },
+    // An element morphdom discards can hold an island it is about to move elsewhere (a form that
+    // moved down: its old place became the new paragraph, and the chat in it, keyed, goes into the
+    // form's new place). So islands are not disposed here, but after the patch, if gone.
   })
+  for (const [el, dispose] of disposers) {
+    if (!el.isConnected) { dispose(); disposers.delete(el) }
+  }
 }
 
 // The page keeps the reader's place itself: the browser's own scroll anchoring loses its anchor

@@ -80,8 +80,8 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   assert.equal(s.summary, '1 decided')
   assert.equal(s.summaryBeforeMain, 'MAIN')
 
-  // a click reopens a folded form
-  await page.click('form[name=pick]')
+  // a click on its answer line reopens a folded form (not one in its chat, which sits under it)
+  await page.click('form[name=pick]', { position: { x: 20, y: 12 } })
   await until('reopened', async () => !(await state()).attrs.includes('data-wb-folded'))
 
   assert.deepEqual(errors, [], 'no console errors')
