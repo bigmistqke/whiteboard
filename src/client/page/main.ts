@@ -142,14 +142,51 @@ function detailsKeys(root: HTMLElement): Map<HTMLDetailsElement, string> {
   return keys
 }
 
-function morph(html: string) {
+/** Each block's key: its signature, and which of the blocks with that signature it is. */
+function keyBlocks(parent: HTMLElement, sigs: string[]) {
+  const seen = new Map<string, number>()
+  ;[...parent.children].forEach((el, i) => {
+    const sig = sigs[i]
+    if (!sig) return
+    const nth = seen.get(sig) ?? 0
+    seen.set(sig, nth + 1)
+    ;(el as HTMLElement).dataset.wbBlock = `${sig}#${nth}`
+  })
+}
+
+/** What has the focus, to give it back if the patch took it: the element, its caret, and how to find it again. */
+function focusOf() {
+  const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
+  if (!el || el === document.body || !main.contains(el)) return null
+  const form = el.closest('form')?.getAttribute('name')
+  let start: number | null = null, end: number | null = null
+  try { start = el.selectionStart; end = el.selectionEnd } catch { /* not a text field */ }
+  return { el, form, name: el.getAttribute('name'), start, end }
+}
+
+function giveFocusBack(f: ReturnType<typeof focusOf>) {
+  if (!f || document.activeElement === f.el) return
+  let el: HTMLElement | null = f.el.isConnected ? f.el : null
+  // replaced: the field of the same name in the form of the same name
+  if (!el && f.form && f.name) el = main.querySelector<HTMLElement>(`form[name="${CSS.escape(f.form)}"] [name="${CSS.escape(f.name)}"]`)
+  if (!el) return
+  el.focus({ preventScroll: true })
+  if (f.start != null && 'setSelectionRange' in el) try { (el as HTMLInputElement).setSelectionRange(f.start, f.end ?? f.start) } catch { /* not a text field */ }
+}
+
+function morph(html: string, sigs: { from: string[]; to: string[] }) {
   const open = new Set<string>()
   for (const [el, key] of detailsKeys(main)) if (el.open) open.add(key)
+  const focus = focusOf()
   const next = main.cloneNode(false) as HTMLElement
   next.innerHTML = html
+  // blocks keyed by their content: an update that puts something new above a block leaves it be
+  // (and the field being typed in, in it), instead of patching each block into the next one
+  keyBlocks(main, sigs.from)
+  keyBlocks(next, sigs.to)
   for (const [el, key] of detailsKeys(next)) el.open = open.has(key)
   morphdom(main, next, {
-    getNodeKey: n => (n as HTMLElement).dataset?.wbKey || (n as HTMLElement).id || undefined,
+    getNodeKey: n => (n as HTMLElement).dataset?.wbKey || (n as HTMLElement).dataset?.wbBlock || (n as HTMLElement).id || undefined,
     onBeforeElUpdated(from, to) {
       if (from.dataset.wbKey) {
         if (from.dataset.wbKey === to.dataset.wbKey && 'wbMounted' in from.dataset) {
@@ -178,6 +215,7 @@ function morph(html: string) {
   for (const [el, dispose] of disposers) {
     if (!el.isConnected) { dispose(); disposers.delete(el) }
   }
+  giveFocusBack(focus)
 }
 
 // The page keeps the reader's place itself: the browser's own scroll anchoring loses its anchor
@@ -221,7 +259,7 @@ async function refresh() {
   const content = new DOMParser().parseFromString(next.html, 'text/html').getElementById('wb-main')?.innerHTML ?? ''
   const nextSigs = signaturesOf(content)
   const place = placeOf(nextSigs)
-  morph(content)
+  morph(content, { from: blockSigs, to: nextSigs })
   keepPlace(place, nextSigs)
   const updated = document.getElementById('wb-updated')
   if (updated && data.mtime) updated.dataset.ts = String(data.mtime)

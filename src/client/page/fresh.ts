@@ -28,6 +28,8 @@ export function signature(el: Element): string {
     n.removeAttribute('data-wb-island')
     n.removeAttribute('data-wb-mounted')
   }
+  // the page's key for the block (main.ts), not its content
+  clone.removeAttribute('data-wb-block')
   const s = clone.outerHTML
   let h = 0x811c9dc5
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193)

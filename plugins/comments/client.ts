@@ -200,7 +200,11 @@ function renderPopover() {
     const md = rendered.get(text)
     return html`<div class="wb-thread-message" data-from="${who(e)}" data-wb-message="${e.id}"><span class="wb-thread-who">${who(e)}</span><div class="wb-thread-text"${md != null ? raw(' data-md') : ''}>${md != null ? raw(md) : text}</div></div>`
   }
-  const draft = popover.querySelector('textarea')?.value ?? ''
+  // the reply being typed: its text, and its focus and caret, which a redraw would take
+  const box = popover.querySelector('textarea')
+  const draft = box?.value ?? ''
+  const typing = !!box && document.activeElement === box
+  const caret = box ? [box.selectionStart, box.selectionEnd] as const : null
   popover.innerHTML = String(html`
     <blockquote class="wb-thread-quote">${t.comment.data.quote ?? ''}</blockquote>
     ${t.comment.data.at && html`<p class="wb-thread-at">${t.comment.data.at}</p>`}
@@ -210,7 +214,9 @@ function renderPopover() {
       <textarea rows="2" placeholder="Reply (Shift+Enter for a new line)"></textarea>
       <div class="wb-thread-actions"><button type="submit" class="wb-comment-button wb-comment-primary">Reply</button><button type="button" class="wb-comment-button" data-close>Close thread</button></div>
     </form>`)
-  popover.querySelector('textarea')!.value = draft
+  const again = popover.querySelector('textarea')!
+  again.value = draft
+  if (typing) { again.focus({ preventScroll: true }); if (caret) again.setSelectionRange(caret[0], caret[1]) }
   // the messages not rendered yet: their text only, put in place as each arrives (the rest of the
   // thread, the reply being typed among it, stays as it is)
   for (const e of [t.comment, ...t.replies]) {

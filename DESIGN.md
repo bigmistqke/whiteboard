@@ -488,7 +488,12 @@ interface above; in the browser, the page module (`src/client/page/`).
    block added above one keeps it open), the reader's place on the page,
    and mounted islands whose props did not change all survive (islands
    carry a `data-wb-key` hashed from block + props), and so do the
-   `data-wb-*` marks set in the browser (the core's form states).
+   `data-wb-*` marks set in the browser (the core's form states). The
+   page's blocks are keyed by their content (`data-wb-block`: the block's
+   signature, and which of the blocks with it), so new content above a block
+   is inserted before it rather than each block below being patched into the
+   next, which replaced the field being typed in. Should the patch take the
+   focus anyway, it is given back, with the caret where it was.
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab
