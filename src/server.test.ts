@@ -144,6 +144,21 @@ test('the built-in plugins bring their blocks without any config', async () => {
   assert.match(page, /data-chat="talk"/)
 })
 
+test('an iframe shows an HTML file next to the pages, as it is; a script src is refused', async () => {
+  const { base, dir } = await serve()
+  const pages = path.join(dir, '.whiteboard', 'pages')
+  fs.writeFileSync(path.join(pages, 'demo.html'), '<!doctype html><p id="inside">inside</p>')
+  fs.writeFileSync(path.join(pages, 'f.md'), '::iframe[The demo]{src="demo.html" height=300}\n\n::iframe{src="javascript:alert(1)"}\n')
+  const page = await (await fetch(`${base}/f`)).text()
+  assert.match(page, /<iframe src="demo.html" title="The demo"/)
+  assert.match(page, /style="height: 300px"/)
+  assert.match(page, /iframe: src must be an http\(s\) URL or a path, not javascript:/)
+  assert.doesNotMatch(page, /src="javascript:/)
+  const framed = await fetch(`${base}/demo.html`)
+  assert.equal(framed.headers.get('content-type'), 'text/html; charset=utf-8')
+  assert.match(await framed.text(), /id="inside"/)
+})
+
 test('a config plugin with a built-in\'s name replaces it; a plugin\'s style is on every page', async () => {
   const { base, dir } = await serve({
     'config.ts': `export default { plugins: [{ name: 'callout', style: new URL('./every.css', import.meta.url), blocks: { callout: { html: () => '<p class="mine">mine</p>' } } }] }\n`,

@@ -11,9 +11,10 @@ import details from './details/index.ts'
 import form from './form/index.ts'
 import gallery from './gallery/index.ts'
 import grid from './grid/index.ts'
+import iframe from './iframe/index.ts'
 import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
 
 export function builtins(): Plugin[] {
-  return [callout(), chat(), code(), comments(), details(), form(), gallery(), grid(), mermaid(), quiet()]
+  return [callout(), chat(), code(), comments(), details(), form(), gallery(), grid(), iframe(), mermaid(), quiet()]
 }
