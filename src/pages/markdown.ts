@@ -32,6 +32,38 @@ export interface MdNode {
 type LinkFor = (absolutePath: string) => string | null
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkDirective).freeze()
+
+// A line starting with `:::` inside a code fence would close the container directive around the
+// fence: the directive parser looks for its closing fence on every line before the code fence's
+// content. So inside code fences, a line's leading colons are hidden from it (as a character no
+// page uses), and put back in the parsed tree.
+const HIDDEN_COLON = '\uE000'
+const FENCE = /^(\s*)(`{3,}|~{3,})/
+
+function hideColonsInFences(source: string): string {
+  let open: { char: string; length: number } | null = null
+  return source.split('\n').map(line => {
+    const fence = FENCE.exec(line)
+    if (!open) {
+      if (fence) open = { char: fence[2][0], length: fence[2].length }
+      return line
+    }
+    if (fence && fence[2][0] === open.char && fence[2].length >= open.length && !line.slice(fence[0].length).trim()) { open = null; return line }
+    return line.replace(/^(\s*)(:+)/, (_, space: string, colons: string) => space + HIDDEN_COLON.repeat(colons.length))
+  }).join('\n')
+}
+
+function showColons(node: MdNode) {
+  if (typeof node.value === 'string' && node.value.includes(HIDDEN_COLON)) node.value = node.value.replaceAll(HIDDEN_COLON, ':')
+  node.children?.forEach(showColons)
+}
+
+/** Markdown → mdast: GFM and directives, with code fences safe inside containers. */
+function parseMarkdown(source: string): MdNode {
+  const tree = parser.parse(hideColonsInFences(source)) as MdNode
+  showColons(tree)
+  return tree
+}
 const toHast = unified().use(remarkRehype, { allowDangerousHtml: true }).use(rehypeStringify, { allowDangerousHtml: true }).freeze()
 
 /** `cols=3 open title="a b"` → { cols: '3', open: '', title: 'a b' } (bare words get '' like directive attrs) */
@@ -128,7 +160,7 @@ function literalDirective(node: MdNode, label: MdNode[] | null) {
  * code block doesn't count.
  */
 export function formNames(source: string) {
-  const tree = parser.parse(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')) as MdNode
+  const tree = parseMarkdown(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, ''))
   const names: string[] = []
   const walk = (node: MdNode) => {
     if (node.type === 'containerDirective' && node.name === 'form') {
@@ -238,7 +270,7 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
   }
 
   const parse = (src: string) => {
-    const tree = parser.parse(String(src ?? '')) as MdNode
+    const tree = parseMarkdown(String(src ?? ''))
     rewriteLinks(tree, file, linkFor)
     linkText(tree, textLinks)
     return tree
