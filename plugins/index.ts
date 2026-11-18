@@ -16,6 +16,7 @@ import iframe from './iframe/index.ts'
 import mermaid from './mermaid/index.ts'
 import quiet from './quiet/index.ts'
 import windows from './window/index.ts'
+import steps from './steps/index.ts'
 
 export function builtins(): Plugin[] {
   return [
@@ -32,5 +33,6 @@ export function builtins(): Plugin[] {
     mermaid(),
     quiet(),
     windows(),
+    steps(),
   ]
 }

@@ -29,6 +29,10 @@ export interface WindowOptions {
   /** a class for its body, and a height for it (a CSS length), for what has none of its own (an iframe) */
   bodyClass?: string
   height?: string
+  /** a class for the window itself, for a block's styles and browser code to find it by */
+  className?: string
+  /** more in the header, after the label: a block's own controls (the steps' ‹ › ) */
+  controls?: Html | string
 }
 
 /** A window around a block's HTML: see the top of this file. */
@@ -40,6 +44,8 @@ export function windowFrame({
   bare = false,
   bodyClass = '',
   height,
+  className = '',
+  controls = '',
 }: WindowOptions): Html {
   const name =
     label != null && String(label) !== ''
@@ -51,6 +57,7 @@ export function windowFrame({
     !bare &&
     html`<div class="wb-window-bar">
       <span class="wb-window-name" ${open ? html` title="${open}"` : ''}>${name}</span>
+      ${raw(String(controls))}
       ${open && html`<a class="wb-window-button" href="${open}" target="_blank" rel="noopener" title="Open on its own" aria-label="Open on its own">${OPEN}</a>`}
       <button
         type="button"
@@ -62,7 +69,7 @@ export function windowFrame({
         <span class="wb-window-max">${MAXIMIZE}</span><span class="wb-window-restore">${RESTORE}</span>
       </button>
     </div>`
-  return html`<div class="wb-window${wide && raw(' wb-wide')}">
+  return html`<div class="wb-window${wide && raw(' wb-wide')}${className && raw(' ' + className)}">
     ${header}
     <div class="wb-window-body${bodyClass && raw(' ' + bodyClass)}" ${height ? html` style="height: ${height}"` : ''}>
       ${raw(String(body))}

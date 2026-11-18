@@ -1,0 +1,77 @@
+/* Steps (index.ts): the items over each other in one grid cell, so the pane is as tall as the
+   tallest; one shows. Before the browser marks one (data-wb-step), the first. */
+.wb-steps {
+  display: grid;
+  outline: none;
+}
+.wb-steps:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) var(--tint-strong), transparent);
+}
+.wb-steps > .wb-steps-item {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.wb-steps > .wb-steps-item > :first-child {
+  margin-top: 0;
+}
+.wb-steps > .wb-steps-item > :last-child {
+  margin-bottom: 0;
+}
+.wb-steps-window:not([data-wb-step]) > .wb-window-body > .wb-steps > .wb-steps-item:not(:first-child),
+.wb-steps-window[data-wb-step] > .wb-window-body > .wb-steps > .wb-steps-item:not([data-wb-current]) {
+  visibility: hidden;
+}
+.wb-steps-title {
+  font: var(--weight-strong) var(--ui-small) / var(--ui-line-height) var(--sans);
+  color: var(--muted);
+  letter-spacing: var(--caps-spacing);
+  text-transform: uppercase;
+  margin-bottom: var(--space-md);
+}
+
+/* the header: ‹ 2 / 5 › or ‹ A B › */
+.wb-steps-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex: none;
+}
+.wb-steps-count {
+  font: var(--ui-tiny) / 1 var(--sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  padding: 0 var(--space-2xs);
+}
+.wb-steps-window:not([data-wb-step]) > .wb-window-bar .wb-steps-count > .wb-steps-mark:not(:first-child),
+.wb-steps-window[data-wb-step] > .wb-window-bar .wb-steps-count > .wb-steps-mark:not([data-wb-current]) {
+  display: none;
+}
+.wb-steps-tab {
+  font: var(--ui-tiny) / 1 var(--sans);
+  color: var(--muted);
+  background: none;
+  border: var(--hairline) solid transparent;
+  border-radius: var(--radius-pill);
+  padding: var(--space-xs) var(--space-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wb-steps-tab > * {
+  margin: 0;
+}
+.wb-steps-tab:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) var(--tint-faint), transparent);
+}
+.wb-steps-window:not([data-wb-step]) > .wb-window-bar .wb-steps-tab:first-of-type,
+.wb-steps-window > .wb-window-bar .wb-steps-tab[data-wb-current] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) var(--tint-strong), transparent);
+  background: color-mix(in srgb, var(--accent) var(--tint-faint), transparent);
+}
+.wb-steps-window:not([data-wb-step]) > .wb-window-bar .wb-steps-prev,
+.wb-steps-window[data-wb-first] > .wb-window-bar .wb-steps-prev,
+.wb-steps-window[data-wb-last] > .wb-window-bar .wb-steps-next {
+  opacity: 0.35;
+  pointer-events: none;
+}

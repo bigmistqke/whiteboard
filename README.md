@@ -340,7 +340,7 @@ Every colour is a `light-dark()` pair, so one line sets it for both themes:
 ```
 
 The built-in plugins are callout, chat, code, comments, details, forge,
-form, gallery, grid, iframe, mermaid, quiet and window: every project has them, and
+form, gallery, grid, iframe, mermaid, quiet, steps and window: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent, and so is the
