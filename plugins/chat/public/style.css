@@ -34,6 +34,8 @@
   color: var(--accent);
 }
 .wb-chat-bubble {
+  max-width: 100%;
+  box-sizing: border-box;
   white-space: pre-wrap;
   padding: var(--space-md) var(--space-xl);
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
@@ -54,12 +56,15 @@
 .wb-chat-bubble[data-md] :is(p, ul, ol, pre, blockquote) {
   margin: 0 0 0.5em;
 }
+/* code wraps at the bubble's edge, as the text around it does: a long line would otherwise make the
+   bubble as wide (it fits its content), and the chat and the page with it; and a scrollbar under it
+   is drawn over the text below in WebKit (its height left out when the block first lays out) */
 .wb-chat-bubble[data-md] pre {
   font-size: var(--ui-small);
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-sm);
-  overflow-x: auto;
-  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .wb-chat-message[data-from='you'] .wb-chat-bubble[data-md] a {
   color: inherit;
