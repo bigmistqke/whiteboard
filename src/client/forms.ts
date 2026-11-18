@@ -154,7 +154,8 @@ async function onSubmit(e: SubmitEvent) {
 const ATTR: Record<FormState, string> = { open: 'data-wb-open', pending: 'data-wb-pending', decided: 'data-wb-decided' }
 
 /** One line quoting an answer: what was chosen, then what was written. */
-function outcome(data: Data, action: string | null) {
+/** An answer, told apart: what was chosen (options, short values, the button), and what was written. */
+export function answerParts(data: Data, action: string | null): { chosen: string[]; written: string[] } {
   const chosen: string[] = [], written: string[] = []
   for (const v of Object.values(data)) {
     if (v == null || v === '' || v === false) continue
@@ -164,6 +165,12 @@ function outcome(data: Data, action: string | null) {
     else chosen.push(String(v))
   }
   if (action && !['Send', 'Submit'].includes(action)) chosen.unshift(action)
+  return { chosen, written }
+}
+
+/** One line quoting an answer: what was chosen, then what was written. */
+function outcome(data: Data, action: string | null) {
+  const { chosen, written } = answerParts(data, action)
   return [chosen.join(' · ') || 'sent', ...written.map(w => `“${w.length > 240 ? w.slice(0, 240) + '…' : w}”`)].join('\n')
 }
 

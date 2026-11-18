@@ -8,7 +8,8 @@
 // (`data-wb-holds`: a comment's badge), which is sent `wb-reveal` to show it. Arriving by a link that
 // ends in `#wb-waiting` (the header's menu, the overview), the page goes to the first. An answer no
 // agent is listening for says so once it is sent, in a toast: the form's own mark may be out of view.
-import type { Api, FormState, FormStatus, Toast } from '../../define.ts'
+import type { Api, FormState, FormStatus, Toast, WbEvent } from '../../define.ts'
+import { answerParts } from '../forms'
 import { viewBottom } from './view'
 import { STATES } from '../../status.ts'
 import { WAITING_HASH } from './elsewhere'
@@ -60,11 +61,51 @@ let unreadToast: Toast
 let toastTimer = 0
 let unreadShown = false
 
+// A decided form folds into a card: what was chosen, what was written under it (a few lines), and
+// "decided · change" (a click on the card opens the form again). Its chat folds too, into
+// "💬 n messages", opened by a click; a message from the agent the reader hasn't read opens it, and
+// it stays open once read, until the reader folds it, so a reply never hides in the fold. The card is the page's, put back in the
+// form after each update.
+const chatsOpen = new Set<string>()
+
+function card(form: HTMLFormElement, name: string, last: WbEvent) {
+  let el = form.querySelector<HTMLElement>(':scope > .wb-folded')
+  if (!el) {
+    el = document.createElement('div')
+    el.className = 'wb-folded'
+    el.innerHTML = '<div class="wb-folded-head"><span class="wb-folded-choice"></span><span class="wb-folded-change"></span></div><div class="wb-folded-text"></div><button type="button" class="wb-folded-chat"></button>'
+    form.prepend(el)
+  }
+  const { chosen, written } = answerParts(last.data, last.action)
+  // nothing chosen, only written: the text is the answer, said once
+  const head = chosen.length ? chosen.join(' · ') : written.shift() ?? ''
+  el.querySelector('.wb-folded-choice')!.textContent = `✓ ${head}`
+  el.querySelector('.wb-folded-change')!.textContent = form.hasAttribute('data-wb-just-sent') ? '✓ the agent has it' : 'decided · change'
+  const text = el.querySelector<HTMLElement>('.wb-folded-text')!
+  text.textContent = written.join('\n\n')
+  text.hidden = !written.length
+  // the chat: how many messages, and open or folded
+  const messages = api.events().filter(e => e.type === 'chat:message' && e.data.chat === name).length
+  const thread = form.querySelector<HTMLElement>(':scope > [data-block=chat-thread]')
+  const unreadHere = !!thread && api.unread().some(m => thread.querySelector(`[data-wb-message="${CSS.escape(m.id)}"]`) || (m.type === 'chat:message' && m.data.chat === name))
+  // a message to read opens it, and it stays open once read, until the reader folds it
+  if (unreadHere) chatsOpen.add(name)
+  const open = chatsOpen.has(name)
+  form.toggleAttribute('data-wb-chat-open', open)
+  const chat = el.querySelector<HTMLButtonElement>('.wb-folded-chat')!
+  chat.hidden = !messages
+  chat.textContent = `💬 ${messages} message${messages === 1 ? '' : 's'} ${open ? '▾' : '▸'}`
+  chat.setAttribute('aria-expanded', String(open))
+}
+
 function show(list: FormStatus[] = forms) {
   forms = list
   for (const { form, name, state, last } of forms) {
     if (last && reopened.has(name) && reopened.get(name) !== last.id && state === 'decided') reopened.delete(name)
-    form.toggleAttribute('data-wb-folded', state === 'decided' && !reopened.has(name))
+    const folded = state === 'decided' && !reopened.has(name)
+    form.toggleAttribute('data-wb-folded', folded)
+    if (folded && last) card(form, name, last)
+    else { form.querySelector(':scope > .wb-folded')?.remove(); form.removeAttribute('data-wb-chat-open') }
   }
   const unread = api.unread().length
   const parts: [string, string][] = ORDER.map(state => [state, inState(state).length] as const).filter(([, count]) => count).map(([state, count]) => [state, LABEL[state](count)])
@@ -155,6 +196,13 @@ export function trackWaiting(root: HTMLElement, core: Api) {
     const form = target.closest<HTMLFormElement>('form[data-wb-folded]')
     if (!form || target.closest('[data-block=chat-thread]')) return
     e.preventDefault()
+    // its chat, folded or open: not the form
+    if (target.closest('.wb-folded-chat')) {
+      const name = form.getAttribute('name')!
+      if (chatsOpen.has(name) || form.hasAttribute('data-wb-chat-open')) { chatsOpen.delete(name); form.removeAttribute('data-wb-chat-open') } else chatsOpen.add(name)
+      show(forms)
+      return
+    }
     const name = form.getAttribute('name')!
     const last = api.last(name)
     if (last) reopened.set(name, last.id)

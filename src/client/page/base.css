@@ -231,13 +231,22 @@ form[data-wb-pending][data-wb-just-sent]::before { content: "✓ sent · waiting
 
 /* decided: the agent picked up the latest answer; the form folds into one line quoting it */
 form[data-wb-folded] { cursor: pointer; }
-form[data-wb-folded] > :not([data-block=chat-thread]) { display: none !important; }
+form[data-wb-folded] > :not([data-block=chat-thread], .wb-folded) { display: none !important; }
+/* the chat of a decided form folds into "💬 n messages", until opened (waiting.ts) */
+form[data-wb-folded]:not([data-wb-chat-open]) > [data-block=chat-thread] { display: none !important; }
 /* the question's chat stays with it, under the answer and the line that reopens it */
 form[data-wb-folded] > [data-block=chat-thread] { order: 1; margin-top: 14px; cursor: auto; }
-form[data-wb-folded]::before { content: "✓ " attr(data-wb-outcome); display: block; white-space: pre-line; color: var(--text); font: .95rem/1.5 var(--sans); }
-form[data-wb-folded]::after { content: "decided · click to change the answer"; display: block; margin-top: 4px; color: var(--muted); font: .75rem/1.4 var(--sans); }
-form[data-wb-folded][data-wb-just-sent]::after { content: "✓ sent · the agent has it"; color: var(--ok); font-weight: 600; }
-form[data-wb-folded]:hover::after { color: var(--accent); }
+/* a decided form as a card: what was chosen, what was written, decided · change, its chat folded */
+.wb-folded { display: grid; gap: 6px; font: .95rem/1.5 var(--sans); }
+.wb-folded-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
+.wb-folded-choice { font-weight: 600; color: var(--text); }
+.wb-folded-change { flex: none; color: var(--muted); font-size: .75rem; }
+form[data-wb-folded]:hover .wb-folded-change { color: var(--accent); }
+form[data-wb-just-sent] .wb-folded-change { color: var(--ok); font-weight: 600; }
+.wb-folded-text { color: var(--muted); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.wb-folded-text[hidden], .wb-folded-chat[hidden] { display: none; }
+.wb-folded-chat { justify-self: start; margin-top: 2px; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--border); background: none; color: var(--muted); font: .8rem/1.4 var(--sans); cursor: pointer; }
+.wb-folded-chat:hover { color: var(--text); border-color: var(--muted); }
 
 /* the line above the page: what waits for the reader, what nobody listens for, what is answered */
 .wb-summary[hidden] { display: none; }
