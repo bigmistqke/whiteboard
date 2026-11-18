@@ -399,10 +399,17 @@ switch (cmd) {
     const fallback = !f.page
     let recheck = () => {}
     const others = fallback ? (await listen(f, cmd, true), await otherListeners(() => recheck())) : null
+    // The fallback's copy of who else listens can lag a moment behind a wait that just started, so
+    // it holds each event briefly before deciding: by then that wait took it, or the copy knows.
+    const held = new Set<string>()
+    const skip = (e: WbEvent) => {
+      if (!held.has(e.id)) { held.add(e.id); setTimeout(() => recheck(), 500).unref(); return true }
+      return takenByOther(others!(), e)
+    }
     handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), {
       count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity,
       forAgent: forAgent(handedOut),
-      ...(others && { skip: e => takenByOther(others(), e), recheck: again => { recheck = again } }),
+      ...(others && { skip, recheck: again => { recheck = again } }),
     }).then(() => process.exit(0))
     if (!fallback) listen(f, cmd)
     if (opts.timeout && cmd === 'wait') setTimeout(() => { console.error('timeout'); process.exit(2) }, Number(opts.timeout) * 1000)
