@@ -96,16 +96,23 @@ function documentsIn(dir: string) {
   return [...new Set(files)].sort((a, b) => depth(a) - depth(b) || a.localeCompare(b))
 }
 
-/** The overview's list of the project's documents: each by its title, linked to its rendered page. */
+/**
+ * The overview's list of the project's documents: each by its title, linked to its rendered page,
+ * with when its file last changed. The list can be sorted in the browser (sort.ts): by folder (as
+ * written here), by when last updated, or by title; each row carries what it is sorted by.
+ */
 function documentList(ctx: RenderContext) {
   const files = documentsIn(ctx.project.dir)
   if (!files.length) return ''
-  const rows = files.map(f => {
+  const rows = files.map((f, i) => {
     const abs = path.join(ctx.project.dir, f)
-    return html`<li><a href="${ctx.urlFor(abs) ?? `/-/${f}`}">${titleOf(abs, f)}</a> <span class="wb-meta"><code>${f}</code></span></li>`
+    const title = titleOf(abs, f)
+    let mtime = 0
+    try { mtime = fs.statSync(abs).mtimeMs } catch { /* gone meanwhile */ }
+    return html`<li data-order="${i}" data-updated="${mtime}" data-title="${title.toLowerCase()}"><a href="${ctx.urlFor(abs) ?? `/-/${f}`}">${title}</a> <span class="wb-meta"><code>${f}</code>${mtime > 0 && html` · edited ${time(mtime)}`}</span></li>`
   })
   // in a section, so the heading isn't numbered like the page's own sections
-  return html`<section class="wb-documents"><h2>Documents</h2><ul class="wb-index">${rows}</ul></section>`
+  return html`<section class="wb-documents"><div class="wb-list-head"><h2>Documents</h2><label class="wb-sort">sort <select data-wb-sort="documents" aria-label="Sort the documents"><option value="order">by folder</option><option value="updated">last updated</option><option value="title">by title</option></select></label></div><ul class="wb-index">${rows}</ul></section>`
 }
 
 export function createRender(blocks: () => ResolvedBlocks, style?: URL | string, pluginStyles: (URL | string)[] = []) {

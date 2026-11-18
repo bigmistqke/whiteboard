@@ -271,7 +271,11 @@ form[data-wb-folded]:hover::after { color: var(--accent); }
 
 /* the overview's list of the project's documents */
 .wb-documents { margin-top: 2.5em; }
-.wb-documents h2 { font-size: 1.1rem; margin-bottom: .4em; }
+.wb-documents h2 { font-size: 1.1rem; margin: 0; }
+/* a list's heading with its sort control at the right (sort.ts) */
+.wb-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: .4em; }
+.wb-sort { font: .8rem/1.4 var(--sans); color: var(--muted); display: inline-flex; align-items: baseline; gap: 6px; }
+.wb-sort select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
 
 /* threads whose form is no longer on the page (orphans.ts): read-only, after the content */
 .wb-orphans { --indent: 34px; max-width: calc(var(--measure) + var(--indent) + 32px); margin: 0 auto; padding: 0 16px 220px; box-sizing: border-box; font: .92rem/1.45 var(--sans); }

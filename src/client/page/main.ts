@@ -10,6 +10,7 @@ import { currentTheme, onTheme, setThemePreference, themePreference, type ThemeP
 import { trackWaiting } from './waiting'
 import { trackElsewhere } from './elsewhere'
 import { trackLive } from './live'
+import { applySorts, trackSorts } from './sort'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
 
@@ -262,6 +263,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   if (!isDir) trackWaiting(main, core)
   trackElsewhere(root, handle, core)
   trackLive(root, handle, core)
+  if (isDir) { trackSorts(); core.onRendered(applySorts) }
   if (!isDir) trackOrphanThreads(main, core)
   await mountIslands()
   tickTimes()
