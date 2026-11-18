@@ -314,16 +314,25 @@ function keepPlace(place: ReturnType<typeof placeOf>, sigs: string[]) {
 }
 
 /** The new render of the page, patched in. */
+// the page is going (its own reload below, or the reader went elsewhere): a render still in flight is
+// cut off then, and its failure is not the page's
+let leaving = false
+addEventListener('pagehide', () => {
+  leaving = true
+})
+
 async function refresh() {
   let next: Awaited<ReturnType<PageHandle['render']>>
   try {
     next = await currentPage.render()
   } catch (err) {
+    if (leaving) return
     // the page is gone (closed, deleted): load what its address shows now, the "Not found" page,
     // which turns into the page again if it is written back. Already that page (it has no file, so
     // no time it was edited): still not there, nothing to do
     if (/: 404$/.test((err as Error).message)) {
       if ((currentPage.data() as Data | null)?.mtime == null) return
+      leaving = true
       return location.reload()
     }
     throw err
