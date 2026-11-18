@@ -281,6 +281,22 @@ form[data-wb-folded]:hover::after { color: var(--accent); }
 .wb-sort select:hover { color: var(--text); border-color: var(--muted); }
 .wb-sort select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* where the browser lets the list of a select be styled (customizable select; Chromium, not WebKit
+   yet), it opens in the page's look instead of the system's: elsewhere the system's list shows */
+@supports (appearance: base-select) {
+  .wb-sort select, .wb-form select { appearance: base-select; }
+  .wb-sort select::picker-icon { display: none; }
+  :is(.wb-sort, .wb-form) select::picker(select) {
+    appearance: base-select; margin-top: 4px; padding: 4px; min-width: anchor-size(width);
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 28px rgb(0 0 0 / .16);
+  }
+  :is(.wb-sort, .wb-form) select option { padding: 6px 10px; border-radius: 5px; font: .85rem/1.4 var(--sans); color: var(--text); }
+  :is(.wb-sort, .wb-form) select option:hover, :is(.wb-sort, .wb-form) select option:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); outline: none; }
+  :is(.wb-sort, .wb-form) select option:checked { font-weight: 600; color: var(--accent); }
+  :is(.wb-sort, .wb-form) select option::checkmark { display: none; }
+}
+
 /* threads whose form is no longer on the page (orphans.ts): read-only, after the content */
 .wb-orphans { --indent: 34px; max-width: calc(var(--measure) + var(--indent) + 32px); margin: 0 auto; padding: 0 16px 220px; box-sizing: border-box; font: .92rem/1.45 var(--sans); }
 .wb-orphans > * { margin-left: var(--indent); }
