@@ -362,7 +362,11 @@ it is gone when the command is (it reconnects when the server restarts). The
 server tells pages when listeners come and go (`listeners` on the live
 channel), and `api.listeners()` gives the ones covering the page. So what an
 agent waits for is a fact the command line knows, not something the agent
-has to mark.
+has to mark. The page shows it in one place, small, for when something seems
+off: the dot at the end of its header is green while it is live and a wait
+or watch covers it (its own, or the project-wide one), grey while live with
+nobody listening, and a ring while it is not connected; its title says
+which.
 
 A `wait` or `watch` without `--page` is the project's fallback: it takes
 only what no other listener would take, by page and type, on any page,

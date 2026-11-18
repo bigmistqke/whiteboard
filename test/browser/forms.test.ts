@@ -45,9 +45,15 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   s = await until('the title badge', async () => { const x = await state(); return x.title.startsWith('(!1) ') ? x : null })
   assert.equal(s.button, '→ waiting for you (1)', 'corner button')
 
+  // the header's dot: live, and whether an agent listens
+  const dot = () => page.$eval('.wb-live', d => [d.hasAttribute('data-agent'), d.getAttribute('title') ?? ''] as const)
+  await until('live, nobody listening', async () => (await dot())[1].startsWith('Live · no agent') || null)
+  assert.equal((await dot())[0], false)
+
   const wait = proj.spawn('wait', '--page', 'q')
   await until('the wait listens', async () => (await (await fetch(proj.url('api/listeners?page=q'))).json()).length === 1 || null)
   assert.ok((await state()).attrs.includes('data-wb-open'), 'a wait changes nothing for the reader')
+  await until('the dot says an agent listens', async () => { const [agent, title] = await dot(); return (agent && title === 'Live · an agent is listening on this page') || null })
 
   // a draft survives a reload
   await page.fill('input[name=why]', 'because')

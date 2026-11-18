@@ -29,6 +29,7 @@ test('the fallback takes answers on pages nobody waits on, leaves the others, an
   // nobody waits on b: the fallback takes it, and the page says so
   await page.goto(proj.url('b'))
   await page.waitForSelector('form[name=b-q][data-wb-open]', { timeout: 5000 })
+  await until('the dot: the project-wide listener', () => page.$eval('.wb-live', d => d.hasAttribute('data-agent') && d.getAttribute('title') === 'Live · an agent is listening on every page') || null)
   await page.fill('input[name=note]', 'for whoever')
   await page.click('form[name=b-q] button')
   await until('the fallback got b', () => fallback.output().includes('"page":"b"') || null)

@@ -539,6 +539,9 @@ Not started.
   and the tab title gets a `(!n)` prefix. An answer sent while no agent
   listens says so in a toast; it stays in the log for the next agent that
   checks.
+- **Whether an agent listens.** The dot at the end of the header is green
+  while the page is live and an agent takes its answers, grey when nobody
+  listens (answers wait in the log), and a ring while the page reconnects.
 - **What waits on other pages.** The header shows an inbox with how much
   waits for you on other pages; it opens a list of those pages, and a page
   in it opens at the first thing. The overview marks the same pages with

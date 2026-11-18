@@ -160,7 +160,7 @@ export function createRender(blocks: () => ResolvedBlocks, style?: URL | string,
     }
     const islands = Object.fromEntries(Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]))
     const styles = out.styles.map(s => ctx.asset(s))
-    const nav = html`<nav class="wb-nav"><span>${crumbs(page.id, ctx.project.name)}</span>${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark" aria-label="Theme"></button><span class="wb-live" title="live reload"></span></nav>`
+    const nav = html`<nav class="wb-nav"><span>${crumbs(page.id, ctx.project.name)}</span>${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark" aria-label="Theme"></button><span class="wb-live" role="img" title="Connecting…" aria-label="Connecting…"></span></nav>`
     // the page's own, the plugins' (every page), the blocks' on this page, then the project's
     const links = [ctx.asset(BASE_CSS), ...PLUGIN_STYLES.map(f => ctx.asset(f)), ...styles, ...(STYLE ? [ctx.asset(STYLE)] : [])]
     return {

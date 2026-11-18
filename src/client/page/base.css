@@ -147,8 +147,10 @@ details[open] > :last-child { margin-bottom: 2em; }
 .wb-nav > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-nav a { color: var(--muted); text-decoration: none; }
 .wb-nav a:hover { color: var(--text); }
-.wb-live { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; opacity: .4; }
-[data-wb-live] .wb-live { background: var(--ok); opacity: 1; }
+/* live.ts: a ring while not connected, grey while live with no agent listening, green with one */
+.wb-live { width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--muted); background: none; flex: none; }
+[data-wb-live] .wb-live { border-color: var(--muted); background: var(--muted); }
+[data-wb-live] .wb-live[data-agent] { border-color: var(--ok); background: var(--ok); }
 .wb-theme {
   font: inherit; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 99px;
   height: 24px; box-sizing: border-box; padding: 0 7px; cursor: pointer; display: inline-flex; align-items: center; flex: none;

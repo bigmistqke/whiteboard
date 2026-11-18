@@ -9,6 +9,7 @@ import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { trackWaiting } from './waiting'
 import { trackElsewhere } from './elsewhere'
+import { trackLive } from './live'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
 
@@ -260,6 +261,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   if (!isDir) trackInitial(main, page, core)
   if (!isDir) trackWaiting(main, core)
   trackElsewhere(root, handle, core)
+  trackLive(root, handle, core)
   if (!isDir) trackOrphanThreads(main, core)
   await mountIslands()
   tickTimes()
