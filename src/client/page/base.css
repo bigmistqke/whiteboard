@@ -244,7 +244,11 @@ form[data-wb-folded] > [data-block=chat-thread] { order: 1; margin-top: 14px; cu
 form[data-wb-folded]:hover .wb-folded-change { color: var(--accent); }
 form[data-wb-just-sent] .wb-folded-change { color: var(--ok); font-weight: 600; }
 .wb-folded-text { color: var(--muted); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.wb-folded-text[hidden], .wb-folded-chat[hidden] { display: none; }
+.wb-folded-text[hidden], .wb-folded-chat[hidden], .wb-folded-choices[hidden] { display: none; }
+/* each answer on its own line, under the button it was sent with */
+.wb-folded-choices { list-style: none; margin: 0; padding: 0 0 0 1.2em; display: grid; gap: 2px; color: var(--text); }
+.wb-folded-choices li { position: relative; margin: 0; padding: 0; line-height: 1.45; }
+.wb-folded-choices li::before { content: "·"; position: absolute; left: -.8em; color: var(--muted); }
 .wb-folded-chat { justify-self: start; margin-top: 2px; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--border); background: none; color: var(--muted); font: .8rem/1.4 var(--sans); cursor: pointer; }
 .wb-folded-chat:hover { color: var(--text); border-color: var(--muted); }
 

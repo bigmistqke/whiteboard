@@ -73,13 +73,19 @@ function card(form: HTMLFormElement, name: string, last: WbEvent) {
   if (!el) {
     el = document.createElement('div')
     el.className = 'wb-folded'
-    el.innerHTML = '<div class="wb-folded-head"><span class="wb-folded-choice"></span><span class="wb-folded-change"></span></div><div class="wb-folded-text"></div><button type="button" class="wb-folded-chat"></button>'
+    el.innerHTML = '<div class="wb-folded-head"><span class="wb-folded-choice"></span><span class="wb-folded-change"></span></div><ul class="wb-folded-choices"></ul><div class="wb-folded-text"></div><button type="button" class="wb-folded-chat"></button>'
     form.prepend(el)
   }
-  const { chosen, written } = answerParts(last.data, last.action)
-  // nothing chosen, only written: the text is the answer, said once
-  const head = chosen.length ? chosen.join(' · ') : written.shift() ?? ''
+  const { action, chosen, written } = answerParts(last.data, last.action)
+  // One answer and no button: it is the title. Else the button it was sent with is the title (or
+  // "answered"), and each answer a line under it. Nothing chosen, only written: the text is the
+  // answer, said once.
+  const list = action || chosen.length > 1 ? chosen : []
+  const head = action ?? (chosen.length > 1 ? 'answered' : chosen[0] ?? written.shift() ?? 'answered')
   el.querySelector('.wb-folded-choice')!.textContent = `✓ ${head}`
+  const choices = el.querySelector<HTMLElement>('.wb-folded-choices')!
+  choices.replaceChildren(...list.map(c => Object.assign(document.createElement('li'), { textContent: c })))
+  choices.hidden = !list.length
   el.querySelector('.wb-folded-change')!.textContent = form.hasAttribute('data-wb-just-sent') ? '✓ the agent has it' : 'decided · change'
   const text = el.querySelector<HTMLElement>('.wb-folded-text')!
   text.textContent = written.join('\n\n')

@@ -154,8 +154,11 @@ async function onSubmit(e: SubmitEvent) {
 const ATTR: Record<FormState, string> = { open: 'data-wb-open', pending: 'data-wb-pending', decided: 'data-wb-decided' }
 
 /** One line quoting an answer: what was chosen, then what was written. */
-/** An answer, told apart: what was chosen (options, short values, the button), and what was written. */
-export function answerParts(data: Data, action: string | null): { chosen: string[]; written: string[] } {
+/**
+ * An answer, told apart: the button it was sent with (none for a plain Send), what was chosen
+ * (options, short values), and what was written.
+ */
+export function answerParts(data: Data, action: string | null): { action: string | null; chosen: string[]; written: string[] } {
   const chosen: string[] = [], written: string[] = []
   for (const v of Object.values(data)) {
     if (v == null || v === '' || v === false) continue
@@ -164,14 +167,13 @@ export function answerParts(data: Data, action: string | null): { chosen: string
     else if (String(v).length > 60 || String(v).includes('\n')) written.push(String(v))
     else chosen.push(String(v))
   }
-  if (action && !['Send', 'Submit'].includes(action)) chosen.unshift(action)
-  return { chosen, written }
+  return { action: action && !['Send', 'Submit'].includes(action) ? action : null, chosen, written }
 }
 
 /** One line quoting an answer: what was chosen, then what was written. */
 function outcome(data: Data, action: string | null) {
-  const { chosen, written } = answerParts(data, action)
-  return [chosen.join(' · ') || 'sent', ...written.map(w => `“${w.length > 240 ? w.slice(0, 240) + '…' : w}”`)].join('\n')
+  const { action: button, chosen, written } = answerParts(data, action)
+  return [[button, ...chosen].filter(Boolean).join(' · ') || 'sent', ...written.map(w => `“${w.length > 240 ? w.slice(0, 240) + '…' : w}”`)].join('\n')
 }
 
 let current: FormStatus[] = []
