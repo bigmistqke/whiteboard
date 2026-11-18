@@ -659,8 +659,13 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
       if ('redirect' in r) { res.writeHead(302, { location: r.redirect + url.search }); res.end(); return }
       if ('raw' in r) return sendFile(res, r.raw)
       if ('notFound' in r) {
-        const missing: PageSource = { kind: 'page', id, file: '', mtime: null, source: r.notFound, body: r.notFound, frontmatter: {} }
-        return send(res, 404, await page(req, missing, { page: false, out: { title: 'Not found', html: html`<h1>Not found</h1><p>${r.notFound}</p>` }, notices: [] }))
+        // rendered as a page, with the page's styles and the plugins', and live: it becomes the page
+        // once the page is there. The message holds the path from the URL: escaped, so it shows as
+        // written and makes no markup or block
+        const said = r.notFound.replace(/[\\`*_[\]{}()<>#!:|~&-]/g, '\\$&')
+        const md = `# Not found\n\n${said}\n`
+        const missing: PageSource = { kind: 'page', id, file: '', mtime: null, source: md, body: md, frontmatter: {} }
+        return send(res, 404, await page(req, missing, await render(missing)))
       }
       return send(res, 200, await page(req, r.page, await render(r.page)))
     } catch (err) {

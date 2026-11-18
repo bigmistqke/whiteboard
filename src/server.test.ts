@@ -147,6 +147,20 @@ test('the built-in plugins bring their blocks without any config', async () => {
   assert.match(page, /data-chat="talk"/)
 })
 
+test('a page that is not there: a styled page saying so, the path in it as written, never markup', async () => {
+  const { base } = await serve()
+  const res = await fetch(`${base}/nothing-here`)
+  assert.equal(res.status, 404)
+  const page = await res.text()
+  assert.match(page, /<link rel="stylesheet" href="[^"]*base\.css"/, 'the page\'s styles')
+  assert.match(page, /<h1>Not found<\/h1>/)
+  assert.match(page, /nothing-here does not exist yet/)
+  const crafted = await (await fetch(`${base}/x%3Cb%3Ey%3C%2Fb%3E%3A%3Abutton%5BGo%5D`)).text()
+  const main = crafted.slice(crafted.indexOf('<main'), crafted.indexOf('</main>'))
+  assert.doesNotMatch(main, /<b>|<button/, 'neither markup nor a block from the path')
+  assert.match(main, /x&#x3C;b>y&#x3C;\/b>::button\[Go\]|x&lt;b&gt;y/)
+})
+
 test('code fences show their text: ```text is code, not a text field, and a diff without hunks shows every line', async () => {
   const { base, dir } = await serve()
   fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'code.md'), '# Code\n\n```text\nError: it failed\n```\n\n```diff\n function f() {\n-  return 1\n+  return 2\n }\n```\n\nAfter.\n')
