@@ -5,6 +5,9 @@
 //
 //   import toc from '@bigmistqke/whiteboard/toc'
 //   export default defineConfig({ plugins: [toc()] })
+//
+// A page has it when its frontmatter says `toc: true`. With `toc({ always: true })`, every page has
+// it, unless its frontmatter says `toc: false`.
 import { packagePath } from '../../src/package.ts'
 import type { Plugin } from '../../src/define.ts'
 
@@ -15,11 +18,22 @@ Pages here have a table of contents beside them, made from their \`##\` and
 in it. A section with an unanswered question or an unread message has a dot.
 `
 
-export default function toc(): Plugin {
+export interface TocOptions {
+  /** on every page, not only the ones whose frontmatter says `toc: true` (`toc: false` still goes without) */
+  always?: boolean
+}
+
+export default function toc(options: TocOptions = {}): Plugin {
   return {
     name: 'toc',
-    docs: () => DOCS,
+    docs: () => options.always
+      ? DOCS + '\nIn this project every page has it; a page without it says `toc: false` in its frontmatter.\n'
+      : DOCS + '\nA page has it when its frontmatter says `toc: true`:\n\n```markdown\n---\ntoc: true\n---\n# A long page\n```\n',
     style: packagePath('dist/plugins/toc/style.css'),
-    setup: () => ({ client: packagePath('dist/plugins/toc/client.js') }),
+    setup: () => ({
+      client: packagePath('dist/plugins/toc/client.js'),
+      // how the browser part knows: on every page, or only where the frontmatter asks
+      shell: () => ({ head: `<meta name="wb-toc" content="${options.always ? 'always' : 'opt-in'}">` }),
+    }),
   }
 }

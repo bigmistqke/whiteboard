@@ -273,6 +273,8 @@ async function refresh() {
     throw err
   }
   const data = next.data as Data
+  // the handle the plugins hold too: what they read of the page (its frontmatter) stays current
+  currentPage.data = data
   islands = data.islands
   for (const href of data.styles) {
     if (![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(l => new URL(l.href).pathname === new URL(href, location.href).pathname))

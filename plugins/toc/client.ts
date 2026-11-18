@@ -2,7 +2,7 @@
 // update; the section being read is the last heading above the top of the view; a section is
 // marked when an open question (data-wb-open) or an unread message (data-wb-message, or the element
 // holding one, data-wb-holds) is in it. A click scrolls to the heading, below the header.
-import type { Api, PluginMount } from '../../src/define.ts'
+import type { Api, PageHandle, PluginMount } from '../../src/define.ts'
 
 const panel = document.createElement('nav')
 panel.className = 'wb-toc'
@@ -28,8 +28,17 @@ function fits() {
   return left >= 230
 }
 
+let handle: PageHandle
+
+/** Does this page have it: what its frontmatter says (`toc:`), and whether it is on everywhere. */
+function wanted() {
+  const said = ((handle.data as { frontmatter?: Record<string, string> } | null)?.frontmatter ?? {}).toc?.trim().toLowerCase()
+  const always = document.querySelector('meta[name=wb-toc]')?.getAttribute('content') === 'always'
+  return always ? said !== 'false' : said === 'true'
+}
+
 function build() {
-  headings = [...main.querySelectorAll<HTMLElement>(':scope > h2, :scope > h3')]
+  headings = wanted() ? [...main.querySelectorAll<HTMLElement>(':scope > h2, :scope > h3')] : []
   let h2 = 0, h3 = 0
   list.replaceChildren(...headings.map((h, i) => {
     // the page's numbers: 1, 1.1, 1.2, 2 (base.css counts ## and ### alike)
@@ -99,8 +108,9 @@ function go(i: number) {
   if (!fits()) { panel.classList.remove('wb-toc-open'); panel.hidden = true }
 }
 
-const mount: PluginMount = (root, handle, core) => {
-  if (handle.kind !== 'page' && handle.kind !== 'file') return
+const mount: PluginMount = (root, page, core) => {
+  if (page.kind !== 'page' && page.kind !== 'file') return
+  handle = page
   main = root.querySelector<HTMLElement>('#wb-main') ?? root
   api = core
   document.body.append(panel)

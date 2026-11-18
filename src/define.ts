@@ -343,7 +343,11 @@ export type PluginMount = (root: HTMLElement, page: PageHandle, api: Api) => voi
 export interface PageHandle {
   id: string
   kind: StoredPage['kind']
-  /** what the server render returned with the HTML now in the root */
+  /**
+   * what the server render returned with the HTML now in the root, kept current on each live update:
+   * for a markdown page, `{ islands, styles, mtime, frontmatter }`, the frontmatter's fields as
+   * strings (`toc: true` is `'true'`)
+   */
   data: unknown
   /** called when the stored page changed; returns an unsubscribe */
   onChange(fn: () => void): () => void

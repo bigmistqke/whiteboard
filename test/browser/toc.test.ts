@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { browser, project, until } from './project.ts'
 
-const CONFIG = `import toc from '@bigmistqke/whiteboard/toc'\nexport default { plugins: [toc()] }\n`
+const CONFIG = `import toc from '@bigmistqke/whiteboard/toc'\nexport default { plugins: [toc({ always: true })] }\n`
 const filler = (n: number, word: string) => Array.from({ length: n }, (_, i) => `${word} ${i}.`).join('\n\n')
 const PAGE = `# Long page\n\n## Start\n\n${filler(30, 'Start')}\n\n## Middle\n\n${filler(10, 'Middle')}\n\n### A part of it\n\n${filler(30, 'Part')}\n\n## The question\n\n:::form{name=q}\n:text[Why]{name=why}\n:::\n\n${filler(30, 'End')}\n`
 
@@ -35,5 +35,39 @@ test('toc: the sections, numbered; the one being read; a click goes there; a dot
   assert.ok(await page.locator('.wb-toc').isVisible())
   await page.click('.wb-toc a >> text=The question')
   await until('there, and closed', async () => (await page.locator('.wb-toc').isHidden()) || null)
+  assert.deepEqual(errors, [])
+})
+
+test('toc: a page opts in through its frontmatter', { timeout: 60000 }, async t => {
+  const OPT_IN = `import toc from '@bigmistqke/whiteboard/toc'\nexport default { plugins: [toc()] }\n`
+  const BODY = `# Long page\n\n## One\n\n${filler(10, 'One')}\n\n## Two\n\n${filler(10, 'Two')}\n`
+  const proj = await project({ config: OPT_IN, pages: { plain: BODY, asks: `---\ntoc: true\n---\n${BODY}` } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+  await page.setViewportSize({ width: 1400, height: 800 })
+  const shown = async () => (await page.locator('.wb-toc').isVisible()) || (await page.locator('.wb-toc-toggle').isVisible())
+
+  await page.goto(proj.url('asks'))
+  await until('contents where the page asks', async () => (await page.locator('.wb-toc a').count()) === 2 || null)
+  assert.ok(await shown())
+  await page.goto(proj.url('plain'))
+  await page.waitForSelector('h2')
+  await page.waitForTimeout(300)
+  assert.ok(!(await shown()), 'none where it does not')
+  // the frontmatter changes while the page is open: it comes
+  proj.page('plain', `---\ntoc: true\n---\n${BODY}`)
+  await until('it came with the frontmatter', async () => (await shown()) || null)
+  assert.deepEqual(errors, [])
+})
+
+test('toc({ always: true }): on every page, a page says toc: false to go without', { timeout: 60000 }, async t => {
+  const proj = await project({ config: CONFIG, pages: { off: `---\ntoc: false\n---\n${PAGE}` } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+  await page.setViewportSize({ width: 1400, height: 800 })
+  await page.goto(proj.url('off'))
+  await page.waitForSelector('h2')
+  await page.waitForTimeout(300)
+  assert.ok(await page.locator('.wb-toc').isHidden() && await page.locator('.wb-toc-toggle').isHidden())
   assert.deepEqual(errors, [])
 })

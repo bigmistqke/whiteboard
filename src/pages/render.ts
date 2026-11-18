@@ -206,7 +206,8 @@ ${links.map(href => html`<link rel="stylesheet" href="${href}">`)}`,
       // the page's content is HTML already: markdown's output, or what was built above
       html: html`${nav}<main id="wb-main">${raw(out.html)}</main>`,
       // the client mounts `islands` and links `styles`
-      data: { islands, styles, mtime: page.mtime },
+      // its frontmatter too, for the plugins in the browser (handle.data.frontmatter)
+      data: { islands, styles, mtime: page.mtime, frontmatter: page.kind === 'page' ? page.frontmatter : {} },
     }
   }
 }

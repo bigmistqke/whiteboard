@@ -8,3 +8,15 @@ room; else a button in the header opens it. Opt in, in the config:
 import toc from '@bigmistqke/whiteboard/toc'
 export default defineConfig({ plugins: [toc()] })
 ```
+
+A page has it when its frontmatter says `toc: true`:
+
+```markdown
+---
+toc: true
+---
+# A long page
+```
+
+To have it on every page, `toc({ always: true })`; a page then goes without
+with `toc: false`.
