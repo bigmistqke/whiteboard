@@ -1,11 +1,11 @@
 /* a form reads as a set-off part of the article: hairline rules above and below, no box */
 .wb-form {
-  margin: 3.6em 0;
+  margin: calc(var(--rhythm) * 3) 0;
   padding: 1.6em 0 1.7em;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--border);
+  border-bottom: var(--hairline) solid var(--border);
   display: grid;
-  gap: 20px;
+  gap: var(--space-2xl);
 }
 .wb-form-pending {
   min-height: 72px;
@@ -25,19 +25,19 @@
 /* an inline option, :radio[…] or :check[…]: the input and its label read as one */
 .wb-form-option {
   display: inline-flex;
-  gap: 8px;
+  gap: var(--space-md);
   align-items: baseline;
   cursor: pointer;
 }
 .wb-form-option + .wb-form-option {
-  margin-left: 18px;
+  margin-left: var(--space-2xl);
 }
 .wb-form-option input {
   margin: 0;
   translate: 0 0.1em;
 }
 .wb-form-option-label {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 /* an answer not on the list: a text box in the option's line (`other`) */
 .wb-form-other {
@@ -46,19 +46,19 @@
 .wb-form-other .wb-form-other-text {
   translate: none;
   font: inherit;
-  padding: 3px 8px;
+  padding: var(--space-2xs) var(--space-md);
   min-width: 12em;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
 }
 .wb-form-recommended {
-  font: 500 0.7rem/1.4 var(--sans);
+  font: 500 var(--ui-tiny)/var(--ui-line-height) var(--sans);
   color: var(--muted);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--caps-spacing);
   text-transform: uppercase;
-  margin-left: 10px;
+  margin-left: var(--space-lg);
 }
 
 /* a list item that starts with an option is a row to pick: no bullet, the picked one tinted, and
@@ -67,8 +67,8 @@
 .wb-form li:has(> .wb-form-option:first-child) {
   list-style: none;
   margin-left: -1.2em;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-sm);
 }
 .wb-form li:has(> p:first-child > .wb-form-option:first-child):hover,
 .wb-form li:has(> .wb-form-option:first-child):hover {
@@ -76,7 +76,7 @@
 }
 .wb-form li:has(> p:first-child > .wb-form-option:first-child input:checked),
 .wb-form li:has(> .wb-form-option:first-child input:checked) {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in srgb, var(--accent) var(--tint-faint), transparent);
 }
 .wb-form li > p:first-child {
   margin-bottom: 0.2em;
@@ -91,7 +91,7 @@
 .wb-form-field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: var(--space-sm);
   margin: 0;
   min-width: 0;
 }
@@ -102,7 +102,7 @@
   resize: vertical;
 }
 .wb-form-label {
-  font: 600 0.78rem/1.4 var(--sans);
+  font: var(--weight-strong) var(--ui-small)/var(--ui-line-height) var(--sans);
   color: var(--muted);
   letter-spacing: 0.01em;
 }
@@ -112,7 +112,7 @@
 
 /* buttons: the first one of a form is its primary one */
 .wb-form button[name='action'] + button[name='action'] {
-  margin-left: 8px;
+  margin-left: var(--space-md);
 }
 .wb-form button.wb-primary {
   background: var(--accent);

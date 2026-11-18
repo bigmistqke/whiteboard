@@ -1,8 +1,8 @@
 /* the table of contents (client.ts): in the margin left of the text, or opened from the header */
 .wb-toc {
   position: fixed;
-  z-index: 4;
-  font: 0.8rem/1.4 var(--sans, sans-serif);
+  z-index: var(--layer-aside);
+  font: var(--ui-small)/var(--ui-line-height) var(--sans, sans-serif);
 }
 .wb-toc[hidden],
 .wb-toc-toggle[hidden] {
@@ -21,11 +21,11 @@
   width: min(300px, 100vw - 32px);
   max-height: calc(100vh - 100px - var(--wb-inset-bottom, 0px));
   overflow: auto;
-  padding: 6px;
+  padding: var(--space-sm);
   background: var(--bg, Canvas);
-  border: 1px solid var(--border, #e3e5e9);
-  border-radius: 8px;
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.16);
+  border: var(--hairline) solid var(--border, #e3e5e9);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
 }
 .wb-toc ol {
   list-style: none;
@@ -33,26 +33,26 @@
   padding: 0;
 }
 .wb-toc li[data-level='3'] {
-  padding-left: 14px;
+  padding-left: var(--space-xl);
 }
 .wb-toc a {
   display: flex;
-  gap: 8px;
+  gap: var(--space-md);
   align-items: baseline;
-  padding: 3px 8px;
-  border-radius: 5px;
+  padding: var(--space-2xs) var(--space-md);
+  border-radius: var(--radius-sm);
   color: var(--muted, #696e76);
   text-decoration: none;
   border-left: 2px solid transparent;
 }
 .wb-toc a:hover {
   color: var(--text, CanvasText);
-  background: color-mix(in srgb, var(--text, CanvasText) 6%, transparent);
+  background: color-mix(in srgb, var(--text, CanvasText) var(--tint-faint), transparent);
 }
 .wb-toc a[aria-current] {
   color: var(--text, CanvasText);
   border-left-color: var(--accent, #1d5bbf);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 .wb-toc-number {
   font-variant-numeric: tabular-nums;
@@ -80,9 +80,9 @@
   place-items: center;
   height: 24px;
   box-sizing: border-box;
-  padding: 0 7px;
-  border-radius: 99px;
-  border: 1px solid var(--border, #e3e5e9);
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  border: var(--hairline) solid var(--border, #e3e5e9);
   background: none;
   color: var(--muted, #696e76);
   cursor: pointer;

@@ -1,6 +1,6 @@
 .wb-grid {
   display: grid;
-  gap: 22px;
+  gap: var(--space-3xl);
   margin: 4em 0;
   grid-template-columns: repeat(
     auto-fill,
@@ -12,14 +12,14 @@
 }
 .wb-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: var(--hairline) solid var(--border);
   border-radius: var(--radius);
-  padding: 18px 20px 20px;
+  padding: var(--space-2xl) var(--space-2xl) var(--space-2xl);
   min-width: 0;
 }
 .wb-card > header {
   display: flex;
-  gap: 10px;
+  gap: var(--space-lg);
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 0.55em;
@@ -29,7 +29,7 @@
   font-size: 1.02rem;
 }
 .wb-card-body {
-  font-size: 0.9rem;
+  font-size: var(--ui-text);
   line-height: 1.6;
 }
 .wb-card-body > :first-child {
@@ -45,8 +45,8 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font: 500 0.74rem/1 var(--sans);
+  gap: var(--space-sm);
+  font: 500 var(--ui-tiny)/1 var(--sans);
   color: var(--muted);
   white-space: nowrap;
 }

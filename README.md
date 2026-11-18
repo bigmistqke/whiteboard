@@ -311,15 +311,32 @@ export default defineConfig({
 })
 ```
 
-The page's look is CSS custom properties, which a project's stylesheet
-overrides: colours (`--bg`, `--text`, `--muted`, `--border`, `--accent`,
-`--accent-text`, `--ok`, `--warn`, `--bad`), fonts (`--serif`, `--sans`,
-`--mono`) and widths (`--measure`, `--wide`). Every colour is a
-`light-dark()` pair, so one line sets it for both themes:
+The page's look is CSS custom properties, set in the base stylesheet and
+used by every built-in plugin, which a project's stylesheet overrides:
+
+- colours: `--bg`, `--text`, `--muted`, `--border`, `--accent`,
+  `--accent-text`, `--ok`, `--warn`, `--bad`;
+- type: `--serif`, `--sans`, `--mono`; the article's `--text-size` and
+  `--line-height` (its margins and headings are in `em`, so they follow);
+  the interface's `--ui-tiny`, `--ui-small`, `--ui-text` and
+  `--ui-line-height`;
+- space: the article's `--rhythm` (between blocks; a set-off block such as
+  a form gets three), the interface's `--space-2xs` … `--space-3xl` (2, 4,
+  6, 8, 10, 12, 16, 24px);
+- shape: `--radius-sm`, `--radius`, `--radius-lg`, `--radius-pill`,
+  `--hairline`, `--shadow-pop`; tints `--tint-faint`, `--tint-soft`,
+  `--tint-strong`; `--speed`;
+- widths: `--measure`, `--wide`; layers: `--layer-aside`,
+  `--layer-popover`, `--layer-window`, `--layer-top` (for a plugin's own
+  floating things).
+
+Every colour is a `light-dark()` pair, so one line sets it for both themes:
 
 ```css
 /* .whiteboard/site.css */
 :root { --accent: light-dark(#c2410c, #fb923c); --serif: "Source Serif 4", Georgia, serif; }
+/* denser: smaller text, tighter blocks */
+:root { --text-size: 17px; --rhythm: 1em; }
 ```
 
 The built-in plugins are callout, chat, code, comments, details, forge,

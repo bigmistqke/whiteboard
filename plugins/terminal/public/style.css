@@ -30,12 +30,12 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 50;
+  z-index: var(--layer-top);
   display: flex;
   flex-direction: column;
   background: #0f1115;
   color: #d7dae0;
-  border-top: 1px solid #2a2f3a;
+  border-top: var(--hairline) solid #2a2f3a;
   box-shadow: 0 -6px 24px rgb(0 0 0 / 0.18);
   font:
     500 12px/1 ui-sans-serif,
@@ -59,17 +59,17 @@ body:has(> #wb-terminal) {
   height: var(--wb-term-bar);
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 10px 0 6px;
+  gap: var(--space-xl);
+  padding: 0 var(--space-lg) 0 var(--space-sm);
   flex: none;
 }
 .wb-term-bar button {
   font: inherit;
   color: inherit;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 5px 8px;
+  border: var(--hairline) solid transparent;
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md);
   cursor: pointer;
 }
 .wb-term-bar button:hover {
@@ -79,8 +79,8 @@ body:has(> #wb-terminal) {
 .wb-term-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  letter-spacing: 0.04em;
+  gap: var(--space-sm);
+  letter-spacing: var(--caps-spacing);
   text-transform: uppercase;
 }
 /* points up while closed (it opens upward), down while open */
@@ -109,7 +109,7 @@ body:has(> #wb-terminal) {
 }
 .wb-term-actions {
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 /* the tabs: one per session, the current one lit */
@@ -117,7 +117,7 @@ body:has(> #wb-terminal) {
 .wb-term-tabs {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2xs);
   min-width: 0;
   flex: 0 1 auto;
   overflow-x: auto;
@@ -130,13 +130,13 @@ body:has(> #wb-terminal) {
   display: inline-flex;
   align-items: center;
   flex: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 .wb-term-bar .wb-term-tab button {
-  padding: 5px 4px 5px 8px;
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
 }
 .wb-term-bar .wb-term-tab .wb-term-tab-close {
-  padding: 5px 7px 5px 3px;
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-2xs);
   opacity: 0.45;
 }
 .wb-term-bar .wb-term-tab .wb-term-tab-close:hover {
@@ -159,7 +159,7 @@ body:has(> #wb-terminal) {
   color: #8b93a3;
 }
 .wb-term-bar .wb-term-add {
-  padding: 3px 8px;
+  padding: var(--space-2xs) var(--space-md);
   font-size: 15px;
   line-height: 1;
   color: #8b93a3;
@@ -171,7 +171,7 @@ body:has(> #wb-terminal) {
 /* content-box: the fit addon reads this height as the room for rows, so the padding must not be in it */
 .wb-term-screen {
   height: calc(var(--wb-term-h) - 10px);
-  padding: 4px 0 6px 10px;
+  padding: var(--space-xs) 0 var(--space-sm) var(--space-lg);
   box-sizing: content-box;
   overflow: hidden;
 }

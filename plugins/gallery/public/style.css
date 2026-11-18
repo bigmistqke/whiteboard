@@ -1,6 +1,6 @@
 .wb-gallery {
   display: grid;
-  gap: 40px 24px;
+  gap: 40px var(--space-3xl);
   margin: 4em 0;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--wb-gallery-min, 240px)), 1fr));
 }
@@ -28,8 +28,8 @@
   border-radius: 0;
 }
 .wb-gallery-item figcaption {
-  padding: 14px 2px 0;
-  font: 0.88rem/1.5 var(--serif);
+  padding: var(--space-xl) var(--space-2xs) 0;
+  font: var(--ui-text)/var(--ui-line-height) var(--serif);
   color: var(--text);
 }
 .wb-gallery-item figcaption h3 {
@@ -46,23 +46,23 @@
 .wb-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--layer-top);
   background: rgb(0 0 0 / 0.86);
   display: grid;
   place-items: center;
   grid-template-rows: 1fr auto;
-  padding: 24px 16px;
+  padding: var(--space-3xl) var(--space-2xl);
 }
 .wb-lightbox img {
   max-width: 100%;
   max-height: calc(100vh - 110px);
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .wb-lightbox-caption {
   color: #eee;
   text-align: center;
-  padding-top: 10px;
+  padding-top: var(--space-lg);
 }
 .wb-lightbox button {
   position: absolute;
