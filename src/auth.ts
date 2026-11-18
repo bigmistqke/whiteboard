@@ -44,8 +44,9 @@ export function createAuth(wb: string) {
         .filter(([k]) => k),
     )
 
-  /** Has this request the token, from this origin? */
-  function authorized(req: IncomingMessage): boolean {
+  /** Has this request the token, from this origin? No request (a page being built) has none. */
+  function authorized(req: IncomingMessage | null): boolean {
+    if (!req) return false
     const jar = cookies(req)
     const has = same(jar[COOKIE], token) || same(req.headers['x-whiteboard-token'], token)
     if (!has) return false

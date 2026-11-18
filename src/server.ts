@@ -38,6 +38,7 @@ import type {
   Rendered,
   StoredPage,
   PagesSource,
+  BuildConfig,
 } from './define.ts'
 
 const ENGINE_DIR = PACKAGE_DIR
@@ -81,8 +82,19 @@ export interface WhiteboardServer {
   status(page?: string | null): Promise<PageStatus[]>
   /** the project's config, loaded */
   config(): Promise<LoadedConfig>
+  /** a static site of some pages (`whiteboard build`); options over the config's `build` */
+  build(options?: BuildConfig): Promise<BuildResult>
   /** stop watching and end the live connections; the server answers nothing after */
   close(): void
+}
+
+export interface BuildResult {
+  /** the folder the site is in */
+  out: string
+  /** each page, and the file it became */
+  pages: { file: string; to: string }[]
+  /** what didn't fit: a link to a page outside the build, no index.html */
+  warnings: string[]
 }
 
 export function createServer(project: Project): WhiteboardServer {
@@ -516,11 +528,14 @@ export function createServer(project: Project): WhiteboardServer {
     page: StoredPage,
     { page: rendered, out, notices }: Render,
     extras: Extras = { head: [], body: [], clients: [] },
+    /** a built page (`whiteboard build`): its files as the build names them, and no server behind it */
+    built?: { asset(ref: string | URL): string },
   ): string {
     const handoff = {
       id: page.id,
       kind: page.kind,
-      client: rendered ? asset(PAGE_CLIENT) : null,
+      live: !built,
+      client: rendered ? (built ?? { asset }).asset(PAGE_CLIENT) : null,
       data: out.data ?? null,
       frontmatter: frontmatterOf(page),
       plugins: extras.clients,
@@ -546,7 +561,7 @@ export function createServer(project: Project): WhiteboardServer {
             <script type="application/json" id="wb-page">
               ${raw(json(handoff))}
             </script>
-            <script type="module" src="/_/runtime.js"></script>
+            <script type="module" src="${built ? built.asset(RUNTIME) : '/_/runtime.js'}"></script>
             ${extras.body}
           </body>
         </html>`,
@@ -917,10 +932,226 @@ export function createServer(project: Project): WhiteboardServer {
     }
   }
 
+  // ---- build: a static site ---------------------------------------------------------------------
+  // Pages rendered once (`whiteboard build`), as files: each page's HTML with its links relative, and
+  // what it loads copied beside it. See BuildConfig.
+
+  /** What a build leaves out unless told otherwise: what is for writing a page, not for reading it. */
+  const BUILD_SKIP = ['form', 'chat', 'comments', 'draft']
+  /** In the folder a build writes, so that a next build knows it may replace it. */
+  const BUILD_MARK = '.whiteboard-build'
+
+  async function build(options: BuildConfig = {}): Promise<BuildResult> {
+    const cfg = await config()
+    if (cfg.errors.length) throw new Error(`the config failed to load: ${(cfg.errors[0] as Error).message}`)
+    if (!cfg.pages) throw new Error('the config has no pages renderer')
+    const pages = cfg.pages
+    const defined = <T>(...xs: (T | undefined)[]) => xs.find(x => x !== undefined)
+    const patterns = defined(options.pages, cfg.build.pages) ?? []
+    const skip = new Set(defined(options.skip, cfg.build.skip) ?? BUILD_SKIP)
+    const outDir = path.resolve(project.dir, defined(options.out, cfg.build.out) ?? 'site')
+    if (!patterns.length)
+      throw new Error(
+        "nothing to build: name the pages, as globs from the project's folder (whiteboard build 'docs/**/*.md'), or set build.pages in the config",
+      )
+    const warnings: string[] = []
+
+    // the pages: markdown files the globs match, but those a `!` glob leaves out
+    const include = patterns.filter(p => !p.startsWith('!'))
+    const exclude = patterns.filter(p => p.startsWith('!')).map(p => p.slice(1))
+    const files = [
+      ...new Set(include.flatMap(p => fs.globSync(p, { cwd: project.dir }).map(f => path.resolve(project.dir, f)))),
+    ]
+      .filter(f => /\.(md|markdown)$/i.test(f) && fs.statSync(f).isFile())
+      .filter(f => !exclude.some(g => path.matchesGlob(path.relative(project.dir, f), g)))
+      .sort()
+    if (!files.length) throw new Error(`no markdown files match ${patterns.join(' ')}`)
+    // each at its place below the folder they share; a README or index is its folder's index.html
+    const base = files.map(path.dirname).reduce((a, b) => {
+      while (!within(b, a)) a = path.dirname(a)
+      return a
+    })
+    const outOf = (file: string) => {
+      const rel = path.relative(base, file)
+      return path.join(
+        outDir,
+        /^(readme|index)\.(md|markdown)$/i.test(path.basename(rel))
+          ? path.join(path.dirname(rel), 'index.html')
+          : rel.replace(/\.(md|markdown)$/i, '.html'),
+      )
+    }
+    const built = new Map(files.map(f => [f, outOf(f)]))
+
+    // the folder it writes: new, empty, or what an earlier build wrote
+    if (fs.existsSync(outDir)) {
+      if (fs.readdirSync(outDir).length && !fs.existsSync(path.join(outDir, BUILD_MARK)))
+        throw new Error(`${outDir} has files a build didn't write: give another folder (--out), or empty it`)
+      fs.rmSync(outDir, { recursive: true })
+    }
+    fs.mkdirSync(outDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(outDir, BUILD_MARK),
+      'written by whiteboard build; the next build replaces this folder\n',
+    )
+
+    // what a page loads, copied once: the package's files under _/whiteboard/, the project's under
+    // _/project/, at their places there (so a stylesheet's url()s still hold); TypeScript as JavaScript
+    const copied = new Map<string, string>()
+    function copyAsset(file: string): string {
+      const known = copied.get(file)
+      if (known) return known
+      const rel = within(file, ENGINE_DIR)
+        ? path.join('_', 'whiteboard', path.relative(ENGINE_DIR, file))
+        : within(file, project.dir)
+          ? path.join('_', 'project', path.relative(project.dir, file))
+          : path.join('_', 'files', path.basename(path.dirname(file)), path.basename(file))
+      const dest = path.join(outDir, TYPESCRIPT.test(rel) ? rel.replace(/\.m?ts$/i, '.js') : rel)
+      copied.set(file, dest)
+      fs.mkdirSync(path.dirname(dest), { recursive: true })
+      if (TYPESCRIPT.test(file)) fs.writeFileSync(dest, typeScriptModule(file))
+      else fs.copyFileSync(file, dest)
+      // a stylesheet's own files (fonts, images), at the same places beside it
+      if (/\.css$/i.test(file)) {
+        for (const m of fs.readFileSync(file, 'utf8').matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) {
+          const ref = m[1]!
+          if (/^(data:|[a-z][a-z0-9+.-]*:|\/|#)/i.test(ref)) continue
+          const target = path.resolve(path.dirname(file), ref.replace(/[?#].*$/, ''))
+          if (fs.existsSync(target) && fs.statSync(target).isFile()) copyAsset(target)
+        }
+      }
+      return dest
+    }
+    /** a file beside the pages (an image), copied to its place below the site */
+    function copyBeside(file: string): string | null {
+      if (!within(file, base)) return null
+      const dest = path.join(outDir, path.relative(base, file))
+      if (!fs.existsSync(dest)) {
+        fs.mkdirSync(path.dirname(dest), { recursive: true })
+        fs.copyFileSync(file, dest)
+      }
+      return dest
+    }
+
+    const hooks = await pluginHooks()
+    const result: BuildResult = { out: outDir, pages: [], warnings }
+    for (const [file, dest] of built) {
+      const here = path.dirname(dest)
+      const relTo = (target: string) =>
+        path.relative(here, target).split(path.sep).map(encodeURIComponent).join('/') || '.'
+      const assetHere = (ref: string | URL) => relTo(copyAsset(toPath(ref)))
+      const urlFor = (abs: string): string | null => {
+        for (const candidate of [abs, abs + '.md']) {
+          if (!fs.existsSync(candidate)) continue
+          if (fs.statSync(candidate).isDirectory()) {
+            const index = [...built.keys()].find(
+              f => path.dirname(f) === candidate && /^(readme|index)\.(md|markdown)$/i.test(path.basename(f)),
+            )
+            if (index) return relTo(built.get(index)!)
+            continue
+          }
+          if (built.has(candidate)) return relTo(built.get(candidate)!)
+          if (/\.(md|markdown)$/i.test(candidate)) {
+            warnings.push(
+              `${path.relative(project.dir, file)} links to ${path.relative(project.dir, candidate)}, which is not in the build`,
+            )
+            return null
+          }
+          const copy = copyBeside(candidate)
+          if (copy) return relTo(copy)
+          warnings.push(
+            `${path.relative(project.dir, file)} links to ${path.relative(project.dir, candidate)}, outside the built pages' folder`,
+          )
+          return null
+        }
+        return null
+      }
+      const id = within(file, project.pagesDir)
+        ? path
+            .relative(project.pagesDir, file)
+            .split(path.sep)
+            .join('/')
+            .replace(/\.(md|markdown)$/i, '')
+        : '-/' + path.relative(project.dir, file).split(path.sep).join('/')
+      const stored = pageSource(id, file)
+      const context = {
+        project: { name: project.name, dir: project.dir, files: !!FILES },
+        asset: assetHere,
+        urlFor,
+        live: false,
+        skip,
+      }
+      const rendered = await pages.render(stored, context)
+      // a page without a heading of its own is named by its file (a README by its folder), not by
+      // the id the server knows it by
+      const named = /^(readme|index)\.(md|markdown)$/i.test(path.basename(file))
+        ? path.basename(path.dirname(file))
+        : path.basename(file).replace(/\.(md|markdown)$/i, '')
+      const title = !rendered.title || rendered.title === id ? named : rendered.title
+      const out = { ...rendered, title, html: String(rendered.html ?? ''), head: String(rendered.head ?? '') }
+      // the plugins' browser modules, but those the build leaves out; not what they add to a live
+      // page's shell (the terminal's drawer): that is the server's
+      const included = hooks.filter(h => !h.error && !skip.has(h.name))
+      const clients = included.filter(h => h.client).map(h => ({ name: h.name, client: assetHere(h.client!) }))
+      // what the plugins add to the shell, asked with no request: no browser asked for this page
+      const parts = await Promise.all(
+        included.map(async h => {
+          try {
+            return (await h.shell?.(null)) ?? null
+          } catch (err) {
+            warnings.push(`plugin ${h.name} failed on ${path.relative(project.dir, file)}: ${(err as Error).message}`)
+            return null
+          }
+        }),
+      )
+      const extras = {
+        head: parts.map(x => raw(String(x?.head ?? ''))),
+        body: parts.map(x => raw(String(x?.body ?? ''))),
+        clients,
+      }
+      let doc = shell(stored, { page: true, out, notices: [] }, extras, { asset: assetHere })
+      // a file a plugin named the server's way (its asset URL, /_/file/<path>): its copy
+      doc = doc.replace(/\/_\/file(\/[^"'\s)<>]+)/g, (all, served: string) => {
+        let file: string
+        try {
+          file = path.resolve(served.split('/').map(decodeURIComponent).join(path.sep))
+        } catch {
+          return all
+        }
+        return fs.existsSync(file) && fs.statSync(file).isFile() ? assetHere(file) : all
+      })
+      // what the blocks name relative to the page (an ::image's src, an iframe's page): copied too
+      doc = doc.replace(/\b(src|href|poster)="([^"#?:]+)([^"]*)"/g, (all, _attr, ref: string) => {
+        if (ref.startsWith('/') || ref.startsWith('_/') || ref.startsWith('../')) return all
+        let decoded = ref
+        try {
+          decoded = decodeURIComponent(ref)
+        } catch {
+          /* as written */
+        }
+        const source = path.resolve(path.dirname(file), decoded)
+        if (fs.existsSync(source) && fs.statSync(source).isFile() && !/\.(md|markdown)$/i.test(source)) {
+          const target = path.resolve(here, decoded)
+          if (within(target, outDir) && !fs.existsSync(target)) {
+            fs.mkdirSync(path.dirname(target), { recursive: true })
+            fs.copyFileSync(source, target)
+          }
+        }
+        return all
+      })
+      fs.mkdirSync(here, { recursive: true })
+      fs.writeFileSync(dest, doc)
+      result.pages.push({ file, to: dest })
+    }
+    if (![...built.values()].includes(path.join(outDir, 'index.html')))
+      warnings.push('no README.md or index.md in the top folder: the site has no index.html')
+    return result
+  }
+
   return {
     handle,
     status: (page = null) => status(page),
     config,
+    build,
     close() {
       for (const w of watchers) w.close()
       watchers.clear()

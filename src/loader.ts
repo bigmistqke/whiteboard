@@ -9,7 +9,7 @@ import { importFresh, importOwn } from './load.ts'
 import { createPages, type Pages } from './pages/index.ts'
 import { pluginCommands } from './plugins.ts'
 import { inPublic, publicDirOf } from './public.ts'
-import type { Config, Plugin } from './define.ts'
+import type { BuildConfig, Config, Plugin } from './define.ts'
 import type { Project } from './config.ts'
 
 /** A config as loaded: what went wrong is in `errors`. */
@@ -24,6 +24,8 @@ export interface LoadedConfig {
   /** each plugin's public folder, by name: the one place its browser files are served from */
   publicDirs: Map<string, string>
   files: boolean
+  /** what `whiteboard build` makes */
+  build: BuildConfig
   errors: unknown[]
 }
 
@@ -46,6 +48,7 @@ export const BUILTIN_COMMANDS = new Set([
   'scroll',
   'close',
   'prune',
+  'build',
   'edit',
   'skill',
   'help',
@@ -130,7 +133,7 @@ export function createConfigLoader(proj: Project, { pages: withPages = true } = 
     )
     const styles = plugins
       .filter(p => p.style)
-      .map(p => inPublic(publicDirs.get(p.name)!, p.style!, `plugin ${p.name}: style`))
+      .map(p => ({ plugin: p.name, file: inPublic(publicDirs.get(p.name)!, p.style!, `plugin ${p.name}: style`) }))
     const links = plugins.flatMap(p => (p.links ? [p.links.bind(p)] : []))
     const pages = withPages ? createPages({ blocks, style: config?.style, styles, links }) : null
     const declared = (flag: 'handOut' | 'forReader') =>
@@ -148,6 +151,7 @@ export function createConfigLoader(proj: Project, { pages: withPages = true } = 
       forReader: declared('forReader'),
       publicDirs,
       files: config?.files !== false,
+      build: config?.build ?? {},
     }
   }
 
@@ -161,6 +165,7 @@ export function createConfigLoader(proj: Project, { pages: withPages = true } = 
         forReader: new Set<string>(),
         publicDirs: new Map<string, string>(),
         files: false,
+        build: {},
         errors: [error],
       }),
     )

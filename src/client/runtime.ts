@@ -23,12 +23,19 @@ interface Handoff {
   messages: string[]
   /** the page's frontmatter (PageHandle.frontmatter) */
   frontmatter: Record<string, string>
+  /** false on a built page (`whiteboard build`): a file, no server behind it */
+  live?: boolean
 }
 
 const handoff: Handoff = JSON.parse(document.getElementById('wb-page')!.textContent!)
 const root = document.getElementById('wb-root')!
 const page = handoff.id
 const isDir = handoff.kind === 'pages' || handoff.kind === 'folder'
+// a built page has no server: no events, no listeners, no live channel, nothing to record
+const live = handoff.live !== false
+// a module's path as the page names it: a built page's are relative to the page, which an import()
+// here would take as relative to this module
+const moduleUrl = (path: string) => new URL(path, document.baseURI).href
 
 // ---- events ------------------------------------------------------------------------------------
 
@@ -45,6 +52,7 @@ function setEvents(next: WbEvent[]) {
 }
 
 async function loadEvents() {
+  if (!live) return
   const res = await fetch(`/api/events?page=${encodeURIComponent(page)}`)
   const all: WbEvent[] = await res.json()
   setEvents(all.filter(e => e.page === page))
@@ -55,6 +63,7 @@ async function append(
   data: Record<string, unknown> = {},
   action: string | null = null,
 ): Promise<WbEvent> {
+  if (!live) throw new Error('a built page is a file: there is no log to append to')
   const res = await fetch('/api/events', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -70,6 +79,7 @@ let listeners: Listener[] = []
 const listenersValue = reactive(() => listeners)
 
 async function loadListeners() {
+  if (!live) return
   listeners = await (await fetch(`/api/listeners?page=${encodeURIComponent(page)}`)).json()
   listenersValue.notify()
 }
@@ -152,6 +162,7 @@ const frontmatterValue = reactive(() => frontmatter)
 const handle: PageHandle = {
   id: page,
   kind: handoff.kind,
+  live,
   data: dataValue,
   frontmatter: frontmatterValue,
   onChange(fn) {
@@ -242,7 +253,7 @@ function connect() {
 await Promise.all([loadEvents(), loadListeners()])
 if (handoff.client) {
   try {
-    const mount: PluginMount = (await import(handoff.client)).default
+    const mount: PluginMount = (await import(moduleUrl(handoff.client))).default
     await mount(root, handle, api)
   } catch (err) {
     console.error('page:', err)
@@ -252,20 +263,22 @@ if (handoff.client) {
     )
   }
 }
-// named forms, once the page is on the page
-trackForms(root, page, api)
-trackReading({
-  messages: handoff.messages ?? [],
-  events: () => events,
-  send: ids => {
-    append(READ, { ids }).catch(err => console.error('marking read:', err))
-  },
-})
+// named forms, once the page is on the page, and what the reader read: neither on a built page
+if (live) {
+  trackForms(root, page, api)
+  trackReading({
+    messages: handoff.messages ?? [],
+    events: () => events,
+    send: ids => {
+      append(READ, { ids }).catch(err => console.error('marking read:', err))
+    },
+  })
+}
 // the plugins' modules after the page, so that what they work on is there; one failing leaves the others
 await Promise.all(
   (handoff.plugins ?? []).map(async ext => {
     try {
-      const mount: PluginMount = (await import(ext.client)).default
+      const mount: PluginMount = (await import(moduleUrl(ext.client))).default
       if (typeof mount !== 'function')
         throw new Error('the client module must export a mount(root, page, api) function as default')
       await mount(root, handle, api)
@@ -281,4 +294,4 @@ plugin "${ext.name}" failed in the browser: ${(err as Error).message}</pre>`,
     }
   }),
 )
-connect()
+if (live) connect()

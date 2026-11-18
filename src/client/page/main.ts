@@ -41,7 +41,7 @@ async function mountOne(el: HTMLElement) {
   el.dataset.wbMounted = ''
   if (!island) return
   try {
-    const mod = await import(island.client)
+    const mod = await import(new URL(island.client, document.baseURI).href)
     if (!el.isConnected) return
     const mount: Mount = mod.default
     if (typeof mount !== 'function')
@@ -402,10 +402,13 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   if (isDir) core.listeners.on(() => refresh())
 
   blockSigs = [...main.children].map(signature)
-  if (!isDir) trackInitial(main, page, core)
-  if (!isDir) trackWaiting(main, core)
-  trackElsewhere(root, handle, core)
-  trackLive(root, handle, core)
+  // what is new, what waits, what is elsewhere, whether it's live: the server's, not a built page's
+  if (handle.live) {
+    if (!isDir) trackInitial(main, page, core)
+    if (!isDir) trackWaiting(main, core)
+    trackElsewhere(root, handle, core)
+    trackLive(root, handle, core)
+  }
   if (isDir) {
     trackSorts()
     core.onRendered(applySorts)
@@ -413,7 +416,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   trackSticky(main, fn => core.onRendered(fn))
   trackHold()
   trackWindows(core)
-  if (!isDir) trackOrphanThreads(main, core)
+  if (!isDir && handle.live) trackOrphanThreads(main, core)
   await mountIslands()
   tickTimes()
 }

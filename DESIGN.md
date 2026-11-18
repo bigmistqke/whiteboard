@@ -189,6 +189,26 @@ Images and other binary files are served as they are.
   runtime runs no page module: it replaces the text when the page changes.
   A render that throws falls back the same way.
 
+### Building a site
+
+`whiteboard build` (server.ts `build`) renders pages once, through the same
+render and shell as the live server, with `live: false`: the page's handoff
+says so, and the runtime then loads no events, opens no channel and tracks
+no forms or reading; the page module leaves out what is new, what waits and
+what is elsewhere. What a page loads is named relative to it and copied
+beside it, the package's files under `_/whiteboard/`, the project's under
+`_/project/`, at their places, so a stylesheet's `url()`s hold.
+
+What a site leaves out is the build's to decide, not the plugins': its
+`skip` names plugins or blocks, and a skipped block renders as nothing
+(rather than as its markdown, as an unknown directive does), a skipped
+plugin's stylesheet and browser module are not included. The default is
+what the core knows is for writing: form, chat, comments and draft. What
+plugins add to the shell is included, but a skipped plugin's: `shell` is
+asked with a null request, since no browser asked for the page, so what is
+only for the project's own browser (the terminal's drawer, behind
+`authorized`) leaves itself out.
+
 ### Plugins
 
 A window (`windowFrame` in `src/pages/window.ts`, exported to plugins) is a

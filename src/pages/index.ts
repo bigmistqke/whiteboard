@@ -12,8 +12,8 @@ export interface PagesOptions {
   blocks: BlockEntry[]
   /** the project's stylesheet, linked on every page after the others */
   style?: URL | string
-  /** the plugins' stylesheets, linked on every page */
-  styles?: (URL | string)[]
+  /** the plugins' stylesheets, linked on every page (but a build's, for a plugin it skips) */
+  styles?: { plugin: string; file: URL | string }[]
   /** the plugins' text links (Plugin.links), each asked once per project folder */
   links?: ((ctx: { dir: string }) => TextLink[])[]
 }

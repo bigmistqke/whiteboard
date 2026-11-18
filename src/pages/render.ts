@@ -240,21 +240,40 @@ export function createMessageRender(
   }
 }
 
+/** What a block left out of a build (RenderContext.skip) is: nothing, for its directives and fences alike. */
+const skipped = (name: string): ResolvedBlock => ({
+  name,
+  code: false,
+  fences: true,
+  props: null,
+  html: () => '',
+  client: null,
+  style: null,
+  source: 'build',
+})
+
 export function createRender(
   blocks: () => ResolvedBlocks,
   style?: URL | string,
-  pluginStyles: (URL | string)[] = [],
+  pluginStyles: { plugin: string; file: URL | string }[] = [],
   links: ((ctx: { dir: string }) => TextLink[])[] = [],
 ) {
   const textLinks = textLinksOf(links)
   const STYLE = stylePath(style)
-  const PLUGIN_STYLES = pluginStyles.map(stylePath).filter((f): f is string => !!f)
+  const PLUGIN_STYLES = pluginStyles
+    .map(s => ({ plugin: s.plugin, file: stylePath(s.file) }))
+    .filter((s): s is { plugin: string; file: string } => !!s.file)
   async function markdown(source: string, page: string, file: string, ctx: RenderContext) {
     const { blocks: set, code } = blocks()
+    const skip = ctx.skip
     return renderMarkdown(body(source), {
       page,
       file,
-      resolve: name => set.get(name) ?? null,
+      resolve: name => {
+        const block = set.get(name) ?? null
+        if (skip && (skip.has(name) || (block && skip.has(block.source)))) return skipped(name)
+        return block
+      },
       code,
       linkFor: ctx.urlFor,
       textLinks: textLinks(ctx.project.dir),
@@ -338,20 +357,33 @@ export function createRender(
       Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]),
     )
     const styles = out.styles.map(s => ctx.asset(s))
-    const nav = html`<nav class="wb-nav">
-      <span>${crumbs(page.id, ctx.project.name)}</span
-      >${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button
-        type="button"
-        class="wb-theme"
-        title="Theme: follow the system, light or dark"
-        aria-label="Theme"
-      ></button
-      ><span class="wb-live" role="img" title="Connecting…" aria-label="Connecting…"></span>
-    </nav>`
+    // a built page: the project's name and the theme; nothing of the server's (crumbs into its
+    // folders, when it was updated, whether it is live)
+    const nav =
+      ctx.live === false
+        ? html`<nav class="wb-nav">
+            <span>${ctx.project.name}</span
+            ><button
+              type="button"
+              class="wb-theme"
+              title="Theme: follow the system, light or dark"
+              aria-label="Theme"
+            ></button>
+          </nav>`
+        : html`<nav class="wb-nav">
+            <span>${crumbs(page.id, ctx.project.name)}</span
+            >${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button
+              type="button"
+              class="wb-theme"
+              title="Theme: follow the system, light or dark"
+              aria-label="Theme"
+            ></button
+            ><span class="wb-live" role="img" title="Connecting…" aria-label="Connecting…"></span>
+          </nav>`
     // the page's own, the plugins' (every page), the blocks' on this page, then the project's
     const links = [
       ctx.asset(BASE_CSS),
-      ...PLUGIN_STYLES.map(f => ctx.asset(f)),
+      ...PLUGIN_STYLES.filter(s => !ctx.skip?.has(s.plugin)).map(s => ctx.asset(s.file)),
       ...styles,
       ...(STYLE ? [ctx.asset(STYLE)] : []),
     ]

@@ -31,6 +31,26 @@ export interface Config {
   plugins?: Plugin[]
   /** a stylesheet linked on every page, after the built-in ones: the project's own look */
   style?: URL | string
+  /** what `whiteboard build` makes: a static site of some pages, without what is only for writing them */
+  build?: BuildConfig
+}
+
+/**
+ * `whiteboard build`: pages rendered once, as plain HTML files with their images and styles, links
+ * between them relative. What is for writing them is left out: the live channel, the event log,
+ * and the plugins and blocks in `skip`. What is for reading stays (steps, ⤢, the theme, contents).
+ */
+export interface BuildConfig {
+  /**
+   * Which pages, as globs from the project's folder; `!` leaves out: `['docs/**\/*.md', '!docs/notes/**']`.
+   * Each lands in `out` at its place below the folder they share (`docs/api/forms.md` →
+   * `api/forms.html`); a README.md or index.md is its folder's index.html.
+   */
+  pages?: string[]
+  /** plugins or blocks left out of the site (default: form, chat, comments, draft) */
+  skip?: string[]
+  /** the folder the site goes to, from the project's folder (default: site) */
+  out?: string
 }
 
 export const defineConfig = (config: Config): Config => config
@@ -153,8 +173,11 @@ export interface PluginContext {
   project: Project
   /** the plugin's own folder, `.whiteboard/<name>/` (made, and ignored in git) */
   dataDir: string
-  /** whether a request carries the project's token: for a check of its own, beyond a route's `auth` */
-  authorized(req: import('node:http').IncomingMessage): boolean
+  /**
+   * whether a request carries the project's token: for a check of its own, beyond a route's `auth`.
+   * No request (`shell` for a page being built) has none.
+   */
+  authorized(req: import('node:http').IncomingMessage | null): boolean
   /** the URL that serves a file of the plugin (its browser module, a stylesheet) */
   asset(file: URL | string): string
 }
@@ -177,9 +200,13 @@ export interface PluginHooks {
    * length in `--wb-inset-bottom` on :root, registered with `@property` so that it computes to
    * pixels. The page keeps its own fixed elements clear of it and counts what is behind it as out
    * of view.
+   *
+   * `req` is the browser's request for the page; null for a page `whiteboard build` writes, which no
+   * browser asked for: what is only for the project's own browser (the terminal's drawer, behind
+   * `authorized`) has nothing to add there.
    */
   shell?(
-    req: import('node:http').IncomingMessage,
+    req: import('node:http').IncomingMessage | null,
   ):
     | { head?: string | Html; body?: string | Html }
     | null
@@ -364,6 +391,10 @@ export interface RenderContext {
    * not exist or nothing serves it. For relative links: resolve them from the page's folder first.
    */
   urlFor(file: string): string | null
+  /** false in a build (`whiteboard build`): the page is a file, with no updates and no events */
+  live?: boolean
+  /** in a build, the plugins and blocks left out: their blocks render as nothing */
+  skip?: ReadonlySet<string>
 }
 
 /**
@@ -376,6 +407,11 @@ export type PluginMount = (root: HTMLElement, page: PageHandle, api: Api) => voi
 export interface PageHandle {
   id: string
   kind: StoredPage['kind']
+  /**
+   * false on a built page (`whiteboard build`): a file, with no server behind it, so no events, no
+   * listeners and no updates; only what is for reading runs.
+   */
+  live: boolean
   /** what the server render returned with the HTML now in the root; it changes with each live update */
   data: Reactive<unknown>
   /**

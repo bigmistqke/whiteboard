@@ -280,6 +280,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
 | `whiteboard pick <event id>` | record an event as picked up, as `wait` does when it hands one out |
 | `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent picked up, who is listening |
+| `whiteboard build [globs…] [--out <dir>] [--skip <a,b>]` | pages as a static site (see [Building a site](#building-a-site)) |
 | `whiteboard serve` | run the server in the foreground |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 
@@ -308,6 +309,7 @@ export default defineConfig({
   ],
   style: new URL('./site.css', import.meta.url),   // a stylesheet on every page, after the others
   files: true,                   // serve and watch the rest of the project at /-/ (default: true)
+  build: { pages: ['docs/**/*.md'] },   // what `whiteboard build` makes (see Building a site)
 })
 ```
 
@@ -339,8 +341,8 @@ Every colour is a `light-dark()` pair, so one line sets it for both themes:
 :root { --text-size: 17px; --rhythm: 1em; }
 ```
 
-The built-in plugins are callout, chat, code, comments, details, forge,
-form, gallery, grid, iframe, mermaid, quiet, steps and window: every project has them, and
+The built-in plugins are callout, chat, code, comments, details, draft,
+forge, form, gallery, grid, iframe, mermaid, quiet, steps and window: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent, and so is the
@@ -353,6 +355,54 @@ Named forms need nothing in the config: the core sends a submit of any
 Set `files: false` for a project whose folder is not a repository, such as
 your home folder. Then only `.whiteboard/` is served and watched.
 `whiteboard init` sets it when run in the home folder.
+
+## Building a site
+
+Docs can be written as pages: the agent drafts, you comment on passages, a
+form settles a choice, a chat clears up a question. Kept in a folder of the
+repository (`docs/`), they are live pages at `/-/docs/…` while you write
+them. `whiteboard build` turns them into a site: plain HTML files with their
+images and styles, links between them relative, for GitHub Pages or any
+file host.
+
+```ts
+export default defineConfig({
+  build: {
+    pages: ['docs/**/*.md', '!docs/notes/**'],    // which pages, as globs; ! leaves out
+    skip: ['form', 'chat', 'comments', 'draft'],   // plugins or blocks left out (this is the default)
+    out: 'site',                                   // where it goes (default: site)
+  },
+})
+```
+
+```sh
+whiteboard build                                   # as configured
+whiteboard build 'docs/guide/*.md' --out preview   # or what is given, over the config
+```
+
+- **What is for writing is left out:** the live channel and the event log
+  (so no answers, chats or comments), new-content marks and toasts, and the
+  plugins and blocks in `skip`: their blocks render as nothing, their
+  stylesheets, browser modules and what they add to the page aren't included.
+  A plugin's `shell` is asked with no request, since no browser asked for the
+  page: the terminal's drawer, which is only for the project's own browser,
+  isn't there.
+- **What is for reading stays:** steps, the gallery's lightbox, ⤢ on
+  windows, the theme toggle, the contents, details. Code and diagrams were
+  rendered on the server, so the site loads no highlighter.
+- **`:::draft`** is for what is there while you write and not after: a note
+  to check something, two versions of a paragraph. It shows marked as a
+  draft, and the build leaves it out.
+- **Where pages land:** at their places below the folder they share, a
+  README.md or index.md as its folder's index.html (`docs/api/forms.md` →
+  `site/api/forms.html`). A link to a page outside the build, or to a file
+  outside that folder, stays as written, and the build says so.
+- **The folder is the build's:** it is replaced on each build, and one that
+  holds files a build didn't write is refused.
+
+Open the site through a web server (`npx serve site`) rather than as files:
+browsers don't run JavaScript modules from `file://`. The pages read either
+way, but steps, the lightbox and the theme toggle need the server.
 
 ## Writing a plugin
 

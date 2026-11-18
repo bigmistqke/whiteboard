@@ -47,6 +47,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard url <page|file>       the same: print the page URL
   whiteboard close <page>          a page that did its job: remove its file, and its events from the log
   whiteboard prune <page> [--type <t>] [--id <id>]   remove a page's events from the log, keep the page
+  whiteboard build [globs…] [--out <dir>] [--skip <a,b>]   pages as a static site: plain HTML, links
+                                   relative, without forms, chats, comments and drafts (the config's build)
   whiteboard edit <event id> --data <json>   change an agent's own event in place (merged into its data)
   whiteboard scroll <page|file> <where>  scroll the tabs that have the page open to a heading's text,
                                    a form's name or any text on it (opening details around it)
@@ -94,6 +96,8 @@ const { values: opts, positionals } =
           last: { type: 'string' },
           follow: { type: 'boolean' },
           id: { type: 'string' },
+          out: { type: 'string' },
+          skip: { type: 'string' },
           help: { type: 'boolean', short: 'h' },
         },
       })
@@ -378,6 +382,32 @@ switch (cmd) {
     const { start } = await import('../src/serve.ts')
     await start(proj)
     break
+  }
+  case 'build': {
+    // pages rendered once, as a static site: the config's `build`, with what is given here over it
+    const proj = needProject()
+    const { createServer } = await import('../src/server.ts')
+    const server = createServer(proj)
+    try {
+      const result = await server.build({
+        pages: positionals.length ? positionals : undefined,
+        out: opts.out,
+        skip:
+          opts.skip != null
+            ? opts.skip
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean)
+            : undefined,
+      })
+      for (const w of result.warnings) console.error(`whiteboard build: ${w}`)
+      console.log(
+        `built ${result.pages.length} page${result.pages.length === 1 ? '' : 's'} into ${path.relative(process.cwd(), result.out) || '.'}`,
+      )
+    } finally {
+      server.close()
+    }
+    process.exit(0)
   }
   case 'init': {
     init(positionals[0])
