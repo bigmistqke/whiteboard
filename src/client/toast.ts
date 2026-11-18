@@ -1,5 +1,5 @@
 // Toasts (api.toast): short labels in the page's corner (api.corner(), above what covers the bottom
-// of the window) that say what is going on and take the reader there: "→ waiting for you (2)",
+// of the window) that say what is going on and take the reader there: "→ unanswered (2)",
 // "↓ new (3)", "Sent, but no agent is listening". One goes after a few seconds, or on a click; one
 // with `ms: 0` stays until closed, and changes its text, or hides and shows again, through what
 // toast() returns. A click runs `onClick` (and closes a toast that goes by itself); `onDismiss`

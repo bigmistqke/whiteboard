@@ -532,7 +532,8 @@ interface above; in the browser, the page module (`src/client/page/`).
    listed after the page's content, read-only, until one of its name is
    back (`src/client/page/orphans.ts`).
 7. Shows what waits for the reader: open questions and unread messages. An
-   open form is outlined and says "waiting for you", a decided one folds
+   open form is outlined (without a label: one laid into the form landed on
+   its content in some layouts), a decided one folds
    into one line quoting its answer, with its thread still open under it (a
    click on the line opens the form again to change it). A line above the
    page counts the states and unread messages and jumps through each, two

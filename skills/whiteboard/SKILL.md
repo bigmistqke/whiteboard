@@ -233,9 +233,10 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   an answer up after you acted on it.
 
 The page shows the user what waits for them: every question without an
-answer is marked "waiting for you", and so is a message from you they
-haven't read (a reply in a comment thread, a chat message). A button goes
-from one to the next, and the tab title and the header count them. Whether
+answer is outlined as waiting for them, and so is a message from you they
+haven't read (a reply in a comment thread, a chat message). Labels in the
+page's corner ("→ unanswered (n)", "→ unread (n)") go from one to the next,
+and the tab title and the header count them. Whether
 your wait runs doesn't change that, so answers given while none runs wait in
 the log for you. So:
 
