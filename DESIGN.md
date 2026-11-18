@@ -548,7 +548,11 @@ interface above; in the browser, the page module (`src/client/page/`).
    Frontmatter is not part of the page: it is YAML, parsed (with `yaml`, as
    other markdown tools read it: nested fields, lists, booleans), for the
    page handle; one that doesn't parse, or isn't fields, is read as none and
-   said on the page. Code blocks that no block handles render as
+   said on the page. Its top level is the core's and other tools' (`title`,
+   `tags`, `layout`): a plugin's settings for a page are under `plugins:`, by
+   its name, handed to its browser module as `page.settings`. A plugin named
+   like a field the core takes later, or like another tool's, can't collide,
+   as its events (`name:type`) and routes (`/api/name/`) can't. Code blocks that no block handles render as
    plain `<pre><code>`, unless a block takes every fence (`fence: 'any'`,
    the built-in `code`).
 2. Hands extension points to the plugins' blocks:

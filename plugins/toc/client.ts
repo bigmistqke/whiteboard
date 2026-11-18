@@ -33,7 +33,7 @@ function fits() {
   return main.getBoundingClientRect().left >= narrowest + GAP + EDGE
 }
 
-/** A width as the frontmatter or the options give it: a CSS length, or a number of pixels. */
+/** A width as the settings or the options give it: a CSS length, or a number of pixels. */
 const length = (value: unknown): string | null => {
   const m = /^(\d+(?:\.\d+)?)(px|em|rem|ch|vw)?$/.exec(String(value ?? '').trim())
   return m && Number(m[1]) > 0 ? m[1] + (m[2] ?? 'px') : null
@@ -41,11 +41,11 @@ const length = (value: unknown): string | null => {
 
 /**
  * How wide the panel may be: it fits its items, between a minimum and a maximum, which the page's
- * frontmatter can set (`toc: { minWidth: 160px, maxWidth: 320px }`), else the project's options.
+ * settings can set (`plugins: { toc: { minWidth: 160px, maxWidth: 320px } }`), else the project's options.
  */
 function bounds() {
   const meta = document.querySelector<HTMLMetaElement>('meta[name=wb-toc]')
-  const said = handle.frontmatter().toc
+  const said = handle.settings()
   const own = said && typeof said === 'object' ? (said as Record<string, unknown>) : {}
   for (const [name, prop] of [
     ['minWidth', '--wb-toc-min-width'],
@@ -66,10 +66,11 @@ function place() {
 
 let handle: PageHandle
 
-/** Does this page have it: what its frontmatter says (`toc:`), and whether it is on everywhere. */
+/** Does this page have it: what its settings say, and whether it is on everywhere. */
 function wanted() {
-  // `toc: true`, or `toc: { minWidth, maxWidth }`: on; `toc: false`: off; else as the project says
-  const said = handle.frontmatter().toc
+  // its settings (`plugins: { toc: … }`): true, or { minWidth, maxWidth }: on; false: off; else as
+  // the project says
+  const said = handle.settings()
   const always = document.querySelector('meta[name=wb-toc]')?.getAttribute('content') === 'always'
   if (said === false) return false
   if (said === true || (said && typeof said === 'object')) return true
@@ -190,7 +191,7 @@ const mount: PluginMount = (root, page, core) => {
   addEventListener('scroll', soon(current), { passive: true })
   addEventListener('resize', soon(build))
   api.onRendered(build)
-  page.frontmatter.on(build)
+  page.settings.on(build)
   api.forms.on(() => mark())
   api.events.on(() => requestAnimationFrame(mark))
   build()

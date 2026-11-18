@@ -6,8 +6,8 @@
 //   import toc from '@bigmistqke/whiteboard/toc'
 //   export default defineConfig({ plugins: [toc()] })
 //
-// A page has it when its frontmatter says `toc: true`. With `toc({ always: true })`, every page has
-// it, unless its frontmatter says `toc: false`.
+// A page has it when its frontmatter says so, under `plugins:` (`plugins: { toc: true }`). With
+// `toc({ always: true })`, every page has it, unless its frontmatter says `toc: false` there.
 import { builtinPublic } from '../../src/package.ts'
 import { html } from '../../src/html.ts'
 import type { Plugin } from '../../src/define.ts'
@@ -20,11 +20,11 @@ in it. A section with an unanswered question or an unread message has a dot.
 `
 
 export interface TocOptions {
-  /** on every page, not only the ones whose frontmatter says `toc: true` (`toc: false` still goes without) */
+  /** on every page, not only the ones that ask (`plugins: { toc: true }`); `toc: false` there still goes without */
   always?: boolean
   /** the panel fits its items, but never narrower than this: a CSS length, or pixels (default 160px) */
   minWidth?: string | number
-  /** nor wider than this (default 320px); a page's frontmatter can say otherwise: `toc: { maxWidth: 280px }` */
+  /** nor wider than this (default 320px); a page can say otherwise: `plugins: { toc: { maxWidth: 280px } }` */
   maxWidth?: string | number
 }
 
@@ -33,9 +33,10 @@ export default function toc(options: TocOptions = {}): Plugin {
     name: 'toc',
     docs: () =>
       options.always
-        ? DOCS + '\nIn this project every page has it; a page without it says `toc: false` in its frontmatter.\n'
+        ? DOCS +
+          '\nIn this project every page has it; a page goes without with `toc: false` under `plugins:` in its frontmatter:\n\n```markdown\n---\nplugins:\n  toc: false\n---\n```\n'
         : DOCS +
-          '\nA page has it when its frontmatter says `toc: true`:\n\n```markdown\n---\ntoc: true\n---\n# A long page\n```\n',
+          '\nA page has it when its frontmatter asks, under `plugins:`:\n\n```markdown\n---\nplugins:\n  toc: true\n---\n# A long page\n```\n',
     public: builtinPublic('toc'),
     style: 'style.css',
     setup: () => ({

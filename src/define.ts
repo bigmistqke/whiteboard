@@ -418,12 +418,20 @@ export interface PageHandle {
   /** what the server render returned with the HTML now in the root; it changes with each live update */
   data: Reactive<unknown>
   /**
-   * The page's frontmatter: YAML between `---` lines at its start, as parsed (`toc: true` is `true`,
-   * `toc: { maxWidth: 280px }` an object); empty for a page without one, one that doesn't parse, and
-   * for the overview, folders and code. It changes with a live update that changed it, once the new
-   * page is in place (`onChange` comes before, with the old one still here).
+   * The page's frontmatter: YAML between `---` lines at its start, as parsed; empty for a page
+   * without one, one that doesn't parse, and for the overview, folders and code. It changes with a
+   * live update that changed it, once the new page is in place (`onChange` comes before, with the
+   * old one still here). The top level is the core's and other tools' (`title`, `tags`); a plugin's
+   * own is under `plugins:`, by its name, and is its `settings`.
    */
   frontmatter: Reactive<Record<string, unknown>>
+  /**
+   * For a plugin's browser module, its own entry in the page's frontmatter, under `plugins:` by its
+   * name, as parsed: `plugins: { toc: true }` is `true` for toc, `plugins: { toc: { maxWidth: 240px } }`
+   * an object; undefined when the page says nothing for it (and for the page module). It changes
+   * when that entry does.
+   */
+  settings: Reactive<unknown>
   /** called when the stored page changed; returns an unsubscribe */
   onChange(fn: () => void): () => void
   /** the server render, afresh */

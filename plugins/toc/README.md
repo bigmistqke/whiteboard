@@ -9,17 +9,19 @@ import toc from '@bigmistqke/whiteboard/toc'
 export default defineConfig({ plugins: [toc()] })
 ```
 
-A page has it when its frontmatter says `toc: true`:
+A page has it when its frontmatter asks, under `plugins:` (where every
+plugin's settings for a page go, by the plugin's name):
 
 ```markdown
 ---
-toc: true
+plugins:
+  toc: true
 ---
 # A long page
 ```
 
 To have it on every page, `toc({ always: true })`; a page then goes without
-with `toc: false`.
+with `toc: false` there.
 
 The panel fits its items, between a minimum and a maximum width (160px and
 320px by default). A project sets its own in the options, and a page in its
@@ -31,7 +33,8 @@ toc({ minWidth: 180, maxWidth: '24rem' })   // pixels, or a CSS length
 
 ```markdown
 ---
-toc:
-  maxWidth: 240px
+plugins:
+  toc:
+    maxWidth: 240px
 ---
 ```

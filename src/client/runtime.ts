@@ -159,7 +159,9 @@ let frontmatter: Record<string, unknown> = handoff.frontmatter ?? {}
 let nextFrontmatter = frontmatter
 const dataValue = reactive(() => data)
 const frontmatterValue = reactive(() => frontmatter)
+const nothing = reactive((): unknown => undefined)
 const handle: PageHandle = {
+  settings: nothing,
   id: page,
   kind: handoff.kind,
   live,
@@ -274,6 +276,26 @@ if (live) {
     },
   })
 }
+/**
+ * A plugin's page handle: the page's, with its own settings, the page's frontmatter under `plugins:`
+ * by its name, heard of only when they changed.
+ */
+function handleFor(name: string): PageHandle {
+  const own = () => {
+    const plugins = frontmatter.plugins
+    return plugins && typeof plugins === 'object' ? (plugins as Record<string, unknown>)[name] : undefined
+  }
+  const settings = reactive(own)
+  let last = JSON.stringify(own() ?? null)
+  frontmatterValue.on(() => {
+    const now = JSON.stringify(own() ?? null)
+    if (now === last) return
+    last = now
+    settings.notify()
+  })
+  return { ...handle, settings }
+}
+
 // the plugins' modules after the page, so that what they work on is there; one failing leaves the others
 await Promise.all(
   (handoff.plugins ?? []).map(async ext => {
@@ -281,7 +303,7 @@ await Promise.all(
       const mount: PluginMount = (await import(moduleUrl(ext.client))).default
       if (typeof mount !== 'function')
         throw new Error('the client module must export a mount(root, page, api) function as default')
-      await mount(root, handle, api)
+      await mount(root, handleFor(ext.name), api)
     } catch (err) {
       console.error(`plugin ${ext.name}:`, err)
       root.insertAdjacentHTML(

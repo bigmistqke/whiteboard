@@ -56,7 +56,10 @@ test(
 test('toc: a page opts in through its frontmatter', { timeout: 60000 }, async t => {
   const OPT_IN = `import toc from '@bigmistqke/whiteboard/toc'\nexport default { plugins: [toc()] }\n`
   const BODY = `# Long page\n\n## One\n\n${filler(10, 'One')}\n\n## Two\n\n${filler(10, 'Two')}\n`
-  const proj = await project({ config: OPT_IN, pages: { plain: BODY, asks: `---\ntoc: true\n---\n${BODY}` } })
+  const proj = await project({
+    config: OPT_IN,
+    pages: { plain: BODY, asks: `---\nplugins:\n  toc: true\n---\n${BODY}`, top: `---\ntoc: true\n---\n${BODY}` },
+  })
   const { browser: b, page, errors } = await browser()
   t.after(async () => {
     await b.close()
@@ -73,26 +76,36 @@ test('toc: a page opts in through its frontmatter', { timeout: 60000 }, async t 
   await page.waitForSelector('h2')
   await page.waitForTimeout(300)
   assert.ok(!(await shown()), 'none where it does not')
+  await page.goto(proj.url('top'))
+  await page.waitForSelector('h2')
+  await page.waitForTimeout(300)
+  assert.ok(!(await shown()), "a top-level toc: is not the plugin's: its settings are under plugins:")
+  await page.goto(proj.url('plain'))
+  await page.waitForSelector('h2')
   // the frontmatter changes while the page is open: it comes
-  proj.page('plain', `---\ntoc: true\n---\n${BODY}`)
+  proj.page('plain', `---\nplugins:\n  toc: true\n---\n${BODY}`)
   await until('it came with the frontmatter', async () => (await shown()) || null)
   assert.deepEqual(errors, [])
 })
 
-test('toc({ always: true }): on every page, a page says toc: false to go without', { timeout: 60000 }, async t => {
-  const proj = await project({ config: CONFIG, pages: { off: `---\ntoc: false\n---\n${PAGE}` } })
-  const { browser: b, page, errors } = await browser()
-  t.after(async () => {
-    await b.close()
-    await proj.close()
-  })
-  await page.setViewportSize({ width: 1400, height: 800 })
-  await page.goto(proj.url('off'))
-  await page.waitForSelector('h2')
-  await page.waitForTimeout(300)
-  assert.ok((await page.locator('.wb-toc').isHidden()) && (await page.locator('.wb-toc-toggle').isHidden()))
-  assert.deepEqual(errors, [])
-})
+test(
+  'toc({ always: true }): on every page, a page says plugins: { toc: false } to go without',
+  { timeout: 60000 },
+  async t => {
+    const proj = await project({ config: CONFIG, pages: { off: `---\nplugins:\n  toc: false\n---\n${PAGE}` } })
+    const { browser: b, page, errors } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    await page.setViewportSize({ width: 1400, height: 800 })
+    await page.goto(proj.url('off'))
+    await page.waitForSelector('h2')
+    await page.waitForTimeout(300)
+    assert.ok((await page.locator('.wb-toc').isHidden()) && (await page.locator('.wb-toc-toggle').isHidden()))
+    assert.deepEqual(errors, [])
+  },
+)
 
 test(
   'toc: the panel fits its items, between bounds the options set and a page overrides',
@@ -104,9 +117,9 @@ test(
     const proj = await project({
       config: BOUNDED,
       pages: {
-        short: `---\ntoc: true\n---\n${short}`,
-        long: `---\ntoc: true\n---\n${long}`,
-        narrow: `---\ntoc:\n  maxWidth: 200px\n---\n${long}`,
+        short: `---\nplugins:\n  toc: true\n---\n${short}`,
+        long: `---\nplugins:\n  toc: true\n---\n${long}`,
+        narrow: `---\nplugins:\n  toc:\n    maxWidth: 200px\n---\n${long}`,
         broken: `---\ntoc: [unclosed\n---\n${short}`,
       },
     })

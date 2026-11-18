@@ -347,7 +347,7 @@ forge, form, gallery, grid, iframe, mermaid, quiet, steps and window: every proj
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent, and so is the
 table of contents (`toc`), which a page then asks for in its frontmatter
-(`toc: true`).
+(`plugins: { toc: true }`).
 
 Named forms need nothing in the config: the core sends a submit of any
 `<form name>` as an event, on any page.
@@ -584,7 +584,8 @@ A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get
 the page's `api`: its `events` and `append` (which comes back through
 `events.on`), the `listeners`, `forms` and `unread` messages, `onRendered`
 (after a live update, to put back what it adds), the page's `frontmatter`
-on the page handle (YAML, as parsed: `toc: true` is `true`), `corner()` for floating buttons, `toast()` for a label in
+on the page handle (YAML, as parsed) and the plugin's own `settings` in it
+(under `plugins:` by its name: `plugins: { toc: true }` is `true` for toc), `corner()` for floating buttons, `toast()` for a label in
 the corner that says what is going on and goes there (one that hides after a
 few seconds, or one that stays with a count), `badge()` for counts in the
 tab title, and the `theme`. Every value that changes is called for what it
