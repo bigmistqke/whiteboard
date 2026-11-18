@@ -256,7 +256,9 @@ your wait runs doesn't change that, so answers given while none runs wait in
 the log for you. So:
 
 - An answer counts as picked up once your `wait` or `watch` hands it to you;
-  the form then folds into one line quoting it, as decided. Answers no wait
+  the form then folds into a card showing the answer, as decided, with its
+  chat folded into "💬 n messages" (your messages there still open it for
+  the user). Answers no wait
   has handed out show as waiting for you to pick them up. Waiting on a
   decided form by name (`--type`) asks the user again: it is open again.
 - Keep a `wait` or `watch` running for as long as you want answers, and only

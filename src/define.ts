@@ -542,8 +542,8 @@ export interface FormStatus {
  * `::name` and `:name`; and, when it says so (`fence`), the code fences of that language,
  * ```` ```name ````. Server functions run while the page renders; `client` runs in the browser.
  *
- * File references are URLs relative to the plugin's module, so they work wherever it is installed:
- *   client: new URL('./client.js', import.meta.url)
+ * Its files are in its plugin's public folder, named within it, so they work wherever it is
+ * installed: `client: 'chart.js'`, `style: 'chart.css'`.
  */
 export interface Block<Props = unknown> {
   /**

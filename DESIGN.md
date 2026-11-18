@@ -585,8 +585,12 @@ interface above; in the browser, the page module (`src/client/page/`).
 7. Shows what waits for the reader: open questions and unread messages. An
    open form is outlined (without a label: one laid into the form landed on
    its content in some layouts), a decided one folds
-   into one line quoting its answer, with its thread still open under it (a
-   click on the line opens the form again to change it). A line above the
+   into a card the page puts in it: what was chosen (with several answers,
+   the button as title and each answer a line), what was written, "decided
+   · change" (a click on the card opens the form again). Its chat folds into
+   "💬 n messages", opened by a click, by an unread message from the agent,
+   and kept open while its box has the focus or unsent text. It used to be
+   drawn in CSS around the form, which couldn't be laid out. A line above the
    page counts the states and unread messages and jumps through each, two
    toasts in the page's corner go from one open question to the next and
    from one unread message to the next (a message not shown, such as a
@@ -728,8 +732,9 @@ uses the build throughout, so the two never mix.
 This is the usual way to run a TypeScript package from source during
 development; the condition stays in the published `package.json`, where
 nothing asks for it. Only browser code is always built (`npm run dev`), so
-the page module and the plugins find their browser modules in `dist/`
-(`builtFile`), from source and from the build alike.
+the page module and the built-in plugins find their browser files in `dist/`
+(a plugin's in `dist/plugins/<name>/public/`, `builtinPublic`), from source
+and from the build alike.
 Paths into the package are found from its root (`src/package.ts`), since a
 module in `dist/` sits at another depth than its source.
 

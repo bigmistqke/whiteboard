@@ -316,7 +316,8 @@ form, gallery, grid, iframe, mermaid, quiet and window: every project has them, 
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
 plugin are opt-in, since they run code or are about one agent, and so is the
-table of contents (`toc`), which takes the margin beside every page.
+table of contents (`toc`), which a page then asks for in its frontmatter
+(`toc: true`).
 
 Named forms need nothing in the config: the core sends a submit of any
 `<form name>` as an event, on any page.
@@ -559,8 +560,10 @@ Not started.
   message). A message is read once it has been in view, and that is
   recorded in the log, so it holds in every browser. An answered form waits
   for the agent until it picks the answer up, then it is decided and folds
-  to one line quoting the answer, with its chat still under it; a click
-  opens it again. A line above the page counts all this, the corner's
+  into a card: what you chose (several answers each on a line, under the
+  button you pressed), what you wrote, "decided · change"; a click opens
+  it again. Its chat folds into "💬 n messages", and opens when the agent
+  writes there, or stays open while you are writing in it. A line above the page counts all this, the corner's
   toasts go to the next question ("→ unanswered (n)") and the next
   unread message ("→ unread (n)"), and the tab title gets a `(!n)` prefix. An answer sent while no agent
   listens says so in a toast; it stays in the log for the next agent that
