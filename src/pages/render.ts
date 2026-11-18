@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
 import { html, raw, type Html } from '../html.ts'
+import { INBOX_ICON, awaitingLabel } from '../icons.ts'
 import type { RenderContext, Rendered, StoredPage } from '../define.ts'
 import type { ResolvedBlock, ResolvedBlocks } from './blocks.ts'
 
@@ -28,7 +29,7 @@ const CODE_LANG: Record<string, string> = { js: 'javascript', mjs: 'javascript',
 const body = (source: string) => source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
 
 /** A page's title: its first heading, else its name. */
-function titleOf(file: string, fallback: string) {
+export function titleOf(file: string, fallback: string) {
   try {
     const h1 = /^#\s+(.+)$/m.exec(body(fs.readFileSync(file, 'utf8')))
     return h1 ? h1[1].replace(/[*_`]/g, '') : fallback
@@ -43,9 +44,9 @@ function crumbs(id: string, name: string) {
 const time = (ts: number) => html`<time data-ts="${ts}"></time>`
 
 function pageList(pages: PagesPage['pages']) {
-  return html`<ul class="wb-index">${pages.map(p => html`<li><a href="/${p.id}">${titleOf(p.file, path.basename(p.id))}</a> <span class="wb-meta"><code>${p.id}</code> · edited ${time(p.mtime)}${
-    p.lastEvent && html` · last submit ${time(Date.parse(p.lastEvent))}`}${
-    p.listeners > 0 && html` · <span class="wb-waiting">agent waiting</span>`}</span></li>`)}</ul>`
+  return html`<ul class="wb-index">${pages.map(p => html`<li><a href="/${p.id}">${titleOf(p.file, path.basename(p.id))}</a>${
+    p.awaiting > 0 && html` <a class="wb-awaiting" href="/${p.id}#wb-waiting" title="${awaitingLabel(p.awaiting)}" aria-label="${awaitingLabel(p.awaiting)}">${raw(INBOX_ICON)}${p.awaiting}</a>`} <span class="wb-meta"><code>${p.id}</code> · edited ${time(p.mtime)}${
+    p.lastEvent && html` · last submit ${time(Date.parse(p.lastEvent))}`}</span></li>`)}</ul>`
 }
 
 /** The folder's README, when it has one. */
@@ -159,7 +160,7 @@ export function createRender(blocks: () => ResolvedBlocks, style?: URL | string,
     }
     const islands = Object.fromEntries(Object.entries(out.islands).map(([id, island]) => [id, { ...island, client: ctx.asset(island.client) }]))
     const styles = out.styles.map(s => ctx.asset(s))
-    const nav = html`<nav class="wb-nav"><span>${crumbs(page.id, ctx.project.name)}</span>${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark">auto</button><span class="wb-live" title="live reload"></span></nav>`
+    const nav = html`<nav class="wb-nav"><span>${crumbs(page.id, ctx.project.name)}</span>${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button type="button" class="wb-theme" title="Theme: follow the system, light or dark" aria-label="Theme"></button><span class="wb-live" title="live reload"></span></nav>`
     // the page's own, the plugins' (every page), the blocks' on this page, then the project's
     const links = [ctx.asset(BASE_CSS), ...PLUGIN_STYLES.map(f => ctx.asset(f)), ...styles, ...(STYLE ? [ctx.asset(STYLE)] : [])]
     return {

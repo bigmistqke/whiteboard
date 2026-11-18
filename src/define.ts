@@ -214,6 +214,8 @@ export interface CommandContext {
 /** What is open on one page. */
 export interface PageStatus {
   page: string
+  /** what the reader knows it by: its first heading, else its name */
+  title: string
   /** the page's file */
   file: string
   /** the session that claimed the page with `whiteboard new`, if one did */
@@ -287,8 +289,8 @@ export interface FolderSource extends StoredBase {
 /** The overview, or a folder of pages without an index.md. */
 export interface PagesSource extends StoredBase {
   kind: 'pages'
-  /** `listeners`: how many agents are waiting for answers on the page right now */
-  pages: { id: string; file: string; mtime: number; lastEvent: string | null; listeners: number }[]
+  /** `awaiting`: how many of the page's questions an agent is waiting on the reader for */
+  pages: { id: string; file: string; mtime: number; lastEvent: string | null; awaiting: number }[]
 }
 
 /** What the core offers the pages on the server: how files are served and linked. */

@@ -39,7 +39,7 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   await page.goto(proj.url('q'))
   let s = await until('the form is marked', async () => { const x = await state(); return x.attrs.length ? x : null })
   assert.ok(s.attrs.includes('data-wb-unheard'), 'unheard without a listener')
-  assert.equal(s.summary, '1 nobody listening')
+  assert.equal(s.summary, '1 with no agent listening')
   assert.equal(s.summaryBeforeMain, 'MAIN', 'the summary line sits right before <main>')
 
   const wait = proj.spawn('wait', '--page', 'q')
@@ -152,4 +152,77 @@ test('a chat block: the reader writes, the agent answers, and a wait hands the m
   // a chat block asks nothing: the page has no open question
   assert.match(proj.cli('status', '--page', 'q'), /nothing open/)
   assert.deepEqual(errors, [], 'no console errors')
+})
+
+test('the header lists what waits on other pages, and its link goes to the first waiting form', { timeout: 60000 }, async t => {
+  const filler = Array.from({ length: 60 }, (_, i) => `Paragraph ${i}.`).join('\n\n')
+  const proj = await project({ pages: {
+    here: '# Here\n\n:::form{name=mine}\n:text[Note]{name=note}\n:::\n',
+    there: `# Over there\n\n${filler}\n\n:::form{name=first}\n:text[A]{name=a}\n:::\n\n${filler}\n\n:::form{name=second}\n:text[B]{name=b}\n:::\n`,
+  } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+
+  const menu = page.locator('.wb-nav .wb-elsewhere')
+  await page.goto(proj.url('here'))
+  await page.waitForSelector('form[name=mine][data-wb-unheard]')
+  assert.ok(await menu.isHidden(), 'nothing waits elsewhere: no menu')
+
+  // an agent starts waiting on the other page: the menu comes, live
+  const wait = proj.spawn('wait', '--page', 'there')
+  await menu.waitFor({ state: 'visible' })
+  assert.equal(await page.textContent('.wb-elsewhere-toggle'), '2')
+  assert.equal(await page.getAttribute('.wb-elsewhere-toggle', 'aria-label'), 'Awaiting you: 2 questions on another page')
+  assert.ok(await page.locator('.wb-elsewhere-list').isHidden(), 'closed until clicked')
+  await page.click('.wb-elsewhere-toggle')
+  assert.deepEqual(await page.$$eval('.wb-elsewhere-list a', as => as.map(a => a.textContent)), ['Over there (2)'])
+
+  // the overview: the same inbox, after the page's title, and no word on who listens elsewhere
+  const overview = await b.newPage()
+  await overview.goto(proj.url(''))
+  assert.deepEqual(await overview.$$eval('.wb-index .wb-awaiting', as => as.map(a => [a.textContent, a.getAttribute('href')])), [['2', '/there#wb-waiting']])
+  assert.ok(!(await overview.textContent('.wb-index'))!.includes('agent waiting'))
+  await overview.close()
+
+  // its page has no menu for itself: what waits there is in its corner
+  await page.click('.wb-elsewhere-list a')
+  await page.waitForURL(u => u.pathname === '/there')
+  const first = page.locator('form[name=first]')
+  await until('scrolled to the first waiting form', async () => {
+    const box = await first.boundingBox()
+    return box && box.y > 0 && box.y < (page.viewportSize()?.height ?? 720) ? true : null
+  })
+  assert.equal(new URL(page.url()).hash, '', 'the link\'s #wb-waiting is gone once used')
+  assert.ok(await menu.isHidden(), 'nothing waits on other pages')
+
+  wait.kill()
+  assert.deepEqual(errors, [])
+})
+
+test('an answer no agent is listening for says so in a toast; one an agent waits for does not', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { q: '# Q\n\n:::form{name=ask}\n:text[Why]{name=why}\n:::\n' } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => { await b.close(); await proj.close() })
+
+  await page.goto(proj.url('q'))
+  await page.waitForSelector('form[name=ask][data-wb-unheard]')
+  await page.fill('input[name=why]', 'nobody hears this')
+  await page.click('form[name=ask] button')
+  const toast = page.locator('.wb-toast')
+  await toast.waitFor({ state: 'visible' })
+  assert.match((await toast.textContent())!, /no agent is listening/)
+  await toast.click()
+  await toast.waitFor({ state: 'detached' })
+
+  // a wait first hands out the answer nobody picked up yet; the next one waits for a new one
+  const first = proj.spawn('wait', '--page', 'q', '--type', 'ask')
+  assert.equal(JSON.parse(await until('the first wait got the old answer', () => first.output())).data.why, 'nobody hears this')
+  const wait = proj.spawn('wait', '--page', 'q', '--type', 'ask')
+  await page.waitForSelector('form[name=ask][data-wb-waiting]')
+  await page.fill('input[name=why]', 'heard')
+  await page.click('form[name=ask] button')
+  await until('the wait got it', () => wait.output())
+  await page.waitForTimeout(500)
+  assert.equal(await page.locator('.wb-toast').count(), 0, 'no toast when an agent took it')
+  assert.deepEqual(errors, [])
 })

@@ -8,6 +8,7 @@ import type { ClientApi, Mount } from '../../define.ts'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { trackWaiting } from './waiting'
+import { trackElsewhere } from './elsewhere'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
 
@@ -60,13 +61,30 @@ function disposeWithin(node: Node) {
 // ---- theme -------------------------------------------------------------------------------------
 
 const NEXT: Record<ThemePreference, ThemePreference> = { auto: 'light', light: 'dark', dark: 'auto' }
+// the preference as an icon: half a circle for following the system, a sun, a moon
+const svg = (d: string) => `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">${d}</svg>`
+const THEME_ICON: Record<ThemePreference, string> = {
+  auto: svg('<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor"/>'),
+  light: svg('<circle cx="8" cy="8" r="2.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.2v1.8M8 13v1.8M1.2 8H3M13 8h1.8M3.2 3.2l1.3 1.3M11.5 11.5l1.3 1.3M3.2 12.8l1.3-1.3M11.5 4.5l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'),
+  dark: svg('<path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>'),
+}
+const THEME_LABEL: Record<ThemePreference, string> = { auto: 'Theme: follows the system', light: 'Theme: light', dark: 'Theme: dark' }
+
 function themeToggle(root: HTMLElement) {
   const button = root.querySelector<HTMLButtonElement>('.wb-theme')
   if (!button) return
-  button.textContent = themePreference()
+  const show = () => {
+    const pref = themePreference()
+    button.innerHTML = THEME_ICON[pref]
+    button.dataset.pref = pref
+    // what it is now, and that a click changes it
+    button.title = `${THEME_LABEL[pref]} (click for ${NEXT[pref]})`
+    button.setAttribute('aria-label', button.title)
+  }
+  show()
   button.addEventListener('click', () => {
     setThemePreference(NEXT[themePreference()])
-    button.textContent = themePreference()
+    show()
   })
 }
 
@@ -241,6 +259,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   blockSigs = [...main.children].map(signature)
   if (!isDir) trackInitial(main, page, core)
   if (!isDir) trackWaiting(main, core)
+  trackElsewhere(root, handle, core)
   if (!isDir) trackOrphanThreads(main, core)
   await mountIslands()
   tickTimes()

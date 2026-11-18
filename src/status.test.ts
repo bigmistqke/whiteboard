@@ -39,7 +39,7 @@ test('questionState gives the latest answer', () => {
 })
 
 const page = (over: Partial<PageStatus>): PageStatus =>
-  ({ page: 'p', file: '/x/p.md', owner: null, asks: [], questions: [], open: [], unheard: [], unpicked: [], listeners: [], ...over })
+  ({ page: 'p', title: 'p', file: '/x/p.md', owner: null, asks: [], questions: [], open: [], unheard: [], unpicked: [], listeners: [], ...over })
 
 test('statusLines: what is open, the command once, then what an agent waits on', () => {
   const p = page({ open: ['a', 'b'], unheard: ['a'], unpicked: [answer, newer] })

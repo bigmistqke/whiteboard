@@ -26,6 +26,7 @@ import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type Moun
 import { createAuth } from './auth.ts'
 import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
 import { questionState } from './status.ts'
+import { titleOf } from './pages/render.ts'
 import type { Listener, PageSource, PageStatus, Plugin, PluginHooks, Rendered, StoredPage, PagesSource } from './define.ts'
 
 const ENGINE_DIR = PACKAGE_DIR
@@ -212,7 +213,7 @@ export function createServer(project: Project): WhiteboardServer {
         if (ent.isDirectory()) walk(full)
         else if (ent.name.endsWith('.md')) {
           const id = path.relative(project.pagesDir, full).split(path.sep).join('/').replace(/\.md$/, '')
-          out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: last.get(id) ?? null, listeners: listenersFor(id).length })
+          out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: last.get(id) ?? null, awaiting: 0 })
         }
       }
     }
@@ -349,7 +350,7 @@ export function createServer(project: Project): WhiteboardServer {
       const questions = asks.map(name => ({ name, state: questionState(name, events, listening, id => picked.has(id)).state }))
       const named = (...states: string[]) => questions.filter(q => states.includes(q.state)).map(q => q.name)
       out.push({
-        page: p.id, file: p.file, owner: owner.get(p.id) ?? null, asks, questions,
+        page: p.id, title: titleOf(p.file, path.basename(p.id)), file: p.file, owner: owner.get(p.id) ?? null, asks, questions,
         open: named('waiting', 'unheard'),
         unheard: named('unheard'),
         // the reader's events for an agent: a form's answers, and plugin events declared handOut
@@ -543,6 +544,11 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
     if ('raw' in found) return found
     // a folder is served at /dir/, so relative links resolve inside it
     if ((found.kind === 'folder' || (found.kind === 'pages' && id)) && !requested.endsWith('/')) return { redirect: `/${id}/` }
+    // a list of pages says which await the reader: where their questions stand takes the config
+    if (found.kind === 'pages') {
+      const awaiting = new Map((await status(found.id || null)).map(s => [s.page, s.questions.filter(q => q.state === 'waiting').length]))
+      for (const p of found.pages) p.awaiting = awaiting.get(p.id) ?? 0
+    }
     return { page: found }
   }
 

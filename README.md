@@ -527,11 +527,16 @@ Not started.
 - **A chat under every form,** to ask about a question without answering
   it: a message is never a submit. `:::chat{name=…}` puts one anywhere.
 - **What waits on whom.** A form is waiting for you (an agent listens for
-  it), nobody listening, waiting for the agent (answered, not yet picked
-  up), or decided: then it folds to one line quoting the answer, with its
-  chat still under it, and a click opens it again. A line above the page
+  it), with no agent listening, waiting for the agent (answered, not yet
+  picked up), or decided: then it folds to one line quoting the answer, with
+  its chat still under it, and a click opens it again. A line above the page
   counts them, a button jumps to the next form waiting for you, and the tab
-  title gets a `(!n)` prefix.
+  title gets a `(!n)` prefix. An answer sent while no agent listens says so
+  in a toast; it stays in the log for the next agent that checks.
+- **What waits on other pages.** While another page has a question an agent
+  is waiting on, the header shows an inbox with their count; it opens a
+  list of those pages, and a page in it opens at its first waiting
+  question. The overview marks the same pages with the inbox.
 - **Comments.** Select any passage and comment on it; the agent replies in
   the thread or edits the page. Passages are found again after edits.
 - **What changed.** A block you haven't seen gets a bar until it has been

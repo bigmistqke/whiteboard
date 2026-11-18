@@ -2,15 +2,19 @@
 // (waiting, unheard, pending, decided; see `api.onForms`); the page styles those marks (base.css),
 // folds a decided form into one line quoting its answer, sums the states up in a line above the
 // page, puts a button in the page's corner that jumps from one waiting form to the next, and counts
-// the waiting ones in the tab title.
+// the waiting ones in the tab title. Arriving by a link that ends in `#wb-waiting` (the header's
+// menu of other pages, elsewhere.ts), it scrolls to the first waiting form. An answer no agent is
+// listening for says so once it is sent, in a toast: the form's own mark may be out of view.
 import type { Api, FormState, FormStatus } from '../../define.ts'
 import { viewBottom } from './view'
 import { STATES } from '../../status.ts'
+import { WAITING_HASH } from './elsewhere'
+import { toast } from './toast'
 
 const ORDER = STATES
 const LABEL: Record<FormState, (n: number) => string> = {
   waiting: n => `${n} waiting for you`,
-  unheard: n => `${n} nobody listening`,
+  unheard: n => `${n} with no agent listening`,
   pending: n => `${n} waiting for the agent`,
   decided: n => `${n} decided`,
 }
@@ -54,7 +58,18 @@ function show(list: FormStatus[]) {
   button.hidden = n === 0
   button.textContent = `→ waiting for you (${n})`
   api.badge('waiting', n ? `!${n}` : null, -1)
+  // arrived to answer: the first waiting form, once the page knows which wait (who listens loads
+  // after the page)
+  if (arriving && n) {
+    arriving = false
+    history.replaceState(history.state, '', location.pathname + location.search)
+    requestAnimationFrame(() => jumpTo(inState('waiting')[0], 'waiting'))
+  }
 }
+
+let arriving = location.hash === WAITING_HASH
+// a page whose questions were answered meanwhile has none left to go to
+setTimeout(() => { arriving = false }, 5000)
 
 // The form a jump went to last, and where the page was scrolled then: jumping again in the same
 // state goes to the one after it, round to the first. Once the reader scrolled themselves, the
@@ -71,7 +86,10 @@ function next(state: FormState) {
 
 function jump(state: FormState) {
   const form = next(state)
-  if (!form) return
+  if (form) jumpTo(form, state)
+}
+
+function jumpTo(form: HTMLFormElement, state: FormState) {
   current = form
   // the form centred in the part of the window the page is seen in (above the terminal drawer),
   // as far as the page allows
@@ -106,4 +124,17 @@ export function trackWaiting(root: HTMLElement, core: Api) {
   })
   api.onForms(show)
   show(api.forms())
+  document.addEventListener('submit', e => {
+    const form = e.target as HTMLFormElement
+    const name = form.getAttribute('name')
+    if (!name || !main.contains(form) || !forms.some(f => f.form === form)) return
+    // who listens as it is sent: an agent that takes it ends its wait right after
+    if (api.listeners().some(l => l.type === name || l.type === null)) return
+    const sent = new MutationObserver(() => {
+      if (form.dataset.wbState === 'sending') return
+      sent.disconnect()
+      if (form.dataset.wbState === 'sent') toast('Sent, but no agent is listening right now. Your answer stays in the log until one checks this page.', { kind: 'warn' })
+    })
+    sent.observe(form, { attributes: true, attributeFilter: ['data-wb-state'] })
+  })
 }

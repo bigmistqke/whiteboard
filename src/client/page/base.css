@@ -151,9 +151,33 @@ details[open] > :last-child { margin-bottom: 2em; }
 [data-wb-live] .wb-live { background: var(--ok); opacity: 1; }
 .wb-theme {
   font: inherit; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 99px;
-  padding: 2px 10px; cursor: pointer;
+  height: 24px; box-sizing: border-box; padding: 0 7px; cursor: pointer; display: inline-flex; align-items: center; flex: none;
 }
 .wb-theme:hover { color: var(--text); border-color: var(--muted); }
+/* what waits for the reader on other pages (elsewhere.ts): a menu of them */
+.wb-elsewhere { position: relative; flex: none; }
+.wb-elsewhere[hidden], .wb-elsewhere-list[hidden] { display: none; }
+.wb-awaiting {
+  font: inherit; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 99px; height: 24px; box-sizing: border-box; padding: 0 9px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.wb-awaiting svg { flex: none; }
+.wb-index .wb-awaiting { vertical-align: 1px; margin-left: 4px; font: 600 .8rem/1.4 var(--sans); text-decoration: none; }
+.wb-awaiting:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.wb-elsewhere-list {
+  position: absolute; right: 0; top: calc(100% + 6px); margin: 0; padding: 4px; list-style: none; min-width: 200px; max-width: min(360px, 100vw - 32px);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 28px rgb(0 0 0 / .16);
+}
+.wb-nav .wb-elsewhere-list a { display: block; padding: 6px 10px; border-radius: 5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-nav .wb-elsewhere-list a:hover, .wb-nav .wb-elsewhere-list a:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* toasts (toast.ts): above the drawer, centred */
+.wb-toasts { position: fixed; left: 50%; transform: translateX(-50%); z-index: 30; display: grid; gap: 8px; width: min(440px, 100vw - 32px); pointer-events: none; }
+.wb-toast {
+  pointer-events: auto; cursor: pointer; padding: 10px 14px; border-radius: 8px; font: .85rem/1.45 var(--sans);
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); box-shadow: 0 8px 28px rgb(0 0 0 / .18);
+}
+.wb-toast[data-kind=warn] { border-left: 4px solid var(--warn, #c98a00); }
 .wb-meta { color: var(--muted); font: .8rem/1.5 var(--sans); }
 .wb-index { padding: 0; }
 .wb-index li { list-style: none; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -191,7 +215,6 @@ button:hover { border-color: var(--muted); }
 .wb-fresh { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 
 form.wb-form[data-wb-folded] { padding: 1em 0; gap: 0; }
-.wb-index .wb-waiting { color: var(--accent); font-weight: 600; }
 /* named forms: the core marks where each stands (data-wb-waiting, -unheard, -pending, -decided); this is how that looks */
 form[data-wb-state=sending] { opacity: .7; }
 /* sending: the form's buttons can't send twice */
