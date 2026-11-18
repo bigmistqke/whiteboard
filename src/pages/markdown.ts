@@ -323,7 +323,10 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
   async function fence(node: MdNode): Promise<MdNode> {
     const lang: string | null = node.lang || null
     const plain = async () => html`<pre><code${lang && html` class="language-${lang}"`}>${node.value}</code></pre>`
-    const block = (lang && resolve(lang)) || code
+    // a fence goes to the block of its language only if that block takes fences: ```text is code,
+    // not the text field of the same name
+    const named = lang ? resolve(lang) : null
+    const block = (named?.fences ? named : null) || code
     if (!block) return htmlNode(await plain())
     const name = code && block === code && lang !== code.name ? code.name : lang
     const attrs = parseAttrs(node.meta)

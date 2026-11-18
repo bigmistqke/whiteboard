@@ -569,6 +569,11 @@ export default () => definePlugin({
   (`sections` splits the content at its shallowest headings, or at blank
   lines when there are none); a fence client gets `{ name, attrs, text }`.
 - A block with only `html` is static: no JavaScript on the page.
+- A block gets the code fences of its name (```` ```mermaid ````) only when
+  it says so, `fence: true`. Without that, a fence of its name is code like
+  any other: ```` ```text ```` is code, not the form's text field of the
+  same name. (An earlier version handed every fence to the block of its
+  name, and code in a `text` fence came out as an empty input.)
 - `fence: 'any'` makes a block the one for code in general: it also gets
   every fence no block claims by name, and the code view of repository
   files, with the fence's language in `ctx.lang`. Highlighting is a block

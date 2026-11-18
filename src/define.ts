@@ -490,20 +490,21 @@ export interface FormStatus {
 // ---- blocks ------------------------------------------------------------------------------------
 
 /**
- * A block handles the directive or fence with its name (its key in a plugin's `blocks`): `:::name`,
- * `::name`, `:name` and ```` ```name ````. Server functions run while the page renders; `client`
- * runs in the browser.
+ * A block handles the directives with its name (its key in a plugin's `blocks`): `:::name`,
+ * `::name` and `:name`; and, when it says so (`fence`), the code fences of that language,
+ * ```` ```name ````. Server functions run while the page renders; `client` runs in the browser.
  *
  * File references are URLs relative to the plugin's module, so they work wherever it is installed:
  *   client: new URL('./client.js', import.meta.url)
  */
 export interface Block<Props = unknown> {
   /**
-   * `'any'`: also render every fence no block claims by name, and the code view of repository
-   * files: the block for code in general, such as a syntax highlighter. When several blocks set it,
-   * the last plugin's wins.
+   * Which code fences it renders. `true`: those of its name (```` ```mermaid ````). `'any'`: those
+   * too, and every fence no block claims by name, and the code view of repository files: the block
+   * for code in general, such as a syntax highlighter (when several set it, the last plugin's wins).
+   * Without it, a fence of its name is code like any other: ```` ```text ```` is no text field.
    */
-  fence?: 'any'
+  fence?: boolean | 'any'
   /** props for the client; JSON-serialisable. Without it a client gets the defaults (see DirectiveProps / FenceProps). */
   props?(ctx: ServerContext): Props | Promise<Props>
   /**

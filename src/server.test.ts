@@ -147,6 +147,17 @@ test('the built-in plugins bring their blocks without any config', async () => {
   assert.match(page, /data-chat="talk"/)
 })
 
+test('code fences show their text: ```text is code, not a text field, and a diff without hunks shows every line', async () => {
+  const { base, dir } = await serve()
+  fs.writeFileSync(path.join(dir, '.whiteboard', 'pages', 'code.md'), '# Code\n\n```text\nError: it failed\n```\n\n```diff\n function f() {\n-  return 1\n+  return 2\n }\n```\n\nAfter.\n')
+  const page = await (await fetch(`${base}/code`)).text()
+  const main = page.slice(page.indexOf('<main'), page.indexOf('</main>')).replace(/<span[^>]*>|<\/span>/g, '')
+  assert.doesNotMatch(main, /<input/, 'no text field')
+  assert.match(main, /Error: it failed/)
+  assert.match(main, /return 1[\s\S]*return 2/, 'the diff\'s lines')
+  assert.match(main, /<p>After\.<\/p>/)
+})
+
 test('a message is markdown, rendered like a page, without raw HTML or directives', async () => {
   const { base } = await serve()
   const res = await fetch(`${base}/api/markdown`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ texts: ['**bold**, `code` and <b onclick="x()">raw</b> :button[Go]{name=go}', '```ts\nconst a = 1\n```'] }) })

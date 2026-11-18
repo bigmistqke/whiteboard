@@ -451,6 +451,7 @@ export default function mount(root, page, api) {
   has the block's attributes, label, content as mdast nodes, `toHtml`,
   `sections` and more), `props(ctx)` (JSON for its client), `client` (a
   browser module, mounted per block), `style` (linked on pages that use it),
+  `fence: true` to also take the code fences of its name (```` ```mermaid ````),
   and `fence: 'any'` for the block that takes every code fence nobody else
   claims. Block names are unique across a project's plugins.
 - **`events`**, by type (`<plugin>:<what>`): a description each, and

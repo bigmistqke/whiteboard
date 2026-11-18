@@ -15,6 +15,8 @@ export interface ResolvedBlock {
   name: string
   /** the block for code in general (`fence: 'any'`) */
   code: boolean
+  /** it renders the code fences of its name (`fence: true` or `'any'`) */
+  fences: boolean
   props: ((ctx: any) => unknown) | null
   html: ((ctx: any) => string | Html | null | Promise<string | Html | null>) | null
   client: string | null
@@ -43,6 +45,7 @@ function normalize({ name, block: b, plugin }: BlockEntry): ResolvedBlock {
   return {
     name,
     code: b.fence === 'any',
+    fences: b.fence === true || b.fence === 'any',
     props: typeof b.props === 'function' ? b.props.bind(b) : null,
     html: typeof b.html === 'function' ? b.html.bind(b) : null,
     ...files,

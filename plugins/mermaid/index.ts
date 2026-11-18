@@ -30,6 +30,7 @@ export default function mermaid(): Plugin {
     name: 'mermaid',
     blocks: {
       mermaid: {
+        fence: true,
         html: render,
         style: new URL('./style.css', import.meta.url),
       },
