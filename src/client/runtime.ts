@@ -18,6 +18,8 @@ interface Handoff {
   plugins: { name: string; client: string }[]
   /** the event types that, from the agent, are messages for the reader */
   messages: string[]
+  /** the page's frontmatter (PageHandle.frontmatter) */
+  frontmatter: Record<string, string>
 }
 
 const handoff: Handoff = JSON.parse(document.getElementById('wb-page')!.textContent!)
@@ -111,12 +113,19 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json()
 }
 
+let frontmatter: Record<string, string> = handoff.frontmatter ?? {}
 const handle: PageHandle = {
   id: page,
   kind: handoff.kind,
   data: handoff.data,
   onChange(fn) { changeListeners.add(fn); return () => changeListeners.delete(fn) },
-  render: () => getJson<RenderedPage>(`/api/render?page=${encodeURIComponent(page)}`),
+  frontmatter: () => frontmatter,
+  // each render brings the page's frontmatter as it is now
+  render: async () => {
+    const next = await getJson<RenderedPage>(`/api/render?page=${encodeURIComponent(page)}`)
+    frontmatter = next.frontmatter ?? {}
+    return next
+  },
   stored: () => getJson<StoredPage>(`/api/page?page=${encodeURIComponent(page)}`),
 }
 

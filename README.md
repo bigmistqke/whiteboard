@@ -488,7 +488,8 @@ is replaced on a live update; it replaces the server's HTML when it mounts.
 A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get
 the page's `api`: its events and `append` (which comes back through
 `onEvents`), the listeners, `onRendered` (after a live update, to put back
-what it adds), `corner()` for floating buttons, `toast()` for a label in
+what it adds), `frontmatter()` on the page handle for the page's frontmatter (read it
+again in `onRendered`), `corner()` for floating buttons, `toast()` for a label in
 the corner that says what is going on and goes there (one that hides after a
 few seconds, or one that stays with a count), `badge()` for counts in the
 tab title, and the theme. Files beside a browser module that are browser

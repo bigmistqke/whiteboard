@@ -274,6 +274,8 @@ export interface Rendered {
 export interface RenderedPage extends Rendered {
   html: string
   head?: string
+  /** the page's frontmatter (see PageHandle.frontmatter) */
+  frontmatter: Record<string, string>
 }
 
 /** A page as the core stores it: what is in the file, read as is. */
@@ -343,12 +345,15 @@ export type PluginMount = (root: HTMLElement, page: PageHandle, api: Api) => voi
 export interface PageHandle {
   id: string
   kind: StoredPage['kind']
-  /**
-   * what the server render returned with the HTML now in the root, kept current on each live update:
-   * for a markdown page, `{ islands, styles, mtime, frontmatter }`, the frontmatter's fields as
-   * strings (`toc: true` is `'true'`)
-   */
+  /** what the server render returned with the HTML now in the root, kept current on each live update */
   data: unknown
+  /**
+   * The page's frontmatter as it is now (live updates included): its fields as written, as strings
+   * (`toc: true` is `'true'`); empty for a page without one, and for the overview, folders and code.
+   * It changes with a live update: read it again in `api.onRendered`, which runs once the new page,
+   * and its frontmatter, are in place (`onChange` comes before, with the old one still here).
+   */
+  frontmatter(): Record<string, string>
   /** called when the stored page changed; returns an unsubscribe */
   onChange(fn: () => void): () => void
   /** the server render, afresh */

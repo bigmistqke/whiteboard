@@ -310,6 +310,9 @@ export function createServer(project: Project): WhiteboardServer {
     notices: string[]
   }
 
+  /** A stored page's frontmatter, for the browser (PageHandle.frontmatter): a markdown page's, else none. */
+  const frontmatterOf = (page: StoredPage): Record<string, string> => (page.kind === 'page' ? page.frontmatter : {})
+
   /** Render a stored page as markdown, with the plugins' blocks, and anything the reader should be told. */
   async function render(page: StoredPage): Promise<Render> {
     const { pages, errors } = await config()
@@ -397,7 +400,7 @@ export function createServer(project: Project): WhiteboardServer {
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
   function shell(page: StoredPage, { page: rendered, out, notices }: Render, extras: Extras = { head: [], body: [], clients: [] }): string {
-    const handoff = { id: page.id, kind: page.kind, client: rendered ? asset(PAGE_CLIENT) : null, data: out.data ?? null, plugins: extras.clients, messages: extras.messages ?? [] }
+    const handoff = { id: page.id, kind: page.kind, client: rendered ? asset(PAGE_CLIENT) : null, data: out.data ?? null, frontmatter: frontmatterOf(page), plugins: extras.clients, messages: extras.messages ?? [] }
     // the page's head and html are HTML already; the handoff is JSON made safe for a script tag
     return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${out.title || page.id || project.name}</title>
@@ -640,7 +643,7 @@ ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
         if (!('page' in r)) return sendJson(res, 404, { error: 'notFound' in r ? r.notFound : 'not a page' })
         if (p === '/api/page') return sendJson(res, 200, r.page)
         const { out, notices } = await render(r.page)
-        return sendJson(res, 200, { ...out, notices, mtime: r.page.mtime })
+        return sendJson(res, 200, { ...out, notices, mtime: r.page.mtime, frontmatter: frontmatterOf(r.page) })
       }
       if (p === '/api/watch') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })

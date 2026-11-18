@@ -32,7 +32,7 @@ let handle: PageHandle
 
 /** Does this page have it: what its frontmatter says (`toc:`), and whether it is on everywhere. */
 function wanted() {
-  const said = ((handle.data as { frontmatter?: Record<string, string> } | null)?.frontmatter ?? {}).toc?.trim().toLowerCase()
+  const said = handle.frontmatter().toc?.trim().toLowerCase()
   const always = document.querySelector('meta[name=wb-toc]')?.getAttribute('content') === 'always'
   return always ? said !== 'false' : said === 'true'
 }
