@@ -359,6 +359,7 @@ export async function renderMarkdown(source: string | MdNode, { page, file, reso
   const title = h1 ? toString(h1 as any) : null
   await transform(tree)
   const out = stringify(tree.children ?? [])
-  const styles = [...used.values()].map(t => t.style).filter((s): s is string => !!s)
+  // blocks of one plugin can share a stylesheet (the form and its fields): linked once
+  const styles = [...new Set([...used.values()].map(t => t.style).filter((s): s is string => !!s))]
   return { html: out, title, islands, styles }
 }

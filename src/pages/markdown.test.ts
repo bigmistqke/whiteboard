@@ -15,3 +15,10 @@ test('a form shown in a fence inside a container asks nothing; one after it does
   assert.deepEqual(formNames(':::details\n````md\n:::form{name=example}\n:::\n````\n:::\n\n:::form{name=real}\n:::\n'), ['real'])
 })
 
+
+test('blocks that share a stylesheet link it once', async () => {
+  const style = '/p/public/form.css'
+  const block = (name: string) => ({ name, code: false, fences: false, props: null, html: () => '<i></i>', client: null, style, source: 'form' }) as any
+  const { styles } = await renderMarkdown(':::one\n:::\n\n:::two\n:::\n', { page: 'p', file: '', resolve: name => block(name) })
+  assert.deepEqual(styles, [style])
+})
