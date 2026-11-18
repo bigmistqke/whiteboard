@@ -168,10 +168,11 @@ Images and other binary files are served as they are.
   gives the URL that shows a file or folder on disk, for links.
 - **Browser.** The core's runtime (`src/client/runtime.ts`) imports the page
   module (`src/client/page/main.ts`) and calls `mount(root, page, api)`.
-  `page` has the page's id, kind and `data`, `onChange(fn)`, `render()` (the
-  server render, afresh) and `stored()` (the stored page, afresh). `api` has
-  the page's events, `onEvents`, `last(type)` and `append(type, data,
-  action)`, the listeners, and three things the page's parts share:
+  `page` has the page's id, kind, `data` and `frontmatter`, `onChange(fn)`,
+  `render()` (the server render, afresh) and `stored()` (the stored page,
+  afresh). `api` has the page's `events`, `last(type)` and `append(type,
+  data, action)`, the `listeners`, `forms` and `unread` messages, and three
+  things the page's parts share:
   `rendered()` (the page module says it patched its content, and plugins
   listening with `onRendered` put back what they add to it), `corner()` (an
   empty column at the bottom right, the one element the core puts on every
@@ -187,6 +188,14 @@ Images and other binary files are served as they are.
   A render that throws falls back the same way.
 
 ### Plugins
+
+Every value of the browser api that changes is a `Reactive<T>`: call it for
+what it is now (`api.events()`), and `.on(fn)` to hear each change
+(`api.events.on(draw)`, which returns an unsubscribe). One shape for all of
+them (events, listeners, forms, unread messages, the theme, a page's data and
+frontmatter), so none lacks its subscription, and a framework turns any of
+them into its own reactive value with one helper (the Solid wrapper does).
+Moments that aren't values keep a plain `on…`: `onRendered`, `onChange`.
 
 Everything that extends whiteboard (`Plugin` in `src/define.ts`): an
 object in the config's `plugins`, with a name and optional parts, all under
@@ -289,8 +298,8 @@ Whiteboard's one interaction primitive, so the core's, on every page
   `whiteboard:picked` events in the log); `data-wb-decided` once one did,
   with `data-wb-outcome` quoting the answer in one line. The states are
   marked again when the log, the listeners or the page change, and
-  `api.forms()` / `api.onForms()` give them to the page and plugins, for
-  drawing more than the attributes allow.
+  `api.forms` gives them to the page and plugins, for drawing more than the
+  attributes allow.
 - **Open means it waits for the reader,** whether or not an agent listens.
   An earlier version marked a form "waiting for you" only while a wait
   covered it, and "nobody listening" otherwise: that told the reader about

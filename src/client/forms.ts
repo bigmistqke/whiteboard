@@ -15,18 +15,18 @@
 //     data-wb-decided   an agent picked up its latest answer; data-wb-outcome quotes it in one line
 // and, for a few seconds after a send went through, `data-wb-just-sent`, to confirm it
 //
-// How that looks is the page's: it styles the attributes, and can follow `api.onForms`. A form
+// How that looks is the page's: it styles the attributes, and can follow `api.forms.on`. A form
 // marked `data-wb-self` (or inside an element that is) keeps its own fields: no drafts and no last
 // answer are written into it, for a block's component that shows them itself.
 import type { Api, FormState, FormStatus } from '../define'
 import { STATES, isQuestionName, questionState } from '../status.ts'
+import { reactive } from './reactive'
 
 type Data = Record<string, unknown>
 
 let root: HTMLElement
 let api: Api
 let page = ''
-const listeners = new Set<(forms: FormStatus[]) => void>()
 
 /** The forms the core looks after: named (a name without a colon: see isQuestionName), without an action. */
 const managed = (form: HTMLFormElement) => isQuestionName(form.getAttribute('name') ?? '') && !form.hasAttribute('action')
@@ -181,7 +181,7 @@ function mark() {
     else delete form.dataset.wbOutcome
     return { form, name, state, last }
   })
-  for (const fn of listeners) fn(current)
+  forms_.notify()
 }
 
 /** After the page re-rendered: answers, drafts and marks back on its forms. */
@@ -202,15 +202,13 @@ export function trackForms(el: HTMLElement, pageId: string, core: Api) {
   document.addEventListener('change', saveDraft)
   document.addEventListener('submit', onSubmit)
   api.onRendered(refresh)
-  api.onListeners(mark)
-  api.onEvents(() => { restoreLast(false); mark() })
+  api.listeners.on(mark)
+  api.events.on(() => { restoreLast(false); mark() })
   restoreLast(true)
   restoreDrafts()
   mark()
 }
 
-/** For the api: every named form and where it stands, and following that. */
-export const formsApi = {
-  forms: (): FormStatus[] => current,
-  onForms(fn: (forms: FormStatus[]) => void) { listeners.add(fn); return () => { listeners.delete(fn) } },
-}
+/** For the api: every named form and where it stands, as it changes. */
+const forms_ = reactive((): FormStatus[] => current)
+export const formsApi = { forms: forms_ }

@@ -1,6 +1,6 @@
 // How the page shows what waits for the reader: its open questions and the agent's messages they
 // haven't read (status.ts). The core marks each named form with where it stands (open, pending,
-// decided; see `api.onForms`); the page styles those marks (base.css), folds a decided form into
+// decided; see `api.forms.on`); the page styles those marks (base.css), folds a decided form into
 // one line quoting its answer, sums them up in a line above the page, counts them in the tab title,
 // and puts two toasts in the page's corner, "→ unanswered (n)" for the questions and "→ unread
 // (n)" for the messages, each going from one to the next. A message is found on the page by its
@@ -161,9 +161,9 @@ export function trackWaiting(root: HTMLElement, core: Api) {
     show(forms)
     form.querySelector<HTMLElement>('input:not([type=hidden]), textarea, select')?.focus({ preventScroll: true })
   })
-  api.onForms(show)
+  api.forms.on(show)
   // a message read, or a new one
-  api.onEvents(() => show())
+  api.events.on(() => show())
   show(api.forms())
   document.addEventListener('submit', e => {
     const form = e.target as HTMLFormElement

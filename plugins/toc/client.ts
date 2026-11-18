@@ -132,8 +132,9 @@ const mount: PluginMount = (root, page, core) => {
   addEventListener('scroll', soon(current), { passive: true })
   addEventListener('resize', soon(build))
   api.onRendered(build)
-  api.onForms(() => mark())
-  api.onEvents(() => requestAnimationFrame(mark))
+  page.frontmatter.on(build)
+  api.forms.on(() => mark())
+  api.events.on(() => requestAnimationFrame(mark))
   build()
 }
 

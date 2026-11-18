@@ -9,7 +9,7 @@
 // the api's events and theme as signals through context.
 import { createContext, createSignal, onSettled, useContext, type Component } from 'solid-js'
 import { render } from '@solidjs/web'
-import type { ClientApi, Mount, Theme, WbEvent } from '@bigmistqke/whiteboard'
+import type { ClientApi, FormStatus, Listener, Mount, Reactive, Theme, WbEvent } from '@bigmistqke/whiteboard'
 
 export interface Whiteboard {
   /** this page's id */
@@ -22,32 +22,47 @@ export interface Whiteboard {
   append: ClientApi['append']
   /** the theme in effect. Reactive. */
   theme(): Theme
+  /** the agents waiting for answers on this page. Reactive. */
+  listeners(): Listener[]
+  /** the page's named forms and where each stands. Reactive. */
+  forms(): FormStatus[]
+  /** the agent's messages the reader hasn't read. Reactive. */
+  unread(): WbEvent[]
   /** a message's markdown as HTML, rendered by the server (see Api.markdown) */
   markdown: ClientApi['markdown']
 }
 
 const WhiteboardContext = createContext<Whiteboard>()
 
-/** The page's events and theme, as signals. Use inside a component passed to solid(). */
+/** The page's events, theme, listeners, forms and unread messages, as signals. Use inside a component passed to solid(). */
 export const useWhiteboard = (): Whiteboard => useContext(WhiteboardContext)
 
 /** Turn a Solid component into a template client: `export default solid(MyComponent)`. */
 export function solid<Props extends object>(Component: Component<Props>): Mount<Props> {
   return (element: HTMLElement, props: Props, api: ClientApi) =>
     render(() => {
-      const [events, setEvents] = createSignal<WbEvent[]>(api.events())
-      const [theme, setTheme] = createSignal<Theme>(api.theme())
-      onSettled(() => {
-        const offEvents = api.onEvents(list => setEvents(() => list))
-        const offTheme = api.onTheme(setTheme)
-        return () => { offEvents(); offTheme() }
-      })
+      // each of the api's changing values (Reactive) as a signal, set on each change; what .on
+      // returns stops it when the component goes
+      // (boxed: a T that is a function would read as createSignal's function form)
+      const signal = <T,>(value: Reactive<T>) => {
+        const [get, set] = createSignal({ v: value() })
+        onSettled(() => value.on(next => set({ v: next })))
+        return () => get().v
+      }
+      const events = signal(api.events)
+      const theme = signal(api.theme)
+      const listeners = signal(api.listeners)
+      const forms = signal(api.forms)
+      const unread = signal(api.unread)
       const value: Whiteboard = {
         page: api.page,
         events,
         last: type => events().findLast(e => e.type === type),
         append: api.append,
         theme,
+        listeners,
+        forms,
+        unread,
         markdown: api.markdown,
       }
       return (

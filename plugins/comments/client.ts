@@ -505,7 +505,7 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     else if (openThread) closePopover()
   })
 
-  api.onEvents(refreshComments)
+  api.events.on(refreshComments)
   api.onRendered(refreshComments)
   new ResizeObserver(() => draw()).observe(root)
   addEventListener('resize', () => draw())

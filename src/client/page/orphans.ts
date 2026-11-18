@@ -40,7 +40,7 @@ ${[...threads].map(([chat, messages]) => {
 })}`)
   }
 
-  api.onEvents(draw)
+  api.events.on(draw)
   api.onRendered(draw)
   draw()
 }

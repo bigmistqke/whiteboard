@@ -345,15 +345,14 @@ export type PluginMount = (root: HTMLElement, page: PageHandle, api: Api) => voi
 export interface PageHandle {
   id: string
   kind: StoredPage['kind']
-  /** what the server render returned with the HTML now in the root, kept current on each live update */
-  data: unknown
+  /** what the server render returned with the HTML now in the root; it changes with each live update */
+  data: Reactive<unknown>
   /**
-   * The page's frontmatter as it is now (live updates included): its fields as written, as strings
-   * (`toc: true` is `'true'`); empty for a page without one, and for the overview, folders and code.
-   * It changes with a live update: read it again in `api.onRendered`, which runs once the new page,
-   * and its frontmatter, are in place (`onChange` comes before, with the old one still here).
+   * The page's frontmatter: its fields as written, as strings (`toc: true` is `'true'`); empty for a
+   * page without one, and for the overview, folders and code. It changes with a live update that
+   * changed it, once the new page is in place (`onChange` comes before, with the old one still here).
    */
-  frontmatter(): Record<string, string>
+  frontmatter: Reactive<Record<string, string>>
   /** called when the stored page changed; returns an unsubscribe */
   onChange(fn: () => void): () => void
   /** the server render, afresh */
@@ -419,14 +418,22 @@ export interface Toast {
   show(): void
 }
 
-/** What the core gives the page and every plugin in the browser. Framework-free: getters and subscriptions. */
+/**
+ * A value that changes: call it for what it is now, and `.on(fn)` to hear each change, with the
+ * new value (it returns an unsubscribe). Every changing value of the api is one, so a framework
+ * can turn any of them into its own reactive value with one helper (the Solid one does).
+ */
+export interface Reactive<T> {
+  (): T
+  on(fn: (value: T) => void): () => void
+}
+
+/** What the core gives the page and every plugin in the browser. Framework-free: its changing values are Reactive. */
 export interface Api {
   /** this page's id */
   page: string
   /** every event recorded for this page, oldest first */
-  events(): WbEvent[]
-  /** called with the new list whenever it changes; returns an unsubscribe */
-  onEvents(fn: (events: WbEvent[]) => void): () => void
+  events: Reactive<WbEvent[]>
   /** the latest event of a type, e.g. the last submit of a form */
   last(type: string): WbEvent | undefined
   /** record an event for this page: it lands in the log, where the agent reads it */
@@ -438,7 +445,7 @@ export interface Api {
    * EventSpec.forReader). An element marked `data-wb-message="<event id>"` reads its message once
    * it has been in view; `markRead` does so for messages read otherwise (a thread closed).
    */
-  unread(): WbEvent[]
+  unread: Reactive<WbEvent[]>
   markRead(ids: string[]): void
   /**
    * A message's markdown (a comment, a chat message) as HTML, rendered by the server like a page:
@@ -446,8 +453,7 @@ export interface Api {
    */
   markdown(text: string): Promise<string>
   /** the agents waiting for answers on this page right now */
-  listeners(): Listener[]
-  onListeners(fn: (listeners: Listener[]) => void): () => void
+  listeners: Reactive<Listener[]>
   /**
    * Say that the page's content changed in place: the page module calls it after each patch on an update
    * (it morphs it) calls this after each patch, so that plugins working on the content
@@ -480,11 +486,10 @@ export interface Api {
    * The page's named forms and where each stands. The core looks after every `<form name>` without
    * an `action`: it sends a submit as an event, keeps drafts, puts the last answer back, and marks
    * each form with its state (`data-wb-open`, `-pending`, `-decided`). How that
-   * looks is the page's styles'; this is for drawing more than the attributes allow (a summary, a count)
+   * looks is the page's styles'; this is for drawing more than the attributes allow (a summary, a
+   * count). It changes when the forms are marked again: the log, the listeners or the page changed.
    */
-  forms(): FormStatus[]
-  /** called after the forms were marked again: the log, the listeners or the page changed */
-  onForms(fn: (forms: FormStatus[]) => void): () => void
+  forms: Reactive<FormStatus[]>
 }
 
 /**
@@ -625,6 +630,5 @@ export type Theme = 'light' | 'dark'
 /** Passed to every Mount: the core's api, and the page's theme. */
 export interface ClientApi extends Api {
   /** the theme in effect (the reader's choice, else the system's) */
-  theme(): Theme
-  onTheme(fn: (theme: Theme) => void): () => void
+  theme: Reactive<Theme>
 }

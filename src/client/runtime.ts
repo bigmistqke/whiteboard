@@ -5,10 +5,11 @@ import type { Api, PluginMount, Listener, PageHandle, RenderedPage, StoredPage, 
 import { html } from '../html.ts'
 import { formsApi, trackForms } from './forms'
 import { createToast } from './toast'
-import { markRead, messagesChanged, readsArrived, trackReading, unread } from './read'
+import { markRead, messagesChanged, readsArrived, trackReading, unread as unreadNow } from './read'
 import { READ } from '../status.ts'
 import { markdown } from './markdown'
 import { scrollToTarget } from './scroll'
+import { reactive } from './reactive'
 
 interface Handoff {
   id: string; kind: StoredPage['kind']; data: unknown
@@ -30,11 +31,14 @@ const isDir = handoff.kind === 'pages' || handoff.kind === 'folder'
 // ---- events ------------------------------------------------------------------------------------
 
 let events: WbEvent[] = []
-const eventListeners = new Set<(events: WbEvent[]) => void>()
+const eventsValue = reactive(() => events)
+// what is unread changes with the events, and with a message read here before the log has it
+const unread = reactive(unreadNow)
 function setEvents(next: WbEvent[]) {
   events = next
   readsArrived(events)
-  for (const fn of eventListeners) fn(events)
+  eventsValue.notify()
+  unread.notify()
   messagesChanged()
 }
 
@@ -57,11 +61,11 @@ async function append(type: string, data: Record<string, unknown> = {}, action: 
 }
 
 let listeners: Listener[] = []
-const listenerListeners = new Set<(listeners: Listener[]) => void>()
+const listenersValue = reactive(() => listeners)
 
 async function loadListeners() {
   listeners = await (await fetch(`/api/listeners?page=${encodeURIComponent(page)}`)).json()
-  for (const fn of listenerListeners) fn(listeners)
+  listenersValue.notify()
 }
 
 const renderedListeners = new Set<() => void>()
@@ -80,17 +84,24 @@ function writeTitle() {
 
 const api: Api = {
   page,
-  events: () => events,
-  onEvents(fn) { eventListeners.add(fn); return () => eventListeners.delete(fn) },
+  events: eventsValue,
   last: type => events.findLast(e => e.type === type),
   pickedUp: id => !!events.find(e => e.id === id)?.pickedUp,
   unread,
-  markRead,
+  markRead: ids => { markRead(ids); unread.notify() },
   markdown,
   append,
-  listeners: () => listeners,
-  onListeners(fn) { listenerListeners.add(fn); return () => listenerListeners.delete(fn) },
-  rendered() { for (const fn of renderedListeners) fn() },
+  listeners: listenersValue,
+  rendered() {
+    // the new page is in place: what came with its render is the page's now, before anyone hears
+    // of the update, so a listener reads the new values
+    const frontmatterChanged = JSON.stringify(nextFrontmatter) !== JSON.stringify(frontmatter)
+    data = nextData
+    frontmatter = nextFrontmatter
+    for (const fn of renderedListeners) fn()
+    dataValue.notify()
+    if (frontmatterChanged) frontmatterValue.notify()
+  },
   onRendered(fn) { renderedListeners.add(fn); return () => renderedListeners.delete(fn) },
   corner: () => corner,
   badge(key, text, order = 0) {
@@ -113,17 +124,24 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json()
 }
 
+// what came with the page, and what came with its last render: the page's once the new page is in
+// place (api.rendered), so a listener never sees new values over the old page
+let data: unknown = handoff.data
+let nextData: unknown = data
 let frontmatter: Record<string, string> = handoff.frontmatter ?? {}
+let nextFrontmatter = frontmatter
+const dataValue = reactive(() => data)
+const frontmatterValue = reactive(() => frontmatter)
 const handle: PageHandle = {
   id: page,
   kind: handoff.kind,
-  data: handoff.data,
+  data: dataValue,
+  frontmatter: frontmatterValue,
   onChange(fn) { changeListeners.add(fn); return () => changeListeners.delete(fn) },
-  frontmatter: () => frontmatter,
-  // each render brings the page's frontmatter as it is now
   render: async () => {
     const next = await getJson<RenderedPage>(`/api/render?page=${encodeURIComponent(page)}`)
-    frontmatter = next.frontmatter ?? {}
+    nextData = next.data ?? null
+    nextFrontmatter = next.frontmatter ?? {}
     return next
   },
   stored: () => getJson<StoredPage>(`/api/page?page=${encodeURIComponent(page)}`),

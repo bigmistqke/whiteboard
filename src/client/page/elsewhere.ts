@@ -63,8 +63,8 @@ export function trackElsewhere(root: HTMLElement, handle: PageHandle, core: Api)
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !list.hidden) { open(false); toggle.focus() } })
   // what waits changes with an answer (events), a wait starting or ending (listeners), and a page's
   // forms (a page changed)
-  core.onEvents(reload)
-  core.onListeners(reload)
+  core.events.on(reload)
+  core.listeners.on(reload)
   handle.onChange(reload)
   load()
 }

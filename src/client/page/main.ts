@@ -6,7 +6,7 @@ import morphdom from 'morphdom'
 import type { Api, PageHandle, PluginMount } from '../../define.ts'
 import type { ClientApi, Mount } from '../../define.ts'
 import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
-import { currentTheme, onTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
+import { currentTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { trackWaiting } from './waiting'
 import { trackElsewhere } from './elsewhere'
 import { trackLive } from './live'
@@ -273,8 +273,6 @@ async function refresh() {
     throw err
   }
   const data = next.data as Data
-  // the handle the plugins hold too: what they read of the page (its frontmatter) stays current
-  currentPage.data = data
   islands = data.islands
   for (const href of data.styles) {
     if (![...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(l => new URL(l.href).pathname === new URL(href, location.href).pathname))
@@ -318,8 +316,8 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   core = coreApi
   page = handle.id
   main = root.querySelector<HTMLElement>('#wb-main')!
-  islands = (handle.data as Data).islands
-  api = { ...core, theme: currentTheme, onTheme }
+  islands = (handle.data() as Data).islands
+  api = { ...core, theme: currentTheme }
   const isDir = handle.kind === 'pages' || handle.kind === 'folder'
 
   themeToggle(root)
@@ -331,9 +329,9 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
 
   handle.onChange(() => refresh())
   // the overview shows when pages were last answered
-  if (isDir) core.onEvents(() => refresh())
+  if (isDir) core.events.on(() => refresh())
   // the overview shows which pages an agent is waiting on
-  if (isDir) core.onListeners(() => refresh())
+  if (isDir) core.listeners.on(() => refresh())
 
   blockSigs = [...main.children].map(signature)
   if (!isDir) trackInitial(main, page, core)

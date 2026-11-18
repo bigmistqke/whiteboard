@@ -393,7 +393,7 @@ export default function mount(el, { name, items }, api) {
   }
   draw()
   // the page's events, also the ones it appends itself, come back here
-  return api.onEvents(draw)
+  return api.events.on(draw)
 }
 ```
 
@@ -445,7 +445,7 @@ export default function mount(root, page, api) {
   const draw = () => { button.textContent = `👍 ${api.events().filter(e => e.type === 'votes:up').length}` }
   button.addEventListener('click', () => api.append('votes:up'))
   api.corner().append(button)   // the page's corner, for floating buttons
-  api.onEvents(draw)
+  api.events.on(draw)
   draw()
 }
 ```
@@ -486,13 +486,15 @@ written in TypeScript needs building first. A block's `client` gets
 `mount(element, props, api)` and may return a cleanup, run when the block
 is replaced on a live update; it replaces the server's HTML when it mounts.
 A page module (`setup`'s `client`) gets `mount(root, page, api)`. Both get
-the page's `api`: its events and `append` (which comes back through
-`onEvents`), the listeners, `onRendered` (after a live update, to put back
-what it adds), `frontmatter()` on the page handle for the page's frontmatter (read it
-again in `onRendered`), `corner()` for floating buttons, `toast()` for a label in
+the page's `api`: its `events` and `append` (which comes back through
+`events.on`), the `listeners`, `forms` and `unread` messages, `onRendered`
+(after a live update, to put back what it adds), the page's `frontmatter`
+on the page handle, `corner()` for floating buttons, `toast()` for a label in
 the corner that says what is going on and goes there (one that hides after a
 few seconds, or one that stays with a count), `badge()` for counts in the
-tab title, and the theme. Files beside a browser module that are browser
+tab title, and the `theme`. Every value that changes is called for what it
+is now and has `.on(fn)` for each change: `api.events()`,
+`api.events.on(draw)`, `page.frontmatter.on(…)`. Files beside a browser module that are browser
 assets (scripts, styles, images, fonts) are served too.
 
 Something that covers the bottom of the window says how much in

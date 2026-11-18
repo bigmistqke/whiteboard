@@ -24,7 +24,7 @@ export function trackLive(root: HTMLElement, handle: PageHandle, api: Api) {
       : 'Live · no agent is listening right now; answers wait in the log'
     dot.setAttribute('aria-label', dot.title)
   }
-  api.onListeners(show)
+  api.listeners.on(show)
   new MutationObserver(show).observe(document.documentElement, { attributes: true, attributeFilter: ['data-wb-live'] })
   show()
 }
