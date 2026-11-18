@@ -17,19 +17,27 @@ let storeKey = ''
 // set by trackInitial: a page that tracks nothing (the overview) has no bubbles
 let core: Api | undefined
 
+// the data-wb-* attributes the server writes into a page; every other one is the browser's (a
+// form's state, a mark, a key), and not part of what the server sent
+const SERVER_MARKS = new Set(['data-wb-at', 'data-wb-key', 'data-wb-maximize', 'data-wb-other', 'data-wb-other-text', 'data-wb-quiet', 'data-wb-self', 'data-wb-sort'])
+
 /**
- * FNV-1a over the block's HTML, ignoring per-render attributes and anything quiet: content inside
- * [data-wb-quiet] can appear, change or go without the block counting as changed.
+ * FNV-1a over the block's HTML as the server sent it, ignoring anything quiet: content inside
+ * [data-wb-quiet] can appear, change or go without the block counting as changed. What the browser
+ * added is left out, so a block in the page and the same block in a new render have one signature:
+ * an island's content (it draws itself; its props are in its key), the page's own elements (a folded
+ * form's card), its marks (data-wb-* the server doesn't write: a form's state) and its classes for
+ * new content.
  */
 export function signature(el: Element): string {
   const clone = el.cloneNode(true) as Element
-  for (const q of clone.querySelectorAll('[data-wb-quiet]')) q.remove()
-  for (const n of [clone, ...clone.querySelectorAll('[data-wb-island],[data-wb-mounted]')]) {
-    n.removeAttribute('data-wb-island')
-    n.removeAttribute('data-wb-mounted')
+  for (const q of clone.querySelectorAll('[data-wb-quiet], .wb-folded')) q.remove()
+  for (const n of [clone, ...clone.querySelectorAll('*')]) {
+    for (const { name } of [...n.attributes]) if (name.startsWith('data-wb-') && !SERVER_MARKS.has(name)) n.removeAttribute(name)
+    n.classList.remove('wb-new', 'wb-new-seen')
+    if (!n.classList.length) n.removeAttribute('class')
   }
-  // the page's key for the block (main.ts), not its content
-  clone.removeAttribute('data-wb-block')
+  for (const island of clone.querySelectorAll('[data-wb-key]')) island.replaceChildren()
   const s = clone.outerHTML
   let h = 0x811c9dc5
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193)

@@ -49,12 +49,14 @@ function readForm(form: HTMLFormElement): Data {
   for (const el of elements) if (el.name && el.type === 'checkbox') boxes[el.name] = (boxes[el.name] ?? 0) + 1
   for (const el of elements) {
     if (!el.name || el.type === 'submit' || el.type === 'button' || el.type === 'reset' || el.type === 'file') continue
-    if (isOther(el)) el.value = otherText(el)?.value.trim() ?? ''
+    // an other-option sends what was typed in its box: read, not written into the option (for a
+    // radio or checkbox that would change its value attribute, and so the page's HTML)
+    const value = isOther(el) ? otherText(el)?.value.trim() ?? '' : el.value
     if (el.type === 'checkbox') {
-      if (boxes[el.name] > 1) { const list = (data[el.name] ??= []) as string[]; if (el.checked) list.push(el.value) }
+      if (boxes[el.name] > 1) { const list = (data[el.name] ??= []) as string[]; if (el.checked) list.push(value) }
       else data[el.name] = el.checked
     } else if (el.type === 'radio') {
-      if (el.checked) data[el.name] = el.value
+      if (el.checked) data[el.name] = value
       else data[el.name] ??= null
     } else if ((el as unknown) instanceof HTMLSelectElement && (el as unknown as HTMLSelectElement).multiple) {
       data[el.name] = [...(el as unknown as HTMLSelectElement).selectedOptions].map(o => o.value)
