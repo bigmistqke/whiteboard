@@ -20,6 +20,8 @@ test('close: the page and its events go, other pages keep theirs, the tab says s
   }
   proj.cli('append', '--page', 'temp', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'quick', text: 'noted' }))
   await until('the watch had both answers', () => (watch.output().match(/\n/g) ?? []).length === 2 || null)
+  // the open tab reads the agent's message: that, too, is an event of the page, before it closes
+  await until('the message was read', () => proj.events().some(e => e.page === 'temp' && e.type === 'whiteboard:read') || null)
   assert.ok(proj.events().some(e => e.page === 'temp'))
 
   const out = proj.cli('close', 'temp')
