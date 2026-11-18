@@ -2,6 +2,26 @@ import { createSignal, For, Show, onSettled } from 'solid-js'
 import { solid } from '@bigmistqke/whiteboard/solid'
 import type { Item } from './index'
 
+/** The lightbox's buttons, as icons: a glyph sits on its font's baseline, not in the middle of the button. */
+const Icon = (props: { d: string }) => (
+  <svg
+    viewBox="0 0 16 16"
+    width="18"
+    height="18"
+    aria-hidden="true"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d={props.d} />
+  </svg>
+)
+const PREV = 'M10 3.5 5.5 8l4.5 4.5'
+const NEXT = 'M6 3.5 10.5 8 6 12.5'
+const CLOSE = 'M4 4l8 8M12 4l-8 8'
+
 function Gallery(props: { items: Item[]; min: string | null; narrow: boolean }) {
   const [open, setOpen] = createSignal<number | null>(null)
   const current = () => {
@@ -51,14 +71,14 @@ function Gallery(props: { items: Item[]; min: string | null; narrow: boolean }) 
             <div class="wb-lightbox-caption" innerHTML={item().title ?? ''} />
             <Show when={props.items.length > 1}>
               <button type="button" class="wb-lightbox-prev" aria-label="Previous" onClick={() => step(-1)}>
-                ‹
+                <Icon d={PREV} />
               </button>
               <button type="button" class="wb-lightbox-next" aria-label="Next" onClick={() => step(1)}>
-                ›
+                <Icon d={NEXT} />
               </button>
             </Show>
             <button type="button" class="wb-lightbox-close" aria-label="Close" onClick={() => setOpen(null)}>
-              ×
+              <Icon d={CLOSE} />
             </button>
           </div>
         )}

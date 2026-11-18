@@ -66,23 +66,29 @@
 }
 .wb-lightbox button {
   position: absolute;
+  display: grid;
+  place-items: center;
   background: rgb(255 255 255 / 0.12);
   color: #fff;
   border: 0;
-  font-size: 1.6rem;
-  line-height: 1;
   width: 44px;
   height: 44px;
   border-radius: 50%;
   padding: 0;
+  cursor: pointer;
+}
+.wb-lightbox button:hover {
+  background: rgb(255 255 255 / 0.22);
 }
 .wb-lightbox-prev {
   left: 12px;
   top: 50%;
+  translate: 0 -50%;
 }
 .wb-lightbox-next {
   right: 12px;
   top: 50%;
+  translate: 0 -50%;
 }
 .wb-lightbox-close {
   right: 12px;
