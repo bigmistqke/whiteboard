@@ -237,6 +237,19 @@ async function needServer(): Promise<string> {
   throw new Error('no server runs for this project; `whiteboard show <page>` starts it')
 }
 
+/** Is there a page (a markdown file) in this folder or below it? */
+function hasPages(dir: string): boolean {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return false
+  }
+  return entries.some(e =>
+    e.isDirectory() ? !e.name.startsWith('.') && hasPages(path.join(dir, e.name)) : e.name.endsWith('.md'),
+  )
+}
+
 /**
  * Ask the project's server. Without one running, a server made for this one question answers it,
  * in this process, on no port: a command that only asks (status, docs, the hooks on every prompt)
@@ -251,6 +264,9 @@ async function api(route: string): Promise<any> {
 }
 
 async function askInProcess(route: string): Promise<Response> {
+  // a project without pages has nothing open: no need to load its config to say so (the hooks ask
+  // on every prompt, in every project, most of which have no pages)
+  if (route.startsWith('/api/status') && !hasPages(needProject().pagesDir)) return Response.json([])
   const { createServer } = await import('../src/server.ts')
   const server = createServer(needProject())
   const listener = http.createServer((req, res) => void server.handle(req, res))
