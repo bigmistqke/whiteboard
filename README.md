@@ -421,7 +421,7 @@ Every colour is a `light-dark()` pair, so one line sets it for both themes:
 :root { --text-size: 17px; --rhythm: 1em; }
 ```
 
-The built-in plugins are badge, callout, chat, code, comments, details, draft,
+The built-in plugins are ansi, badge, callout, chat, code, comments, details, draft,
 forge, form, grid, iframe, lightbox, mermaid, quiet, steps and window: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code

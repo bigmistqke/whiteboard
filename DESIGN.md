@@ -436,7 +436,7 @@ that name, so two plugins can't collide:
   and `<body>`, and `client` is a module on every page. Its files go in
   `.whiteboard/<name>/`.
 
-The built-in plugins are in `plugins/<name>/`: callout, chat, code,
+The built-in plugins are in `plugins/<name>/`: ansi, callout, chat, code,
 comments, details, draft, form (with its input blocks), grid, iframe,
 lightbox, mermaid, quiet, steps and window. Every project has them (`builtins()` in `plugins/index.ts`); a
 config's `plugins` add to them, and one with a built-in's name replaces it
