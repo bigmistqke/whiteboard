@@ -945,6 +945,17 @@ form[data-wb-just-sent] .wb-folded-change {
   font: var(--weight-strong) var(--ui-small)/var(--ui-line-height) var(--sans);
   color: var(--muted);
 }
+.wb-folded-documents .wb-folder {
+  margin: var(--space-xs) 0 0 var(--space-xl);
+}
+.wb-folded-documents .wb-folder > summary {
+  cursor: pointer;
+  font: var(--ui-small)/var(--ui-line-height) var(--mono);
+  color: var(--muted);
+}
+.wb-folded-documents .wb-index li {
+  padding: var(--space-md) 0;
+}
 .wb-empty-projects {
   margin-top: calc(var(--rhythm) * 2.5);
   color: var(--muted);

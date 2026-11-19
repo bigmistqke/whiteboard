@@ -165,6 +165,70 @@ function documentList(ctx: RenderContext) {
 }
 
 /**
+ * A project's documents by the folder they are in, each folder a fold with how many it holds, the
+ * top folder's own documents first: the shared server's overview, where a repository's many
+ * documents would otherwise be one long list. A folder holding only one folder is shown as one
+ * (`docs/adr/`), so the tree is no deeper than what tells folders apart.
+ */
+function documentTree(files: string[], dir: string, base: string, urlFor: (abs: string) => string | null) {
+  interface Folder {
+    files: string[]
+    folders: Map<string, Folder>
+    count: number
+  }
+  const root: Folder = { files: [], folders: new Map(), count: 0 }
+  for (const f of files) {
+    let at = root
+    at.count++
+    const parts = f.split('/')
+    for (const part of parts.slice(0, -1)) {
+      if (!at.folders.has(part)) at.folders.set(part, { files: [], folders: new Map(), count: 0 })
+      at = at.folders.get(part)!
+      at.count++
+    }
+    at.files.push(f)
+  }
+  const row = (f: string) => {
+    const abs = path.join(dir, f)
+    const name = path.posix.basename(f)
+    const title = titleOf(abs, name)
+    let mtime = 0
+    try {
+      mtime = fs.statSync(abs).mtimeMs
+    } catch {
+      /* gone meanwhile */
+    }
+    return html`<li>
+      <a href="${urlFor(abs) ?? `${base}/-/${f}`}">${title}</a>
+      <span class="wb-meta">${title !== name && html`<code>${name}</code> · `}edited ${time(mtime)}</span>
+    </li>`
+  }
+  const folder = (name: string, f: Folder): Html => {
+    // a folder with only one folder in it is shown as one
+    while (!f.files.length && f.folders.size === 1) {
+      const [inner, next] = [...f.folders][0]!
+      name = `${name}/${inner}`
+      f = next
+    }
+    return html`<details class="wb-folder">
+      <summary>${name}/ <span class="wb-meta">${f.count}</span></summary>
+      ${contents(f)}
+    </details>`
+  }
+  const contents = (f: Folder): Html =>
+    html`${
+      f.files.length > 0 &&
+      html`<ul class="wb-index">
+        ${f.files.map(row)}
+      </ul>`
+    }${[...f.folders].toSorted(([a], [b]) => a.localeCompare(b)).map(([name, sub]) => folder(name, sub))}`
+  return html`<details class="wb-documents wb-folded-documents">
+    <summary>Files <span class="wb-meta">${files.length}</span></summary>
+    ${contents(root)}
+  </details>`
+}
+
+/**
  * A project's documents, as its overview lists them: from its folder, linked where it serves them.
  * `folded`: in a fold that says how many (the shared server's overview, where each project has them).
  */
@@ -191,13 +255,7 @@ function documentsOf(dir: string, base: string, urlFor: (abs: string) => string 
       >
     </li>`
   })
-  if (folded)
-    return html`<details class="wb-documents wb-folded-documents">
-      <summary>Documents <span class="wb-meta">${files.length}</span></summary>
-      <ul class="wb-index">
-        ${rows}
-      </ul>
-    </details>`
+  if (folded) return documentTree(files, dir, base, urlFor)
   // in a section, so the heading isn't numbered like the page's own sections
   return html`<section class="wb-documents">
     <div class="wb-list-head">

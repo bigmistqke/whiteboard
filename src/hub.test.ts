@@ -24,6 +24,8 @@ function project(rel: string, pages: Record<string, string> = { plan: PAGE }) {
 
 project('rg/develop')
 fs.writeFileSync(path.join(root, 'rg/develop/README.md'), '# Develop\n')
+fs.mkdirSync(path.join(root, 'rg/develop/docs/adr'), { recursive: true })
+fs.writeFileSync(path.join(root, 'rg/develop/docs/adr/0001-entries.md'), '# Entries\n')
 project('rg/develop/.claude/worktrees/cmux', { notes: '# Notes\n' })
 const machine = path.join(root, 'machine')
 fs.mkdirSync(machine)
@@ -94,6 +96,11 @@ test("the overview at /: every project's pages by project, what waits first, pro
     assert.match(
       sections[0]!,
       /<details class="wb-documents wb-folded-documents">[\s\S]*href="\/rg\/develop\/-\/README\.md"/,
+    )
+    // by folder: one holding only a folder is shown as one, with how many it holds
+    assert.match(
+      sections[0]!,
+      /<details class="wb-folder">\s*<summary>docs\/adr\/ <span class="wb-meta">1<\/span><\/summary>[\s\S]*href="\/rg\/develop\/-\/docs\/adr\/0001-entries\.md"/,
     )
     assert.match(sections[0]!, /href="\/rg\/develop\/plan#wb-waiting"/)
     assert.match(sections[1]!, /worktrees › cmux/)
