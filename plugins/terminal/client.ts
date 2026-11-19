@@ -345,7 +345,7 @@ function init(drawer: HTMLElement) {
     // a program in this tab asked to show a page here (`whiteboard terminal open`): the drawer comes along
     stream.addEventListener('navigate', e => {
       const { path } = JSON.parse((e as MessageEvent).data)
-      if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) location.assign(path)
+      if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) location.assign(BASE + path)
     })
     // the session's size changed, or another drawer became the active one
     stream.addEventListener('size', e => {

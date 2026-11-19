@@ -26,7 +26,9 @@ import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.t
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { packagePath } from '../src/package.ts'
-import { runningServer } from '../src/running.ts'
+import { runningServer, sharedServer } from '../src/running.ts'
+import { machineDir, machineLogFile, machineServerFile, matchesEntries, readMachineConfig } from '../src/entries.ts'
+import { compareVersions, VERSION } from '../src/package.ts'
 import { statusLines, takenByOther, whose } from '../src/status.ts'
 import type { Listener, PageStatus, WbEvent } from '../src/define.ts'
 
@@ -60,7 +62,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard append --page <p> --type <t> [--data <json>]   add an event to a page's log (e.g. a reply)
   whiteboard pick <event id>       record an event as picked up, as wait does when it hands one out
   whiteboard status [--page <p>]   per page: questions without an answer, answers no agent picked up, who listens
-  whiteboard serve                 run this project's server in the foreground
+  whiteboard serve                 run this project's server in the foreground; for a project of the
+                                   machine's entries, or outside any project, the shared server
   whiteboard skill [dir]           print where the agent skill is, or link it into a skills folder
 
 filters: --page <page|file> (includes pages below it)  --type <type>
@@ -72,6 +75,9 @@ events:  --since <iso time or event id>  --last <n>
 Every command works on the project of the current folder: the nearest folder upward with a
 .whiteboard/ folder. A project needs no config: .whiteboard/config.ts only says what differs from
 the defaults (markdown with the built-in plugins). Each project runs its own server; its port is in .whiteboard/server.json.
+A project the machine config's entries include (${machineDir()}/config.json) is served by the one shared
+server instead, under its path (/<entry>/<folder>), with an index of every entry at /. Only show and
+serve start a server; a wait without one waits for it.
 A page appends events {id, ts, page, type, action, data} to .whiteboard/events.ndjson;
 which types it sends is up to its plugins (\`whiteboard docs\` says). The project's plugins
 can add commands of their own; \`whiteboard help\` in a project lists them.`
@@ -114,18 +120,50 @@ Run \`whiteboard init\` in the folder that should become one.`)
 
 const filter = (): EventFilter => ({ page: opts.page ? pageId(needProject(), opts.page) : undefined, type: opts.type })
 
-/** The running server of this project: its base URL, or null. */
-const running = (proj: Project) => runningServer(proj)
+/**
+ * Is this project one of the machine's entries (see src/entries.ts)? Then the shared server serves
+ * it, under its path, and no server of its own runs. A project outside every include runs its own.
+ */
+function isShared(proj: Project): boolean {
+  const config = readMachineConfig()
+  return !!config && !!matchesEntries(config, proj.dir)
+}
 
-/** This project's server, started in the background when it is not running. @returns its base URL */
+/**
+ * The running server of this project: the URL it is served at (`http://localhost:4777`, or
+ * `http://localhost:4777/rg/develop` under the shared server), or null.
+ */
+async function running(proj: Project): Promise<string | null> {
+  if (!isShared(proj)) return runningServer(proj)
+  const file = machineServerFile()
+  const shared = await sharedServer(file)
+  if (!shared) return null
+  // a project made a moment ago: the server looks again
+  const mine =
+    shared.projects.find(p => p.dir === proj.dir) ??
+    (await sharedServer(file, { rescan: true }))?.projects.find(p => p.dir === proj.dir)
+  return mine ? `${shared.origin}${mine.base}` : null
+}
+
+/**
+ * This project's server, started in the background when it is not running, and under the shared
+ * server also when the one that runs is older than this whiteboard: a newer one takes it over.
+ * Only `show`, `serve` and a plugin's command that asks for the server start one; every other
+ * command finds one or does without. @returns the URL it serves the project at
+ */
 async function ensureServer(): Promise<string> {
   const proj = needProject()
+  const shared = isShared(proj)
   const base = await running(proj)
-  if (base) return base
+  const older =
+    shared && base && compareVersions(VERSION, (await sharedServer(machineServerFile()))?.version ?? VERSION) > 0
+  if (base && !older) return base
   // Several commands may get here at once (an agent starting three watches, say): the one that
   // creates the lock file starts the server, the others wait for it. A lock whose command is gone
   // is left over, and taken over. (Should two servers still start, the server lets one survive.)
-  const lock = path.join(proj.wb, 'server.lock')
+  const lockDir = shared ? machineDir() : proj.wb
+  fs.mkdirSync(lockDir, { recursive: true })
+  const lock = path.join(lockDir, 'server.lock')
   const claim = () => {
     try {
       fs.writeFileSync(lock, String(process.pid), { flag: 'wx' })
@@ -160,7 +198,7 @@ async function ensureServer(): Promise<string> {
     }
   }
   if (mine) {
-    const log = fs.openSync(proj.logFile, 'a')
+    const log = fs.openSync(shared ? machineLogFile() : proj.logFile, 'a')
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], {
       cwd: proj.dir,
       detached: true,
@@ -172,16 +210,48 @@ async function ensureServer(): Promise<string> {
   for (let i = 0; i < 75; i++) {
     await new Promise(r => setTimeout(r, 200))
     const base = await running(proj)
-    if (base) return base
+    // taking over: until the new one answers, the old one still does
+    if (base && (!older || (await sharedServer(machineServerFile()))?.version === VERSION)) return base
   }
-  throw new Error(`server did not start; see ${proj.logFile}`)
+  throw new Error(`server did not start; see ${shared ? machineLogFile() : proj.logFile}`)
 }
 
+/** This project's running server, or an error saying how to start one. */
+async function needServer(): Promise<string> {
+  const base = await running(needProject())
+  if (base) return base
+  throw new Error('no server runs for this project; `whiteboard show <page>` starts it')
+}
+
+/**
+ * Ask the project's server. Without one running, a server made for this one question answers it,
+ * in this process, on no port: a command that only asks (status, docs, the hooks on every prompt)
+ * never starts one. It has no listeners, as no server runs to hold them.
+ */
 async function api(route: string): Promise<any> {
-  const res = await fetch(`${await ensureServer()}${route}`)
+  const base = await running(needProject())
+  const res = base ? await fetch(`${base}${route}`) : await askInProcess(route)
   const body = await res.json()
   if (!res.ok) throw new Error(body.error ?? res.statusText)
   return body
+}
+
+async function askInProcess(route: string): Promise<Response> {
+  const { createServer } = await import('../src/server.ts')
+  const server = createServer(needProject())
+  const listener = http.createServer((req, res) => void server.handle(req, res))
+  await new Promise<void>(r => listener.listen(0, '127.0.0.1', r))
+  try {
+    const { port } = listener.address() as import('node:net').AddressInfo
+    const res = await fetch(`http://127.0.0.1:${port}${route}`)
+    // read now, while the server is there
+    const text = await res.text()
+    return new Response(text, { status: res.status, headers: res.headers })
+  } finally {
+    server.close()
+    listener.closeAllConnections()
+    listener.close()
+  }
 }
 
 /**
@@ -196,9 +266,11 @@ async function api(route: string): Promise<any> {
 function listen(f: EventFilter, command: 'wait' | 'watch', fallback = false): Promise<void> {
   return new Promise(registered => {
     const connect = async () => {
+      // a wait never starts a server: without one, it waits for one to appear (the log is read
+      // without it all the same)
       let base
       try {
-        base = await ensureServer()
+        base = await needServer()
       } catch {
         return setTimeout(connect, 2000).unref()
       }
@@ -242,7 +314,7 @@ async function otherListeners(changed: () => void): Promise<() => Listener[]> {
   let list: Listener[] = []
   const load = async () => {
     try {
-      list = (await (await fetch(`${await ensureServer()}/api/listeners`)).json()) as Listener[]
+      list = (await (await fetch(`${await needServer()}/api/listeners`)).json()) as Listener[]
     } catch {
       /* the server restarts */
     }
@@ -258,7 +330,7 @@ async function otherListeners(changed: () => void): Promise<() => Listener[]> {
     }
     let base
     try {
-      base = await ensureServer()
+      base = await needServer()
     } catch {
       return retry()
     }
@@ -373,7 +445,19 @@ async function status() {
 
 switch (cmd) {
   case 'serve': {
+    // outside any project, with a machine config: the shared server (to start at login, say)
+    if (!project && readMachineConfig()) {
+      const { startShared } = await import('../src/serve.ts')
+      await startShared()
+      break
+    }
     const proj = needProject()
+    if (isShared(proj)) {
+      // the shared server, for every entry's projects; it takes over from an older one itself
+      const { startShared } = await import('../src/serve.ts')
+      await startShared()
+      break
+    }
     const base = await running(proj)
     if (base) {
       console.error(`whiteboard: ${proj.name} is already served at ${base}`)
@@ -455,7 +539,7 @@ switch (cmd) {
   case 'show':
   case 'url': {
     if (cmd === 'show' && !positionals[0]) throw new Error('usage: whiteboard show <page|file>')
-    const base = await ensureServer()
+    const base = cmd === 'show' ? await ensureServer() : await needServer()
     console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
     break
   }
@@ -539,7 +623,7 @@ switch (cmd) {
     if (!target || !to) throw new Error('usage: whiteboard scroll <page|file> <heading, form name or text>')
     const proj = needProject()
     const id = pageId(proj, target)
-    const base = await ensureServer()
+    const base = await needServer()
     // what the page shows, to say now when nothing on it matches
     const rendered = (await (
       await fetch(`${base}/api/render?page=${encodeURIComponent(id)}`)
