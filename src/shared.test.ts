@@ -109,7 +109,7 @@ test('a wait with no server waits for one, starts none, and gets the answer once
   assert.equal(await health(m.port), null, 'no server started')
   assert.ok(!fs.existsSync(path.join(m.home, 'server.json')))
   // url only finds one
-  assert.throws(() => m.cli(a, 'url', 'plan'), /no server runs/)
+  assert.throws(() => m.cli(a, 'url', 'plan'), /the shared server is not running/)
   // nor does show: the shared server is started outside the agents' sandboxes
   assert.throws(() => m.cli(a, 'show', 'plan'), /the shared server is not running/)
   assert.equal(await health(m.port), null, 'no server started')

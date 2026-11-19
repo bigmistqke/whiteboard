@@ -26,7 +26,7 @@ import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.t
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { packagePath } from '../src/package.ts'
-import { runningServer, sharedServer } from '../src/running.ts'
+import { recordedSharedPort, runningServer, sharedServer } from '../src/running.ts'
 import { machineDir, machineServerFile, matchesEntries, readMachineConfig } from '../src/entries.ts'
 import { compareVersions, VERSION } from '../src/package.ts'
 import { statusLines, takenByOther, whose } from '../src/status.ts'
@@ -232,8 +232,17 @@ async function ensureServer(): Promise<string> {
 
 /** This project's running server, or an error saying how to start one. */
 async function needServer(): Promise<string> {
-  const base = await running(needProject())
+  const proj = needProject()
+  const base = await running(proj)
   if (base) return base
+  if (isShared(proj)) {
+    const port = recordedSharedPort(machineServerFile())
+    throw new Error(
+      port
+        ? `the shared server recorded on port ${port} did not answer, or does not serve ${proj.dir}`
+        : "the shared server is not running. It is started outside the agents' sandboxes: as a login service, or with `whiteboard serve` in a terminal, outside any project",
+    )
+  }
   throw new Error('no server runs for this project; `whiteboard show <page>` starts it')
 }
 

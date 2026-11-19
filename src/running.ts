@@ -4,6 +4,12 @@
 import fs from 'node:fs'
 import type { Project } from './config.ts'
 
+/**
+ * How long a server may take to say it is there: a loaded machine (many agents, builds) can take
+ * seconds, and a server taken for gone is one a command starts again or does without.
+ */
+const HEALTH_TIMEOUT = 5000
+
 /** The port the last server of this project recorded, or null. */
 export function recordedPort(project: Project): number | null {
   try {
@@ -19,7 +25,7 @@ export async function runningServer(project: Project, { except }: { except?: num
   if (!port) return null
   const base = `http://localhost:${port}`
   try {
-    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(800) })
+    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT) })
     const health = res.ok ? await res.json() : null
     return health?.dir === project.dir && health.pid !== except ? base : null
   } catch {
@@ -56,7 +62,9 @@ export async function sharedServer(
   if (!port) return null
   const origin = `http://localhost:${port}`
   try {
-    const res = await fetch(`${origin}/api/health${rescan ? '?rescan' : ''}`, { signal: AbortSignal.timeout(800) })
+    const res = await fetch(`${origin}/api/health${rescan ? '?rescan' : ''}`, {
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT),
+    })
     const health = res.ok ? await res.json() : null
     if (!health?.hub || health.pid === except) return null
     return { origin, pid: health.pid, version: String(health.version ?? '0.0.0'), projects: health.projects ?? [] }
