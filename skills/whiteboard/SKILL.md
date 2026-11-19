@@ -6,8 +6,9 @@ description: Show the user a live HTML page written in markdown, and get answers
 # whiteboard
 
 Pages are markdown files. In a repository set up for whiteboard they live in
-`.whiteboard/pages/` and are served by the project's own server, at a port
-`whiteboard show` prints. The user keeps them open in a browser; every save
+`.whiteboard/pages/` and are served by the project's server, at the address
+`whiteboard show` prints: the project's own, or one server the user runs for
+many projects (their worktrees and job folders), under the project's path. The user keeps them open in a browser; every save
 of the file updates the open page in place, and the blocks that changed are
 marked until the user has seen them. Forms on a page write the user's answers
 to an ndjson log you can wait on.
@@ -29,9 +30,13 @@ PATH, the project has it installed locally: run them as `npx whiteboard …`.
    agents may be writing pages in the same project, so never write a page you
    did not get from `whiteboard new`, and never pick a page name yourself.
 3. Write the page into that file.
-4. Run `whiteboard show <file>`: it starts the server if needed and prints the
-   URL. Give the user the URL the first time; after that, just keep editing
-   the file — the open page follows.
+4. Run `whiteboard show <file>`: it starts the project's server if needed and
+   prints the URL. Give the user the URL the first time; after that, just
+   keep editing the file — the open page follows. When the project is served
+   by the user's shared server and that isn't running, `show` says so and
+   starts nothing: tell the user, don't try to start it yourself (it is
+   started outside your sandbox). A `wait` meanwhile still works: it waits
+   for the server, and answers in the log reach it either way.
 5. A page that was only for the moment (one question, a check, a demo):
    once it has done its job and you've acted on its answers, close it with
    `whiteboard close <file>`. That removes the page and its events (answers,
@@ -235,11 +240,14 @@ page (`--page plan` also works, and includes the pages below `plan/`).
   every answer on the page once, also those given while no watch ran. Use it
   only with something that reports each printed line as it comes (a
   monitor), and restart it when that expires.
-- Without `--page`, `wait` and `watch` are the project's fallback: they hand
-  out only what no other wait or watch would take, on any page (also
-  answers left from sessions that ended). One runs per project; a second
-  exits 1. Use it only when asked to look after the whole board; for your
-  own pages, always pass `--page`.
+- Without `--page`, `wait` and `watch` are the fallback: they hand out only
+  what no other wait or watch would take, on any page (also answers left
+  from sessions that ended). In a project of the user's shared server it
+  covers every project served with it (all their worktrees and job folders),
+  and each answer says where it is from: `project` (its folder) and `url`;
+  act on it in that folder. One runs at a time (per project, or per shared
+  group); a second exits 1. Use it only when asked to look after the whole
+  board; for your own pages, always pass `--page`.
 - `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer. With `--follow` it then prints each new event as it comes, without
