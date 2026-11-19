@@ -268,7 +268,11 @@ test('the shared server writes only its state folder; its config is read, never 
 
 test('paths: what a sandbox wrapper grants the shared server', async () => {
   const m = await machine()
+  m.make('jobs/a')
+  // made by paths itself: a sandbox grants only folders that exist
+  assert.ok(!fs.existsSync(path.join(m.home, 'state')))
   const [write, read] = [m.cli(m.root, 'paths', '--write'), m.cli(m.root, 'paths', '--read')]
+  assert.ok(fs.existsSync(path.join(m.home, 'state')))
   // the entry's folder up to its wildcard, and the state folder; the config and whiteboard, to read
   assert.deepEqual(write.split(':'), [path.join(m.root, 'jobs'), path.join(m.home, 'state')])
   assert.deepEqual(read.split(':'), [m.home, path.resolve(path.dirname(CLI), '..')])

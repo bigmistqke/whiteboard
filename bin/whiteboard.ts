@@ -27,7 +27,14 @@ import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { PACKAGE_DIR, packagePath } from '../src/package.ts'
 import { recordedSharedPort, runningServer, sharedServer } from '../src/running.ts'
-import { machineDir, machineServerFile, matchesEntries, readMachineConfig, serverPaths, stateDir } from '../src/entries.ts'
+import {
+  machineDir,
+  machineServerFile,
+  matchesEntries,
+  readMachineConfig,
+  serverPaths,
+  stateDir,
+} from '../src/entries.ts'
 import { compareVersions, VERSION } from '../src/package.ts'
 import { statusLines, takenByOther, whose } from '../src/status.ts'
 import type { Listener, PageStatus, WbEvent } from '../src/define.ts'
@@ -880,7 +887,16 @@ switch (cmd) {
     // (a sandbox wrapper: `safehouse --add-dirs="$(whiteboard paths --write)" …`)
     const config = readMachineConfig()
     if (!config) throw new Error(`no machine config: ${machineDir()}/config.json`)
-    const { write, read } = serverPaths(config, { packageDir: PACKAGE_DIR })
+    const paths = serverPaths(config, { packageDir: PACKAGE_DIR })
+    // a sandbox grants only folders that exist: the state folder is whiteboard's own, so it is made
+    // here; an entry's folder not there yet is left out (a restart grants it once it is)
+    try {
+      fs.mkdirSync(stateDir(), { recursive: true })
+    } catch {
+      /* made by whoever may: the wrapper runs outside the agents' sandboxes */
+    }
+    const write = paths.write.filter(d => fs.existsSync(d))
+    const read = paths.read.filter(d => fs.existsSync(d))
     if (opts.write) console.log(write.join(':'))
     else if (opts.read) console.log(read.join(':'))
     else console.log(`write: ${write.join(':')}\nread:  ${read.join(':')}`)
