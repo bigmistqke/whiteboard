@@ -700,12 +700,20 @@ export default () => definePlugin({
 - Files are referenced by URL relative to the module, so they resolve
   wherever the package is installed.
 - The server context has `attrs`, `label`, `children` (mdast),
-  `sections()`, `toHtml(nodes)`, `markdown(src)`, `inline(src)`, `page`,
+  `items()`, `toHtml(nodes)`, `markdown(src)`, `inline(src)`, `page`,
   `file`, `dir` and more.
+- `items()` is what a block of several parts makes them of (the grid's
+  cards, steps), one rule for all: a heading at the block's shallowest
+  heading level starts an item, titled by it, and so does a `---`, untitled;
+  content with neither is one item. Each has a `key` (its heading's slug,
+  else its place), so a block remembers an item across updates: steps keep
+  showing the step you were on when one is added before it. Two separators,
+  both plain markdown (on GitHub a `---` between the parts is a rule, as it
+  should be); the grid's "a card per paragraph" and steps' "an intro is a
+  step" were each block's own and went.
 - Without `props`, a directive client gets
-  `{ name, attrs, label, html, intro, sections: [{ title, text, html }] }`
-  (`sections` splits the content at its shallowest headings, or at blank
-  lines when there are none); a fence client gets `{ name, attrs, text }`.
+  `{ name, attrs, label, html, items: [{ title, text, html, key }] }`;
+  a fence client gets `{ name, attrs, text }`.
 - A block with only `html` is static: no JavaScript on the page.
 - A block gets the code fences of its name (```` ```mermaid ````) only when
   it says so, `fence: true`. Without that, a fence of its name is code like

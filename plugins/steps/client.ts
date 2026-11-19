@@ -1,5 +1,6 @@
 // Steps in the browser: which item shows, by the ‹ › buttons, the tabs and ← →, and kept across
-// the page's updates (which write the block anew) by the block's place among the page's steps. It
+// the page's updates (which write the block anew): the block by its place among the page's steps,
+// the step by its key (a step the agent adds before it doesn't move what you see). It
 // marks only data-wb-* attributes, which a block's signature leaves out: flipping through items is
 // not a change to the page.
 import type { Api, PageHandle, PluginMount } from '../../src/define'
@@ -10,14 +11,22 @@ const items = (win: HTMLElement) => [
 ]
 const marks = (win: HTMLElement) => [...win.querySelectorAll<HTMLElement>(':scope > .wb-window-bar .wb-steps-mark')]
 
-/** which item shows, by the block's place */
-const at = new Map<number, number>()
+/** which item shows, by the block's place: its key (Item.key), so a step added before it keeps it showing, and where it was */
+const at = new Map<number, { key: string | null; index: number }>()
+
+/** Where the step it showed is now: the one with its key, else the same place. */
+function current(win: HTMLElement, place: number): number {
+  const was = at.get(place)
+  if (!was) return 0
+  const byKey = was.key ? items(win).findIndex(item => item.dataset.key === was.key) : -1
+  return byKey >= 0 ? byKey : was.index
+}
 
 function show(win: HTMLElement, place: number, i: number) {
   const all = items(win)
   const n = Math.max(all.length, 1)
   i = Math.min(Math.max(i, 0), n - 1)
-  at.set(place, i)
+  at.set(place, { key: all[i]?.dataset.key ?? null, index: i })
   win.setAttribute('data-wb-step', String(i))
   all.forEach((item, k) => item.toggleAttribute('data-wb-current', k === i))
   marks(win).forEach((mark, k) => mark.toggleAttribute('data-wb-current', k === i))
@@ -25,12 +34,12 @@ function show(win: HTMLElement, place: number, i: number) {
   win.toggleAttribute('data-wb-last', i === n - 1)
 }
 
-const apply = () => windows().forEach((win, place) => show(win, place, at.get(place) ?? 0))
+const apply = () => windows().forEach((win, place) => show(win, place, current(win, place)))
 
 function step(win: HTMLElement, to: 'prev' | 'next' | number) {
   const place = windows().indexOf(win)
   if (place < 0) return
-  const now = at.get(place) ?? 0
+  const now = current(win, place)
   show(win, place, to === 'prev' ? now - 1 : to === 'next' ? now + 1 : to)
 }
 

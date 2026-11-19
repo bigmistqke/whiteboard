@@ -11,11 +11,12 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
 
+/** A card per item (DirectiveContext.items): a heading, or a `---`, starts one. */
 export async function render(ctx: DirectiveContext) {
-  const { intro, sections } = await ctx.sections()
+  const items = await ctx.items()
   const cols = Number(ctx.attrs.cols)
   const style = cols ? html` style="--wb-grid-cols:${cols}"` : null
-  const cards = sections.map(s => {
+  const cards = items.map(s => {
     let title = s.title
     let badge: string | null = null
     const m = title ? /^(.*?)\s*\{([^}]+)\}\s*$/s.exec(title) : null
@@ -31,8 +32,7 @@ export async function render(ctx: DirectiveContext) {
       <div class="wb-card-body">${raw(s.html)}</div>
     </article>`
   })
-  return html`${raw(intro)}
-    <div class="wb-grid${'narrow' in ctx.attrs ? '' : ' wb-wide'}" ${style}>${cards}</div>`
+  return html`<div class="wb-grid${'narrow' in ctx.attrs ? '' : ' wb-wide'}" ${style}>${cards}</div>`
 }
 
 export default function grid(): Plugin {

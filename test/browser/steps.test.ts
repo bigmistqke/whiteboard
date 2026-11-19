@@ -89,6 +89,12 @@ test(
     assert.deepEqual(await showing(ab), ['Much longer.'])
     assert.deepEqual(await showing(five), ['Four 4'])
     assert.equal(await page.locator('.wb-steps-window.wb-new, .wb-new .wb-steps-window').count(), 0)
+
+    // a step added before it: the same step still shows (by its key), not the same place
+    proj.page('s', PAGE('\nA new paragraph.\n').replace('### One\n1', '### Zero\n0\n### One\n1'))
+    await page.waitForSelector('text=Zero', { state: 'attached' })
+    assert.equal((await five.locator('.wb-steps-count').innerText()).trim(), '5 / 6')
+    assert.deepEqual(await showing(five), ['Four 4'])
     assert.deepEqual(errors, [])
   },
 )

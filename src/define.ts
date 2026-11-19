@@ -649,12 +649,22 @@ export type Mount<Props = unknown> = (
 
 // ---- server context ----------------------------------------------------------------------------
 
-export interface Section {
-  /** heading content as HTML (no <h*> wrapper), null when the block has no headings */
+/**
+ * One of a block's items (DirectiveContext.items): what a grid makes a card of, steps a step. A
+ * heading at the block's shallowest heading level starts one, titled by it; so does a `---`, without
+ * a title; content with neither is one item.
+ */
+export interface Item {
+  /** the heading's content as HTML (no <h*> around it); null for an item a `---` started */
   title: string | null
-  /** heading as plain text */
+  /** the heading as plain text */
   text: string | null
+  /** the item's content as HTML */
   html: string
+  /** the same as mdast nodes, for a block that takes it apart (its first picture, say) */
+  nodes: unknown[]
+  /** stays the same while its heading does (its slug), else its place: to remember an item across updates */
+  key: string
 }
 
 interface BaseContext {
@@ -685,8 +695,8 @@ export interface DirectiveContext extends BaseContext {
   labelText: string | null
   /** the block's content as mdast nodes */
   children: unknown[]
-  /** split the content at its shallowest headings, or at blank lines when it has none */
-  sections(): Promise<{ intro: string; sections: Section[] }>
+  /** the content as items: a heading at its shallowest heading level, or a `---`, starts one (Item) */
+  items(): Promise<Item[]>
 }
 
 /** ```name attrs */
@@ -719,8 +729,8 @@ export interface DirectiveProps {
   attrs: Record<string, string>
   label: string | null
   html: string
-  intro: string
-  sections: Section[]
+  /** its items (Item), without their mdast nodes */
+  items: Omit<Item, 'nodes'>[]
 }
 
 /** Default props of a fence without props(). */

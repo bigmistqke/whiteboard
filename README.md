@@ -533,7 +533,7 @@ export default function mount(root, page, api) {
 
 - **`blocks`**, by name. A block has `html(ctx)` (the server's HTML; `ctx`
   has the block's attributes, label, content as mdast nodes, `toHtml`,
-  `sections` and more), `props(ctx)` (JSON for its client), `client` (a
+  `items()` and more), `props(ctx)` (JSON for its client), `client` (a
   browser module, mounted per block), `style` (linked on pages that use it),
   `fence: true` to also take the code fences of its name (```` ```mermaid ````),
   `fence: 'any'` for the block that takes every code fence nobody else

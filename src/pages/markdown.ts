@@ -99,6 +99,14 @@ export function parseAttrs(s: unknown) {
   return out
 }
 
+/** A heading's text as a key: lowercase, words joined by - */
+const slugOf = (text: string) =>
+  text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-|-$/g, '')
+
 const DIRECTIVES = new Set(['containerDirective', 'leafDirective', 'textDirective'])
 const PHRASING = new Set([
   'text',
@@ -294,34 +302,43 @@ export async function renderMarkdown(
     return stringify(nodes)
   }
 
-  async function sectionsOf(children: MdNode[]) {
+  /**
+   * A block's items (DirectiveContext.items): a heading at the block's shallowest heading level, or a
+   * `---`, starts one; what comes before the first is one too, untitled; content with neither is one
+   * item. Deeper headings stay inside their item. An untitled item with nothing in it (a `---` right
+   * before a heading) is none.
+   */
+  async function itemsOf(children: MdNode[]) {
     await transform({ type: 'root', children })
-    const heads = children.filter(n => n.type === 'heading')
-    if (!heads.length) {
-      return {
-        intro: '',
-        sections: children.map(n => ({ title: null, text: null, html: stringify([n]) })),
+    const content = children.filter(n => !(n.type === 'text' && !String(n.value ?? '').trim()))
+    const heads = content.filter(n => n.type === 'heading')
+    const depth = heads.length ? Math.min(...heads.map(h => h.depth)) : null
+    const groups: { heading: MdNode | null; body: MdNode[] }[] = []
+    let current: { heading: MdNode | null; body: MdNode[] } | null = null
+    for (const n of content) {
+      if (n.type === 'heading' && n.depth === depth) groups.push((current = { heading: n, body: [] }))
+      else if (n.type === 'thematicBreak') groups.push((current = { heading: null, body: [] }))
+      else {
+        if (!current) groups.push((current = { heading: null, body: [] }))
+        current.body.push(n)
       }
     }
-    const depth = Math.min(...heads.map(h => h.depth))
-    const out: { heading: MdNode; body: MdNode[] }[] = []
-    const intro: MdNode[] = []
-    let current: { heading: MdNode; body: MdNode[] } | null = null
-    for (const n of children) {
-      if (n.type === 'heading' && n.depth === depth) {
-        current = { heading: n, body: [] }
-        out.push(current)
-      } else if (current) current.body.push(n)
-      else intro.push(n)
-    }
-    return {
-      intro: stringify(intro),
-      sections: out.map(s => ({
-        title: stringify(s.heading.children ?? []),
-        text: toString(s.heading as any),
-        html: stringify(s.body),
-      })),
-    }
+    const taken = new Map<string, number>()
+    return groups
+      .filter(g => g.heading || g.body.length)
+      .map((g, i) => {
+        const text = g.heading ? toString(g.heading as any) : null
+        const base = (text && slugOf(text)) || String(i + 1)
+        const n = (taken.get(base) ?? 0) + 1
+        taken.set(base, n)
+        return {
+          title: g.heading ? stringify(g.heading.children ?? []) : null,
+          text,
+          html: stringify(g.body),
+          nodes: g.body,
+          key: n > 1 ? `${base}-${n}` : base,
+        }
+      })
   }
 
   /** HTML into the markdown tree, where the rest of the pipeline takes it as it is: the one place it becomes a string. */
@@ -422,7 +439,7 @@ plugin "${name}" failed to compose around block "${block.name}": ${(err as Error
       labelText: label ? toString({ type: 'root', children: label } as any) : null,
       children,
       node,
-      sections: () => sectionsOf(children),
+      items: () => itemsOf(children),
       defaults: () =>
         (defaults ??= (async () => {
           const content = await toHtml(children)
@@ -431,7 +448,7 @@ plugin "${name}" failed to compose around block "${block.name}": ${(err as Error
             attrs: { ...node.attributes },
             label: labelHtml,
             html: content,
-            ...(await sectionsOf(children)),
+            items: (await itemsOf(children)).map(({ nodes: _, ...item }) => item),
           }
         })()),
     }

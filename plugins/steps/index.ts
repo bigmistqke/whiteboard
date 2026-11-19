@@ -6,47 +6,6 @@ import fs from 'node:fs'
 import { definePlugin, html, raw, windowFrame, type DirectiveContext, type Plugin } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'
 
-interface Node {
-  type: string
-  depth?: number
-  value?: string
-  children?: Node[]
-}
-
-export interface Part {
-  /** the heading's content, or none */
-  title: Node[] | null
-  body: Node[]
-}
-
-/**
- * The items of a block: one per heading at its shallowest level (what comes before the first is an
- * item of its own); without headings, `---` separates them; else it is one item.
- */
-export function split(children: Node[]): Part[] {
-  const content = children.filter(n => !(n.type === 'text' && !n.value?.trim()))
-  const heads = content.filter(n => n.type === 'heading')
-  const parts: Part[] = []
-  if (heads.length) {
-    const depth = Math.min(...heads.map(h => h.depth!))
-    for (const n of content) {
-      if (n.type === 'heading' && n.depth === depth) parts.push({ title: n.children ?? [], body: [] })
-      else if (parts.length) parts.at(-1)!.body.push(n)
-      else parts.push({ title: null, body: [n] })
-    }
-    return parts
-  }
-  let current: Part = { title: null, body: [] }
-  for (const n of content) {
-    if (n.type === 'thematicBreak') {
-      if (current.body.length) parts.push(current)
-      current = { title: null, body: [] }
-    } else current.body.push(n)
-  }
-  if (current.body.length || !parts.length) parts.push(current)
-  return parts
-}
-
 /** A height in px (a bare number) or a CSS length; else none. */
 const height = (value: string | undefined) =>
   value && /^\d+(\.\d+)?$/.test(value)
@@ -66,10 +25,8 @@ const NEXT = svg('M6 3.5 10.5 8 6 12.5')
 const TABS = 4
 
 export async function render(ctx: DirectiveContext) {
-  const parts = split(ctx.children as Node[])
-  const items = await Promise.all(
-    parts.map(async p => ({ title: p.title ? await ctx.toHtml(p.title) : null, html: await ctx.toHtml(p.body) })),
-  )
+  // one per item (DirectiveContext.items): a heading, or a `---`, starts one
+  const items = await ctx.items()
   const tabs = !('count' in ctx.attrs) && items.length <= TABS && items.every(i => i.title)
   const n = items.length
   const marks = tabs
@@ -100,7 +57,7 @@ export async function render(ctx: DirectiveContext) {
   const body = html`<div class="wb-steps" tabindex="0">
     ${items.map(
       item =>
-        html`<section class="wb-steps-item">
+        html`<section class="wb-steps-item" data-key="${item.key}">
           ${!tabs && item.title ? html`<div class="wb-steps-title">${raw(item.title)}</div>` : ''} ${raw(item.html)}
         </section>`,
     )}
