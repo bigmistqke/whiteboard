@@ -60,7 +60,7 @@ test('blocks that share a stylesheet link it once', async () => {
 test('parseAttrs: a fence attributes, in braces too; an unquoted value ends at the closing brace', () => {
   assert.deepEqual(parseAttrs('cols=3 open title="a b"'), { cols: '3', open: '', title: 'a b' })
   assert.deepEqual(parseAttrs('{compose=window}'), { compose: 'window' })
-  assert.deepEqual(parseAttrs('{compose=window,badge title="A b"}'), { compose: 'window,badge', title: 'A b' })
+  assert.deepEqual(parseAttrs('{compose=lightbox,window title="A b"}'), { compose: 'lightbox,window', title: 'A b' })
 })
 
 test('items: a heading at the shallowest level, or a ---, starts one; content with neither is one', async () => {

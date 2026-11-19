@@ -18,6 +18,7 @@ import windows from './window/index.ts'
 import steps from './steps/index.ts'
 import draft from './draft/index.ts'
 import lightbox from './lightbox/index.ts'
+import badge from './badge/index.ts'
 
 export function builtins(): Plugin[] {
   return [
@@ -36,5 +37,6 @@ export function builtins(): Plugin[] {
     steps(),
     draft(),
     lightbox(),
+    badge(),
   ]
 }

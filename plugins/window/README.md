@@ -46,4 +46,4 @@ file. `height` (pixels or a CSS length) fixes its height, scrolling inside.
 
 `compose=window` is this plugin's `compose`: any plugin can compose itself
 around blocks the same way, and a block names several in order:
-`compose=window,badge`.
+`compose=lightbox,window`.

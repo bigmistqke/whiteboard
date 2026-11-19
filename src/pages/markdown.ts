@@ -347,7 +347,7 @@ export async function renderMarkdown(
   /**
    * A block's output for one directive or fence: static HTML, or an island around it; then put in
    * what the plugins its `compose` attribute names compose around it (Plugin.compose), in the order
-   * written, the first innermost: `{compose=window,badge}`. A name no plugin composes is said in
+   * written, the first innermost: `{compose=lightbox,window}`. A name no plugin composes is said in
    * place. Not inline blocks, not a block of the composing plugin's own name, not one that renders
    * nothing (left out of a build), and not one that says what's wrong with it instead.
    */

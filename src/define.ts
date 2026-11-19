@@ -104,7 +104,7 @@ export interface Plugin {
    * Composes itself around other blocks: a block whose `compose` attribute names this plugin
    * (`::image{src compose=window}`, ```` ```mermaid {compose=window} ````) is put in what this
    * returns, the block's own HTML as `children`, as a component gets what it wraps. The block needs
-   * to know nothing of it. Several named (`compose=window,badge`) compose in the order written, the
+   * to know nothing of it. Several named (`compose=lightbox,window`) compose in the order written, the
    * first innermost. Not inline blocks, nor a block of this plugin's name (`:::window` is one already).
    * What it reads of the block's attributes (the window's `title`) its docs say.
    */

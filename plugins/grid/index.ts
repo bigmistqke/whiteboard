@@ -4,34 +4,19 @@ import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { html, raw, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'
 
-const slug = (s: string) =>
-  s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-
 /** A card per item (DirectiveContext.items): a heading, or a `---`, starts one. */
 export async function render(ctx: DirectiveContext) {
   const items = await ctx.items()
   const cols = Number(ctx.attrs.cols)
   const style = cols ? html` style="--wb-grid-cols:${cols}"` : null
-  const cards = items.map(s => {
-    let title = s.title
-    let badge: string | null = null
-    const m = title ? /^(.*?)\s*\{([^}]+)\}\s*$/s.exec(title) : null
-    if (m) {
-      title = m[1]
-      badge = m[2].trim()
-    }
-    // a section's title and html are HTML already; the badge is text from the heading
-    const b = badge && html`<span class="wb-badge" data-badge="${slug(badge)}">${badge}</span>`
-    const head = (title || b) && html`<header>${title && html`<h3>${raw(title)}</h3>`}${b}</header>`
-    return html`<article class="wb-card" ${badge && html` data-badge="${slug(badge)}"`}>
-      ${head}
-      <div class="wb-card-body">${raw(s.html)}</div>
-    </article>`
-  })
+  // a section's title and html are HTML already
+  const cards = items.map(
+    s =>
+      html`<article class="wb-card">
+        ${s.title && html`<header><h3>${raw(s.title)}</h3></header>`}
+        <div class="wb-card-body">${raw(s.html)}</div>
+      </article>`,
+  )
   return html`<div class="wb-grid${'narrow' in ctx.attrs ? '' : ' wb-wide'}" ${style}>${cards}</div>`
 }
 

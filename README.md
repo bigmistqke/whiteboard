@@ -52,10 +52,10 @@ cat > .whiteboard/pages/plan.md <<'EOF'
 # Release plan
 
 :::grid{cols=2}
-### Parser {done}
+### Parser :badge[done]
 Rewritten, all tests pass.
 
-### Docs {todo}
+### Docs :badge[todo]
 Not started.
 :::
 
@@ -341,7 +341,7 @@ Every colour is a `light-dark()` pair, so one line sets it for both themes:
 :root { --text-size: 17px; --rhythm: 1em; }
 ```
 
-The built-in plugins are callout, chat, code, comments, details, draft,
+The built-in plugins are badge, callout, chat, code, comments, details, draft,
 forge, form, grid, iframe, lightbox, mermaid, quiet, steps and window: every project has them, and
 `whiteboard docs` shows how to write each. A config's `plugins` add to them,
 and one with a built-in's name replaces it. The terminal and the Claude Code
@@ -570,7 +570,7 @@ window plugin is one: `::image{src compose=window}`, ```` ```mermaid {compose=wi
 and `:::grid{compose=window}` all go in a window, and none of those blocks
 knows of windows. A block says what it shows on its own with `open` (an
 image's file), which a window's ↗ opens. Several named compose in the order
-written, the first innermost: `compose=window,badge`. A name no plugin
+written, the first innermost: `compose=lightbox,window`. A name no plugin
 composes is said in place.
 
 ```ts
@@ -625,10 +625,10 @@ The parser is done; the docs wait on the question below.
 :::
 
 :::grid{cols=2}
-### Parser {done}
+### Parser :badge[done]
 Rewritten, all tests pass.
 
-### Docs {todo}
+### Docs :badge[todo]
 Not started.
 :::
 
