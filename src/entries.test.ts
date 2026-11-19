@@ -36,7 +36,11 @@ test('includes find the folders with a .whiteboard/, excludes leave some out, ea
   assert.deepEqual(discover(config, { home }), [
     { entry: 'rg', dir: path.join(home, 'rg/develop'), base: '/rg/develop' },
     { entry: 'rg', dir: path.join(home, 'rg/develop/.claude/worktrees/cmux'), base: '/rg/worktrees/cmux' },
-    { entry: 'rg', dir: path.join(home, 'rg/worksite/jobs/2026-11-19-solid-port'), base: '/rg/jobs/2026-11-19-solid-port' },
+    {
+      entry: 'rg',
+      dir: path.join(home, 'rg/worksite/jobs/2026-11-19-solid-port'),
+      base: '/rg/jobs/2026-11-19-solid-port',
+    },
   ])
 })
 
@@ -83,7 +87,10 @@ test('the machine config is checked', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-machine-'))
   after(() => fs.rmSync(dir, { recursive: true, force: true }))
   assert.equal(readMachineConfig(dir), null)
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ port: 4800, entries: { rg: { include: ['~/rg/*'] } } }))
+  fs.writeFileSync(
+    path.join(dir, 'config.json'),
+    JSON.stringify({ port: 4800, entries: { rg: { include: ['~/rg/*'] } } }),
+  )
   assert.deepEqual(readMachineConfig(dir), { port: 4800, entries: { rg: { include: ['~/rg/*'], exclude: [] } } })
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ entries: { api: { include: [] } } }))
   assert.throws(() => readMachineConfig(dir), /entry name "api"/)
