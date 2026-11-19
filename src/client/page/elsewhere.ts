@@ -5,6 +5,7 @@
 import type { Api, PageHandle, PageStatus } from '../../define.ts'
 import { INBOX_ICON, awaitingLabel } from '../../icons.ts'
 import { awaiting } from '../../status.ts'
+import { base, url } from '../base.ts'
 
 /** A link to a page that scrolls it to its first waiting question. */
 export const WAITING_HASH = '#wb-waiting'
@@ -30,7 +31,7 @@ let current = ''
 async function load() {
   let pages: PageStatus[]
   try {
-    pages = await (await fetch('/api/status', { cache: 'no-store' })).json()
+    pages = await (await fetch(url('/api/status'), { cache: 'no-store' })).json()
   } catch {
     return
   }
@@ -48,7 +49,7 @@ async function load() {
     ...waiting.map(({ p, n }) => {
       const li = document.createElement('li')
       const a = document.createElement('a')
-      a.href = `/${p.page.split('/').map(encodeURIComponent).join('/')}${WAITING_HASH}`
+      a.href = `${base}/${p.page.split('/').map(encodeURIComponent).join('/')}${WAITING_HASH}`
       a.textContent = `${p.title} (${n})`
       li.append(a)
       return li

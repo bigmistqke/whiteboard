@@ -21,6 +21,7 @@
 import type { Api, FormState, FormStatus } from '../define'
 import { STATES, isQuestionName, questionState } from '../status.ts'
 import { reactive } from './reactive'
+import { storageKey } from './base.ts'
 
 type Data = Record<string, unknown>
 
@@ -107,7 +108,7 @@ function onOtherInput(e: Event) {
 
 // ---- drafts ------------------------------------------------------------------------------------
 
-const draftKey = (form: HTMLFormElement) => `wb-draft:${page}:${form.getAttribute('name')}`
+const draftKey = (form: HTMLFormElement) => storageKey(`wb-draft:${page}:${form.getAttribute('name')}`)
 
 function saveDraft(e: Event) {
   const form = (e.target as Element | null)?.closest?.('form')

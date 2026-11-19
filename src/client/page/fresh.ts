@@ -6,6 +6,7 @@
 import { html } from '../../html.ts'
 import type { Api, Toast } from '../../define.ts'
 import { viewBottom } from './view'
+import { storageKey } from '../base.ts'
 
 const DWELL_MS = 600
 const FADE_MS = 2500
@@ -236,7 +237,7 @@ export function trackInitial(main: HTMLElement, page: string, api: Api) {
   upToast.hide()
   downToast.hide()
   mainEl = main
-  storeKey = `wb-seen:${page}`
+  storeKey = storageKey(`wb-seen:${page}`)
   const blocks = [...main.children]
   const sigs = blocks.map(signature)
   blocks.forEach((el, i) => sigOf.set(el, sigs[i]))

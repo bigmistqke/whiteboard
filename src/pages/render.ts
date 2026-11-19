@@ -63,24 +63,26 @@ export function titleOf(file: string, fallback: string) {
   }
 }
 
-function crumbs(id: string, name: string) {
+function crumbs(id: string, name: string, base: string, entry?: RenderContext['entry']) {
   const parts = id ? id.split('/') : []
-  return html`<a href="/">${name}</a
-    >${parts.map((p, i) => html` / <a href="/${parts.slice(0, i + 1).join('/')}">${p}</a>`)}`
+  // under a shared server, the index of every entry and its project come first
+  const above = entry ? html`<a href="/">${entry.name}</a> / ` : ''
+  return html`${above}<a href="${base}/">${name}</a
+    >${parts.map((p, i) => html` / <a href="${base}/${parts.slice(0, i + 1).join('/')}">${p}</a>`)}`
 }
 
 const time = (ts: number) => html`<time data-ts="${ts}"></time>`
 
-function pageList(pages: PagesPage['pages']) {
+function pageList(pages: PagesPage['pages'], base: string) {
   return html`<ul class="wb-index">
     ${pages.map(
       p =>
         html`<li>
-          <a href="/${p.id}">${titleOf(p.file, path.basename(p.id))}</a>${
+          <a href="${base}/${p.id}">${titleOf(p.file, path.basename(p.id))}</a>${
             p.awaiting > 0 &&
             html` <a
               class="wb-awaiting"
-              href="/${p.id}#wb-waiting"
+              href="${base}/${p.id}#wb-waiting"
               title="${awaitingLabel(p.awaiting)}"
               aria-label="${awaitingLabel(p.awaiting)}"
               >${raw(INBOX_ICON)}${p.awaiting}</a
@@ -173,7 +175,7 @@ function documentList(ctx: RenderContext) {
       /* gone meanwhile */
     }
     return html`<li data-order="${i}" data-updated="${mtime}" data-title="${title.toLowerCase()}">
-      <a href="${ctx.urlFor(abs) ?? `/-/${f}`}">${title}</a>
+      <a href="${ctx.urlFor(abs) ?? `${ctx.base ?? ''}/-/${f}`}">${title}</a>
       <span class="wb-meta"
         >${where !== '.' && html`<code>${where === f ? f : `${where}/`}</code> · `}edited ${time(mtime)}</span
       >
@@ -296,7 +298,9 @@ export function createRender(
       case 'page':
         return markdown(page.source, page.id, page.file, ctx)
       case 'pages': {
-        const list = page.pages.length ? pageList(page.pages) : html`<p class="wb-meta">No pages yet.</p>`
+        const list = page.pages.length
+          ? pageList(page.pages, ctx.base ?? '')
+          : html`<p class="wb-meta">No pages yet.</p>`
         const view = page.id
           ? html`<h1>${page.id}</h1>
               ${list}
@@ -304,8 +308,8 @@ export function createRender(
           : html`<h1>${project.name}</h1>
               ${list}${project.files && documentList(ctx)}
               <p class="wb-meta">
-                <code>${project.dir}</code>${project.files && html` · <a href="/-/">files</a>`} ·
-                <a href="/_/docs">how to write pages</a>
+                <code>${project.dir}</code>${project.files && html` · <a href="${ctx.base ?? ''}/-/">files</a>`} ·
+                <a href="${ctx.base ?? ''}/_/docs">how to write pages</a>
               </p>`
         return { html: view, title: page.id || project.name, islands: {}, styles: [] }
       }
@@ -381,7 +385,7 @@ export function createRender(
             ></button>
           </nav>`
         : html`<nav class="wb-nav">
-            <span>${crumbs(page.id, ctx.project.name)}</span
+            <span>${crumbs(page.id, ctx.project.name, ctx.base ?? '', ctx.entry)}</span
             >${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button
               type="button"
               class="wb-theme"

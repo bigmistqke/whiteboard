@@ -33,6 +33,15 @@ interface Session {
   exited: number | null
 }
 
+// the path the project is served under (a shared server serves it below one: see Entries)
+const BASE: string = (() => {
+  try {
+    return JSON.parse(document.getElementById('wb-page')?.textContent ?? '{}').base ?? ''
+  } catch {
+    return ''
+  }
+})()
+
 function init(drawer: HTMLElement) {
   const screen = drawer.querySelector<HTMLElement>('.wb-term-screen')!
   const tabs = drawer.querySelector<HTMLElement>('.wb-term-tabs')!
@@ -97,7 +106,7 @@ function init(drawer: HTMLElement) {
     const key = `${current} ${dims.cols}x${dims.rows} ${claim}`
     if (key !== sent) {
       sent = key
-      post('/api/terminal/resize', { id: current, viewer, cols: dims.cols, rows: dims.rows, active: claim })
+      post(BASE + '/api/terminal/resize', { id: current, viewer, cols: dims.cols, rows: dims.rows, active: claim })
       // it is ours from now on; the host confirms with a `size`
       if (claim) {
         active = viewer
@@ -183,7 +192,7 @@ function init(drawer: HTMLElement) {
         const data = pending
         pending = ''
         chain = chain
-          .then(() => post('/api/terminal/input', { id, data }))
+          .then(() => post(BASE + '/api/terminal/input', { id, data }))
           .then(
             () => {},
             () => {},
@@ -268,7 +277,7 @@ function init(drawer: HTMLElement) {
   }
 
   async function closeTab(id: string) {
-    await post('/api/terminal/close', { id })
+    await post(BASE + '/api/terminal/close', { id })
     sessions = sessions.filter(x => x.id !== id)
     if (current === id) select(sessions.at(-1)?.id ?? null)
     else drawTabs()
@@ -277,7 +286,7 @@ function init(drawer: HTMLElement) {
   /** Open a tab with the shell, or start tab `id` again as it was. */
   async function start(body: { id?: string; restart?: boolean }) {
     setStatus('starting…')
-    const res = await post('/api/terminal/start', body)
+    const res = await post(BASE + '/api/terminal/start', body)
     const reply = await res.json().catch(() => ({}))
     if (!res.ok) return setStatus(reply.error ?? 'could not start', [['Try again', () => start(body)]])
     await loadSessions()
@@ -288,7 +297,7 @@ function init(drawer: HTMLElement) {
 
   async function loadSessions() {
     try {
-      const res = await fetch('/api/terminal/sessions')
+      const res = await fetch(BASE + '/api/terminal/sessions')
       if (res.ok) ({ sessions } = await res.json())
     } catch {
       /* the server is away: the stream reconnects */
@@ -304,7 +313,7 @@ function init(drawer: HTMLElement) {
     if (!current) showStatus()
     // without a tab too: the host tells it when one appears (started from the command line, say)
     stream = new EventSource(
-      `/api/terminal/stream?${current ? `id=${encodeURIComponent(current)}&` : ''}viewer=${viewer}`,
+      `${BASE}/api/terminal/stream?${current ? `id=${encodeURIComponent(current)}&` : ''}viewer=${viewer}`,
     )
     stream.addEventListener('sessions', e => {
       sessions = JSON.parse((e as MessageEvent).data).sessions

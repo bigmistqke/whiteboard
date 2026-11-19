@@ -32,7 +32,8 @@ export function projectToken(wb: string): string {
   return token
 }
 
-export function createAuth(wb: string) {
+/** `base`: the path the project is served under (see ServerOptions), which its cookie is kept to. */
+export function createAuth(wb: string, base = '') {
   const token = projectToken(wb)
   const same = (a: unknown, b: string): boolean =>
     typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
@@ -74,8 +75,9 @@ export function createAuth(wb: string) {
     }
     const to = typeof q.to === 'string' && q.to.startsWith('/') && !q.to.startsWith('//') ? q.to : '/'
     res.writeHead(302, {
-      'set-cookie': `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`,
-      location: to,
+      // under a shared server, each project's token is sent only to its own path
+      'set-cookie': `${COOKIE}=${token}; Path=${base || '/'}; HttpOnly; SameSite=Lax; Max-Age=31536000`,
+      location: base + to,
     })
     res.end()
     return true

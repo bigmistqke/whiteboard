@@ -2,6 +2,7 @@
 // page (code fences highlighted, `#12` linked), without raw HTML or directives (api.markdown). The
 // texts asked for at once go in one request; each text is rendered once, then cached. A
 // stylesheet a message needs (the code block's) is linked once it is first used.
+import { url } from './base.ts'
 
 const cache = new Map<string, Promise<string>>()
 let queue: { text: string; resolve: (html: string) => void; reject: (err: unknown) => void }[] = []
@@ -10,7 +11,7 @@ async function flush() {
   const batch = queue
   queue = []
   try {
-    const res = await fetch('/api/markdown', {
+    const res = await fetch(url('/api/markdown'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ texts: batch.map(b => b.text) }),

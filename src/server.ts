@@ -26,7 +26,7 @@ import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth } from './auth.ts'
-import { FROM_SOURCE, PACKAGE_DIR } from './package.ts'
+import { FROM_SOURCE, PACKAGE_DIR, VERSION } from './package.ts'
 import { awaiting, covers, heard, questionState, unreadMessages } from './status.ts'
 import { titleOf } from './pages/render.ts'
 import { inPublic } from './public.ts'
@@ -98,9 +98,17 @@ export interface BuildResult {
   warnings: string[]
 }
 
-export function createServer(project: Project): WhiteboardServer {
+/** How a server is mounted: on a port of its own (the default), or under a path of a shared server. */
+export interface ServerOptions {
+  /** the path every URL it makes starts with, without a trailing slash: '' (its own port) or `/rg/develop` */
+  base?: string
+  /** the entry of a shared server the project is in */
+  entry?: string
+}
+
+export function createServer(project: Project, { base = '', entry }: ServerOptions = {}): WhiteboardServer {
   const loader = createConfigLoader(project)
-  const auth = createAuth(project.wb)
+  const auth = createAuth(project.wb, base)
   // what close() stops: watchers, and the live connections' pings and responses
   const watchers = new Set<fs.FSWatcher>()
   const streams = new Set<() => void>()
@@ -249,7 +257,7 @@ export function createServer(project: Project): WhiteboardServer {
         }
       }
     }
-    return `/_/file${file.split(path.sep).map(encodeURIComponent).join('/')}`
+    return `${base}/_/file${file.split(path.sep).map(encodeURIComponent).join('/')}`
   }
 
   const within = (file: string, dir: string) => file === dir || file.startsWith(dir + path.sep)
@@ -363,7 +371,7 @@ export function createServer(project: Project): WhiteboardServer {
   /** The URL that serves a file or folder on disk, or null when nothing here serves it. */
   function urlOf(abs: string): string | null {
     const rel = (dir: string) => path.relative(dir, abs).split(path.sep).map(encodeURIComponent).join('/')
-    if (within(abs, project.pagesDir)) return `/${rel(project.pagesDir).replace(/\.md$/, '')}`
+    if (within(abs, project.pagesDir)) return `${base}/${rel(project.pagesDir).replace(/\.md$/, '')}`
     if (FILES && within(abs, project.dir)) {
       if (
         rel(project.dir)
@@ -371,7 +379,7 @@ export function createServer(project: Project): WhiteboardServer {
           .some(part => SKIP_DIRS.has(part))
       )
         return null
-      return `/-/${rel(project.dir)}`
+      return `${base}/-/${rel(project.dir)}`
     }
     return null
   }
@@ -395,7 +403,7 @@ export function createServer(project: Project): WhiteboardServer {
       html`<ul>
         ${items.map(([href, text]) => html`<li><a href="${href}">${text}</a></li>`)}
       </ul>`
-    if (page.kind === 'pages') return { html: list(page.pages.map(p => [`/${p.id}`, p.id])) }
+    if (page.kind === 'pages') return { html: list(page.pages.map(p => [`${base}/${p.id}`, p.id])) }
     if (page.kind === 'folder') {
       return {
         html: list(
@@ -408,7 +416,13 @@ export function createServer(project: Project): WhiteboardServer {
     return { html: html`<pre>${page.source}</pre>` }
   }
 
-  const context = () => ({ project: { name: project.name, dir: project.dir, files: !!FILES }, asset, urlFor })
+  const context = () => ({
+    project: { name: project.name, dir: project.dir, files: !!FILES },
+    asset,
+    urlFor,
+    base,
+    ...(entry && { entry: { name: entry } }),
+  })
 
   /** A render as the shell takes it. `page`: whether the page's browser part runs (not on raw text). */
   interface Render {
@@ -542,6 +556,8 @@ export function createServer(project: Project): WhiteboardServer {
       id: page.id,
       kind: page.kind,
       live: !built,
+      // what the page's own requests start with (see ServerOptions.base)
+      base: built ? '' : base,
       client: rendered ? (built ?? { asset }).asset(PAGE_CLIENT) : null,
       data: out.data ?? null,
       frontmatter: frontmatterOf(page),
@@ -568,7 +584,7 @@ export function createServer(project: Project): WhiteboardServer {
             <script type="application/json" id="wb-page">
               ${raw(json(handoff))}
             </script>
-            <script type="module" src="${built ? built.asset(RUNTIME) : '/_/runtime.js'}"></script>
+            <script type="module" src="${built ? built.asset(RUNTIME) : `${base}/_/runtime.js`}"></script>
             ${extras.body}
           </body>
         </html>`,
@@ -750,7 +766,7 @@ export function createServer(project: Project): WhiteboardServer {
     if ('raw' in found) return found
     // a folder is served at /dir/, so relative links resolve inside it
     if ((found.kind === 'folder' || (found.kind === 'pages' && id)) && !requested.endsWith('/'))
-      return { redirect: `/${id}/` }
+      return { redirect: `${base}/${id}/` }
     // a list of pages says which await the reader: where their questions stand takes the config
     if (found.kind === 'pages') {
       const counts = new Map((await status(found.id || null)).map(s => [s.page, awaiting(s)]))
@@ -802,7 +818,8 @@ export function createServer(project: Project): WhiteboardServer {
         }
         return sendFile(res, file)
       }
-      if (p === '/api/health') return sendJson(res, 200, { ok: true, dir: project.dir, pid: process.pid })
+      if (p === '/api/health')
+        return sendJson(res, 200, { ok: true, dir: project.dir, pid: process.pid, version: VERSION, base })
       if (p === '/api/events' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req))
         if (!body.type) return sendJson(res, 400, { error: 'event type required' })

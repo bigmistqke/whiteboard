@@ -10,6 +10,7 @@ import { READ } from '../status.ts'
 import { markdown } from './markdown'
 import { scrollToTarget } from './scroll'
 import { reactive } from './reactive'
+import { url } from './base.ts'
 
 interface Handoff {
   id: string
@@ -53,7 +54,7 @@ function setEvents(next: WbEvent[]) {
 
 async function loadEvents() {
   if (!live) return
-  const res = await fetch(`/api/events?page=${encodeURIComponent(page)}`)
+  const res = await fetch(url(`/api/events?page=${encodeURIComponent(page)}`))
   const all: WbEvent[] = await res.json()
   setEvents(all.filter(e => e.page === page))
 }
@@ -64,7 +65,7 @@ async function append(
   action: string | null = null,
 ): Promise<WbEvent> {
   if (!live) throw new Error('a built page is a file: there is no log to append to')
-  const res = await fetch('/api/events', {
+  const res = await fetch(url('/api/events'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ page, type, action, data }),
@@ -80,7 +81,7 @@ const listenersValue = reactive(() => listeners)
 
 async function loadListeners() {
   if (!live) return
-  listeners = await (await fetch(`/api/listeners?page=${encodeURIComponent(page)}`)).json()
+  listeners = await (await fetch(url(`/api/listeners?page=${encodeURIComponent(page)}`))).json()
   listenersValue.notify()
 }
 
@@ -102,6 +103,7 @@ function writeTitle() {
 
 const api: Api = {
   page,
+  url,
   events: eventsValue,
   last: type => events.findLast(e => e.type === type),
   pickedUp: id => !!events.find(e => e.id === id)?.pickedUp,
@@ -172,12 +174,12 @@ const handle: PageHandle = {
     return () => changeListeners.delete(fn)
   },
   render: async () => {
-    const next = await getJson<RenderedPage>(`/api/render?page=${encodeURIComponent(page)}`)
+    const next = await getJson<RenderedPage>(url(`/api/render?page=${encodeURIComponent(page)}`))
     nextData = next.data ?? null
     nextFrontmatter = next.frontmatter ?? {}
     return next
   },
-  stored: () => getJson<StoredPage>(`/api/page?page=${encodeURIComponent(page)}`),
+  stored: () => getJson<StoredPage>(url(`/api/page?page=${encodeURIComponent(page)}`)),
 }
 
 /** Did the page change since it was rendered here (its file's time, or it came to be)? Then say so. */
@@ -185,8 +187,8 @@ async function caughtUp() {
   let now: number | null
   try {
     now =
-      (await getJson<RenderedPage & { mtime: number | null }>(`/api/render?page=${encodeURIComponent(page)}`)).mtime ??
-      null
+      (await getJson<RenderedPage & { mtime: number | null }>(url(`/api/render?page=${encodeURIComponent(page)}`)))
+        .mtime ?? null
   } catch {
     now = null
   }
@@ -204,7 +206,7 @@ if (!handoff.client)
 // ---- live channel ------------------------------------------------------------------------------
 
 function connect() {
-  const es = new EventSource(`/api/watch?page=${encodeURIComponent(page)}${isDir ? '&dir' : ''}`)
+  const es = new EventSource(url(`/api/watch?page=${encodeURIComponent(page)}${isDir ? '&dir' : ''}`))
   es.onopen = () => {
     document.documentElement.dataset.wbLive = ''
     // after a server restart: who is listening now, and what was answered meanwhile
@@ -229,7 +231,7 @@ function connect() {
   es.addEventListener('reload', () => {
     const go = async () => {
       try {
-        if ((await fetch('/api/health', { cache: 'no-store' })).ok) return location.reload()
+        if ((await fetch(url('/api/health'), { cache: 'no-store' })).ok) return location.reload()
       } catch {
         /* not up yet */
       }

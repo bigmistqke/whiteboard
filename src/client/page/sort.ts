@@ -2,7 +2,8 @@
 // by what each `li` carries (`data-order`, `data-updated`, `data-title`: the overview's documents).
 // The choice is kept per list in this browser, and put back after a live update, which writes the
 // list again in the server's order.
-const KEY = (name: string) => `wb-sort:${name}`
+import { storageKey } from '../base.ts'
+const KEY = (name: string) => storageKey(`wb-sort:${name}`)
 
 function sortList(select: HTMLSelectElement) {
   const list = select.closest('section')?.querySelector('ul')

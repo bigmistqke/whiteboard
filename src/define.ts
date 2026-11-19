@@ -407,6 +407,13 @@ export interface RenderContext {
   live?: boolean
   /** in a build, the plugins and blocks left out: their blocks render as nothing */
   skip?: ReadonlySet<string>
+  /**
+   * The path the project is served under: '' for a server of its own, `/rg/develop` under a shared
+   * server (see Entries). Every URL the server makes starts with it; `asset` and `urlFor` add it.
+   */
+  base?: string
+  /** under a shared server: the entry the project is in */
+  entry?: { name: string }
 }
 
 /**
@@ -520,6 +527,12 @@ export interface Reactive<T> {
 export interface Api {
   /** this page's id */
   page: string
+  /**
+   * A path of the project's server as this page requests it: `url('/api/<plugin>/x')`. Under a shared
+   * server the project is served below a path (`/rg/develop`), so a plugin's client asks through this
+   * rather than writing `/api/…` itself.
+   */
+  url(path: string): string
   /** every event recorded for this page, oldest first */
   events: Reactive<WbEvent[]>
   /** the latest event of a type, e.g. the last submit of a form */
