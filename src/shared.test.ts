@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { VERSION } from './package.ts'
 
@@ -86,10 +86,21 @@ async function machine() {
     await new Promise(r => setTimeout(r, 200))
     fs.rmSync(root, { recursive: true, force: true })
   })
-  return { root, home, port, env, make, cli, run, children }
+  const runSync = (dir: string, ...args: string[]) => {
+    const r = spawnSync(process.execPath, [CLI, ...args], { cwd: dir, env, encoding: 'utf8' })
+    return { stdout: r.stdout, stderr: r.stderr, status: r.status }
+  }
+  return { root, home, port, env, make, cli, run, runSync, children }
 }
 
-test('a wait with no server waits for one, starts none, and gets the answer once show started one', async () => {
+/** Start the shared server as a person does: `whiteboard serve` outside any project. */
+async function serve(m: Awaited<ReturnType<typeof machine>>) {
+  const child = m.run(m.root, 'serve')
+  await until('the shared server', async () => (await health(m.port))?.hub)
+  return child
+}
+
+test('a wait with no server waits for one, starts none, and gets the answer once one is served', async () => {
   const m = await machine()
   const a = m.make('jobs/a')
   const wait = m.run(a, 'wait', '--page', 'plan')
@@ -99,8 +110,11 @@ test('a wait with no server waits for one, starts none, and gets the answer once
   assert.ok(!fs.existsSync(path.join(m.home, 'server.json')))
   // url only finds one
   assert.throws(() => m.cli(a, 'url', 'plan'), /no server runs/)
-  const url = m.cli(a, 'show', 'plan')
-  assert.equal(url, `http://localhost:${m.port}/rg/jobs/a/plan`)
+  // nor does show: the shared server is started outside the agents' sandboxes
+  assert.throws(() => m.cli(a, 'show', 'plan'), /the shared server is not running/)
+  assert.equal(await health(m.port), null, 'no server started')
+  await serve(m)
+  assert.equal(m.cli(a, 'show', 'plan'), `http://localhost:${m.port}/rg/jobs/a/plan`)
   // the wait finds the server and says it listens; then the reader answers
   await until('the wait to listen', async () => {
     const listeners = (await (
@@ -122,6 +136,7 @@ test('two projects of an entry share one server; one outside the includes runs i
   const a = m.make('jobs/a')
   const b = m.make('jobs/b')
   const outside = m.make('elsewhere/c')
+  await serve(m)
   assert.equal(m.cli(a, 'show', 'plan'), `http://localhost:${m.port}/rg/jobs/a/plan`)
   assert.equal(m.cli(b, 'show', 'plan'), `http://localhost:${m.port}/rg/jobs/b/plan`)
   assert.ok(!fs.existsSync(path.join(a, '.whiteboard', 'server.json')), 'no server of its own')
@@ -150,13 +165,21 @@ function fakeShared(m: Awaited<ReturnType<typeof machine>>, version: string, dir
   return child
 }
 
-test('a newer whiteboard takes an older shared server over', async () => {
+test("a newer whiteboard's serve takes an older shared server over; its show only uses it", async () => {
   const m = await machine()
   const a = m.make('jobs/a')
   const old = fakeShared(m, '0.0.1', a)
   await until('the old server', async () => (await health(m.port))?.version === '0.0.1')
-  assert.equal(m.cli(a, 'show', 'plan'), `http://localhost:${m.port}/rg/jobs/a/plan`)
+  // an agent's command uses it, and says it is older
+  const shown = m.runSync(a, 'show', 'plan')
+  assert.equal(shown.stdout.trim(), `http://localhost:${m.port}/rg/jobs/a/plan`)
+  assert.match(shown.stderr, /runs 0\.0\.1.*restart it to upgrade/)
+  await new Promise(r => setTimeout(r, 500))
+  assert.equal(old.exitCode, null, 'still running')
+  // serve, from outside the projects, takes it over
+  m.run(m.root, 'serve')
   await until('the old one to exit', () => old.exitCode != null)
+  await until('the new one', async () => (await health(m.port))?.version === VERSION)
   assert.equal((await health(m.port))?.version, VERSION)
   assert.equal(JSON.parse(fs.readFileSync(path.join(m.home, 'server.json'), 'utf8')).version, VERSION)
 })
@@ -176,7 +199,7 @@ test("a wait without --page in a project of an entry is the whole entry's fallba
   const m = await machine()
   const a = m.make('jobs/a')
   const b = m.make('jobs/b')
-  m.cli(a, 'show', 'plan')
+  await serve(m)
   const answer = (job: string, x: string) =>
     fetch(`http://127.0.0.1:${m.port}/rg/jobs/${job}/api/events`, {
       method: 'POST',

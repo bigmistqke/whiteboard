@@ -27,7 +27,7 @@ import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
 import { packagePath } from '../src/package.ts'
 import { runningServer, sharedServer } from '../src/running.ts'
-import { machineDir, machineLogFile, machineServerFile, matchesEntries, readMachineConfig } from '../src/entries.ts'
+import { machineDir, machineServerFile, matchesEntries, readMachineConfig } from '../src/entries.ts'
 import { compareVersions, VERSION } from '../src/package.ts'
 import { statusLines, takenByOther, whose } from '../src/status.ts'
 import type { Listener, PageStatus, WbEvent } from '../src/define.ts'
@@ -77,8 +77,9 @@ Every command works on the project of the current folder: the nearest folder upw
 .whiteboard/ folder. A project needs no config: .whiteboard/config.ts only says what differs from
 the defaults (markdown with the built-in plugins). Each project runs its own server; its port is in .whiteboard/server.json.
 A project the machine config's entries include (${machineDir()}/config.json) is served by the one shared
-server instead, under its path (/<entry>/<folder>), with an index of every entry at /. Only show and
-serve start a server; a wait without one waits for it.
+server instead, under its path (/<entry>/<folder>), with an index of every entry at /. It is started
+outside the agents' sandboxes (\`whiteboard serve\` outside any project, or a login service), and
+\`serve\` takes an older one over; commands never start it. A wait without a server waits for one.
 A page appends events {id, ts, page, type, action, data} to .whiteboard/events.ndjson;
 which types it sends is up to its plugins (\`whiteboard docs\` says). The project's plugins
 can add commands of their own; \`whiteboard help\` in a project lists them.`
@@ -147,24 +148,37 @@ async function running(proj: Project): Promise<string | null> {
 }
 
 /**
- * This project's server, started in the background when it is not running, and under the shared
- * server also when the one that runs is older than this whiteboard: a newer one takes it over.
- * Only `show`, `serve` and a plugin's command that asks for the server start one; every other
- * command finds one or does without. @returns the URL it serves the project at
+ * This project's server, started in the background when it is not running. Under the shared server
+ * nothing is started: it is started outside every agent's sandbox (a login service, or `whiteboard
+ * serve` in a terminal), since it serves every project of the entries and runs their plugins; a
+ * command inside one sandbox would start it boxed in there. Only `show` and a plugin's command that
+ * asks for the server get here. @returns the URL it serves the project at
  */
 async function ensureServer(): Promise<string> {
   const proj = needProject()
   const shared = isShared(proj)
   const base = await running(proj)
-  const older =
-    shared && base && compareVersions(VERSION, (await sharedServer(machineServerFile()))?.version ?? VERSION) > 0
-  if (base && !older) return base
+  if (shared) {
+    const server = await sharedServer(machineServerFile())
+    if (base) {
+      // an older one goes on serving: it is replaced by restarting it, from outside the sandboxes
+      if (server && compareVersions(VERSION, server.version) > 0)
+        console.error(
+          `whiteboard: the shared server runs ${server.version}, this is ${VERSION}; restart it to upgrade (\`whiteboard serve\` takes it over)`,
+        )
+      return base
+    }
+    throw new Error(
+      server
+        ? `the shared server at ${server.origin} does not serve ${proj.dir}; is it in an include of ${machineDir()}/config.json?`
+        : `the shared server is not running. It is started outside the agents' sandboxes: as a login service, or with \`whiteboard serve\` in a terminal, outside any project`,
+    )
+  }
+  if (base) return base
   // Several commands may get here at once (an agent starting three watches, say): the one that
   // creates the lock file starts the server, the others wait for it. A lock whose command is gone
   // is left over, and taken over. (Should two servers still start, the server lets one survive.)
-  const lockDir = shared ? machineDir() : proj.wb
-  fs.mkdirSync(lockDir, { recursive: true })
-  const lock = path.join(lockDir, 'server.lock')
+  const lock = path.join(proj.wb, 'server.lock')
   const claim = () => {
     try {
       fs.writeFileSync(lock, String(process.pid), { flag: 'wx' })
@@ -199,7 +213,7 @@ async function ensureServer(): Promise<string> {
     }
   }
   if (mine) {
-    const log = fs.openSync(shared ? machineLogFile() : proj.logFile, 'a')
+    const log = fs.openSync(proj.logFile, 'a')
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], {
       cwd: proj.dir,
       detached: true,
@@ -211,10 +225,9 @@ async function ensureServer(): Promise<string> {
   for (let i = 0; i < 75; i++) {
     await new Promise(r => setTimeout(r, 200))
     const base = await running(proj)
-    // taking over: until the new one answers, the old one still does
-    if (base && (!older || (await sharedServer(machineServerFile()))?.version === VERSION)) return base
+    if (base) return base
   }
-  throw new Error(`server did not start; see ${shared ? machineLogFile() : proj.logFile}`)
+  throw new Error(`server did not start; see ${proj.logFile}`)
 }
 
 /** This project's running server, or an error saying how to start one. */

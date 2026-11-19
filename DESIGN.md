@@ -125,10 +125,21 @@ the config and the disk (`discover` in `src/entries.ts`).
   server runs discovery again every 1.5 s (a few folder listings), and at
   once when a command asks for a project it doesn't have (`/api/health?rescan`,
   for a worktree made a moment ago). A project that goes has its server closed.
-- **The index at `/`** lists each entry, its projects, their pages and what
-  is open on each (its questions, unread messages and answers no agent picked
-  up, from each project's `status`), with the server's version. It asks for
-  itself again every few seconds.
+- **The index at `/`** is where the reader starts. First what waits for
+  them in any project (open questions and unread messages, from each
+  project's `status`), the latest first, each named by its project: their
+  to-do across every checkout, which no project's own overview can show.
+  Then each entry by group: a project's group is the include it came from
+  (`develop`, `worktrees`, `jobs`), and its name what the wildcards matched,
+  so the index says what kind of checkout each is without a setting. Projects
+  are listed the latest active first, with their pages; those without pages
+  are folded away, since with a `.whiteboard/` in every checkout most have
+  none. It asks for itself again every few seconds.
+- **What waits elsewhere, by project.** A page's menu of other pages with
+  something waiting (`src/client/page/elsewhere.ts`) asks the shared server
+  for its entry (`/api/index?entry=`) as well as its own project, and lists
+  them under each project's name, its own first; the crumbs name the project
+  as the entry does (`rg / worktrees › cmux / review`).
 - **The command line is the same.** It finds its project as before; when the
   project is one of the entries (`matchesEntries`: the globs against its
   folder, no disk walk), the shared server is its server, at its path, and
@@ -149,31 +160,46 @@ the config and the disk (`discover` in `src/entries.ts`).
   first a flag (`--entry`), to keep what a page-less wait means; but agents
   wait with `--page` on their own pages, and the one that doesn't is the one
   overseeing them all.
-- **Only `show` and `serve` start a server** (and a plugin's command that
-  asks for one with `ctx.server()`, as the terminal's do). A `wait` or
-  `watch` with none running reads the log as always and connects its listener
-  once one appears, so a stray wait never brings an old server back. `status`,
-  `docs` and the hooks behind them, which run on every prompt, ask a server
-  made in the command's own process for that one question when none runs; it
-  has no listeners, since nothing could have registered one. `url` and
-  `scroll` say none runs.
+- **Commands never start the shared server.** It serves every project of
+  the entries and runs their plugins, so where it runs is a boundary (see
+  One trust domain below), and an agent's command runs inside that agent's
+  sandbox: a server it started would be boxed in with it and miss the other
+  folders. So `show` in a project of the entries finds the server or says it
+  isn't running; only `serve`, run by the person outside any project (in a
+  terminal, or as a login service), starts it. A project outside every
+  include starts its own with `show`, as before. A `wait` or `watch` with no
+  server reads the log as always and connects its listener once one appears,
+  so a stray wait never brings an old server back. `status`, `docs` and the
+  hooks behind them, which run on every prompt, ask a server made in the
+  command's own process for that one question when none runs; it has no
+  listeners, since nothing could have registered one. `url` and `scroll` say
+  none runs. The first design had `show` start the shared server and take
+  over an older one, as it does a project's; that put it in whichever agent's
+  sandbox got there first.
 - **Versions.** The shared server records its version in `server.json` in
-  the machine folder and says it at `/api/health` and on the index. A
-  whiteboard newer than the running one takes it over when it starts one
-  (`show`, `serve`): it posts its version to `/api/shutdown`, which the server
-  accepts only from a newer version and not from a page (no `Origin`), waits
-  for it to go (else ends its process, for one from before that route), and
-  listens in its place. An older or equal one uses the server as it is. A
-  whiteboard from before entries knows nothing of the machine folder and
-  keeps starting a server per project, as it did.
+  the machine folder and says it at `/api/health` and on the index. `serve`
+  from a newer whiteboard takes it over: it posts its version to
+  `/api/shutdown`, which the server accepts only from a newer version and not
+  from a page (no `Origin`), waits for it to go (else ends its process, for
+  one from before that route), and listens in its place. A command from a
+  newer whiteboard uses an older server and says to restart it; nothing older
+  replaces a newer one. A whiteboard from before entries knows nothing of the
+  machine folder and keeps starting a server per project, as it did.
 - **One trust domain.** The shared server imports every project's config
   and plugins into one process, so whatever one project's config can do, it
   can do to all of them; and the projects share one origin, so a script on
   one project's page can reach another's routes. The projects of a machine
-  config are one boundary (see Security above): start the shared server where
-  all of them may run, as the person, at login or with `whiteboard serve`
-  outside any project. Started from inside one agent's sandbox, by its
-  `show`, it is boxed in with that agent and may not reach the other folders.
+  config are one boundary (see Security above). So the shared server is
+  boxed on its own, to the entries' folders and the machine folder, by
+  whatever starts it (a sandbox the machine already uses for its agents,
+  around a login service): then its plugins can reach what the agents
+  together can, and no more. Whiteboard knows no sandbox; whoever boxes it
+  names the folders in `$WHITEBOARD_SANDBOX`, and the index shows them, or
+  "not boxed".
+- **A project per checkout.** A folder is a project once it has a
+  `.whiteboard/`, so what makes checkouts (a worktree, a job folder) runs
+  `whiteboard init` in each: its pages and log are then its own, inside the
+  sandbox of the agent working there, and it appears on the index by itself.
 
 Serving each project on a subdomain instead (`develop.rg.localhost`) was
 weighed: it keeps every absolute URL working and each project its own origin,

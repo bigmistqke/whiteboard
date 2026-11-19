@@ -146,8 +146,14 @@ gets `-2`. The server looks for projects again every few seconds, so a new
 worktree with a `.whiteboard/` shows up, and a removed one goes, without a
 restart.
 
-- **`/` is the index:** each entry, its projects, their pages, and what is
-  unanswered or unread on each, with the server's version.
+- **`/` is the index.** First what needs you: every unanswered question and
+  unread message in any project, the latest first, named by its project
+  (`worktrees › cmux › Review`). Then each entry by group (`develop`,
+  `worktrees`, `jobs`: the include each folder came from), its projects with
+  their pages, the latest active first; projects without pages are folded
+  away. The header has the server's version and the folders it is boxed to.
+- **Every page's menu of what waits elsewhere** (the inbox in its header)
+  lists the other projects of its entry too, under each project's name.
 - **Commands work as before,** in the project's folder: `show`, `url`,
   `wait`, `append`, `events`, `status` act on their own project and find the
   shared server. Events stay in each project's own `.whiteboard/events.ndjson`.
@@ -159,19 +165,27 @@ restart.
   an agent overseeing the others runs `whiteboard watch` once, and an answer
   on a page whose agent stopped listening still reaches it. One runs per
   entry; a second exits 1.
-- **Only `show` and `serve` start a server** (and a plugin's command that needs
-  one, such as `whiteboard terminal`). A `wait` with no server running waits
-  for one to appear, and the answers in the log reach it either way; `status`
-  and `docs` answer without one.
+- **Commands never start the shared server.** `show` without it says so; a
+  `wait` waits for it to appear, and the answers in the log reach it either
+  way; `status` and `docs` answer without it. A project outside every include
+  still starts its own, with `show`.
+- **You start it, outside the agents' sandboxes:** `whiteboard serve` outside
+  any project, in a terminal or as a login service. It runs every project's
+  config and plugins (the terminal runs programs), so it can do whatever any
+  of them can; started from inside one agent's sandbox, it would be boxed in
+  there and miss the other folders. Box it on its own instead, to the
+  entries' folders and the machine folder, and say so in
+  `$WHITEBOARD_SANDBOX` (folders, `:` between them), which the index shows.
+  See [DESIGN.md](DESIGN.md#entries-one-server-for-many-projects).
 - **Versions.** The server records its version (in `server.json` beside the
-  config, and at the bottom of the index). A newer whiteboard's `show` takes an
-  older server over: it asks it to exit and starts in its place. An older one
-  never replaces a newer one; it uses it.
-- **Start it yourself.** The shared server runs every project's config and
-  plugins (the terminal runs programs), so it can do whatever any of them can.
-  Start it where all of them may run (`whiteboard serve` outside any project,
-  or at login), not from inside one agent's sandbox, which may not reach the
-  other folders. See [DESIGN.md](DESIGN.md#entries-one-server-for-many-projects).
+  config, and in the index). `serve` from a newer whiteboard takes an older
+  server over: it asks it to exit and starts in its place. A command from a
+  newer whiteboard uses an older server and says to restart it; an older one
+  never replaces a newer one.
+- **A project per checkout.** A folder is a project once it has a
+  `.whiteboard/`: have whatever makes worktrees and job folders run
+  `whiteboard init` in each, and every one appears on the index by itself, its
+  pages and answers its own.
 
 ## Forms and answers
 
@@ -323,7 +337,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard init [name]` | make this folder a project |
 | `whiteboard root` | print the folder pages go into |
 | `whiteboard new <name>` | create a page under a name no other page has (`name`, else `name-2`, …), print its path |
-| `whiteboard show <page\|file>` | start the server if needed, print the page's URL |
+| `whiteboard show <page\|file>` | start the project's server if needed (never the shared one), print the page's URL |
 | `whiteboard url <page\|file>` | print the page's URL, when the server runs |
 | `whiteboard close <page>` | a page that did its job: remove its file, and all its events from the log |
 | `whiteboard prune <page> [--type <t>] [--id <id>]` | remove a page's events from the log (all, one type, or one), keep the page |
