@@ -80,3 +80,34 @@ test('diff lines: a snippet without hunks is added, removed and unchanged lines,
     { kind: 'context' },
   ])
 })
+
+test('diff lines: a bare @@ starts a hunk without numbers, under a diff --git header too', () => {
+  const lines = diffLines('diff --git a/x.ts b/x.ts\n--- a/x.ts\n+++ b/x.ts\n@@\n keep\n-old\n+new')
+  assert.deepEqual(lines, [
+    { kind: 'meta' },
+    { kind: 'meta' },
+    { kind: 'file', label: 'x.ts' },
+    { kind: 'hunk', label: '' },
+    { kind: 'context' },
+    { kind: 'del' },
+    { kind: 'add' },
+  ])
+})
+
+test('diff lines: --- and +++ lines name the file without a diff --git header', () => {
+  const lines = diffLines('--- a/x.ts\n+++ b/x.ts\n@@\n-old\n+new\n@@ -10 +10 @@\n-a\n+b')
+  assert.deepEqual(lines, [
+    { kind: 'meta' },
+    { kind: 'file', label: 'x.ts' },
+    { kind: 'hunk', label: '' },
+    { kind: 'del' },
+    { kind: 'add' },
+    { kind: 'hunk', label: '' },
+    { kind: 'del', n: 10, at: 'x.ts (old):10' },
+    { kind: 'add', n: 10, at: 'x.ts:10' },
+  ])
+})
+
+test('diff lines: a snippet removing a line that starts with -- is still a snippet', () => {
+  assert.deepEqual(diffLines('--- a comment\n+// a comment'), [{ kind: 'del' }, { kind: 'add' }])
+})

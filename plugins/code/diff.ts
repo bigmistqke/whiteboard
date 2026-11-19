@@ -3,7 +3,9 @@
 // `index`, `---`, modes), which the block leaves out. A line in a hunk has its number (`n`) and
 // where it is (`at`: `file:line` in the new file; a removed line counts in the old one,
 // `file (old):line`). Reads unified diffs, as `git diff` and `diff -u` print them, and snippets of
-// only +, - and unchanged lines.
+// only +, - and unchanged lines. An agent often writes a hunk's start as a bare `@@`, without the
+// line numbers: that starts a hunk too, whose lines have no numbers, and a `---` line followed by a
+// `+++` line names the file, with or without a `diff --git` above them.
 
 export type DiffKind = 'add' | 'del' | 'context' | 'hunk' | 'file' | 'meta'
 
@@ -26,7 +28,7 @@ const unprefix = (p: string) =>
 export function diffLines(text: string): DiffLineInfo[] {
   // a snippet without hunks or file headers (only +, - and unchanged lines, as people paste them):
   // every line is one of those, without numbers, as no header says where it is
-  if (!/^(@@ -\d|diff --git )/m.test(text)) {
+  if (!/^(@@|diff --git )/m.test(text) && !/^--- .*\n\+\+\+ /m.test(text)) {
     return text
       .split('\n')
       .map((line): DiffLineInfo => ({ kind: line[0] === '+' ? 'add' : line[0] === '-' ? 'del' : 'context' }))
@@ -35,6 +37,8 @@ export function diffLines(text: string): DiffLineInfo[] {
     oldFile = '',
     oldN = 0,
     newN = 0,
+    // a hunk started by a bare @@ says no line numbers: its lines have none
+    numbered = false,
     inHunk = false
   let status = '',
     renamedFrom = ''
@@ -44,13 +48,21 @@ export function diffLines(text: string): DiffLineInfo[] {
       oldN = Number(at[1])
       newN = Number(at[2])
       inHunk = true
+      numbered = true
       // only a mark that lines were skipped: the numbers are in the gutter, and the text git adds
       // after them is a guess at the enclosing line, often just the one before
+      return { kind: 'hunk', label: '' }
+    }
+    // a bare @@ (or one whose numbers don't read): a hunk all the same, without numbers
+    if (line.startsWith('@@')) {
+      inHunk = true
+      numbered = false
       return { kind: 'hunk', label: '' }
     }
     if (inHunk) {
       const sign = line[0]
       const where = (side: 'old' | 'new', n: number): DiffLineInfo | {} => {
+        if (!numbered) return {}
         const name = side === 'old' ? oldFile || file : file || oldFile
         return name ? { n, at: side === 'old' ? `${name} (old):${n}` : `${name}:${n}` } : { n }
       }
