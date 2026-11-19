@@ -127,3 +127,16 @@ test("the entries' folders: each include up to its wildcard, none inside another
     [path.join(home, 'w'), path.join(home, 'x')],
   )
 })
+
+test('a machine config that is there but cannot be read is an error, not no config', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-machine-'))
+  after(() => {
+    fs.chmodSync(path.join(dir, 'config.json'), 0o644)
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ entries: {} }))
+  fs.chmodSync(path.join(dir, 'config.json'), 0)
+  // as root everything is readable: nothing to check then
+  if (process.getuid?.() === 0) return
+  assert.throws(() => readMachineConfig(dir), /cannot read .*config\.json \(EACCES\): .*read grant for/)
+})

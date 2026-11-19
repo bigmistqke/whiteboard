@@ -155,8 +155,7 @@ config only says what the server serves, and so what boxes it may be given
 - **The command line is the same.** It finds its project as before; when the
   project is one of the entries (`matchesEntries`: the globs against its
   folder, no disk walk), the shared server is its server, at its path, and
-  every command acts on its project there. Events stay in the project's log.
-  A project outside every include runs its own server, as before.
+  every command acts on its project there. Events stay in the project's log. A project outside every include runs its own server, as before. A config that is there but can't be read (a sandbox without a grant for it) is an error that says so, not no config: taken for none, a command started a server of the project's own beside the shared one that serves it, and nobody learned why.
 - **The fallback covers the whole entry.** A `wait` or `watch` without
   `--page` in a project of an entry is the entry's fallback, not the
   project's: one agent overseeing the others (the reason for entries) runs

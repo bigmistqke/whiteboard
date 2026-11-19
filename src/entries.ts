@@ -72,14 +72,25 @@ const NAME = /^[a-z0-9][a-z0-9._-]*$/i
 // a served path's first part is an entry's name: these are the server's own
 const RESERVED = new Set(['api', '_', '-'])
 
-/** The machine config, checked; null when there is none. Throws on one that is malformed. */
+/**
+ * The machine config, checked; null when there is none. Throws on one that is malformed, and on one
+ * that is there but can't be read (a sandbox without a grant for it), rather than taking it for none.
+ */
 export function readMachineConfig(dir = machineDir()): MachineConfig | null {
   const file = machineConfigFile(dir)
   let text: string
   try {
     text = fs.readFileSync(file, 'utf8')
-  } catch {
-    return null
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return null
+    // there, but not to be read: most likely a sandbox without a grant for it. Taken for absent, a
+    // command would start a server of the project's own beside the shared one that serves it
+    if (code === 'EPERM' || code === 'EACCES')
+      throw new Error(
+        `cannot read ${file} (${code}): if this runs in a sandbox, it needs a read grant for ${dir}. Without it, whiteboard can't tell which server serves this project`,
+      )
+    throw err
   }
   let raw: any
   try {

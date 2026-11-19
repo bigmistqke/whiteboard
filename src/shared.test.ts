@@ -277,3 +277,23 @@ test('paths: what a sandbox wrapper grants the shared server', async () => {
   assert.deepEqual(write.split(':'), [path.join(m.root, 'jobs'), path.join(m.home, 'state')])
   assert.deepEqual(read.split(':'), [m.home, path.resolve(path.dirname(CLI), '..')])
 })
+
+test("a machine config that can't be read stops a command, rather than it starting a server of the project's own", async t => {
+  if (process.getuid?.() === 0) return t.skip('as root everything is readable')
+  const m = await machine()
+  const a = m.make('jobs/a')
+  const config = path.join(m.home, 'config.json')
+  fs.chmodSync(config, 0)
+  let shown
+  try {
+    shown = m.runSync(a, 'show', 'plan')
+  } finally {
+    fs.chmodSync(config, 0o644)
+  }
+  assert.equal(shown.status, 1)
+  assert.match(
+    shown.stderr,
+    /cannot read .*config\.json \(EACCES\): if this runs in a sandbox, it needs a read grant for/,
+  )
+  assert.ok(!fs.existsSync(path.join(a, '.whiteboard', 'server.json')), 'no server of its own')
+})
