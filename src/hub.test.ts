@@ -129,7 +129,11 @@ test("an entry's projects, as a page's menu of what waits elsewhere asks for the
   assert.deepEqual(projects[0]!.pages, [{ ...projects[0]!.pages[0]!, url: '/rg/develop/plan', open: ['pick'] }])
   assert.deepEqual(await (await fetch(`${base}/api/index?entry=other`)).json(), [])
   // the project's crumb names it as the entry does
-  assert.match(await (await fetch(`${base}/rg/worktrees/cmux/notes`)).text(), /worktrees › cmux/)
+  const crumbs = /<nav class="wb-nav">\s*<span>([\s\S]*?)<\/span>/.exec(
+    await (await fetch(`${base}/rg/worktrees/cmux/notes`)).text(),
+  )?.[1]
+  // the first crumb is the overview, named as it is; then the project, named as the entry does
+  assert.match(crumbs ?? '', /<a href="\/">whiteboard<\/a> \/ <a href="\/rg\/worktrees\/cmux\/">worktrees › cmux<\/a\s*>/)
 })
 
 test('a project appearing or going is served or not, without a restart', async () => {

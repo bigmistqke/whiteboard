@@ -65,8 +65,8 @@ export function titleOf(file: string, fallback: string) {
 
 function crumbs(id: string, name: string, base: string, entry?: RenderContext['entry']) {
   const parts = id ? id.split('/') : []
-  // under a shared server, the index of every entry and its project come first
-  const above = entry ? html`<a href="/">${entry.name}</a> / ` : ''
+  // under a shared server, the overview of every project comes first, by its own name
+  const above = entry ? html`<a href="/">whiteboard</a> / ` : ''
   return html`${above}<a href="${base}/">${name}</a
     >${parts.map((p, i) => html` / <a href="${base}/${parts.slice(0, i + 1).join('/')}">${p}</a>`)}`
 }

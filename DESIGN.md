@@ -150,7 +150,7 @@ config only says what the server serves, and so what boxes it may be given
   something waiting (`src/client/page/elsewhere.ts`) asks the shared server
   for its entry (`/api/index?entry=`) as well as its own project, and lists
   them under each project's name, its own first; the crumbs name the project
-  as the entry does (`rg / worktrees › cmux / review`).
+  as the entry does, under the overview (`whiteboard / worktrees › cmux / review`).
 - **The command line is the same.** It finds its project as before; when the
   project is one of the entries (`matchesEntries`: the globs against its
   folder, no disk walk), the shared server is its server, at its path, and
