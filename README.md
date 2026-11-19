@@ -85,8 +85,9 @@ waking on each other's answers.
 
 ## How it works
 
-A project is a folder with a `.whiteboard/` folder in it. Everything
-whiteboard keeps is there; nothing is written outside the project.
+A project is a folder with a `.whiteboard/` folder in it. Everything whiteboard keeps of a project is there; outside a project it
+writes only the shared server's state, when you run one
+([below](#many-projects-one-server)).
 
 ```
 .whiteboard/
@@ -355,7 +356,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard scroll <page\|file> <where>` | scroll the tabs that have the page open to a heading's text, a form's name or any text on it; exits 1 when nothing matches or no tab has it open |
 | `whiteboard docs [name]` | print how to write pages in this project: the blocks, then each plugin's docs; with a name, only that plugin's |
 | `whiteboard events [filters] [--follow]` | print recorded events; with `--follow`, then each new one as it comes, marking nothing |
-| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed; without `--page`, only what no other wait or watch would take (the fallback, one per project) |
+| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed; without `--page`, only what no other wait or watch would take (the fallback: one per project, or, in a project of the machine config's entries, one for the whole entry, each event with its `project` and `url`) |
 | `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
 | `whiteboard pick <event id>` | record an event as picked up, as `wait` does when it hands one out |
@@ -363,6 +364,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard build [globs…] [--out <dir>] [--skip <a,b>]` | pages as a static site (see [Building a site](#building-a-site)) |
 | `whiteboard serve` | run the server in the foreground; for a project of the machine config's entries, or outside any project, the shared server |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
+| `whiteboard paths [--write\|--read]` | the folders the shared server needs, `:` between them, for a sandbox wrapper to grant (see [Many projects, one server](#many-projects-one-server)) |
 
 Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form's type is its name).
 `wait` also takes `--timeout <seconds>` (exits 2 on timeout) and `--count <n>`;
@@ -682,7 +684,11 @@ on the page handle (YAML, as parsed) and the plugin's own `settings` in it
 (under `plugins:` by its name: `plugins: { toc: true }` is `true` for toc), `corner()` for floating buttons, `toast()` for a label in
 the corner that says what is going on and goes there (one that hides after a
 few seconds, or one that stays with a count), `badge()` for counts in the
-tab title, and the `theme`. Every value that changes is called for what it
+tab title, the `theme`, and `url(path)`: the address of one of the
+project's server routes as this page requests it (`api.url('/api/votes/count')`).
+Ask for the plugin's routes through it rather than writing `/api/…`: under a
+shared server a project is served below a path (`/rg/develop`). Every value
+that changes is called for what it
 is now and has `.on(fn)` for each change: `api.events()`,
 `api.events.on(draw)`, `page.frontmatter.on(…)`. Files beside a browser module that are browser
 assets (scripts, styles, images, fonts) are served too.
