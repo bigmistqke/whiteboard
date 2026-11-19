@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "whiteboard claude-code hook stop"
+            "command": "node \"$CLAUDE_PROJECT_DIR/bin/whiteboard.ts\" claude-code hook stop"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "whiteboard claude-code hook prompt"
+            "command": "node \"$CLAUDE_PROJECT_DIR/bin/whiteboard.ts\" claude-code hook prompt"
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "whiteboard claude-code hook session"
+            "command": "node \"$CLAUDE_PROJECT_DIR/bin/whiteboard.ts\" claude-code hook session"
           }
         ]
       }
