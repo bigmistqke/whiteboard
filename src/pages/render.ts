@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
 import { html, raw, type Html } from '../html.ts'
-import { INBOX_ICON, OPEN_ICON, awaitingLabel } from '../icons.ts'
+import { INBOX_ICON, awaitingLabel } from '../icons.ts'
 import type { Plugin, RenderContext, Rendered, StoredPage, TextLink } from '../define.ts'
 import type { ResolvedBlock, ResolvedBlocks } from './blocks.ts'
 
@@ -326,15 +326,7 @@ export function createRender(
             ${groups.map(
               g =>
                 html`<section class="wb-project">
-                  <h2>
-                    ${g.title}<a
-                      class="wb-open"
-                      href="${g.base}/"
-                      title="${g.title}: its own overview"
-                      aria-label="Open ${g.title} on its own"
-                      >${raw(OPEN_ICON)}</a
-                    >
-                  </h2>
+                  <h2>${g.title}</h2>
                   <p class="wb-meta">
                     <code>${g.dir.replace(os.homedir(), '~')}</code
                     >${g.files && html` · <a href="${g.base}/-/">files</a>`}

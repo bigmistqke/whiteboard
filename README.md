@@ -150,7 +150,7 @@ restart.
   its pages, and it looks and updates the same: each project under its name
     (`develop`, `worktrees › cmux`), its pages as its overview lists them, with
   the inbox badge on those waiting for you, and its documents folded under
-  them. The icon after a project's name opens its own overview. Projects with something waiting
+  them, and a link to its files. Projects with something waiting
   come first, and in each the pages waiting; projects without pages are folded
   at the end, under the server's version and the folders it is boxed to.
 - **Every page's menu of what waits elsewhere** (the inbox in its header)
