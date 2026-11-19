@@ -14,6 +14,7 @@
 // A project's server is made when the project is found and closed when it goes, so a project
 // appears and disappears without a restart. Each keeps its own state, config and log, as it would
 // on a port of its own: the shared server only routes.
+import fs from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { project as projectAt, type Project } from './config.ts'
 import { followEntries, machineDir, readMachineConfig, type EntryProject } from './entries.ts'
@@ -44,13 +45,34 @@ interface Served extends EntryProject {
   fallback?: () => void
 }
 
+/** What the index shows of one page. */
+export interface IndexPage {
+  page: string
+  title: string
+  url: string
+  /** when its file last changed, in ms */
+  mtime: number
+  /** its questions waiting for the reader */
+  open: string[]
+  /** the agent's messages on it the reader hasn't read */
+  unread: number
+  /** the reader's answers no agent picked up */
+  unpicked: number
+}
+
 /** What the index shows of one project. */
 export interface IndexProject {
   entry: string
+  group: string
+  name: string
+  /** how the reader knows it: `develop`, `worktrees › cmux` */
+  label: string
   dir: string
   base: string
-  name: string
-  pages: { page: string; title: string; url: string; open: string[]; unread: number; unpicked: number }[]
+  /** its pages, the latest changed first */
+  pages: IndexPage[]
+  /** when one of its pages last changed; 0 without pages */
+  active: number
   error?: string
 }
 
@@ -80,7 +102,11 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
       if (served.has(key)) continue
       const project = projectAt(p.dir)
       if (!project) continue
-      const server = createServer(project, { base: p.base, entry: p.entry })
+      const server = createServer(project, {
+        base: p.base,
+        entry: p.entry,
+        label: [p.group, p.name].filter(Boolean).join(' › '),
+      })
       const fallback = fallbacks.get(p.entry)
       served.set(key, { ...p, project, server, ...(fallback && { fallback: server.addListener(fallback) }) })
       console.log(`whiteboard: ${p.base} → ${p.dir}`)
@@ -100,59 +126,96 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
   async function index(): Promise<IndexProject[]> {
     return Promise.all(
       [...served.values()].map(async (s): Promise<IndexProject> => {
-        const at = { entry: s.entry, dir: s.dir, base: s.base, name: s.project.name }
-        let pages: PageStatus[]
-        try {
-          pages = await s.server.status()
-        } catch (err) {
-          return { ...at, pages: [], error: (err as Error).message }
+        const at = {
+          entry: s.entry,
+          group: s.group,
+          name: s.name,
+          label: [s.group, s.name].filter(Boolean).join(' › '),
+          dir: s.dir,
+          base: s.base,
         }
-        return {
-          ...at,
-          pages: pages.map(p => ({
+        let statuses: PageStatus[]
+        try {
+          statuses = await s.server.status()
+        } catch (err) {
+          return { ...at, pages: [], active: 0, error: (err as Error).message }
+        }
+        const pages = statuses
+          .map((p): IndexPage => ({
             page: p.page,
             title: p.title,
             url: `${s.base}/${p.page.split('/').map(encodeURIComponent).join('/')}`,
+            mtime: mtimeOf(p.file),
             open: p.open,
             unread: p.unread.length,
             unpicked: p.unpicked.length,
-          })),
-        }
+          }))
+          .toSorted((a, b) => b.mtime - a.mtime)
+        return { ...at, pages, active: pages[0]?.mtime ?? 0 }
       }),
     )
   }
 
   function indexPage(projects: IndexProject[]): string {
-    const byEntry = new Map<string, IndexProject[]>()
-    for (const p of projects) byEntry.set(p.entry, [...(byEntry.get(p.entry) ?? []), p])
-    const pageRow = (p: IndexProject['pages'][number]) => {
-      const n = awaiting({ open: p.open, unread: Array(p.unread) })
-      return html`<li>
-        <a href="${p.url}${n > 0 ? '#wb-waiting' : ''}">${p.title}</a>
-        <code>${p.page}</code>
-        ${p.open.length > 0 && html`<span class="open">unanswered: ${p.open.join(', ')}</span>`}
-        ${p.unread > 0 && html`<span class="open">${p.unread} unread</span>`}
-        ${p.unpicked > 0 && html`<span class="unpicked">${p.unpicked} answer${p.unpicked === 1 ? '' : 's'} no agent picked up</span>`}
+    const now = Date.now()
+    const waits = (p: IndexPage) => p.open.length + p.unread
+    // what waits for the reader, wherever it is: their to-do, the latest first
+    const needs = projects
+      .flatMap(project => project.pages.filter(p => waits(p) > 0).map(page => ({ project, page })))
+      .toSorted((a, b) => b.page.mtime - a.page.mtime)
+    const total = needs.reduce((n, x) => n + waits(x.page), 0)
+    const what = (p: IndexPage) =>
+      [
+        p.open.length > 0 && html`<span class="open">${p.open.join(', ')} unanswered</span>`,
+        p.unread > 0 && html`<span class="open">${p.unread} unread</span>`,
+        p.unpicked > 0 &&
+          html`<span class="unpicked">${p.unpicked} answer${p.unpicked === 1 ? '' : 's'} no agent picked up</span>`,
+      ].filter(Boolean)
+    const pageLink = (p: IndexPage) =>
+      html`<a href="${p.url}${waits(p) > 0 ? '#wb-waiting' : ''}" title="${p.page}"
+        >${p.title}${waits(p) > 0 && html` <b class="count">${waits(p)}</b>`}</a
+      >`
+    const projectRow = (p: IndexProject) =>
+      html`<li class="project">
+        <a class="name" href="${p.base}/" title="${p.dir}">${p.name || p.group}</a>
+        <span class="pages">${p.pages.map((x, i) => html`${i > 0 ? ' · ' : ''}${pageLink(x)}`)}</span>
+        ${p.error && html`<span class="open">${p.error}</span>`}
+        <span class="when">${ago(now, p.active)}</span>
       </li>`
-    }
-    const projectBlock = (p: IndexProject) => {
-      const open = p.pages.filter(x => x.open.length || x.unread || x.unpicked)
-      return html`<section class="project">
-        <h3>
-          <a href="${p.base}/">${p.base.split('/').slice(2).join('/')}</a>
-          <span class="meta">${p.name} · <code>${p.dir}</code></span>
-        </h3>
-        ${p.error && html`<pre class="error">${p.error}</pre>`}
-        ${
-          p.pages.length
-            ? html`<ul>
-                ${[...open, ...p.pages.filter(x => !open.includes(x))].map(pageRow)}
+    const entryBlock = (entry: string, list: IndexProject[]) => {
+      const groups = new Map<string, IndexProject[]>()
+      for (const p of list) groups.set(p.group, [...(groups.get(p.group) ?? []), p])
+      const empty = list.filter(p => !p.pages.length && !p.error)
+      return html`<section class="entry">
+        <h2>${entry}</h2>
+        ${[...groups].map(([group, members]) => {
+          const shown = members.filter(p => p.pages.length || p.error).toSorted((a, b) => b.active - a.active)
+          if (!shown.length) return ''
+          // a group of one (develop) is its project; a group of many is listed under its name
+          return members.length === 1 && !members[0]!.name
+            ? html`<ul class="projects">
+                ${projectRow({ ...shown[0]!, name: group })}
               </ul>`
-            : html`<p class="meta">No pages.</p>`
+            : html`<h3>${group} <span class="meta">${shown.length} with pages</span></h3>
+                <ul class="projects">
+                  ${shown.map(projectRow)}
+                </ul>`
+        })}
+        ${
+          empty.length > 0 &&
+          html`<details class="empty">
+            <summary>${empty.length} without pages</summary>
+            <ul>
+              ${empty.map(p => html`<li><a href="${p.base}/" title="${p.dir}">${p.label}</a></li>`)}
+            </ul>
+          </details>`
         }
       </section>`
     }
-    const total = projects.reduce((n, p) => n + p.pages.reduce((m, x) => m + x.open.length + x.unread, 0), 0)
+    const byEntry = new Map<string, IndexProject[]>()
+    for (const p of projects) byEntry.set(p.entry, [...(byEntry.get(p.entry) ?? []), p])
+    // the folders the server is boxed to, as whoever started it says (see DESIGN.md, Entries)
+    const boxed = (process.env.WHITEBOARD_SANDBOX ?? '').split(':').filter(Boolean)
     return String(
       html`<!doctype html>
         <html lang="en">
@@ -166,22 +229,41 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
           </head>
           <body>
             <main id="wb-index">
-              <h1>whiteboard</h1>
+              <header>
+                <h1>whiteboard</h1>
+                <span class="meta"
+                  >${version} ·
+                  ${
+                    boxed.length
+                      ? html`boxed: ${boxed.map((d, i) => html`${i > 0 ? ', ' : ''}<code>${d}</code>`)}`
+                      : html`<span title="WHITEBOARD_SANDBOX names no folders">not boxed</span>`
+                  }</span
+                >
+              </header>
+              ${
+                needs.length > 0 &&
+                html`<section class="needs">
+                  <h2>Needs you <span class="meta">${total}</span></h2>
+                  <ul>
+                    ${needs.map(
+                      ({ project, page }) =>
+                        html`<li>
+                          <span class="where">${project.label} ›</span> ${pageLink(page)} ${what(page)}
+                          <span class="when">${ago(now, page.mtime)}</span>
+                        </li>`,
+                    )}
+                  </ul>
+                </section>`
+              }
               ${
                 projects.length
-                  ? [...byEntry].map(
-                      ([entry, list]) =>
-                        html`<section class="entry">
-                          <h2>${entry}</h2>
-                          ${list.map(projectBlock)}
-                        </section>`,
-                    )
+                  ? [...byEntry].map(([entry, list]) => entryBlock(entry, list))
                   : html`<p>
                       No projects: no folder an include of <code>${dir}/config.json</code> matches has a
                       <code>.whiteboard/</code> folder.
                     </p>`
               }
-              <p class="meta">whiteboard ${version} · pid ${process.pid} · <code>${dir}/config.json</code></p>
+              <p class="meta">pid ${process.pid} · <code>${dir}/config.json</code></p>
             </main>
             <script>
               ${raw(INDEX_SCRIPT)}
@@ -197,7 +279,8 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
   }
   const sendJson = (res: ServerResponse, status: number, data: unknown) =>
     send(res, status, JSON.stringify(data), 'application/json')
-  const list = () => [...served.values()].map(({ entry, dir, base }) => ({ entry, dir, base }))
+  const list = () =>
+    [...served.values()].map(({ entry, group, name, dir, base }) => ({ entry, group, name, dir, base }))
 
   function readBody(req: IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -220,7 +303,14 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
         if (url.searchParams.has('rescan')) entries.rescan()
         return sendJson(res, 200, { ok: true, hub: true, pid: process.pid, version, dir, projects: list() })
       }
-      if (p === '/api/index') return sendJson(res, 200, await index())
+      if (p === '/api/index') {
+        const entry = url.searchParams.get('entry')
+        return sendJson(
+          res,
+          200,
+          (await index()).filter(x => !entry || x.entry === entry),
+        )
+      }
       if (p === '/api/shutdown' && req.method === 'POST') {
         // only from the command line: a page of a project has an Origin
         if (req.headers.origin) return sendJson(res, 403, { error: 'not from a browser' })
@@ -326,16 +416,44 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
   }
 }
 
+const mtimeOf = (file: string) => {
+  try {
+    return fs.statSync(file).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+/** How long ago, in a word or two: "2m ago", "3 days ago". */
+function ago(now: number, then: number): string {
+  if (!then) return ''
+  const s = Math.max(0, (now - then) / 1000)
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  const d = Math.floor(s / 86400)
+  return d === 1 ? 'yesterday' : `${d} days ago`
+}
+
 const INDEX_STYLE = `
-:root{color-scheme:light dark;--fg:#1d2128;--muted:#6b7280;--bg:#fbfbfa;--line:#e3e3e0;--accent:#1d5bbf;--bad:#c4352b}
-@media (prefers-color-scheme:dark){:root{--fg:#e3e5e8;--muted:#9aa1ab;--bg:#15171b;--line:#2b2f36;--accent:#6ea0ff;--bad:#ff7a6e}}
+:root{color-scheme:light dark;--fg:#1d2128;--muted:#6b7280;--bg:#fbfbfa;--line:#e3e3e0;--accent:#1d5bbf;--bad:#c4352b;--soft:#f1f0ec}
+@media (prefers-color-scheme:dark){:root{--fg:#e3e5e8;--muted:#9aa1ab;--bg:#15171b;--line:#2b2f36;--accent:#6ea0ff;--bad:#ff7a6e;--soft:#1d2025}}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
-main{max-width:860px;margin:0 auto;padding:24px 16px 48px}
-h1{font-size:1.4rem;margin:0 0 16px}h2{font-size:1.15rem;margin:28px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
-h3{font-size:1rem;margin:16px 0 4px}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
-ul{margin:0;padding-left:18px}li{margin:2px 0}code{font-size:.85em;color:var(--muted)}
-.meta{color:var(--muted);font-weight:400;font-size:.85rem}.open{color:var(--bad);font-size:.85rem;margin-left:6px}
-.unpicked{color:var(--muted);font-size:.85rem;margin-left:6px}.error{color:var(--bad);white-space:pre-wrap}
+main{max-width:920px;margin:0 auto;padding:24px 16px 48px}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font-size:1.4rem;margin:0}h2{font-size:1.1rem;margin:28px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+h3{font-size:.9rem;margin:14px 0 2px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+ul{margin:0;padding:0;list-style:none}li{margin:0}code{font-size:.85em;color:var(--muted)}
+.meta{color:var(--muted);font-weight:400;font-size:.85rem;text-transform:none;letter-spacing:0}
+.open{color:var(--bad);font-size:.85rem;margin-left:6px}.unpicked{color:var(--muted);font-size:.85rem;margin-left:6px}
+.count{display:inline-block;min-width:1.3em;padding:0 5px;border-radius:99px;background:var(--bad);color:#fff;font-size:.75rem;text-align:center}
+.needs ul li{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;padding:5px 8px;border-radius:6px;background:var(--soft);margin:4px 0}
+.where{color:var(--muted)}.when{margin-left:auto;color:var(--muted);font-size:.8rem;white-space:nowrap}
+.projects li{display:flex;gap:12px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--line)}
+.projects .name{min-width:11em;font-weight:600}.projects .pages{flex:1;min-width:0}
+.empty{margin-top:14px;color:var(--muted);font-size:.9rem}.empty summary{cursor:pointer}.empty ul{padding:6px 0 0 16px;columns:3 14em}
+@media (max-width:600px){.projects li{flex-wrap:wrap}.projects .name{min-width:0}}
 `
 
 // the index stays current: it asks for itself again every few seconds, and swaps in what changed
@@ -346,7 +464,13 @@ setInterval(async () => {
     const doc = new DOMParser().parseFromString(text, 'text/html')
     const next = doc.getElementById('wb-index')
     const now = document.getElementById('wb-index')
-    if (next && now && next.innerHTML !== now.innerHTML) now.replaceWith(next)
+    if (next && now && next.innerHTML !== now.innerHTML) {
+      // a fold the reader opened stays open
+      const opened = [...now.querySelectorAll('details[open]')].map(d => d.closest('section')?.querySelector('h2')?.textContent)
+      for (const d of next.querySelectorAll('details'))
+        if (opened.includes(d.closest('section')?.querySelector('h2')?.textContent)) d.open = true
+      now.replaceWith(next)
+    }
     document.title = doc.title
   } catch {}
 }, 3000)

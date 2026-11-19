@@ -34,10 +34,18 @@ folder('elsewhere/project')
 
 test('includes find the folders with a .whiteboard/, excludes leave some out, each at its path', () => {
   assert.deepEqual(discover(config, { home }), [
-    { entry: 'rg', dir: path.join(home, 'rg/develop'), base: '/rg/develop' },
-    { entry: 'rg', dir: path.join(home, 'rg/develop/.claude/worktrees/cmux'), base: '/rg/worktrees/cmux' },
+    { entry: 'rg', group: 'develop', name: '', dir: path.join(home, 'rg/develop'), base: '/rg/develop' },
     {
       entry: 'rg',
+      group: 'worktrees',
+      name: 'cmux',
+      dir: path.join(home, 'rg/develop/.claude/worktrees/cmux'),
+      base: '/rg/worktrees/cmux',
+    },
+    {
+      entry: 'rg',
+      group: 'jobs',
+      name: '2026-11-19-solid-port',
       dir: path.join(home, 'rg/worksite/jobs/2026-11-19-solid-port'),
       base: '/rg/jobs/2026-11-19-solid-port',
     },
@@ -56,8 +64,11 @@ test('two folders wanting one path get -2', () => {
   folder('b/x/one')
   const found = discover({ entries: { e: { include: ['~/a/x/*', '~/b/x/*'] } } }, { home })
   assert.deepEqual(
-    found.map(p => p.base),
-    ['/e/x/one', '/e/x/one-2'],
+    found.map(p => [p.base, p.group, p.name]),
+    [
+      ['/e/x/one', 'x', 'one'],
+      ['/e/x/one-2', 'x', 'one-2'],
+    ],
   )
 })
 

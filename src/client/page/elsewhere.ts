@@ -28,32 +28,85 @@ function open(yes: boolean) {
 
 let current = ''
 
-async function load() {
-  let pages: PageStatus[]
+/** A page with something waiting, in a group of the menu (its project, under a shared server). */
+interface Waiting {
+  href: string
+  title: string
+  n: number
+}
+
+/** This project's pages with something waiting, but this one. */
+async function here(): Promise<Waiting[]> {
+  const pages = (await (await fetch(url('/api/status'), { cache: 'no-store' })).json()) as PageStatus[]
+  return pages
+    .filter(p => p.page !== current)
+    .map(p => ({
+      href: `${base}/${p.page.split('/').map(encodeURIComponent).join('/')}${WAITING_HASH}`,
+      title: p.title,
+      n: awaiting(p),
+    }))
+    .filter(w => w.n > 0)
+}
+
+/**
+ * Under a shared server (see Entries in DESIGN.md): the other projects of this one's entry, by
+ * project, as the server's index has them; empty on a server of its own, or when it can't say.
+ */
+async function others(): Promise<{ label: string; pages: Waiting[] }[]> {
+  if (!base) return []
+  const entry = base.split('/')[1]
   try {
-    pages = await (await fetch(url('/api/status'), { cache: 'no-store' })).json()
+    const res = await fetch(`/api/index?entry=${encodeURIComponent(entry ?? '')}`, { cache: 'no-store' })
+    if (!res.ok) return []
+    const projects = (await res.json()) as {
+      label: string
+      base: string
+      pages: { title: string; url: string; open: string[]; unread: number }[]
+    }[]
+    return projects
+      .filter(p => p.base !== base)
+      .map(p => ({
+        label: p.label,
+        pages: p.pages
+          .map(x => ({ href: `${x.url}${WAITING_HASH}`, title: x.title, n: x.open.length + x.unread }))
+          .filter(w => w.n > 0),
+      }))
+      .filter(g => g.pages.length)
+  } catch {
+    return []
+  }
+}
+
+async function load() {
+  let mine: Waiting[]
+  let rest: { label: string; pages: Waiting[] }[]
+  try {
+    ;[mine, rest] = await Promise.all([here(), others()])
   } catch {
     return
   }
-  const waiting = pages
-    .filter(p => p.page !== current)
-    .map(p => ({ p, n: awaiting(p) }))
-    .filter(({ n }) => n > 0)
-  const total = waiting.reduce((sum, { n }) => sum + n, 0)
+  const all = [...mine, ...rest.flatMap(g => g.pages)]
+  const total = all.reduce((sum, w) => sum + w.n, 0)
   box.hidden = total === 0
   if (!total) open(false)
   count.textContent = String(total)
-  toggle.title = awaitingLabel(total, ` on ${waiting.length === 1 ? 'another page' : `${waiting.length} other pages`}`)
+  toggle.title = awaitingLabel(total, ` on ${all.length === 1 ? 'another page' : `${all.length} other pages`}`)
   toggle.setAttribute('aria-label', toggle.title)
+  const item = (w: Waiting) => {
+    const li = document.createElement('li')
+    const a = document.createElement('a')
+    a.href = w.href
+    a.textContent = `${w.title} (${w.n})`
+    li.append(a)
+    return li
+  }
+  const heading = (text: string) =>
+    Object.assign(document.createElement('li'), { className: 'wb-elsewhere-group', textContent: text, title: text })
+  // this project's own first; the others by project, named only when there are others
   list.replaceChildren(
-    ...waiting.map(({ p, n }) => {
-      const li = document.createElement('li')
-      const a = document.createElement('a')
-      a.href = `${base}/${p.page.split('/').map(encodeURIComponent).join('/')}${WAITING_HASH}`
-      a.textContent = `${p.title} (${n})`
-      li.append(a)
-      return li
-    }),
+    ...(rest.length && mine.length ? [heading('here')] : []),
+    ...mine.map(item),
+    ...rest.flatMap(g => [heading(g.label), ...g.pages.map(item)]),
   )
 }
 
@@ -85,4 +138,6 @@ export function trackElsewhere(root: HTMLElement, handle: PageHandle, core: Api)
   core.listeners.on(reload)
   handle.onChange(reload)
   load()
+  // other projects' pages change without this page hearing of it: look again now and then
+  if (base) setInterval(reload, 5000)
 }

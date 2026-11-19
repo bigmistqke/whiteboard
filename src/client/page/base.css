@@ -565,6 +565,23 @@ details[open] > :last-child {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* under a shared server, the other projects' pages, under each project's name */
+.wb-elsewhere-group {
+  padding: var(--space-sm) var(--space-lg) var(--space-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font: var(--weight-strong) var(--ui-small)/var(--ui-line-height) var(--sans);
+}
+.wb-elsewhere-group:not(:first-child) {
+  margin-top: var(--space-xs);
+  border-top: var(--hairline) solid var(--border);
+}
+.wb-elsewhere-list {
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+}
 .wb-nav .wb-elsewhere-list a:hover,
 .wb-nav .wb-elsewhere-list a:focus-visible {
   background: color-mix(in srgb, var(--accent) var(--tint-soft), transparent);

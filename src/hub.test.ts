@@ -64,21 +64,59 @@ test('each project is served under its path, its URLs starting with it', async (
   assert.equal(bare.headers.get('location'), '/rg/develop/')
 })
 
-test('the index lists each entry, its projects and what is unanswered, and the version', async () => {
-  const index = await (await fetch(`${base}/`)).text()
-  assert.match(index, /<h2>rg<\/h2>/)
-  assert.match(index, /href="\/rg\/develop\/plan#wb-waiting"/)
-  assert.match(index, /unanswered: pick/)
-  assert.match(index, /href="\/rg\/worktrees\/cmux\/notes"/)
-  assert.match(index, /whiteboard 1\.2\.0/)
+test('the index: what needs the reader first, then each entry by group, projects without pages folded', async () => {
+  const empty = project('rg/develop/.claude/worktrees/bare', {})
+  hub.rescan()
+  try {
+    const index = await (await fetch(`${base}/`)).text()
+    // what waits, wherever it is, named by its project
+    const needs = /<section class="needs">([\s\S]*?)<\/section>/.exec(index)?.[1] ?? ''
+    assert.match(needs, /develop ›/)
+    assert.match(needs, /href="\/rg\/develop\/plan#wb-waiting"/)
+    assert.match(needs, /pick unanswered/)
+    assert.doesNotMatch(needs, /cmux/, 'nothing waits there')
+    // the entry, its groups, and a project's pages
+    assert.match(index, /<h2>rg<\/h2>/)
+    assert.match(index, /<h3>\s*worktrees/)
+    assert.match(index, /href="\/rg\/worktrees\/cmux\/notes"/)
+    // a project without pages, folded away
+    assert.match(index, /<details class="empty">[\s\S]*1 without pages[\s\S]*worktrees › bare/)
+    // the version, and whether it is boxed
+    assert.match(index, /1\.2\.0 ·/)
+    assert.match(index, /not boxed/)
+  } finally {
+    fs.rmSync(empty, { recursive: true })
+    hub.rescan()
+  }
   const health = (await (await fetch(`${base}/api/health`)).json()) as {
     hub: boolean
     version: string
-    projects: unknown[]
+    projects: { group: string; name: string }[]
   }
   assert.equal(health.hub, true)
   assert.equal(health.version, '1.2.0')
-  assert.equal(health.projects.length, 2)
+  assert.deepEqual(
+    health.projects.map(p => [p.group, p.name]),
+    [
+      ['develop', ''],
+      ['worktrees', 'cmux'],
+    ],
+  )
+})
+
+test("an entry's projects, as a page's menu of what waits elsewhere asks for them", async () => {
+  const projects = (await (await fetch(`${base}/api/index?entry=rg`)).json()) as {
+    label: string
+    pages: { url: string; open: string[] }[]
+  }[]
+  assert.deepEqual(
+    projects.map(p => p.label),
+    ['develop', 'worktrees › cmux'],
+  )
+  assert.deepEqual(projects[0]!.pages, [{ ...projects[0]!.pages[0]!, url: '/rg/develop/plan', open: ['pick'] }])
+  assert.deepEqual(await (await fetch(`${base}/api/index?entry=other`)).json(), [])
+  // the project's crumb names it as the entry does
+  assert.match(await (await fetch(`${base}/rg/worktrees/cmux/notes`)).text(), /worktrees › cmux/)
 })
 
 test('a project appearing or going is served or not, without a restart', async () => {

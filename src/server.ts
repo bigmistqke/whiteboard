@@ -112,9 +112,11 @@ export interface ServerOptions {
   base?: string
   /** the entry of a shared server the project is in */
   entry?: string
+  /** how the project is known in its entry: `worktrees › cmux` (default: its name) */
+  label?: string
 }
 
-export function createServer(project: Project, { base = '', entry }: ServerOptions = {}): WhiteboardServer {
+export function createServer(project: Project, { base = '', entry, label }: ServerOptions = {}): WhiteboardServer {
   const loader = createConfigLoader(project)
   const auth = createAuth(project.wb, base)
   // what close() stops: watchers, and the live connections' pings and responses
@@ -429,7 +431,7 @@ export function createServer(project: Project, { base = '', entry }: ServerOptio
     asset,
     urlFor,
     base,
-    ...(entry && { entry: { name: entry } }),
+    ...(entry && { entry: { name: entry, label } }),
   })
 
   /** A render as the shell takes it. `page`: whether the page's browser part runs (not on raw text). */

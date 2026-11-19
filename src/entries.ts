@@ -30,6 +30,10 @@ export interface MachineConfig {
 /** A project found for an entry: its folder, and the path it is served under (`/rg/develop`). */
 export interface EntryProject {
   entry: string
+  /** the include's last plain folder: what kind of checkout it is (`develop`, `worktrees`, `jobs`) */
+  group: string
+  /** what its wildcards matched (`cmux`); '' for an include without any */
+  name: string
   dir: string
   /** the URL path it is served under, without a trailing slash: /<entry>/<path> */
   base: string
@@ -89,7 +93,10 @@ export function readMachineConfig(dir = machineDir()): MachineConfig | null {
 
 /** `~` and `~/…` as the home folder; the rest resolved, with / separators. */
 export const expandHome = (p: string, home = os.homedir()): string =>
-  path.resolve(p.replace(/^~(?=$|[\\/])/, home)).split(path.sep).join('/')
+  path
+    .resolve(p.replace(/^~(?=$|[\\/])/, home))
+    .split(path.sep)
+    .join('/')
 
 const isGlobPart = (part: string) => /[*?[\]{}!]/.test(part)
 
@@ -101,16 +108,17 @@ const hasWhiteboard = (dir: string) => {
   }
 }
 
-/** The path a folder an include matched is served under, in its entry: `develop`, `worktrees/cmux`. */
-function servedPath(include: string, dir: string): string {
+/**
+ * Where a folder an include matched goes in its entry: its group, the include's last plain folder
+ * before the first wildcard (`worktrees`), and its name, what the wildcards matched (`cmux`). An
+ * include without wildcards is a group of one, named by the folder (`develop`).
+ */
+function placeOf(include: string, dir: string): { group: string; name: string } {
   const parts = include.split('/')
   const wild = parts.findIndex(isGlobPart)
-  if (wild < 0) return path.basename(dir)
-  // the last literal folder before the first wildcard, then what the wildcards matched
+  if (wild < 0) return { group: path.basename(dir), name: '' }
   const literal = parts.slice(0, wild).join('/')
-  const label = parts[wild - 1] ?? ''
-  const rest = path.relative(literal, dir).split(path.sep).join('/')
-  return [label, rest].filter(Boolean).join('/')
+  return { group: parts[wild - 1] ?? '', name: path.relative(literal, dir).split(path.sep).join('/') }
 }
 
 /** Is this folder one an exclude glob leaves out (the folder itself, or one it is inside)? */
@@ -135,17 +143,24 @@ export function discover(config: MachineConfig, { home = os.homedir() }: { home?
     const excludes = exclude.map(g => expandHome(g, home))
     for (const glob of include.map(g => expandHome(g, home))) {
       const dirs = glob.split('/').some(isGlobPart)
-        ? fs.globSync(glob).map(d => path.resolve(d)).toSorted()
+        ? fs
+            .globSync(glob)
+            .map(d => path.resolve(d))
+            .toSorted()
         : [glob]
       for (const dir of dirs) {
         const posix = dir.split(path.sep).join('/')
         if (seen.has(dir) || excluded(posix, excludes) || !hasWhiteboard(dir)) continue
         seen.add(dir)
-        const wanted = `/${entry}/${servedPath(glob, posix)}`
+        const place = placeOf(glob, posix)
+        const wanted = `/${entry}/${[place.group, place.name].filter(Boolean).join('/')}`
         let base = wanted
-        for (let n = 2; taken.has(base); n++) base = `${wanted}-${n}`
+        let n = 1
+        while (taken.has(base)) base = `${wanted}-${++n}`
         taken.add(base)
-        out.push({ entry, dir, base })
+        // a second one wanting the same path is named apart the same way
+        const name = n > 1 ? (place.name ? `${place.name}-${n}` : '') : place.name
+        out.push({ entry, group: n > 1 && !place.name ? `${place.group}-${n}` : place.group, name, dir, base })
       }
     }
   }

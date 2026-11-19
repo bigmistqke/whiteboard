@@ -412,8 +412,8 @@ export interface RenderContext {
    * server (see Entries). Every URL the server makes starts with it; `asset` and `urlFor` add it.
    */
   base?: string
-  /** under a shared server: the entry the project is in */
-  entry?: { name: string }
+  /** under a shared server: the entry the project is in, and how the project is known in it (`worktrees › cmux`) */
+  entry?: { name: string; label?: string }
 }
 
 /**

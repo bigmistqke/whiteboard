@@ -385,7 +385,7 @@ export function createRender(
             ></button>
           </nav>`
         : html`<nav class="wb-nav">
-            <span>${crumbs(page.id, ctx.project.name, ctx.base ?? '', ctx.entry)}</span
+            <span>${crumbs(page.id, ctx.entry?.label || ctx.project.name, ctx.base ?? '', ctx.entry)}</span
             >${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button
               type="button"
               class="wb-theme"
