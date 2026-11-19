@@ -93,8 +93,8 @@ export interface WhiteboardServer {
   addListener(l: Listener): () => void
   /** who listens now: the running waits and watches, and a fallback held for it */
   listeners(): Listener[]
-  /** the project's pages as its overview lists them, newest first, with what waits on each */
-  overview(): Promise<PagesSource['pages']>
+  /** the project's pages as its overview lists them, newest first, with what waits on each; whether it serves its files */
+  overview(): Promise<{ pages: PagesSource['pages']; files: boolean }>
   /** tell the open overviews (`/`) that what they list changed */
   touch(): void
   /** stop watching and end the live connections; the server answers nothing after */
@@ -1212,7 +1212,7 @@ export function createServer(
       const pages = pagesIn(project.pagesDir)
       const counts = new Map((await status(null)).map(s => [s.page, awaiting(s)]))
       for (const p of pages) p.awaiting = counts.get(p.id) ?? 0
-      return pages
+      return { pages, files: !!FILES }
     },
     touch() {
       for (const c of clients) if (c.isDir && !c.page) notify(c, 'change')

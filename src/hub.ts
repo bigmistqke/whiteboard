@@ -139,7 +139,8 @@ export function createHub({
         [...served.values()].map(async s => ({
           title: [s.group, s.name].filter(Boolean).join(' › '),
           base: s.base,
-          pages: await s.server.overview().catch(() => []),
+          dir: s.dir,
+          ...(await s.server.overview().catch(() => ({ pages: [], files: false }))),
         })),
       )
       const boxed = (process.env.WHITEBOARD_SANDBOX ?? '').split(':').filter(Boolean)

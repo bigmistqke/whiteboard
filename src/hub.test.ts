@@ -23,6 +23,7 @@ function project(rel: string, pages: Record<string, string> = { plan: PAGE }) {
 }
 
 project('rg/develop')
+fs.writeFileSync(path.join(root, 'rg/develop/README.md'), '# Develop\n')
 project('rg/develop/.claude/worktrees/cmux', { notes: '# Notes\n' })
 const machine = path.join(root, 'machine')
 fs.mkdirSync(machine)
@@ -85,7 +86,13 @@ test("the overview at /: every project's pages by project, what waits first, pro
     const sections = [...index.matchAll(/<section class="wb-project">([\s\S]*?)<\/section>/g)].map(m => m[1]!)
     assert.equal(sections.length, 2)
     // the project with something waiting first
-    assert.match(sections[0]!, /href="\/rg\/develop\/">develop<\/a>/)
+    // a project's name heads its pages, as text: the links are its pages and documents
+    assert.match(sections[0]!, /<h2>\s*develop<a\s+class="wb-open"\s+href="\/rg\/develop\/"/)
+    // its documents, folded, linked where the project serves them
+    assert.match(
+      sections[0]!,
+      /<details class="wb-documents wb-folded-documents">[\s\S]*href="\/rg\/develop\/-\/README\.md"/,
+    )
     assert.match(sections[0]!, /href="\/rg\/develop\/plan#wb-waiting"/)
     assert.match(sections[1]!, /worktrees › cmux/)
     assert.match(sections[1]!, /href="\/rg\/worktrees\/cmux\/notes"/)
@@ -133,7 +140,10 @@ test("an entry's projects, as a page's menu of what waits elsewhere asks for the
     await (await fetch(`${base}/rg/worktrees/cmux/notes`)).text(),
   )?.[1]
   // the first crumb is the overview, named as it is; then the project, named as the entry does
-  assert.match(crumbs ?? '', /<a href="\/">whiteboard<\/a> \/ <a href="\/rg\/worktrees\/cmux\/">worktrees › cmux<\/a\s*>/)
+  assert.match(
+    crumbs ?? '',
+    /<a href="\/">whiteboard<\/a> \/ <a href="\/rg\/worktrees\/cmux\/">worktrees › cmux<\/a\s*>/,
+  )
 })
 
 test('a project appearing or going is served or not, without a restart', async () => {

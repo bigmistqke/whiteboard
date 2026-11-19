@@ -391,7 +391,7 @@ export interface PagesSource extends StoredBase {
    * The shared server's overview at `/` (see Entries in DESIGN.md): every project's pages, by
    * project, those waiting for the reader first; `note` is said under them (the server's version).
    */
-  groups?: { title: string; base: string; pages: PagesSource['pages'] }[]
+  groups?: { title: string; base: string; dir: string; files: boolean; pages: PagesSource['pages'] }[]
   /** projects without pages, folded under the groups: their name and where they are served */
   empty?: { title: string; base: string }[]
   note?: string

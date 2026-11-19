@@ -934,6 +934,26 @@ form[data-wb-just-sent] .wb-folded-change {
   font-size: 1.25rem;
   margin: 0;
 }
+.wb-project h2 .wb-open {
+  margin-left: 0.35em;
+  color: var(--muted);
+  text-decoration: none;
+  vertical-align: 0.05em;
+}
+.wb-project h2 .wb-open:hover {
+  color: var(--accent);
+}
+.wb-project > .wb-meta {
+  margin: var(--space-xs) 0 0;
+}
+.wb-folded-documents {
+  margin-top: var(--rhythm);
+}
+.wb-folded-documents > summary {
+  cursor: pointer;
+  font: var(--weight-strong) var(--ui-small)/var(--ui-line-height) var(--sans);
+  color: var(--muted);
+}
 .wb-empty-projects {
   margin-top: calc(var(--rhythm) * 2.5);
   color: var(--muted);

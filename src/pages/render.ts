@@ -3,12 +3,13 @@
 // code, folders as listings with their README on top; around all of it goes the page's frame.
 // What the page draws itself is built with `html` (../html.ts), which escapes every value.
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { renderMarkdown, type Island, type MdNode } from './markdown.ts'
 import { html, raw, type Html } from '../html.ts'
-import { INBOX_ICON, awaitingLabel } from '../icons.ts'
+import { INBOX_ICON, OPEN_ICON, awaitingLabel } from '../icons.ts'
 import type { Plugin, RenderContext, Rendered, StoredPage, TextLink } from '../define.ts'
 import type { ResolvedBlock, ResolvedBlocks } from './blocks.ts'
 
@@ -160,8 +161,17 @@ function documentsIn(dir: string) {
  * written here), by when last updated, or by title; each row carries what it is sorted by.
  */
 function documentList(ctx: RenderContext) {
-  const files = documentsIn(ctx.project.dir)
+  return documentsOf(ctx.project.dir, ctx.base ?? '', ctx.urlFor)
+}
+
+/**
+ * A project's documents, as its overview lists them: from its folder, linked where it serves them.
+ * `folded`: in a fold that says how many (the shared server's overview, where each project has them).
+ */
+function documentsOf(dir: string, base: string, urlFor: (abs: string) => string | null, folded = false) {
+  const files = documentsIn(dir)
   if (!files.length) return ''
+  const ctx = { project: { dir }, base, urlFor }
   const rows = files.map((f, i) => {
     const abs = path.join(ctx.project.dir, f)
     // a file without a heading goes by its name, and the line under it says the folder it is in
@@ -181,6 +191,13 @@ function documentList(ctx: RenderContext) {
       >
     </li>`
   })
+  if (folded)
+    return html`<details class="wb-documents wb-folded-documents">
+      <summary>Documents <span class="wb-meta">${files.length}</span></summary>
+      <ul class="wb-index">
+        ${rows}
+      </ul>
+    </details>`
   // in a section, so the heading isn't numbered like the page's own sections
   return html`<section class="wb-documents">
     <div class="wb-list-head">
@@ -309,8 +326,20 @@ export function createRender(
             ${groups.map(
               g =>
                 html`<section class="wb-project">
-                  <h2><a href="${g.base}/">${g.title}</a></h2>
-                  ${pageList(first(g.pages), g.base)}
+                  <h2>
+                    ${g.title}<a
+                      class="wb-open"
+                      href="${g.base}/"
+                      title="${g.title}: its own overview"
+                      aria-label="Open ${g.title} on its own"
+                      >${raw(OPEN_ICON)}</a
+                    >
+                  </h2>
+                  <p class="wb-meta">
+                    <code>${g.dir.replace(os.homedir(), '~')}</code
+                    >${g.files && html` · <a href="${g.base}/-/">files</a>`}
+                  </p>
+                  ${pageList(first(g.pages), g.base)} ${g.files && documentsOf(g.dir, g.base, () => null, true)}
                 </section>`,
             )}
             ${!groups.length && html`<p class="wb-meta">No pages yet.</p>`}
