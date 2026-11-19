@@ -328,8 +328,7 @@ export function createRender(
                 html`<section class="wb-project">
                   <h2>${g.title}</h2>
                   <p class="wb-meta">
-                    <code>${g.dir.replace(os.homedir(), '~')}</code
-                    >${g.files && html` · <a href="${g.base}/-/">files</a>`}
+                    <code>${g.dir.replace(os.homedir(), '~')}</code>
                   </p>
                   ${pageList(first(g.pages), g.base)} ${g.files && documentsOf(g.dir, g.base, () => null, true)}
                 </section>`,

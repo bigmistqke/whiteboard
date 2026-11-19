@@ -88,8 +88,8 @@ test("the overview at /: every project's pages by project, what waits first, pro
     // the project with something waiting first
     // a project's name heads its pages, as text: the links are its pages and documents
     assert.match(sections[0]!, /<h2>develop<\/h2>/)
-    // and its files, where the project serves them
-    assert.match(sections[0]!, /href="\/rg\/develop\/-\/">files<\/a>/)
+    // its folder, as text: its documents are the way into its files
+    assert.match(sections[0]!, /<p class="wb-meta">\s*<code>[^<]*rg\/develop<\/code>\s*<\/p>/)
     // its documents, folded, linked where the project serves them
     assert.match(
       sections[0]!,

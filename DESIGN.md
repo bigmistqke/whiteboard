@@ -142,7 +142,7 @@ config only says what the server serves, and so what boxes it may be given
   what kind of checkout each is without a setting. What waits for the reader
     comes first: the projects with something waiting, and in each the pages
   waiting, with the inbox badge. A project's name is a heading, not a link,
-  so the links under it are its pages, its documents and its files. Its documents (the markdown files of its
+  so the links under it are its pages and documents; its folder is said under it, as text. Its documents (the markdown files of its
   folder, as its overview lists them) are folded under its pages: in a
   repository there are many, and the overview is first of all what waits. Projects without pages are folded at the end,
   since with a `.whiteboard/` in every checkout most have none. A first
