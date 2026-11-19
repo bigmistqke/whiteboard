@@ -7,6 +7,9 @@
 //   /api/health        { hub: true, pid, version, projects }; `?rescan` looks for projects first
 //   /api/index         what the index shows, as JSON
 //   /api/shutdown      POST { version }: a newer whiteboard takes over; an older one is refused
+//   /api/listen?entry=<name>&command=wait|watch
+//                      the fallback of a whole entry, for as long as the connection is open: one per
+//                      entry, held on every page of its projects, also those that appear meanwhile
 //
 // A project's server is made when the project is found and closed when it goes, so a project
 // appears and disappears without a restart. Each keeps its own state, config and log, as it would
@@ -18,7 +21,7 @@ import { html, raw } from './html.ts'
 import { compareVersions, VERSION } from './package.ts'
 import { createServer, type WhiteboardServer } from './server.ts'
 import { awaiting } from './status.ts'
-import type { PageStatus } from './define.ts'
+import type { Listener, PageStatus } from './define.ts'
 
 export interface HubOptions {
   /** the machine folder (its config.json); default machineDir() */
@@ -37,6 +40,8 @@ export interface HubOptions {
 interface Served extends EntryProject {
   project: Project
   server: WhiteboardServer
+  /** removes the entry's fallback from this project, while it holds one */
+  fallback?: () => void
 }
 
 /** What the index shows of one project. */
@@ -60,6 +65,8 @@ export interface Hub {
 
 export function createHub({ dir = machineDir(), home, interval, onShutdown, version = VERSION }: HubOptions = {}): Hub {
   const served = new Map<string, Served>()
+  // each entry's fallback, while one runs: the listener its projects hold
+  const fallbacks = new Map<string, Listener>()
 
   function sync(projects: EntryProject[]) {
     const wanted = new Map(projects.map(p => [`${p.base}\n${p.dir}`, p]))
@@ -73,7 +80,9 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
       if (served.has(key)) continue
       const project = projectAt(p.dir)
       if (!project) continue
-      served.set(key, { ...p, project, server: createServer(project, { base: p.base, entry: p.entry }) })
+      const server = createServer(project, { base: p.base, entry: p.entry })
+      const fallback = fallbacks.get(p.entry)
+      served.set(key, { ...p, project, server, ...(fallback && { fallback: server.addListener(fallback) }) })
       console.log(`whiteboard: ${p.base} → ${p.dir}`)
     }
   }
@@ -226,6 +235,7 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
         setImmediate(() => onShutdown?.())
         return
       }
+      if (p === '/api/listen' && url.searchParams.has('entry')) return listenEntry(req, res, url.searchParams)
       if (p === '/' || p === '') return send(res, 200, indexPage(await index()))
       if (p === '/favicon.ico') {
         res.writeHead(204)
@@ -257,6 +267,49 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
     }
   }
 
+  /**
+   * The fallback of a whole entry (a `wait` or `watch` without --page in one of its projects): one
+   * per entry, refused (409) while another runs, or while a project of it has a fallback of its own
+   * (from a whiteboard before entries). Each project holds it as a listener, so its pages say an
+   * agent listens; the command itself reads the projects' logs.
+   */
+  function listenEntry(req: IncomingMessage, res: ServerResponse, q: URLSearchParams) {
+    const entry = q.get('entry')!
+    const projects = [...served.values()].filter(s => s.entry === entry)
+    if (fallbacks.has(entry)) return sendJson(res, 409, { error: `another agent is the fallback of ${entry} already` })
+    const own = projects.find(s => s.server.listeners().some(x => x.fallback))
+    if (own)
+      return sendJson(res, 409, {
+        error: `${own.base} has a fallback of its own already (a wait or watch without --page)`,
+      })
+    const l: Listener = {
+      page: '',
+      type: q.get('type') || null,
+      command: q.get('command') === 'wait' ? 'wait' : 'watch',
+      fallback: true,
+    }
+    fallbacks.set(entry, l)
+    for (const s of projects) s.fallback = s.server.addListener(l)
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
+    res.write(': listening\n\n')
+    const ping = setInterval(() => res.write(': ping\n\n'), 25000)
+    const end = () => {
+      clearInterval(ping)
+      if (fallbacks.get(entry) !== l) return
+      fallbacks.delete(entry)
+      for (const s of served.values()) {
+        s.fallback?.()
+        delete s.fallback
+      }
+    }
+    closers.add(() => {
+      end()
+      res.end()
+    })
+    req.on('close', end)
+  }
+  const closers = new Set<() => void>()
+
   return {
     handle,
     projects: list,
@@ -265,6 +318,7 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
       return list()
     },
     close() {
+      for (const c of closers) c()
       entries.stop()
       for (const s of served.values()) s.server.close()
       served.clear()

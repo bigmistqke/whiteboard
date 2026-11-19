@@ -69,7 +69,8 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
 filters: --page <page|file> (includes pages below it)  --type <type>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
 wait, watch without --page: the fallback, taking only what no other wait or watch would, on any
-         page, also once they stop; one per project (a second exits 1)
+         page, also once they stop; one per project (a second exits 1), or, in a project of the
+         machine's entries, one for the whole entry, each event with its project and url
 events:  --since <iso time or event id>  --last <n>
 
 Every command works on the project of the current folder: the nearest folder upward with a
@@ -310,11 +311,14 @@ function listen(f: EventFilter, command: 'wait' | 'watch', fallback = false): Pr
  * Who else listens, kept current: the fallback leaves to them what they would take. Calls
  * `changed` after each change (the server's live channel says when).
  */
-async function otherListeners(changed: () => void): Promise<() => Listener[]> {
+async function otherListeners(
+  changed: () => void,
+  server: () => Promise<string> = needServer,
+): Promise<() => Listener[]> {
   let list: Listener[] = []
   const load = async () => {
     try {
-      list = (await (await fetch(`${await needServer()}/api/listeners`)).json()) as Listener[]
+      list = (await (await fetch(`${await server()}/api/listeners`)).json()) as Listener[]
     } catch {
       /* the server restarts */
     }
@@ -330,7 +334,7 @@ async function otherListeners(changed: () => void): Promise<() => Listener[]> {
     }
     let base
     try {
-      base = await needServer()
+      base = await server()
     } catch {
       return retry()
     }
@@ -405,8 +409,11 @@ const relFile = (file: string) => path.relative(process.cwd(), file) || file
  * The project's config, as the command line needs it: for its plugins (their commands, the
  * session, which events reach an agent), so without the pages. Loaded once per command.
  */
-let loaded: ReturnType<ReturnType<typeof createConfigLoader>['config']> | null = null
-const projectConfig = (proj: Project) => (loaded ??= createConfigLoader(proj, { pages: false }).config())
+const loaded = new Map<string, ReturnType<ReturnType<typeof createConfigLoader>['config']>>()
+const projectConfig = (proj: Project) => {
+  if (!loaded.has(proj.dir)) loaded.set(proj.dir, createConfigLoader(proj, { pages: false }).config())
+  return loaded.get(proj.dir)!
+}
 
 /**
  * The agent session this command runs in, as the project's plugins know it (Claude Code's
@@ -743,6 +750,12 @@ switch (cmd) {
     // events (default 1); `watch` never does.
     const proj = needProject()
     const f = filter()
+    // without --page in a project of the machine's entries: the fallback of the whole entry
+    const entry = !f.page && isShared(proj) ? matchesEntries(readMachineConfig()!, proj.dir) : null
+    if (entry) {
+      await entryFallback(entry, f, cmd)
+      break
+    }
     const { handedOut } = await projectConfig(proj)
     // without --page, the fallback: only what no other listener would take, on any page, as it comes
     // and once they stop listening (an answer left in the log, too)
@@ -885,6 +898,122 @@ switch (cmd) {
     if (mine.length) console.error(`\nwhiteboard: ${cmd} has no command ${JSON.stringify(rest[0] ?? '')}`)
     if (!asked) process.exit(1)
   }
+}
+
+/**
+ * The fallback of a whole entry: what no other wait or watch in any of its projects would take, on
+ * any page, also once they stop, from each project's own log, each event with the project it is
+ * from (`project`, its folder) and its page's `url`. One per entry: the shared server holds it, and
+ * refuses a second (exit 1). Without a shared server running it waits for one, as any wait does: who
+ * else listens is the server's to say. Projects that appear meanwhile are followed too.
+ */
+async function entryFallback(entry: string, f: EventFilter, command: 'wait' | 'watch') {
+  const file = machineServerFile()
+  const count = command === 'wait' ? Number(opts.count ?? 1) : Infinity
+  const done = new AbortController()
+  let total = 0
+  // after the last event is recorded as picked up, which follows handing it out
+  done.signal.addEventListener('abort', () => setImmediate(() => process.exit(0)))
+  if (opts.timeout && command === 'wait')
+    setTimeout(
+      () => {
+        console.error('timeout')
+        process.exit(2)
+      },
+      Number(opts.timeout) * 1000,
+    )
+  // hold the entry's fallback at the shared server, for as long as this runs (again after a restart)
+  await new Promise<void>(registered => {
+    const connect = async () => {
+      const shared = await sharedServer(file)
+      if (!shared) return setTimeout(connect, 2000).unref()
+      const q = new URLSearchParams({ entry, command, ...(f.type ? { type: f.type } : {}) })
+      let again = false
+      const retry = (ms: number) => {
+        if (!again) {
+          again = true
+          setTimeout(connect, ms).unref()
+        }
+      }
+      const req = http.get(`${shared.origin}/api/listen?${q}`, res => {
+        if (res.statusCode === 409) {
+          let body = ''
+          res.on('data', d => (body += d))
+          res.on('end', () => {
+            console.error(
+              `whiteboard: ${JSON.parse(body || '{}').error ?? 'another agent is the fallback'}. Add --page to wait on a page of your own.`,
+            )
+            process.exit(1)
+          })
+          return
+        }
+        res.resume()
+        registered()
+        res.on('close', () => retry(1000))
+      })
+      req.on('error', () => retry(2000))
+      req.on('socket', socket => socket.unref())
+    }
+    connect()
+  })
+  // a hand-out per project of the entry, as the shared server knows them
+  const following = new Map<string, AbortController>()
+  async function start(p: { dir: string; base: string }, origin: string) {
+    const proj = projectAt(p.dir)
+    if (!proj) return
+    const stop = new AbortController()
+    following.set(p.dir, stop)
+    const { handedOut } = await projectConfig(proj)
+    let recheck = () => {}
+    const at = async () => {
+      const shared = await sharedServer(file)
+      const now = shared?.projects.find(x => x.dir === p.dir)
+      if (!shared || !now) throw new Error('not served')
+      return `${shared.origin}${now.base}`
+    }
+    const others = await otherListeners(() => recheck(), at)
+    // as for a project's fallback: hold each event a moment, for a wait that just started
+    const held = new Set<string>()
+    const skip = (e: WbEvent) => {
+      if (!held.has(e.id)) {
+        held.add(e.id)
+        setTimeout(() => recheck(), 500).unref()
+        return true
+      }
+      return takenByOther(others(), e)
+    }
+    const page = (id: string) => id.split('/').map(encodeURIComponent).join('/')
+    await handOut(
+      proj.eventsFile,
+      { type: f.type },
+      e => {
+        console.log(JSON.stringify({ ...e, project: p.dir, url: `${origin}${p.base}/${page(e.page)}` }))
+        if (++total >= count) done.abort()
+      },
+      {
+        forAgent: forAgent(handedOut),
+        signal: AbortSignal.any([stop.signal, done.signal]),
+        skip,
+        recheck: again => {
+          recheck = again
+        },
+      },
+    )
+  }
+  const sync = async () => {
+    const shared = await sharedServer(file)
+    if (!shared) return
+    const mine = shared.projects.filter(p => p.entry === entry)
+    for (const p of mine) if (!following.has(p.dir)) void start(p, shared.origin)
+    for (const [dir, stop] of following)
+      if (!mine.some(p => p.dir === dir)) {
+        stop.abort()
+        following.delete(dir)
+      }
+  }
+  await sync()
+  // keeps the command running, and follows projects coming and going
+  setInterval(sync, 2000)
 }
 
 /** The commands the project's plugins add: `whiteboard <plugin> [sub]`. */

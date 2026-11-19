@@ -85,6 +85,14 @@ export interface WhiteboardServer {
   config(): Promise<LoadedConfig>
   /** a static site of some pages (`whiteboard build`); options over the config's `build` */
   build(options?: BuildConfig): Promise<BuildResult>
+  /**
+   * Hold a listener that is not a connection to this server: the shared server's fallback for a
+   * whole entry, which covers every page of each of its projects. Pages are told, as for any
+   * listener. @returns what removes it
+   */
+  addListener(l: Listener): () => void
+  /** who listens now: the running waits and watches, and a fallback held for it */
+  listeners(): Listener[]
   /** stop watching and end the live connections; the server answers nothing after */
   close(): void
 }
@@ -1175,6 +1183,14 @@ export function createServer(project: Project, { base = '', entry }: ServerOptio
 
   return {
     handle,
+    listeners: () => listenersFor(null),
+    addListener(l) {
+      listeners.add(l)
+      notifyAll('listeners')
+      return () => {
+        if (listeners.delete(l)) notifyAll('listeners')
+      }
+    },
     status: (page = null) => status(page),
     config,
     build,

@@ -348,7 +348,8 @@ export function handOut(
     const hand = (e: WbEvent) => {
       onEvent(e)
       pick(file, e)
-      return ++got < count
+      // onEvent may have aborted it (a hand-out over several logs that has enough)
+      return ++got < count && !signal?.aborted
     }
     // the events left for now (skip), by id
     const left = new Map<string, WbEvent>()

@@ -152,6 +152,13 @@ restart.
   `wait`, `append`, `events`, `status` act on their own project and find the
   shared server. Events stay in each project's own `.whiteboard/events.ndjson`.
   A project outside every include runs its own server, as without the config.
+- **The fallback covers the whole entry.** A `wait` or `watch` without
+  `--page` in a project of an entry takes what no other wait or watch in any
+  of the entry's projects would take, from each project's own log, and says
+  where each answer is from (`project`, its folder, and the page's `url`). So
+  an agent overseeing the others runs `whiteboard watch` once, and an answer
+  on a page whose agent stopped listening still reaches it. One runs per
+  entry; a second exits 1.
 - **Only `show` and `serve` start a server** (and a plugin's command that needs
   one, such as `whiteboard terminal`). A `wait` with no server running waits
   for one to appear, and the answers in the log reach it either way; `status`

@@ -134,6 +134,21 @@ the config and the disk (`discover` in `src/entries.ts`).
   folder, no disk walk), the shared server is its server, at its path, and
   every command acts on its project there. Events stay in the project's log.
   A project outside every include runs its own server, as before.
+- **The fallback covers the whole entry.** A `wait` or `watch` without
+  `--page` in a project of an entry is the entry's fallback, not the
+  project's: one agent overseeing the others (the reason for entries) runs
+  one, and an answer on any page of any of the projects whose own agent isn't
+  listening reaches it. The command reads each project's log and hands out
+  what no listener of that project would take, as a project's fallback does
+  (see Listeners), with `project` (the folder) and the page's `url` added, so
+  the agent knows where to answer; picking up is recorded in that project's
+  log. The shared server holds it as one listener per entry
+  (`/api/listen?entry=`), on every project of the entry, also ones that
+  appear later, so their pages say an agent listens; a second, or one while a
+  project has a fallback of its own (an older whiteboard's), is refused. It was
+  first a flag (`--entry`), to keep what a page-less wait means; but agents
+  wait with `--page` on their own pages, and the one that doesn't is the one
+  overseeing them all.
 - **Only `show` and `serve` start a server** (and a plugin's command that
   asks for one with `ctx.server()`, as the terminal's do). A `wait` or
   `watch` with none running reads the log as always and connects its listener

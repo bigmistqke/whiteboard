@@ -171,3 +171,48 @@ test('an older whiteboard never replaces a newer shared server: it uses it', asy
   assert.equal(newer.exitCode, null, 'still running')
   assert.equal((await health(m.port))?.version, '999.0.0')
 })
+
+test("a wait without --page in a project of an entry is the whole entry's fallback", async () => {
+  const m = await machine()
+  const a = m.make('jobs/a')
+  const b = m.make('jobs/b')
+  m.cli(a, 'show', 'plan')
+  const answer = (job: string, x: string) =>
+    fetch(`http://127.0.0.1:${m.port}/rg/jobs/${job}/api/events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ page: 'plan', type: 'pick', action: 'Send', data: { x } }),
+    })
+  const listeners = async (job: string) =>
+    (await (await fetch(`http://127.0.0.1:${m.port}/rg/jobs/${job}/api/listeners?page=plan`)).json()) as {
+      fallback?: boolean
+    }[]
+  // a's own agent waits on its page; the coordinator runs the fallback from a
+  const own = m.run(a, 'wait', '--page', 'plan')
+  const coordinator = m.run(a, 'watch')
+  await until('both to listen', async () => (await listeners('a')).length === 2)
+  // the fallback is held on every project of the entry, so b's page says someone listens
+  assert.deepEqual(
+    (await listeners('b')).map(l => !!l.fallback),
+    [true],
+  )
+  // a second fallback in the entry is refused
+  const second = m.run(b, 'wait')
+  await until('the second to exit', () => second.exitCode != null)
+  assert.equal(second.exitCode, 1)
+  // a's answer is its own agent's; b's, which nobody else listens for, reaches the coordinator
+  await answer('a', 'A')
+  await until("a's wait", () => own.exitCode != null)
+  assert.equal(JSON.parse(own.output()).data.x, 'A')
+  await answer('b', 'B')
+  const got = await until('the fallback to hand it out', () => coordinator.output().trim())
+  const lines = got.split('\n').map(l => JSON.parse(l))
+  assert.equal(lines.length, 1, 'only what no other listener takes')
+  assert.equal(lines[0].data.x, 'B')
+  assert.equal(lines[0].project, b)
+  assert.equal(lines[0].url, `http://localhost:${m.port}/rg/jobs/b/plan`)
+  // and it is picked up, in b's own log
+  assert.ok(
+    fs.readFileSync(path.join(b, '.whiteboard', 'events.ndjson'), 'utf8').includes(`"type":"whiteboard:picked"`),
+  )
+})
