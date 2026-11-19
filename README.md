@@ -101,9 +101,10 @@ whiteboard keeps is there; nothing is written outside the project.
 
 Pages, the event log and the server files are gitignored by default.
 
-- **One server per project.** `whiteboard show` starts the project's server
-  when it isn't running. It takes the port it had last time, else 4777 (or
-  `$WHITEBOARD_PORT`), else the next free one.
+- **One server per project,** or one for many ([below](#many-projects-one-server)).
+  `whiteboard show` starts the project's server when it isn't running. It
+  takes the port it had last time, else 4777 (or `$WHITEBOARD_PORT`), else
+  the next free one.
 - **Markdown, extended by plugins.** A page is markdown, and plugins add
   blocks to it: `:::form`, `:::grid`, `:::chat`, ```` ```mermaid ```` and
   the rest are built-in plugins, and a project can add its own.
@@ -116,6 +117,54 @@ Pages, the event log and the server files are gitignored by default.
   content as plain markdown, and one that throws shows an error in place of
   that block only. A config that fails to load leaves pages as their raw
   text, with the error above it.
+
+## Many projects, one server
+
+With many checkouts at once (git worktrees, job folders), one server per
+project means one port per project, and no place that shows them all. A
+machine config gathers them under one server instead:
+
+```json
+// ~/.config/whiteboard/config.json  ($XDG_CONFIG_HOME/whiteboard, or $WHITEBOARD_HOME)
+{
+  "port": 4777,
+  "entries": {
+    "rg": {
+      "include": ["~/rg/develop", "~/rg/develop/.claude/worktrees/*", "~/rg/worksite/jobs/*"],
+      "exclude": ["~/rg/worksite/archive/**"]
+    }
+  }
+}
+```
+
+Every folder an include matches, that no exclude matches and that has a
+`.whiteboard/` folder, is a project of that entry. It is served at
+`/<entry>/<path>/`, where `<path>` is the include's last plain folder and what
+its wildcards matched: `/rg/develop/`, `/rg/worktrees/cmux/`,
+`/rg/jobs/2026-11-19-solid-port/`. A second folder that would get the same path
+gets `-2`. The server looks for projects again every few seconds, so a new
+worktree with a `.whiteboard/` shows up, and a removed one goes, without a
+restart.
+
+- **`/` is the index:** each entry, its projects, their pages, and what is
+  unanswered or unread on each, with the server's version.
+- **Commands work as before,** in the project's folder: `show`, `url`,
+  `wait`, `append`, `events`, `status` act on their own project and find the
+  shared server. Events stay in each project's own `.whiteboard/events.ndjson`.
+  A project outside every include runs its own server, as without the config.
+- **Only `show` and `serve` start a server** (and a plugin's command that needs
+  one, such as `whiteboard terminal`). A `wait` with no server running waits
+  for one to appear, and the answers in the log reach it either way; `status`
+  and `docs` answer without one.
+- **Versions.** The server records its version (in `server.json` beside the
+  config, and at the bottom of the index). A newer whiteboard's `show` takes an
+  older server over: it asks it to exit and starts in its place. An older one
+  never replaces a newer one; it uses it.
+- **Start it yourself.** The shared server runs every project's config and
+  plugins (the terminal runs programs), so it can do whatever any of them can.
+  Start it where all of them may run (`whiteboard serve` outside any project,
+  or at login), not from inside one agent's sandbox, which may not reach the
+  other folders. See [DESIGN.md](DESIGN.md#entries-one-server-for-many-projects).
 
 ## Forms and answers
 
@@ -268,7 +317,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard root` | print the folder pages go into |
 | `whiteboard new <name>` | create a page under a name no other page has (`name`, else `name-2`, …), print its path |
 | `whiteboard show <page\|file>` | start the server if needed, print the page's URL |
-| `whiteboard url <page\|file>` | the same |
+| `whiteboard url <page\|file>` | print the page's URL, when the server runs |
 | `whiteboard close <page>` | a page that did its job: remove its file, and all its events from the log |
 | `whiteboard prune <page> [--type <t>] [--id <id>]` | remove a page's events from the log (all, one type, or one), keep the page |
 | `whiteboard edit <event id> --data <json>` | change an agent's own event in place: merged into its data, its id kept |
@@ -281,7 +330,7 @@ upward with a `.whiteboard/` folder.
 | `whiteboard pick <event id>` | record an event as picked up, as `wait` does when it hands one out |
 | `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent picked up, who is listening |
 | `whiteboard build [globs…] [--out <dir>] [--skip <a,b>]` | pages as a static site (see [Building a site](#building-a-site)) |
-| `whiteboard serve` | run the server in the foreground |
+| `whiteboard serve` | run the server in the foreground; for a project of the machine config's entries, or outside any project, the shared server |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 
 Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form's type is its name).

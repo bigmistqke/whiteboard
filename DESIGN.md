@@ -40,8 +40,9 @@ conversation; the page holds overview, detail and decisions.
 ## Projects
 
 A project is a folder (usually a repository) with a `.whiteboard/` folder.
-Everything whiteboard keeps is in that `.whiteboard/` folder; nothing lives
-outside the project:
+Everything whiteboard keeps of a project is in that `.whiteboard/` folder;
+the one thing outside any project is the machine folder, which says which
+projects one shared server serves (see Entries):
 
 ```
 <repo>/.whiteboard/
@@ -84,6 +85,85 @@ background when it is not running: it takes the port it had last time, else
 `server.json`. The command line checks that the server on that port is this
 project's before using it. Two projects open at once are two servers on two
 ports; nothing coordinates them, and `/` lists only this project's pages.
+Unless the machine config gathers them under one server: see Entries.
+
+### Entries: one server for many projects
+
+Someone running many checkouts at once (git worktrees, job folders, with an
+agent in each and one agent overseeing them) had a server per checkout: many
+ports, no one place to see them all, and an old install's `wait` restarting an
+old server whenever the current one stopped. So a machine can have one
+server, for the projects a machine config names.
+
+The machine folder is `$WHITEBOARD_HOME`, else `$XDG_CONFIG_HOME/whiteboard`,
+else `~/.config/whiteboard`. In it, `config.json` names the server's port and
+its entries: a name, with include and exclude globs (`~` is the home folder).
+Every folder an include matches, that no exclude matches (nor a folder above
+it) and that has a `.whiteboard/` folder, is a project of that entry; a
+folder two includes match is the first one's. Finding them is one function of
+the config and the disk (`discover` in `src/entries.ts`).
+
+- **A path per project.** A project is served at `/<entry>/<path>`: `<path>`
+  is the include's last plain folder and what its wildcards matched
+  (`~/rg/develop/.claude/worktrees/*` gives `worktrees/cmux`), so the path
+  says what kind of checkout it is; `-2`, `-3` when two want the same one.
+  The entry is the first part, so two groups of folders never collide, and the
+  index groups by it. Entry names `api`, `_` and `-` are the server's own.
+- **The shared server only routes** (`createHub` in `src/hub.ts`). For each
+  project it makes the project's own server (`createServer(project, { base })`)
+  and hands it the request without the project's path, so a project's config,
+  plugins, listeners and log are its own, exactly as on a port of its own.
+  Every URL a project's server makes starts with its `base`: links, assets,
+  redirects, the token's cookie path; the page's handoff says it, and the
+  browser's requests, links and localStorage keys use it (`src/client/base.ts`).
+  A plugin's browser module asks through `api.url('/api/<name>/…')`. One that
+  still writes `/api/…` itself reaches its project anyway: a request for
+  `/api/` or `/_/` outside every project goes to the project of the page in
+  its `Referer`.
+- **Projects come and go.** Globs could match folders anywhere below their
+  wildcards, and watching all of them would cost more than looking: the
+  server runs discovery again every 1.5 s (a few folder listings), and at
+  once when a command asks for a project it doesn't have (`/api/health?rescan`,
+  for a worktree made a moment ago). A project that goes has its server closed.
+- **The index at `/`** lists each entry, its projects, their pages and what
+  is open on each (its questions, unread messages and answers no agent picked
+  up, from each project's `status`), with the server's version. It asks for
+  itself again every few seconds.
+- **The command line is the same.** It finds its project as before; when the
+  project is one of the entries (`matchesEntries`: the globs against its
+  folder, no disk walk), the shared server is its server, at its path, and
+  every command acts on its project there. Events stay in the project's log.
+  A project outside every include runs its own server, as before.
+- **Only `show` and `serve` start a server** (and a plugin's command that
+  asks for one with `ctx.server()`, as the terminal's do). A `wait` or
+  `watch` with none running reads the log as always and connects its listener
+  once one appears, so a stray wait never brings an old server back. `status`,
+  `docs` and the hooks behind them, which run on every prompt, ask a server
+  made in the command's own process for that one question when none runs; it
+  has no listeners, since nothing could have registered one. `url` and
+  `scroll` say none runs.
+- **Versions.** The shared server records its version in `server.json` in
+  the machine folder and says it at `/api/health` and on the index. A
+  whiteboard newer than the running one takes it over when it starts one
+  (`show`, `serve`): it posts its version to `/api/shutdown`, which the server
+  accepts only from a newer version and not from a page (no `Origin`), waits
+  for it to go (else ends its process, for one from before that route), and
+  listens in its place. An older or equal one uses the server as it is. A
+  whiteboard from before entries knows nothing of the machine folder and
+  keeps starting a server per project, as it did.
+- **One trust domain.** The shared server imports every project's config
+  and plugins into one process, so whatever one project's config can do, it
+  can do to all of them; and the projects share one origin, so a script on
+  one project's page can reach another's routes. The projects of a machine
+  config are one boundary (see Security above): start the shared server where
+  all of them may run, as the person, at login or with `whiteboard serve`
+  outside any project. Started from inside one agent's sandbox, by its
+  `show`, it is boxed in with that agent and may not reach the other folders.
+
+Serving each project on a subdomain instead (`develop.rg.localhost`) was
+weighed: it keeps every absolute URL working and each project its own origin,
+but not every browser and not Node resolve `*.localhost`, and a path is what
+one reads and types.
 
 Any other file in the project folder is served from the repository at
 `/-/<path>`: markdown files as pages, folders with their entries, other text
@@ -757,6 +837,7 @@ src/pages/        the markdown engine behind one interface: markdown.ts, render.
 src/client/       the core in the browser: the runtime, named forms
 src/client/page/  the page in the browser: morphing, islands, new-content marks, theme, waiting and folding, orphaned chats
 src/loader.ts     the config loader: the plugins, checked, and the pages made from their blocks
+src/entries.ts    the machine config and its entries' projects; src/hub.ts the shared server
 plugins/<name>/   the built-in plugins (./plugins), and the opt-in ones: terminal, claude-code
 bin/              the `whiteboard` command
 solid/            ./solid: write block clients as Solid 2 components
@@ -797,5 +878,10 @@ module in `dist/` sits at another depth than its source.
 
 ## Files
 
-- `<repo>/.whiteboard/`: a project (see Projects). There are no other files.
-- `$WHITEBOARD_PORT` (default 4777): the port a project's server tries first.
+- `<repo>/.whiteboard/`: a project (see Projects).
+- The machine folder (`$WHITEBOARD_HOME`, else `$XDG_CONFIG_HOME/whiteboard`,
+  else `~/.config/whiteboard`): `config.json`, the entries and the shared
+  server's port; `server.json`, `server.log` and `server.lock`, the shared
+  server's (see Entries). There are no other files.
+- `$WHITEBOARD_PORT` (default 4777): the port a project's server tries first,
+  and the shared server when its config names none.
