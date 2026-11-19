@@ -38,3 +38,25 @@ export const FROM_SOURCE = fileURLToPath(import.meta.url).endsWith('.ts')
  */
 /** A built-in plugin's public folder: its built browser modules and copied styles (build.ts). */
 export const builtinPublic = (name: string): string => packagePath('dist', 'plugins', name, 'public')
+
+/** This package's version, from its package.json: what a shared server records, and its takeover compares. */
+export const VERSION: string = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'package.json'), 'utf8')).version
+
+/** Compare two versions, x.y.z with an optional -pre: < 0 when a is older, 0 when the same, > 0 when newer. */
+export function compareVersions(a: string, b: string): number {
+  const parse = (v: string) => {
+    const [main, pre] = String(v).split('-', 2)
+    return { nums: main!.split('.').map(n => Number(n) || 0), pre: pre ?? null }
+  }
+  const x = parse(a)
+  const y = parse(b)
+  for (let i = 0; i < Math.max(x.nums.length, y.nums.length); i++) {
+    const d = (x.nums[i] ?? 0) - (y.nums[i] ?? 0)
+    if (d) return Math.sign(d)
+  }
+  // a release is newer than its pre-releases
+  if (x.pre === y.pre) return 0
+  if (x.pre == null) return 1
+  if (y.pre == null) return -1
+  return x.pre < y.pre ? -1 : 1
+}

@@ -26,3 +26,41 @@ export async function runningServer(project: Project, { except }: { except?: num
     return null
   }
 }
+
+/** The shared server as its health says: where it is, its version, the projects it serves. */
+export interface SharedServer {
+  origin: string
+  pid: number
+  version: string
+  projects: { entry: string; dir: string; base: string }[]
+}
+
+/** The port the shared server recorded in the machine folder, or null. */
+export function recordedSharedPort(file: string): number | null {
+  try {
+    return Number(JSON.parse(fs.readFileSync(file, 'utf8')).port) || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The machine's running shared server, or null: the port in its record, checked by asking it.
+ * `rescan`: have it look for projects first (one just made, say). `except`: a process not to count.
+ */
+export async function sharedServer(
+  file: string,
+  { rescan = false, except }: { rescan?: boolean; except?: number } = {},
+): Promise<SharedServer | null> {
+  const port = recordedSharedPort(file)
+  if (!port) return null
+  const origin = `http://localhost:${port}`
+  try {
+    const res = await fetch(`${origin}/api/health${rescan ? '?rescan' : ''}`, { signal: AbortSignal.timeout(800) })
+    const health = res.ok ? await res.json() : null
+    if (!health?.hub || health.pid === except) return null
+    return { origin, pid: health.pid, version: String(health.version ?? '0.0.0'), projects: health.projects ?? [] }
+  } catch {
+    return null
+  }
+}
