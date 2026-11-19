@@ -25,9 +25,9 @@ import {
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
 import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
 import { projectToken } from '../src/auth.ts'
-import { packagePath } from '../src/package.ts'
+import { PACKAGE_DIR, packagePath } from '../src/package.ts'
 import { recordedSharedPort, runningServer, sharedServer } from '../src/running.ts'
-import { machineDir, machineServerFile, matchesEntries, readMachineConfig } from '../src/entries.ts'
+import { machineDir, machineServerFile, matchesEntries, readMachineConfig, serverPaths, stateDir } from '../src/entries.ts'
 import { compareVersions, VERSION } from '../src/package.ts'
 import { statusLines, takenByOther, whose } from '../src/status.ts'
 import type { Listener, PageStatus, WbEvent } from '../src/define.ts'
@@ -65,6 +65,9 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard serve                 run this project's server in the foreground; for a project of the
                                    machine's entries, or outside any project, the shared server
   whiteboard skill [dir]           print where the agent skill is, or link it into a skills folder
+  whiteboard paths [--write|--read]  the folders the shared server needs, ':' between them, for a sandbox
+                                   wrapper to grant: --write the entries' folders and its state, --read
+                                   the machine config and whiteboard itself
 
 filters: --page <page|file> (includes pages below it)  --type <type>
 wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
@@ -107,6 +110,8 @@ const { values: opts, positionals } =
           out: { type: 'string' },
           skip: { type: 'string' },
           help: { type: 'boolean', short: 'h' },
+          write: { type: 'boolean' },
+          read: { type: 'boolean' },
         },
       })
 
@@ -870,6 +875,17 @@ switch (cmd) {
   case 'status':
     await status()
     break
+  case 'paths': {
+    // what the shared server needs of the disk, from the machine config: for whatever boxes it in
+    // (a sandbox wrapper: `safehouse --add-dirs="$(whiteboard paths --write)" …`)
+    const config = readMachineConfig()
+    if (!config) throw new Error(`no machine config: ${machineDir()}/config.json`)
+    const { write, read } = serverPaths(config, { packageDir: PACKAGE_DIR })
+    if (opts.write) console.log(write.join(':'))
+    else if (opts.read) console.log(read.join(':'))
+    else console.log(`write: ${write.join(':')}\nread:  ${read.join(':')}`)
+    break
+  }
   case 'skill': {
     // the agent skill ships in this package; link it into whatever folder an agent reads skills from
     const source = packagePath('skills', 'whiteboard')

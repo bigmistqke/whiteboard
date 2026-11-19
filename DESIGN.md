@@ -41,8 +41,8 @@ conversation; the page holds overview, detail and decisions.
 
 A project is a folder (usually a repository) with a `.whiteboard/` folder.
 Everything whiteboard keeps of a project is in that `.whiteboard/` folder;
-the one thing outside any project is the machine folder, which says which
-projects one shared server serves (see Entries):
+outside any project are only the machine folder, which says which projects
+one shared server serves, and that server's state folder (see Entries):
 
 ```
 <repo>/.whiteboard/
@@ -101,7 +101,13 @@ its entries: a name, with include and exclude globs (`~` is the home folder).
 Every folder an include matches, that no exclude matches (nor a folder above
 it) and that has a `.whiteboard/` folder, is a project of that entry; a
 folder two includes match is the first one's. Finding them is one function of
-the config and the disk (`discover` in `src/entries.ts`).
+the config and the disk (`discover` in `src/entries.ts`). What the shared
+server writes is apart from it, in its state folder (`$WHITEBOARD_STATE`, else
+`$XDG_STATE_HOME/whiteboard`, else `~/.local/state/whiteboard`): its record
+`server.json`, its log, the lock of a start, and the overview's project. The
+config only says what the server serves, and so what boxes it may be given
+(below): the server reads it and never writes it, so nothing that runs in it
+(any project's plugins) can widen its own box for the next start.
 
 - **A path per project.** A project is served at `/<entry>/<path>`: `<path>`
   is the include's last plain folder and what its wildcards matched
@@ -128,7 +134,7 @@ the config and the disk (`discover` in `src/entries.ts`).
 - **The overview at `/`** is where the reader starts: every project's pages,
   by project, as a project's own overview lists its pages, so it is read the
   same way. It is a project's overview, of a project of the shared server's
-  own (`overview/` in the machine folder, `createServer` with `overview`):
+  own (`overview/` in its state folder, `createServer` with `overview`):
   rendered by the same core, in the same shell, live through the same
   channel, which each project's server tells when its pages or log change
   (`onChange`). A project is named by its group, the include it came from
@@ -182,7 +188,7 @@ the config and the disk (`discover` in `src/entries.ts`).
   over an older one, as it does a project's; that put it in whichever agent's
   sandbox got there first.
 - **Versions.** The shared server records its version in `server.json` in
-  the machine folder and says it at `/api/health` and on the index. `serve`
+  its state folder and says it at `/api/health` and on the overview. `serve`
   from a newer whiteboard takes it over: it posts its version to
   `/api/shutdown`, which the server accepts only from a newer version and not
   from a page (no `Origin`), waits for it to go (else ends its process, for
@@ -195,12 +201,18 @@ the config and the disk (`discover` in `src/entries.ts`).
   can do to all of them; and the projects share one origin, so a script on
   one project's page can reach another's routes. The projects of a machine
   config are one boundary (see Security above). So the shared server is
-  boxed on its own, to the entries' folders and the machine folder, by
-  whatever starts it (a sandbox the machine already uses for its agents,
-  around a login service): then its plugins can reach what the agents
-  together can, and no more. Whiteboard knows no sandbox; whoever boxes it
-  names the folders in `$WHITEBOARD_SANDBOX`, and the index shows them, or
-  "not boxed".
+  boxed on its own, by whatever starts it: a wrapper of the person's, as
+  their agent has one (an alias around a sandbox), run by hand or by a login
+  service. Then its plugins can reach what the agents together can, and no
+  more. Whiteboard knows no sandbox and has no setting for one: it says what
+  the server needs (`whiteboard paths`: to write, each include up to its
+  first wildcard and the state folder; to read, the config and whiteboard
+  itself), and the wrapper grants it, so the box follows the config.
+  `$WHITEBOARD_SANDBOX`, set by the wrapper, is what the overview shows it is
+  boxed to, or "not boxed". A setting in the config naming the wrapper was
+  weighed: the config is the person's to edit, but the server could write
+  it then (it was in the same folder as its record), and a login service
+  that read it at each start would run whatever it said, outside every box.
 - **A project per checkout.** A folder is a project once it has a
   `.whiteboard/`, so what makes checkouts (a worktree, a job folder) runs
   `whiteboard init` in each: its pages and log are then its own, inside the
@@ -927,7 +939,10 @@ module in `dist/` sits at another depth than its source.
 - `<repo>/.whiteboard/`: a project (see Projects).
 - The machine folder (`$WHITEBOARD_HOME`, else `$XDG_CONFIG_HOME/whiteboard`,
   else `~/.config/whiteboard`): `config.json`, the entries and the shared
-  server's port; `server.json`, `server.log` and `server.lock`, the shared
-  server's (see Entries). There are no other files.
+  server's port, which the server only reads (see Entries).
+- The shared server's state folder (`$WHITEBOARD_STATE`, else
+  `$XDG_STATE_HOME/whiteboard`, else `~/.local/state/whiteboard`):
+  `server.json`, `server.log`, `server.lock` and `overview/`, the overview's
+  project. There are no other files.
 - `$WHITEBOARD_PORT` (default 4777): the port a project's server tries first,
   and the shared server when its config names none.

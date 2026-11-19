@@ -40,8 +40,10 @@ export interface EntryProject {
 }
 
 /**
- * The machine folder: the machine config and the shared server's record. `$WHITEBOARD_HOME`, else
- * `$XDG_CONFIG_HOME/whiteboard`, else `~/.config/whiteboard`.
+ * The machine folder: the machine config, `config.json`. `$WHITEBOARD_HOME`, else
+ * `$XDG_CONFIG_HOME/whiteboard`, else `~/.config/whiteboard`. The shared server only reads it: what
+ * runs in the server (any project's plugins) must not change which folders it serves, nor how it is
+ * started (see Entries in DESIGN.md).
  */
 export function machineDir(env: NodeJS.ProcessEnv = process.env): string {
   if (env.WHITEBOARD_HOME) return path.resolve(env.WHITEBOARD_HOME)
@@ -49,9 +51,22 @@ export function machineDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(xdg, 'whiteboard')
 }
 
+/**
+ * The shared server's own folder, which it writes: its record (`server.json`), its log, the lock of
+ * a start, and the overview's project. `$WHITEBOARD_STATE`, else `state/` in `$WHITEBOARD_HOME`
+ * when that is set (a throwaway machine, in tests), else `$XDG_STATE_HOME/whiteboard`, else
+ * `~/.local/state/whiteboard`.
+ */
+export function stateDir(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.WHITEBOARD_STATE) return path.resolve(env.WHITEBOARD_STATE)
+  if (env.WHITEBOARD_HOME) return path.join(path.resolve(env.WHITEBOARD_HOME), 'state')
+  const xdg = env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state')
+  return path.join(xdg, 'whiteboard')
+}
+
 export const machineConfigFile = (dir = machineDir()) => path.join(dir, 'config.json')
-export const machineServerFile = (dir = machineDir()) => path.join(dir, 'server.json')
-export const machineLogFile = (dir = machineDir()) => path.join(dir, 'server.log')
+export const machineServerFile = (dir = stateDir()) => path.join(dir, 'server.json')
+export const machineLogFile = (dir = stateDir()) => path.join(dir, 'server.log')
 
 const NAME = /^[a-z0-9][a-z0-9._-]*$/i
 // a served path's first part is an entry's name: these are the server's own
@@ -211,4 +226,33 @@ export function followEntries(
   const timer = setInterval(rescan, interval)
   timer.unref()
   return { rescan, projects: () => current, stop: () => clearInterval(timer) }
+}
+
+/**
+ * The folders the entries' projects can be in: each include up to its first wildcard (all of it
+ * when it has none), without those inside another. What the shared server must be able to write,
+ * whatever folders appear below them later.
+ */
+export function entryFolders(config: MachineConfig, { home = os.homedir() }: { home?: string } = {}): string[] {
+  const roots = Object.values(config.entries).flatMap(e =>
+    e.include.map(g => {
+      const parts = expandHome(g, home).split('/')
+      const wild = parts.findIndex(isGlobPart)
+      return wild < 0 ? parts.join('/') : parts.slice(0, wild).join('/') || '/'
+    }),
+  )
+  const unique = [...new Set(roots)].toSorted()
+  return unique.filter(r => !unique.some(o => o !== r && (r.startsWith(o + '/') || o === '/')))
+}
+
+/**
+ * What the shared server needs of the disk, for whatever boxes it in (a sandbox wrapper, see
+ * `whiteboard paths`): `write`, the entries' folders and its own state folder; `read`, the machine
+ * config and whiteboard itself.
+ */
+export function serverPaths(
+  config: MachineConfig,
+  { home, packageDir, env = process.env }: { home?: string; packageDir: string; env?: NodeJS.ProcessEnv },
+): { write: string[]; read: string[] } {
+  return { write: [...entryFolders(config, { home }), stateDir(env)], read: [machineDir(env), packageDir] }
 }

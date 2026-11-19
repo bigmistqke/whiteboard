@@ -21,14 +21,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { project as projectAt, type Project } from './config.ts'
-import { followEntries, machineDir, readMachineConfig, type EntryProject } from './entries.ts'
+import { followEntries, machineDir, readMachineConfig, stateDir, type EntryProject } from './entries.ts'
 import { compareVersions, VERSION } from './package.ts'
 import { createServer, type WhiteboardServer } from './server.ts'
 import type { Listener, PageStatus } from './define.ts'
 
 export interface HubOptions {
-  /** the machine folder (its config.json); default machineDir() */
+  /** the machine folder (its config.json), which the server only reads; default machineDir() */
   dir?: string
+  /** the server's own folder, which it writes (the overview's project); default stateDir() */
+  state?: string
   /** what `~` means in the globs (tests) */
   home?: string
   /** how often to look for projects coming and going, in ms */
@@ -87,7 +89,14 @@ export interface Hub {
   close(): void
 }
 
-export function createHub({ dir = machineDir(), home, interval, onShutdown, version = VERSION }: HubOptions = {}): Hub {
+export function createHub({
+  dir = machineDir(),
+  state = stateDir(),
+  home,
+  interval,
+  onShutdown,
+  version = VERSION,
+}: HubOptions = {}): Hub {
   const served = new Map<string, Served>()
   // each entry's fallback, while one runs: the listener its projects hold
   const fallbacks = new Map<string, Listener>()
@@ -120,7 +129,7 @@ export function createHub({ dir = machineDir(), home, interval, onShutdown, vers
 
   // the overview at /: a project of the shared server's own, in the machine folder, whose overview
   // lists every project's pages; rendered and live like any project's, so it looks like one
-  const overviewDir = path.join(dir, 'overview')
+  const overviewDir = path.join(state, 'overview')
   fs.mkdirSync(path.join(overviewDir, '.whiteboard', 'pages'), { recursive: true })
   const root = createServer(projectAt(overviewDir)!, {
     name: 'whiteboard',

@@ -173,12 +173,22 @@ restart.
   any project, in a terminal or as a login service. It runs every project's
   config and plugins (the terminal runs programs), so it can do whatever any
   of them can; started from inside one agent's sandbox, it would be boxed in
-  there and miss the other folders. Box it on its own instead, to the
-  entries' folders and the machine folder, and say so in
-  `$WHITEBOARD_SANDBOX` (folders, `:` between them), which the index shows.
+  there and miss the other folders. Box it on its own instead, with a
+  wrapper of your own, as you may do for your agent: `whiteboard paths
+  --write` and `--read` print what it needs (`:` between folders), so the
+  box follows the config:
+  ```sh
+  safehouse --workdir= --add-dirs="$(whiteboard paths --write)" \
+    --add-dirs-ro="$(whiteboard paths --read)" \
+    -- WHITEBOARD_SANDBOX="$(whiteboard paths --write)" whiteboard serve
+  ```
+  `$WHITEBOARD_SANDBOX`, when set, is what the overview says it is boxed to.
+  The server writes only its state folder (`~/.local/state/whiteboard`:
+  `server.json`, its log, the overview's project) and reads the config, so
+  nothing running inside it can change how it is served or boxed next time.
   See [DESIGN.md](DESIGN.md#entries-one-server-for-many-projects).
-- **Versions.** The server records its version (in `server.json` beside the
-  config, and in the index). `serve` from a newer whiteboard takes an older
+- **Versions.** The server records its version (in `server.json` in its state
+  folder, and in the overview). `serve` from a newer whiteboard takes an older
   server over: it asks it to exit and starts in its place. A command from a
   newer whiteboard uses an older server and says to restart it; an older one
   never replaces a newer one.

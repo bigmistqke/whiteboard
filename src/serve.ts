@@ -7,7 +7,7 @@ import path from 'node:path'
 import { DEFAULT_PORT, type Project } from './config.ts'
 import { createServer } from './server.ts'
 import { recordedPort, recordedSharedPort, runningServer, sharedServer, type SharedServer } from './running.ts'
-import { machineConfigFile, machineDir, machineServerFile, readMachineConfig } from './entries.ts'
+import { machineConfigFile, machineDir, machineServerFile, readMachineConfig, stateDir } from './entries.ts'
 import { createHub } from './hub.ts'
 import { compareVersions, VERSION } from './package.ts'
 
@@ -83,8 +83,8 @@ export async function start(project: Project): Promise<number> {
 // one, or one as new, leaves a running one be.
 
 /** Run the shared server. Exits (0) when one as new or newer runs already. */
-export async function startShared(dir = machineDir()): Promise<number> {
-  const file = machineServerFile(dir)
+export async function startShared(dir = machineDir(), state = stateDir()): Promise<number> {
+  const file = machineServerFile(state)
   const other = await sharedServer(file, { except: process.pid })
   if (other) {
     if (compareVersions(VERSION, other.version) <= 0) {
@@ -95,8 +95,8 @@ export async function startShared(dir = machineDir()): Promise<number> {
   }
   const config = readMachineConfig(dir)
   if (!config) throw new Error(`no machine config: ${machineConfigFile(dir)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  const hub = createHub({ dir, onShutdown: () => process.exit(0) })
+  fs.mkdirSync(state, { recursive: true })
+  const hub = createHub({ dir, state, onShutdown: () => process.exit(0) })
   const server = http.createServer((req, res) => {
     void hub.handle(req, res)
   })
@@ -115,7 +115,7 @@ export async function startShared(dir = machineDir()): Promise<number> {
     if (!(await listenOn(server, port))) continue
     fs.writeFileSync(file, JSON.stringify({ port, pid: process.pid, version: VERSION }, null, 2) + '\n')
     try {
-      fs.unlinkSync(path.join(dir, 'server.lock'))
+      fs.unlinkSync(path.join(state, 'server.lock'))
     } catch {}
     process.on('exit', () => {
       try {

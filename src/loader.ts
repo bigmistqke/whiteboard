@@ -51,6 +51,7 @@ export const BUILTIN_COMMANDS = new Set([
   'build',
   'edit',
   'skill',
+  'paths',
   'help',
 ])
 // folders in .whiteboard/ that are the core's or meant for the project's own plugins (a plugin's own

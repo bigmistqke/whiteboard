@@ -78,7 +78,10 @@ async function machine() {
   after(async () => {
     for (const c of children) c.kill()
     // the servers the commands started: the shared one, and a project's own
-    for (const file of [path.join(home, 'server.json'), ...dirs.map(d => path.join(d, '.whiteboard', 'server.json'))]) {
+    for (const file of [
+      path.join(home, 'state', 'server.json'),
+      ...dirs.map(d => path.join(d, '.whiteboard', 'server.json')),
+    ]) {
       try {
         process.kill(JSON.parse(fs.readFileSync(file, 'utf8')).pid, 'SIGTERM')
       } catch {}
@@ -107,7 +110,7 @@ test('a wait with no server waits for one, starts none, and gets the answer once
   await new Promise(r => setTimeout(r, 2500))
   assert.equal(wait.exitCode, null, 'still waiting')
   assert.equal(await health(m.port), null, 'no server started')
-  assert.ok(!fs.existsSync(path.join(m.home, 'server.json')))
+  assert.ok(!fs.existsSync(path.join(m.home, 'state', 'server.json')))
   // url only finds one
   assert.throws(() => m.cli(a, 'url', 'plan'), /the shared server is not running/)
   // nor does show: the shared server is started outside the agents' sandboxes
@@ -160,7 +163,15 @@ function fakeShared(m: Awaited<ReturnType<typeof machine>>, version: string, dir
       res.end('fake')
     }).listen(Number(port), '127.0.0.1', () => fs.writeFileSync(file, JSON.stringify({ port: Number(port), pid: process.pid, version })))
   `
-  const child = spawn(process.execPath, ['-e', script, String(m.port), version, dir, path.join(m.home, 'server.json')])
+  fs.mkdirSync(path.join(m.home, 'state'), { recursive: true })
+  const child = spawn(process.execPath, [
+    '-e',
+    script,
+    String(m.port),
+    version,
+    dir,
+    path.join(m.home, 'state', 'server.json'),
+  ])
   m.children.push(child)
   return child
 }
@@ -181,7 +192,7 @@ test("a newer whiteboard's serve takes an older shared server over; its show onl
   await until('the old one to exit', () => old.exitCode != null)
   await until('the new one', async () => (await health(m.port))?.version === VERSION)
   assert.equal((await health(m.port))?.version, VERSION)
-  assert.equal(JSON.parse(fs.readFileSync(path.join(m.home, 'server.json'), 'utf8')).version, VERSION)
+  assert.equal(JSON.parse(fs.readFileSync(path.join(m.home, 'state', 'server.json'), 'utf8')).version, VERSION)
 })
 
 test('an older whiteboard never replaces a newer shared server: it uses it', async () => {
@@ -238,4 +249,27 @@ test("a wait without --page in a project of an entry is the whole entry's fallba
   assert.ok(
     fs.readFileSync(path.join(b, '.whiteboard', 'events.ndjson'), 'utf8').includes(`"type":"whiteboard:picked"`),
   )
+})
+
+test('the shared server writes only its state folder; its config is read, never written', async () => {
+  const m = await machine()
+  m.make('jobs/a')
+  const before = fs.readFileSync(path.join(m.home, 'config.json'), 'utf8')
+  await serve(m)
+  assert.ok(fs.existsSync(path.join(m.home, 'state', 'server.json')))
+  assert.ok(fs.existsSync(path.join(m.home, 'state', 'overview', '.whiteboard')))
+  assert.deepEqual(
+    fs.readdirSync(m.home).toSorted(),
+    ['config.json', 'state'],
+    'nothing beside the config but the state folder',
+  )
+  assert.equal(fs.readFileSync(path.join(m.home, 'config.json'), 'utf8'), before)
+})
+
+test('paths: what a sandbox wrapper grants the shared server', async () => {
+  const m = await machine()
+  const [write, read] = [m.cli(m.root, 'paths', '--write'), m.cli(m.root, 'paths', '--read')]
+  // the entry's folder up to its wildcard, and the state folder; the config and whiteboard, to read
+  assert.deepEqual(write.split(':'), [path.join(m.root, 'jobs'), path.join(m.home, 'state')])
+  assert.deepEqual(read.split(':'), [m.home, path.resolve(path.dirname(CLI), '..')])
 })

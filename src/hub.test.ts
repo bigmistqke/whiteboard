@@ -32,7 +32,14 @@ fs.writeFileSync(
 )
 
 let shutdowns = 0
-const hub = createHub({ dir: machine, home: root, interval: 60_000, version: '1.2.0', onShutdown: () => shutdowns++ })
+const hub = createHub({
+  dir: machine,
+  state: path.join(machine, 'state'),
+  home: root,
+  interval: 60_000,
+  version: '1.2.0',
+  onShutdown: () => shutdowns++,
+})
 const server = http.createServer((req, res) => void hub.handle(req, res))
 await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`

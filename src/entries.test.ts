@@ -4,7 +4,14 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { discover, followEntries, matchesEntries, readMachineConfig, type MachineConfig } from './entries.ts'
+import {
+  discover,
+  entryFolders,
+  followEntries,
+  matchesEntries,
+  readMachineConfig,
+  type MachineConfig,
+} from './entries.ts'
 
 const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wb-entries-')))
 after(() => fs.rmSync(home, { recursive: true, force: true }))
@@ -107,4 +114,16 @@ test('the machine config is checked', () => {
   assert.throws(() => readMachineConfig(dir), /entry name "api"/)
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ entries: { rg: { include: 'x' } } }))
   assert.throws(() => readMachineConfig(dir), /list of globs/)
+})
+
+test("the entries' folders: each include up to its wildcard, none inside another", () => {
+  assert.deepEqual(entryFolders(config, { home }), [
+    path.join(home, 'rg/develop'),
+    path.join(home, 'rg/worksite/archive'),
+    path.join(home, 'rg/worksite/jobs'),
+  ])
+  assert.deepEqual(
+    entryFolders({ entries: { a: { include: ['~/x/*/y', '~/x/z'] }, b: { include: ['~/w'] } } }, { home }),
+    [path.join(home, 'w'), path.join(home, 'x')],
+  )
 })
