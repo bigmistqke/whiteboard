@@ -298,6 +298,35 @@ export function createRender(
       case 'page':
         return markdown(page.source, page.id, page.file, ctx)
       case 'pages': {
+        // the shared server's overview: every project's pages, by project, the projects with
+        // something waiting first, and in each the pages waiting first
+        if (page.groups) {
+          const waiting = (ps: PagesPage['pages']) => ps.reduce((n, p) => n + p.awaiting, 0)
+          const first = (ps: PagesPage['pages']) =>
+            ps.toSorted((a, b) => Number(b.awaiting > 0) - Number(a.awaiting > 0))
+          const groups = page.groups.toSorted((a, b) => Number(waiting(b.pages) > 0) - Number(waiting(a.pages) > 0))
+          const view = html`<h1>${project.name}</h1>
+            ${groups.map(
+              g =>
+                html`<section class="wb-project">
+                  <h2><a href="${g.base}/">${g.title}</a></h2>
+                  ${pageList(first(g.pages), g.base)}
+                </section>`,
+            )}
+            ${!groups.length && html`<p class="wb-meta">No pages yet.</p>`}
+            ${
+              page.empty?.length
+                ? html`<details class="wb-empty-projects">
+                    <summary>${page.empty.length} without pages</summary>
+                    <ul>
+                      ${page.empty.map(e => html`<li><a href="${e.base}/">${e.title}</a></li>`)}
+                    </ul>
+                  </details>`
+                : ''
+            }
+            ${page.note && html`<p class="wb-meta">${page.note}</p>`}`
+          return { html: view, title: project.name, islands: {}, styles: [] }
+        }
         const list = page.pages.length
           ? pageList(page.pages, ctx.base ?? '')
           : html`<p class="wb-meta">No pages yet.</p>`

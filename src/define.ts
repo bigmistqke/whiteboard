@@ -387,6 +387,14 @@ export interface PagesSource extends StoredBase {
   kind: 'pages'
   /** `awaiting`: how many things on the page wait for the reader: open questions, unread messages */
   pages: { id: string; file: string; mtime: number; lastEvent: string | null; awaiting: number }[]
+  /**
+   * The shared server's overview at `/` (see Entries in DESIGN.md): every project's pages, by
+   * project, those waiting for the reader first; `note` is said under them (the server's version).
+   */
+  groups?: { title: string; base: string; pages: PagesSource['pages'] }[]
+  /** projects without pages, folded under the groups: their name and where they are served */
+  empty?: { title: string; base: string }[]
+  note?: string
 }
 
 /** What the core offers the pages on the server: how files are served and linked. */

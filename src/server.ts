@@ -93,6 +93,10 @@ export interface WhiteboardServer {
   addListener(l: Listener): () => void
   /** who listens now: the running waits and watches, and a fallback held for it */
   listeners(): Listener[]
+  /** the project's pages as its overview lists them, newest first, with what waits on each */
+  overview(): Promise<PagesSource['pages']>
+  /** tell the open overviews (`/`) that what they list changed */
+  touch(): void
   /** stop watching and end the live connections; the server answers nothing after */
   close(): void
 }
@@ -114,9 +118,21 @@ export interface ServerOptions {
   entry?: string
   /** how the project is known in its entry: `worktrees › cmux` (default: its name) */
   label?: string
+  /** what the project is called, over its folder's or config's name (the shared server's own: whiteboard) */
+  name?: string
+  /** serve and watch the project's files, over the config's `files` */
+  files?: boolean
+  /** the overview at / lists these instead of the project's pages (the shared server's own project) */
+  overview?: () => Promise<Pick<PagesSource, 'groups' | 'empty' | 'note'>>
+  /** a page of the project changed, or its log grew: the shared server's overview follows it */
+  onChange?: () => void
 }
 
-export function createServer(project: Project, { base = '', entry, label }: ServerOptions = {}): WhiteboardServer {
+export function createServer(
+  project: Project,
+  { base = '', entry, label, name, files: filesOption, overview, onChange }: ServerOptions = {},
+): WhiteboardServer {
+  const projectName = () => name ?? project.name
   const loader = createConfigLoader(project)
   const auth = createAuth(project.wb, base)
   // what close() stops: watchers, and the live connections' pings and responses
@@ -233,7 +249,7 @@ export function createServer(project: Project, { base = '', entry, label }: Serv
   /** The loaded config. Also applies its `files` setting to what is served and watched. */
   async function config(): Promise<LoadedConfig> {
     const c = await loader.config()
-    setFiles(c.files)
+    setFiles(filesOption ?? c.files)
     publicDirs = [...c.publicDirs.values()]
     return c
   }
@@ -427,7 +443,7 @@ export function createServer(project: Project, { base = '', entry, label }: Serv
   }
 
   const context = () => ({
-    project: { name: project.name, dir: project.dir, files: !!FILES },
+    project: { name: projectName(), dir: project.dir, files: !!FILES },
     asset,
     urlFor,
     base,
@@ -581,7 +597,7 @@ export function createServer(project: Project, { base = '', entry, label }: Serv
           <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width,initial-scale=1" />
-            <title>${out.title || page.id || project.name}</title>
+            <title>${out.title || page.id || projectName()}</title>
             <style>
               ${DOCK_STYLE}
             </style>
@@ -642,6 +658,7 @@ export function createServer(project: Project, { base = '', entry, label }: Serv
   }
 
   function pageChanged(id: string) {
+    onChange?.()
     for (const c of clients) {
       if (c.isDir ? !c.page || id.startsWith(c.page + '/') : c.page === id || c.page + '/index' === id)
         notify(c, 'change')
@@ -655,7 +672,10 @@ export function createServer(project: Project, { base = '', entry, label }: Serv
     if (f.split('/').some(part => SKIP_DIRS.has(part))) return
     if (f.startsWith('.whiteboard/')) {
       const inner = f.slice('.whiteboard/'.length)
-      if (inner === 'events.ndjson') return notifyAll('events')
+      if (inner === 'events.ndjson') {
+        onChange?.()
+        return notifyAll('events')
+      }
       if (inner.startsWith('pages/')) {
         if (inner.endsWith('.md')) pageChanged(inner.slice('pages/'.length).replace(/\.md$/, ''))
         return
@@ -781,6 +801,7 @@ export function createServer(project: Project, { base = '', entry, label }: Serv
     if (found.kind === 'pages') {
       const counts = new Map((await status(found.id || null)).map(s => [s.page, awaiting(s)]))
       for (const p of found.pages) p.awaiting = counts.get(p.id) ?? 0
+      if (!found.id && overview) Object.assign(found, await overview())
     }
     return { page: found }
   }
@@ -1186,6 +1207,16 @@ export function createServer(project: Project, { base = '', entry, label }: Serv
   return {
     handle,
     listeners: () => listenersFor(null),
+    async overview() {
+      await config()
+      const pages = pagesIn(project.pagesDir)
+      const counts = new Map((await status(null)).map(s => [s.page, awaiting(s)]))
+      for (const p of pages) p.awaiting = counts.get(p.id) ?? 0
+      return pages
+    },
+    touch() {
+      for (const c of clients) if (c.isDir && !c.page) notify(c, 'change')
+    },
     addListener(l) {
       listeners.add(l)
       notifyAll('listeners')

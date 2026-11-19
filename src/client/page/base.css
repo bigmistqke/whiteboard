@@ -925,6 +925,27 @@ form[data-wb-just-sent] .wb-folded-change {
   font-size: 1.1rem;
   margin: 0;
 }
+/* the shared server's overview (/): each project's pages under its name, as quiet as the
+   documents' heading above, and the projects without pages folded at the end */
+.wb-project {
+  margin-top: calc(var(--rhythm) * 2.5);
+}
+.wb-project h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+.wb-empty-projects {
+  margin-top: calc(var(--rhythm) * 2.5);
+  color: var(--muted);
+  font: var(--ui-small)/var(--ui-line-height) var(--sans);
+}
+.wb-empty-projects summary {
+  cursor: pointer;
+}
+.wb-empty-projects ul {
+  margin: var(--space-sm) 0 0;
+  padding-left: var(--space-xl);
+}
 /* a list's heading with its sort control at the right (sort.ts) */
 .wb-list-head {
   display: flex;

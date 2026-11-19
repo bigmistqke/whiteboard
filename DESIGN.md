@@ -125,16 +125,21 @@ the config and the disk (`discover` in `src/entries.ts`).
   server runs discovery again every 1.5 s (a few folder listings), and at
   once when a command asks for a project it doesn't have (`/api/health?rescan`,
   for a worktree made a moment ago). A project that goes has its server closed.
-- **The index at `/`** is where the reader starts. First what waits for
-  them in any project (open questions and unread messages, from each
-  project's `status`), the latest first, each named by its project: their
-  to-do across every checkout, which no project's own overview can show.
-  Then each entry by group: a project's group is the include it came from
-  (`develop`, `worktrees`, `jobs`), and its name what the wildcards matched,
-  so the index says what kind of checkout each is without a setting. Projects
-  are listed the latest active first, with their pages; those without pages
-  are folded away, since with a `.whiteboard/` in every checkout most have
-  none. It asks for itself again every few seconds.
+- **The overview at `/`** is where the reader starts: every project's pages,
+  by project, as a project's own overview lists its pages, so it is read the
+  same way. It is a project's overview, of a project of the shared server's
+  own (`overview/` in the machine folder, `createServer` with `overview`):
+  rendered by the same core, in the same shell, live through the same
+  channel, which each project's server tells when its pages or log change
+  (`onChange`). A project is named by its group, the include it came from
+  (`develop`, `worktrees`, `jobs`), and what the wildcards matched, so it says
+  what kind of checkout each is without a setting. What waits for the reader
+  comes first: the projects with something waiting, and in each the pages
+  waiting, with the inbox badge. Projects without pages are folded at the end,
+  since with a `.whiteboard/` in every checkout most have none. A first
+  version was a page of its own, with a list of every open question by name:
+  it looked like nothing else in whiteboard, and repeated the projects'
+  overviews worse.
 - **What waits elsewhere, by project.** A page's menu of other pages with
   something waiting (`src/client/page/elsewhere.ts`) asks the shared server
   for its entry (`/api/index?entry=`) as well as its own project, and lists

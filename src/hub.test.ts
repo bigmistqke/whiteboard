@@ -64,26 +64,32 @@ test('each project is served under its path, its URLs starting with it', async (
   assert.equal(bare.headers.get('location'), '/rg/develop/')
 })
 
-test('the index: what needs the reader first, then each entry by group, projects without pages folded', async () => {
+test("the overview at /: every project's pages by project, what waits first, projects without pages folded", async () => {
   const empty = project('rg/develop/.claude/worktrees/bare', {})
   hub.rescan()
   try {
-    const index = await (await fetch(`${base}/`)).text()
-    // what waits, wherever it is, named by its project
-    const needs = /<section class="needs">([\s\S]*?)<\/section>/.exec(index)?.[1] ?? ''
-    assert.match(needs, /develop ›/)
-    assert.match(needs, /href="\/rg\/develop\/plan#wb-waiting"/)
-    assert.match(needs, /pick unanswered/)
-    assert.doesNotMatch(needs, /cmux/, 'nothing waits there')
-    // the entry, its groups, and a project's pages
-    assert.match(index, /<h2>rg<\/h2>/)
-    assert.match(index, /<h3>\s*worktrees/)
-    assert.match(index, /href="\/rg\/worktrees\/cmux\/notes"/)
+    const res = await fetch(`${base}/`)
+    assert.equal(res.status, 200)
+    const index = await res.text()
+    // rendered as any page is: the page's own runtime and styles, from the overview's own project
+    assert.match(index, /src="\/_\/runtime\.js"/)
+    assert.match(index, /<title>whiteboard<\/title>/)
+    // each project under its name, linking to its own overview, its pages as its overview lists them
+    const sections = [...index.matchAll(/<section class="wb-project">([\s\S]*?)<\/section>/g)].map(m => m[1]!)
+    assert.equal(sections.length, 2)
+    // the project with something waiting first
+    assert.match(sections[0]!, /href="\/rg\/develop\/">develop<\/a>/)
+    assert.match(sections[0]!, /href="\/rg\/develop\/plan#wb-waiting"/)
+    assert.match(sections[1]!, /worktrees › cmux/)
+    assert.match(sections[1]!, /href="\/rg\/worktrees\/cmux\/notes"/)
     // a project without pages, folded away
-    assert.match(index, /<details class="empty">[\s\S]*1 without pages[\s\S]*worktrees › bare/)
+    assert.match(index, /<details class="wb-empty-projects">[\s\S]*1 without pages[\s\S]*worktrees › bare/)
     // the version, and whether it is boxed
-    assert.match(index, /1\.2\.0 ·/)
-    assert.match(index, /not boxed/)
+    assert.match(index, /whiteboard 1\.2\.0 · not boxed/)
+    // and it is live: the overview's own channel answers at the root
+    const watch = await fetch(`${base}/api/watch?page=&dir`)
+    assert.equal(watch.headers.get('content-type'), 'text/event-stream')
+    await watch.body?.cancel()
   } finally {
     fs.rmSync(empty, { recursive: true })
     hub.rescan()
@@ -134,7 +140,8 @@ test("a plugin's browser module that writes /api/… itself reaches its project,
   const res = await fetch(`${base}/api/status`, { headers: { referer: `${base}/rg/develop/plan` } })
   assert.equal(res.status, 200)
   assert.equal(((await res.json()) as unknown[]).length, 1)
-  assert.equal((await fetch(`${base}/api/status`)).status, 404)
+  // without a project's page asking, it is the overview's own (which has no pages)
+  assert.deepEqual(await (await fetch(`${base}/api/status`)).json(), [])
 })
 
 test('only a newer whiteboard makes it exit; an older one, one as new, or a page cannot', async () => {

@@ -146,12 +146,12 @@ gets `-2`. The server looks for projects again every few seconds, so a new
 worktree with a `.whiteboard/` shows up, and a removed one goes, without a
 restart.
 
-- **`/` is the index.** First what needs you: every unanswered question and
-  unread message in any project, the latest first, named by its project
-  (`worktrees › cmux › Review`). Then each entry by group (`develop`,
-  `worktrees`, `jobs`: the include each folder came from), its projects with
-  their pages, the latest active first; projects without pages are folded
-  away. The header has the server's version and the folders it is boxed to.
+- **`/` is the overview of every project,** as a project's own overview is of
+  its pages, and it looks and updates the same: each project under its name
+  (`develop`, `worktrees › cmux`), its pages as its overview lists them, with
+  the inbox badge on those waiting for you. Projects with something waiting
+  come first, and in each the pages waiting; projects without pages are folded
+  at the end, under the server's version and the folders it is boxed to.
 - **Every page's menu of what waits elsewhere** (the inbox in its header)
   lists the other projects of its entry too, under each project's name.
 - **Commands work as before,** in the project's folder: `show`, `url`,
