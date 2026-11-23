@@ -1,7 +1,7 @@
 // Timeline: steps in order down a line, a dot per step, each with room for full sentences: what was
-// done, what it showed, and (a quote) what it means. Headings at two levels group the steps into
-// sections, and each level below that is a step's sub steps, a timeline inside it; a `:when[…]` in
-// a step's heading is when it happened. Rendered on the server; no script.
+// done and what it showed. Headings at two levels group the steps into sections, and each level
+// below that is a step's sub steps, a timeline inside it; a `:when[…]` in a step's heading is when
+// it happened. Rendered on the server; no script.
 import fs from 'node:fs'
 import { definePlugin, html, raw, type DirectiveContext, type Plugin } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'

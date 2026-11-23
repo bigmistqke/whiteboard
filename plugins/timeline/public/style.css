@@ -129,29 +129,3 @@
 .wb-tl-sub .wb-tl-title {
   font-size: var(--ui-text);
 }
-
-/* a quote in a step is what the step means */
-.wb-timeline .wb-tl-body blockquote {
-  all: unset;
-  display: block;
-  margin: var(--space-md) 0 0;
-  padding: var(--space-sm) var(--space-lg);
-  border-left: 3px solid var(--accent);
-  background: var(--tint-faint);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  color: var(--text);
-  font-style: normal;
-}
-.wb-timeline .wb-tl-body blockquote::before {
-  content: 'So';
-  display: block;
-  font-family: var(--sans);
-  font-size: var(--ui-tiny);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--accent);
-}
-.wb-timeline .wb-tl-body blockquote > * {
-  margin: 0;
-}
