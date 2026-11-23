@@ -38,8 +38,19 @@
   margin: 0;
   padding: 0;
 }
-.wb-toc li[data-level='3'] {
-  padding-left: var(--space-xl);
+/* the same space above every item, also the first of a nested list (the page's li + li alone
+   would leave that one tight against its section) */
+.wb-toc li {
+  margin-top: 0.8em;
+}
+.wb-toc > ol > li:first-child {
+  margin-top: 0;
+}
+/* a section's subsections hang on a rail under its number, one rail per level */
+.wb-toc ol ol {
+  margin-left: var(--space-md);
+  padding-left: var(--space-sm);
+  border-left: var(--hairline) solid var(--border, #e3e5e9);
 }
 .wb-toc a {
   display: flex;

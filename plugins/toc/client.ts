@@ -1,4 +1,4 @@
-// The table of contents (index.ts): built from the page's ## and ### headings, again after each
+// The table of contents (index.ts): built from the page's ## to ###### headings, again after each
 // update; the section being read is the last heading above the top of the view; a section is
 // marked when an open question (data-wb-open) or an unread message (data-wb-message, or the element
 // holding one, data-wb-holds) is in it. A click scrolls to the heading, below the header.
@@ -77,27 +77,38 @@ function wanted() {
   return always
 }
 
+const SECTIONS = ':scope > :is(h2, h3, h4, h5, h6)'
+
+/**
+ * The outline as nested lists: a heading's subsections in a list inside its item, which the style
+ * hangs on a rail under it. A level skipped (## then ####) nests once, under the nearest above.
+ */
 function build() {
-  headings = wanted() ? [...main.querySelectorAll<HTMLElement>(':scope > h2, :scope > h3')] : []
-  let h2 = 0,
-    h3 = 0
-  list.replaceChildren(
-    ...headings.map((h, i) => {
-      // the page's numbers: 1, 1.1, 1.2, 2 (base.css counts ## and ### alike)
-      const number = h.tagName === 'H2' ? `${++h2}` : `${h2}.${++h3}`
-      if (h.tagName === 'H2') h3 = 0
-      const li = document.createElement('li')
-      li.dataset.level = h.tagName === 'H2' ? '2' : '3'
-      const a = document.createElement('a')
-      a.href = '#'
-      a.dataset.index = String(i)
-      a.innerHTML = `<span class="wb-toc-number"></span><span class="wb-toc-text"></span>`
-      a.querySelector('.wb-toc-number')!.textContent = number
-      a.querySelector('.wb-toc-text')!.textContent = h.textContent ?? ''
-      li.append(a)
-      return li
-    }),
-  )
+  headings = wanted() ? [...main.querySelectorAll<HTMLElement>(SECTIONS)] : []
+  // the page's numbers: 1, 1.1, 1.1.1 (base.css counts ## to ###### alike)
+  const counts = [0, 0, 0, 0, 0]
+  const open: { level: number; list: HTMLOListElement; item?: HTMLLIElement }[] = [{ level: 1, list }]
+  list.replaceChildren()
+  headings.forEach((h, i) => {
+    const level = Number(h.tagName[1])
+    counts[level - 2]++
+    counts.fill(0, level - 1)
+    while (open.length > 1 && open.at(-1)!.level >= level) open.pop()
+    const parent = open.at(-1)!
+    if (parent.item && !parent.item.querySelector(':scope > ol')) parent.item.append(document.createElement('ol'))
+    const into = parent.item ? parent.item.querySelector<HTMLOListElement>(':scope > ol')! : parent.list
+    const li = document.createElement('li')
+    li.dataset.level = String(level)
+    const a = document.createElement('a')
+    a.href = '#'
+    a.dataset.index = String(i)
+    a.innerHTML = `<span class="wb-toc-number"></span><span class="wb-toc-text"></span>`
+    a.querySelector('.wb-toc-number')!.textContent = counts.slice(0, level - 1).join('.')
+    a.querySelector('.wb-toc-text')!.textContent = h.textContent ?? ''
+    li.append(a)
+    into.append(li)
+    open.push({ level, list: into, item: li })
+  })
   const any = headings.length > 1
   bounds()
   place()

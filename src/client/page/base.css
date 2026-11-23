@@ -302,7 +302,7 @@ hr::after {
   letter-spacing: 0.3em;
 }
 
-/* section numbers hanging in the margin: 1, 1.1, 1.1.1, in italic oldstyle figures. Only the
+/* section numbers hanging in the margin: 1, 1.1, 1.1.1, down to h6, in italic oldstyle figures. Only the
    page's own headings (direct children of main), so headings inside cards stay unnumbered. The
    number is an inline-block pulled into the margin, so it shares the heading's baseline. */
 #wb-main {
@@ -318,8 +318,16 @@ hr::after {
 }
 #wb-main > h4 {
   counter-increment: h4;
+  counter-reset: h5;
 }
-#wb-main > :is(h2, h3, h4)::before {
+#wb-main > h5 {
+  counter-increment: h5;
+  counter-reset: h6;
+}
+#wb-main > h6 {
+  counter-increment: h6;
+}
+#wb-main > :is(h2, h3, h4, h5, h6)::before {
   display: inline-block;
   box-sizing: content-box;
   width: 64px;
@@ -347,12 +355,18 @@ hr::after {
   content: counter(h2) '.' counter(h3) '.' counter(h4);
   font-size: 1.3em;
 }
+#wb-main > h5::before {
+  content: counter(h2) '.' counter(h3) '.' counter(h4) '.' counter(h5);
+}
+#wb-main > h6::before {
+  content: counter(h2) '.' counter(h3) '.' counter(h4) '.' counter(h5) '.' counter(h6);
+}
 /* no margin to hang them in: set the number in front of the heading, and indent less */
 @media (max-width: 860px) {
   main {
     --indent: 0px;
   }
-  #wb-main > :is(h2, h3, h4)::before {
+  #wb-main > :is(h2, h3, h4, h5, h6)::before {
     width: auto;
     margin-left: 0;
     margin-right: 0.6em;

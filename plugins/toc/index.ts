@@ -1,7 +1,7 @@
-// A table of contents beside the page: its sections (## and ### headings), numbered as the page
-// numbers them, the one being read marked, a dot where something waits for the reader (an
-// unanswered question, an unread message). In the margin left of the text when the window has room
-// for it; else a button in the header that opens it. A project turns it on in its config:
+// A table of contents beside the page: its sections (## to ###### headings), numbered as the page
+// numbers them, each one's subsections on a rail under it, the one being read marked, a dot where
+// something waits for the reader (an unanswered question, an unread message). In the margin left
+// of the text when the window has room for it; else a button in the header that opens it. A project turns it on in its config:
 //
 //   import toc from '@bigmistqke/whiteboard/toc'
 //   export default defineConfig({ plugins: [toc()] })
@@ -14,9 +14,11 @@ import type { Plugin } from '../../src/define.ts'
 
 const DOCS = `## Table of contents
 
-Pages here have a table of contents beside them, made from their \`##\` and
-\`###\` headings: give a long page headings, and the reader can find their way
-in it. A section with an unanswered question or an unread message has a dot.
+Pages here have a table of contents beside them, made from their headings,
+\`##\` down to \`######\`: give a long page headings, and the reader can find
+their way in it. Each section's subsections hang on a line under it, so the
+nesting shows. A section with an unanswered question or an unread message has
+a dot.
 `
 
 export interface TocOptions {

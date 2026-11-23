@@ -53,6 +53,50 @@ test(
   },
 )
 
+test('toc: sub headings down to ######, each nested under its section', { timeout: 60000 }, async t => {
+  const DEEP = `# Deep page\n\n## A\n\n### A1\n\n#### A1a\n\n##### A1a-i\n\n###### A1a-i-x\n\n#### A1b\n\n## B\n\n#### B skipped a level\n\n${filler(30, 'End')}\n`
+  const proj = await project({ config: CONFIG, pages: { p: DEEP } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => {
+    await b.close()
+    await proj.close()
+  })
+  await page.setViewportSize({ width: 1400, height: 800 })
+  await page.goto(proj.url('p'))
+  const entries = () =>
+    page.$$eval('.wb-toc a', as =>
+      as.map(a => {
+        // how deep it sits: the lists around it inside the panel
+        let depth = 0
+        for (let el = a.parentElement; el && !el.classList.contains('wb-toc'); el = el.parentElement)
+          if (el.tagName === 'OL') depth++
+        return `${depth} ${a.querySelector('.wb-toc-number')!.textContent} ${a.querySelector('.wb-toc-text')!.textContent}`
+      }),
+    )
+  await until('the contents', async () => (await entries()).length === 8 || null)
+  assert.deepEqual(await entries(), [
+    '1 1 A',
+    '2 1.1 A1',
+    '3 1.1.1 A1a',
+    '4 1.1.1.1 A1a-i',
+    '5 1.1.1.1.1 A1a-i-x',
+    '3 1.1.2 A1b',
+    '1 2 B',
+    '2 2.0.1 B skipped a level',
+  ])
+  // the page numbers them too (the style gives the counters, not what they come to)
+  assert.equal(
+    await page.$eval('#wb-main > h6', h => getComputedStyle(h, '::before').content),
+    'counter(h2) "." counter(h3) "." counter(h4) "." counter(h5) "." counter(h6)',
+  )
+  await page.click('.wb-toc a >> text=A1a-i-x')
+  await until('there, and marked', async () => {
+    const at = await page.$eval('.wb-toc a[aria-current] .wb-toc-text', a => a.textContent)
+    return at === 'A1a-i-x' || null
+  })
+  assert.deepEqual(errors, [])
+})
+
 test('toc: a page opts in through its frontmatter', { timeout: 60000 }, async t => {
   const OPT_IN = `import toc from '@bigmistqke/whiteboard/toc'\nexport default { plugins: [toc()] }\n`
   const BODY = `# Long page\n\n## One\n\n${filler(10, 'One')}\n\n## Two\n\n${filler(10, 'Two')}\n`
