@@ -43,29 +43,8 @@ test('timeline: a :when in a heading comes out of the title, a time written with
   assert.deepEqual(split.title, [{ type: 'text', value: 'Made a repro' }])
 })
 
-const tree = (steps: ReturnType<typeof parse>[number]['steps']): unknown[] =>
-  steps.map(step => {
-    const title = step.title?.map(n => n.value).join('') ?? null
-    return step.steps.length ? { [String(title)]: tree(step.steps) } : title
-  })
-
-test('timeline: each level below the steps is sub steps inside a step, to any depth', () => {
-  const sections = parse([
-    heading(2, 'One'),
-    heading(3, 'A'),
-    para('before its sub steps: its body'),
-    heading(4, 'A1'),
-    heading(5, 'A1x'),
-    heading(5, 'A1y'),
-    para('after A1y: in A1y'),
-    heading(4, 'A2'),
-    heading(3, 'B'),
-    heading(5, 'B skips a level'),
-  ])
-  assert.deepEqual(tree(sections[0].steps), [{ A: [{ A1: ['A1x', 'A1y'] }, 'A2'] }, 'B'])
-  const [a] = sections[0].steps
-  assert.deepEqual(a.body, [para('before its sub steps: its body')])
-  assert.deepEqual(a.steps[0].steps[1].body, [para('after A1y: in A1y')])
-  // a level the step doesn't use first is ordinary content of its body
-  assert.deepEqual(sections[0].steps[1].body, [heading(5, 'B skips a level')])
+test('timeline: headings below a step are its own, part of its body', () => {
+  const sections = parse([heading(2, 'One'), heading(3, 'A'), heading(4, 'What it does'), para('a'), heading(3, 'B')])
+  assert.deepEqual(titles(sections), [{ section: 'One', steps: ['A', 'B'] }])
+  assert.deepEqual(sections[0].steps[0].body, [heading(4, 'What it does'), para('a')])
 })

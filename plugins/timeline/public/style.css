@@ -100,32 +100,34 @@
   margin-top: 0;
 }
 
-/* a step's sub steps: a timeline of their own inside it, a level in: a thinner line, smaller
-   rings, the same at every depth */
-.wb-tl-sub {
-  margin-top: var(--space-md);
+/* a timeline inside a step is its sub steps: a level in, a thinner line and smaller rings, the
+   same at every depth */
+.wb-tl-body .wb-timeline {
+  margin: var(--space-md) 0 0;
+}
+.wb-tl-body .wb-tl-steps {
   padding-left: 20px;
 }
-.wb-tl-sub::before {
+.wb-tl-body .wb-tl-steps::before {
   left: 4px;
   width: 1px;
 }
-.wb-tl-sub > .wb-tl-step {
+.wb-tl-body .wb-tl-step {
   padding-bottom: var(--space-md);
 }
-.wb-tl-sub > .wb-tl-step:last-child {
+.wb-tl-body .wb-tl-step:last-child {
   padding-bottom: 0;
 }
-.wb-tl-sub > .wb-tl-step::before,
-.wb-tl-sub > .wb-tl-step > .wb-tl-title::before {
+.wb-tl-body .wb-tl-step::before,
+.wb-tl-body .wb-tl-title::before {
   left: -20px;
   width: 9px;
   height: 9px;
   border-width: 1.5px;
 }
-.wb-tl-sub > .wb-tl-step > .wb-tl-title::before {
+.wb-tl-body .wb-tl-title::before {
   top: calc(0.7em - 4.5px);
 }
-.wb-tl-sub .wb-tl-title {
+.wb-tl-body .wb-tl-title {
   font-size: var(--ui-text);
 }
