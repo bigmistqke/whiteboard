@@ -10,21 +10,10 @@
   letter-spacing: 0.06em;
   margin-bottom: var(--space-2xl);
 }
-.wb-tl-sections,
 .wb-tl-steps {
   list-style: none;
   margin: 0;
   padding: 0;
-}
-.wb-tl-section + .wb-tl-section {
-  margin-top: var(--space-3xl);
-}
-.wb-tl-section-title {
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: var(--ui-text);
-  color: var(--accent);
-  margin-bottom: var(--space-lg);
 }
 
 /* a line down the left, a dot per step */

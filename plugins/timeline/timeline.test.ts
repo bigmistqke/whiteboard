@@ -4,26 +4,24 @@ import { parse, when } from './index.ts'
 
 const heading = (depth: number, value: string) => ({ type: 'heading', depth, children: [{ type: 'text', value }] })
 const para = (value: string) => ({ type: 'paragraph', children: [{ type: 'text', value }] })
-const titles = (sections: ReturnType<typeof parse>) =>
-  sections.map(s => ({
-    section: s.title?.map(n => n.value).join('') ?? null,
-    steps: s.steps.map(step => step.title?.map(n => n.value).join('') ?? null),
-  }))
+const titles = (steps: ReturnType<typeof parse>) => steps.map(step => step.title?.map(n => n.value).join('') ?? null)
 
-test('timeline: one heading level, every heading a step; content before it an untitled one', () => {
+test('timeline: the shallowest headings are the steps; content before them an untitled one, `---` another', () => {
   assert.deepEqual(titles(parse([para('intro'), heading(3, 'A'), para('a'), { type: 'thematicBreak' }, para('b')])), [
-    { section: null, steps: [null, 'A', null] },
+    null,
+    'A',
+    null,
   ])
 })
 
-test('timeline: two heading levels, the shallower groups the steps into sections', () => {
-  assert.deepEqual(
-    titles(parse([heading(2, 'One'), heading(3, 'A'), heading(3, 'B'), heading(2, 'Two'), heading(3, 'C')])),
-    [
-      { section: 'One', steps: ['A', 'B'] },
-      { section: 'Two', steps: ['C'] },
-    ],
-  )
+test("timeline: deeper headings are a step's own, part of its body, at any level", () => {
+  const steps = parse([heading(4, '5a'), heading(5, 'What it does'), para('a'), heading(6, 'Detail'), heading(4, '5b')])
+  assert.deepEqual(titles(steps), ['5a', '5b'])
+  assert.deepEqual(steps[0].body, [heading(5, 'What it does'), para('a'), heading(6, 'Detail')])
+})
+
+test('timeline: no headings, one untitled step', () => {
+  assert.deepEqual(titles(parse([para('just text')])), [null])
 })
 
 test('timeline: a :when in a heading comes out of the title, a time written with colons as written', () => {
@@ -41,10 +39,4 @@ test('timeline: a :when in a heading comes out of the title, a time written with
   const split = when(title)
   assert.equal(split.when, '2026-11-21 10:43')
   assert.deepEqual(split.title, [{ type: 'text', value: 'Made a repro' }])
-})
-
-test('timeline: headings below a step are its own, part of its body', () => {
-  const sections = parse([heading(2, 'One'), heading(3, 'A'), heading(4, 'What it does'), para('a'), heading(3, 'B')])
-  assert.deepEqual(titles(sections), [{ section: 'One', steps: ['A', 'B'] }])
-  assert.deepEqual(sections[0].steps[0].body, [heading(4, 'What it does'), para('a')])
 })
