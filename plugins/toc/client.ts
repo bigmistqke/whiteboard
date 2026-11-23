@@ -85,6 +85,13 @@ function wanted() {
   return always
 }
 
+/** A heading's text, without a badge that ends it (a status, not part of the title). */
+function titleOf(h: HTMLElement) {
+  const copy = h.cloneNode(true) as HTMLElement
+  copy.querySelectorAll('.wb-badge').forEach(b => b.remove())
+  return copy.textContent?.trim() ?? ''
+}
+
 const SECTIONS = ':scope > :is(h2, h3, h4, h5, h6)'
 
 /**
@@ -112,7 +119,7 @@ function build() {
     a.dataset.index = String(i)
     a.innerHTML = `<span class="wb-toc-number"></span><span class="wb-toc-text"></span>`
     a.querySelector('.wb-toc-number')!.textContent = counts.slice(0, level - 1).join('.')
-    a.querySelector('.wb-toc-text')!.textContent = h.textContent ?? ''
+    a.querySelector('.wb-toc-text')!.textContent = titleOf(h)
     li.append(a)
     into.append(li)
     open.push({ level, list: into, item: li })
