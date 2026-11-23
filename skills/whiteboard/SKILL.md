@@ -206,7 +206,9 @@ to a heading (by its text), a form (by its name) or any text on it, opens a
 details around it, and lights it up a moment. Use it when you talk about a
 part of a long page ("see the risks section"), or to bring the user to a
 question you just added. It exits 1 when nothing on the page matches, or when
-no browser has the page open (then `show` it first).
+no tab of the page is connected now: then a tab that is open still scrolls
+there once it is back (a background tab connects again when it is shown);
+else `show` the page first.
 
 ## Getting answers
 

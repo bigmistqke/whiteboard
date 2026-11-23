@@ -51,7 +51,7 @@ test(
       }
     }
     assert.match(fails('scroll', 's', 'no such words anywhere') ?? '', /nothing on s matches/)
-    assert.match(fails('scroll', 'other', 'Other') ?? '', /no browser has other open/)
+    assert.match(fails('scroll', 'other', 'Other') ?? '', /no tab of other is connected now/)
     assert.deepEqual(errors, [])
   },
 )

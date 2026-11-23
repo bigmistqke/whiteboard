@@ -18,6 +18,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import { parse as parseYaml } from 'yaml'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
@@ -29,7 +30,7 @@ import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type Moun
 import { createAuth, sameSite } from './auth.ts'
 import { accept, refuse } from './ws.ts'
 import { FROM_SOURCE, PACKAGE_DIR, VERSION } from './package.ts'
-import { awaiting, projectStatus, type ProjectStatus } from './status.ts'
+import { SCROLL, awaiting, projectStatus, type ProjectStatus } from './status.ts'
 import { titleOf } from './pages/render.ts'
 import { createRegistry, holdStream, listenerOf } from './listeners.ts'
 import { inPublic } from './public.ts'
@@ -598,6 +599,48 @@ export function createServer(
     '.wb-toast{max-width:min(24rem,calc(100vw - 32px));text-align:left}.wb-toast-more{margin:0 -4px 0 -2px;padding:0 4px;opacity:.75}.wb-toast-more:hover{opacity:1}' +
     '.wb-toast[data-open]{flex-wrap:wrap;border-radius:12px}.wb-toast-details{flex-basis:100%;padding:2px 0 3px;font-weight:400;cursor:text}.wb-toast-details[hidden]{display:none}'
 
+  /**
+   * What the browser runs and how it looks, as two stamps: one over its code (the runtime, the page's
+   * module, the plugins' scripts), one over its stylesheets (the engine's, the plugins', the
+   * project's in .whiteboard/). A page gets them with its HTML and asks again when its live channel
+   * is back: what changed while it was away (a restart, a background tab whose browser held its
+   * timers), it would otherwise never hear of. Made from the files themselves, not from what was
+   * served since the server started, so a fresh server gives the same stamps for the same files.
+   */
+  function stamps(): { code: string; style: string } {
+    const files: string[] = [RUNTIME]
+    const add = (dir: string, deep: boolean) => {
+      let entries: fs.Dirent[]
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const e of entries) {
+        const full = path.join(dir, e.name)
+        if (e.isDirectory()) {
+          if (deep) add(full, deep)
+        } else files.push(full)
+      }
+    }
+    add(path.dirname(PAGE_CLIENT), false)
+    for (const dir of publicDirs) add(dir, true)
+    for (const f of fs.readdirSync(project.wb).filter(f => f.endsWith('.css'))) files.push(path.join(project.wb, f))
+    const of = (list: string[]) => {
+      const hash = crypto.createHash('sha1')
+      for (const f of [...new Set(list)].toSorted()) {
+        try {
+          const st = fs.statSync(f)
+          hash.update(`${f}\0${st.mtimeMs}\0${st.size}\n`)
+        } catch {
+          /* gone */
+        }
+      }
+      return hash.digest('hex').slice(0, 16)
+    }
+    return { code: of(files.filter(f => !f.endsWith('.css'))), style: of(files.filter(f => f.endsWith('.css'))) }
+  }
+
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
   function shell(
     page: StoredPage,
@@ -617,6 +660,8 @@ export function createServer(
       frontmatter: frontmatterOf(page),
       plugins: extras.clients,
       messages: extras.messages ?? [],
+      // what the browser runs and how it looks, compared again when the live channel is back
+      ...(!built && { stamps: stamps() }),
     }
     // the page's head and html are HTML already; the handoff is JSON made safe for a script tag
     return String(
@@ -898,12 +943,12 @@ export function createServer(
         const { page: id, to } = JSON.parse(await readBody(req)) as { page?: unknown; to?: unknown }
         if (typeof id !== 'string' || typeof to !== 'string' || !to.trim())
           return sendJson(res, 400, { error: 'page and to required' })
+        // in the log, so a tab that isn't connected now (a server restarting, a background tab
+        // whose browser holds its timers) still scrolls there once it is back; a page loaded later
+        // doesn't (see the runtime)
+        appendEvent(project.eventsFile, { page: id, type: SCROLL, data: { to } }, 'cli')
         let tabs = 0
-        for (const c of clients) {
-          if (c.isDir || (c.page !== id && c.page + '/index' !== id)) continue
-          c.send('scroll', { to })
-          tabs++
-        }
+        for (const c of clients) if (!c.isDir && (c.page === id || c.page + '/index' === id)) tabs++
         return sendJson(res, 200, { tabs })
       }
       // messages (comments, chat) written in markdown, as HTML: { texts } → { html, styles }
@@ -932,6 +977,7 @@ export function createServer(
       if (p === '/api/docs') return sendJson(res, 200, await docs())
       if (p === '/api/status') return sendJson(res, 200, await status(q.page || null))
       if (p === '/api/listeners') return sendJson(res, 200, listenersFor(q.page ?? null))
+      if (p === '/api/stamps') return sendJson(res, 200, stamps())
       if (p === '/api/listen') {
         const remove = registry.add(listenerOf(url.searchParams))
         if (!remove) return sendJson(res, 409, { error: 'another agent is the fallback already' })

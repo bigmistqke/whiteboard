@@ -645,13 +645,18 @@ known before it takes anything.
 
 An agent can show the reader a place on a page they have open:
 `whiteboard scroll <page> <where>` posts to `/api/scroll`, and the server
-sends `scroll` on the live channel of every tab with that page. The tab finds
+appends it to the log (`whiteboard:scroll`, `{ to }`), which tells every tab
+of the page, as any event does. A tab applies the latest scroll that came after
+it loaded, so one that wasn't connected when it was sent (a server restarting,
+a background tab whose browser held its timers) still scrolls there once it
+is back, and a page loaded later doesn't jump to a place shown before. The
+command says how many tabs of the page are connected now. The tab finds
 the place, in this order: a heading or details title by its text (exact,
 then containing), a form by its name, an id, then the first text containing
 it; it opens the details around it, scrolls it in below the header and the
 titles that stick above it, and lights it up a moment. The command checks the
 rendered page first, so a place that isn't there fails at once (exit 1), as
-does a page no tab has open.
+does a page no tab is connected to now (it still scrolls once one is).
 
 ### Status and hooks
 
@@ -710,12 +715,22 @@ served as the file it is, so packages ship JavaScript.
 
 The browser listens on a WebSocket at `/api/live` (`src/ws.ts`), each
 message `{ event, data }`: `change` (its page changed), `events` (the log
-grew), `listeners`, `scroll`, `style` (a stylesheet changed: reloaded in
-place), `reload` (browser code changed: the page reloads) and, under a shared
+grew), `listeners`, `style` (a stylesheet changed: reloaded in place),
+`reload` (browser code changed: the page reloads) and, under a shared
 server, `elsewhere` (what waits in another project changed: pushed, so no page
 polls every project). Not server-sent events: a browser keeps six HTTP/1.1
 connections to an origin, every tab of the shared server is on the same one,
 and a stream per tab left none for a seventh tab to load or a form to send.
+
+Each message only says that something changed; what changed the page reads
+itself. So what a tab misses while it isn't connected (the server restarting,
+or a background tab: its browser may hold its timers, its reconnecting among
+them, until it is shown) it catches up on when it is back: its page's
+modification time, the log, who listens, what waits elsewhere, and two stamps
+of what the browser runs and how it looks (`/api/stamps`, also in the page's
+handoff: one over the browser code, one over the stylesheets, made from the
+files). Different code reloads the page; different stylesheets are refreshed
+in place. Nothing about the tabs is kept on the server for this.
 `/api/watch` still speaks server-sent events, for a tab opened before: it
 tells it to reload, onto the WebSocket. The config, `.whiteboard/` and the
 folders of served files are watched; any other change in them loads the

@@ -6,7 +6,7 @@ import { html } from '../html.ts'
 import { formsApi, trackForms } from './forms'
 import { createToast } from './toast'
 import { markRead, messagesChanged, readsArrived, trackReading, unread as unreadNow } from './read'
-import { READ } from '../status.ts'
+import { READ, SCROLL, fromReader } from '../status.ts'
 import { markdown } from './markdown'
 import { scrollToTarget } from './scroll'
 import { reactive } from './reactive'
@@ -26,6 +26,8 @@ interface Handoff {
   frontmatter: Record<string, unknown>
   /** false on a built page (`whiteboard build`): a file, no server behind it */
   live?: boolean
+  /** what the browser runs and how it looks, as the server served them (see /api/stamps) */
+  stamps?: { code: string; style: string }
 }
 
 const handoff: Handoff = JSON.parse(document.getElementById('wb-page')!.textContent!)
@@ -60,6 +62,20 @@ async function loadEvents() {
   const known = new Set(all.map(e => e.id))
   for (const [id, e] of sending) if (known.has(id)) sending.delete(id)
   setEvents([...all, ...[...sending.values()]])
+  scrollFromLog()
+}
+
+// `whiteboard scroll` is an event in the log (SCROLL), so a scroll sent while this page wasn't
+// connected still happens once it is. The latest one counts; the first load only notes which that
+// is, so a page loaded later doesn't jump to a place shown before it.
+let scrolledTo: string | null | undefined
+function scrollFromLog() {
+  const last = events.findLast(e => e.type === SCROLL && !fromReader(e))
+  if (scrolledTo === undefined) return void (scrolledTo = last?.id ?? null)
+  if (!last || last.id === scrolledTo) return
+  scrolledTo = last.id
+  const to = String(last.data?.to ?? '')
+  if (!scrollToTarget(root, to)) console.warn(`whiteboard scroll: nothing on the page matches ${JSON.stringify(to)}`)
 }
 
 // Appending is optimistic: the event is in the page's events at once, marked `sending`, so the page
@@ -281,12 +297,8 @@ const onLive: Record<string, (data: unknown) => void> = {
   // the server answers: reloading while it restarts would leave the browser's error page, which
   // has nothing left in it to recover with.
   reload: () => reloadWhenUp(),
-  // an agent shows the reader a place on the page
-  scroll: data => {
-    const { to } = data as { to: string }
-    if (!scrollToTarget(root, to)) console.warn(`whiteboard scroll: nothing on the page matches ${JSON.stringify(to)}`)
-  },
   style: () => {
+    stamps = null
     for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')) {
       const url = new URL(link.href)
       if (url.origin !== location.origin) continue
@@ -294,6 +306,26 @@ const onLive: Record<string, (data: unknown) => void> = {
       link.href = url.pathname + url.search
     }
   },
+}
+
+// What the browser runs and how it looks, as this page has them; null once a style message refreshed
+// the stylesheets without a stamp to go with it (the next comparison takes the server's then).
+let stamps: { code: string; style: string } | null = handoff.stamps ?? null
+
+/**
+ * Back on the live channel: what changed while this page wasn't on it, it never heard of. Browser
+ * code that changed reloads the page; stylesheets that changed are refreshed in place.
+ */
+async function compareStamps() {
+  let now: { code: string; style: string }
+  try {
+    now = await (await fetch(url('/api/stamps'), { cache: 'no-store' })).json()
+  } catch {
+    return
+  }
+  if (stamps && now.code !== stamps.code) return reloadWhenUp()
+  if (stamps && now.style !== stamps.style) onLive.style!(null)
+  stamps = now
 }
 
 let socket: WebSocket | null = null
@@ -313,6 +345,7 @@ function connect() {
     // elsewhere
     loadListeners()
     loadEvents()
+    void compareStamps()
     document.dispatchEvent(new Event('wb-elsewhere'))
     // and the page, if it changed while the channel wasn't open yet (just after loading, or while
     // the server restarted): that change was never announced. Only then: an update that changes

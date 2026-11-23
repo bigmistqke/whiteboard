@@ -72,6 +72,13 @@ export const heard = (name: string, listeners: Listener[]): boolean =>
 export const READ = 'whiteboard:read'
 
 /**
+ * The type of the event `whiteboard scroll` appends: show the reader a place on a page, `{ to }`. A
+ * page applies the latest one that came after it loaded, as it comes or once its live channel is
+ * back.
+ */
+export const SCROLL = 'whiteboard:scroll'
+
+/**
  * The agent's messages on a page the reader hasn't read: events from the agent of a type
  * `isMessage` says is for the reader, not named by a `whiteboard:read` from the reader, and not
  * replaced by a later one (`replaces`).

@@ -603,7 +603,11 @@ switch (cmd) {
     })
     const { tabs } = (await res.json()) as { tabs: number }
     if (!tabs) {
-      console.error(`whiteboard: no browser has ${id} open; \`whiteboard show ${target}\` prints its URL`)
+      // a tab may be open but not connected: a background tab connects again when it is shown, and
+      // then scrolls there (the scroll is in the log)
+      console.error(
+        `whiteboard: no tab of ${id} is connected now; one that is open scrolls there once it is back (a background tab connects again when it is shown). \`whiteboard show ${target}\` prints its URL`,
+      )
       process.exit(1)
     }
     console.log(`scrolled ${tabs} tab${tabs > 1 ? 's' : ''} of ${id} to ${JSON.stringify(to)}`)
