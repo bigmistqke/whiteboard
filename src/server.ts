@@ -495,17 +495,42 @@ export function createServer(
    * log read once, and who listens. What `whiteboard status`, the hooks, the page lists and the log's
    * picked-up marks take.
    */
+  // Each page's questions and title, kept while its file and the config stay as they are: parsing
+  // every page's markdown on each ask was most of what a status cost.
+  const asked = new Map<
+    string,
+    { file: string; mtime: number; size: number; renderer: unknown; title: string; asks: string[] }
+  >()
+  function questionsOf(renderer: LoadedConfig['pages'], id: string, file: string): { title: string; asks: string[] } {
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(file)
+    } catch {
+      return { title: path.basename(id), asks: [] }
+    }
+    const kept = asked.get(id)
+    if (
+      kept &&
+      kept.file === file &&
+      kept.mtime === stat.mtimeMs &&
+      kept.size === stat.size &&
+      kept.renderer === renderer
+    )
+      return kept
+    let asks: string[] = []
+    try {
+      asks = renderer?.questions(pageSource(id, file)) ?? []
+    } catch (err) {
+      console.error('questions:', err)
+    }
+    const now = { file, mtime: stat.mtimeMs, size: stat.size, renderer, title: titleOf(file, path.basename(id)), asks }
+    asked.set(id, now)
+    return now
+  }
+
   async function snapshot(listed: PagesSource['pages']): Promise<ProjectStatus> {
     const { pages: renderer, handedOut, forReader } = await config()
-    const pages = listed.map(p => {
-      let asks: string[] = []
-      try {
-        asks = renderer?.questions(pageSource(p.id, p.file)) ?? []
-      } catch (err) {
-        console.error('questions:', err)
-      }
-      return { id: p.id, file: p.file, title: titleOf(p.file, path.basename(p.id)), asks }
-    })
+    const pages = listed.map(p => ({ id: p.id, file: p.file, ...questionsOf(renderer, p.id, p.file) }))
     return projectStatus({
       pages,
       events: readEvents(project.eventsFile),

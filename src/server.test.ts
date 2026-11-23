@@ -189,6 +189,21 @@ test("a fallback's listen stream is told who listens, at once and on every chang
   controller.abort()
 })
 
+test("status: a page's questions are kept until its file changes, then read again", async () => {
+  const file = path.join(dir, '.whiteboard', 'pages', 'kept.md')
+  fs.writeFileSync(file, '# Kept\n\n:::form{name=first}\n:button[Go]\n:::\n')
+  const asks = async () => (await server.status('kept'))[0]!.asks
+  assert.deepEqual(await asks(), ['first'])
+  assert.deepEqual(await asks(), ['first'], 'asked again: the same')
+  fs.writeFileSync(
+    file,
+    '# Kept, renamed\n\n:::form{name=first}\n:button[Go]\n:::\n\n:::form{name=second}\n:button[Go]\n:::\n',
+  )
+  assert.deepEqual(await asks(), ['first', 'second'])
+  assert.equal((await server.status('kept'))[0]!.title, 'Kept, renamed')
+  fs.rmSync(file)
+})
+
 test('a changed page file tells the open page', async () => {
   const watch = live(`${base}/api/live?page=q`)
   await new Promise(r => setTimeout(r, 100))
