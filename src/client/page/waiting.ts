@@ -280,12 +280,17 @@ export function trackWaiting(root: HTMLElement, core: Api) {
       if (form.dataset.wbState === 'sending') return
       sent.disconnect()
       if (form.dataset.wbState !== 'sent') return
-      if (fallback) api.toast('Sent. No agent waits on this page; the fallback agent picks it up.', { name: 'sent' })
+      if (fallback)
+        api.toast('Sent · to the fallback agent', {
+          name: 'sent',
+          details: 'No agent waits on this page, so the fallback agent picks it up.',
+        })
       else
-        api.toast(
-          'Sent, but no agent is listening right now. Your answer stays in the log until one checks this page.',
-          { kind: 'warn', name: 'sent' },
-        )
+        api.toast('Sent · no agent listening', {
+          kind: 'warn',
+          name: 'sent',
+          details: 'Your answer stays in the log until an agent checks this page.',
+        })
     })
     sent.observe(form, { attributes: true, attributeFilter: ['data-wb-state'] })
   })

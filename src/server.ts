@@ -575,7 +575,10 @@ export function createServer(
     '.wb-toast[hidden]{display:none}.wb-toast[data-kind=warn]{background:var(--warn,#6b4fc0)}.wb-toast[data-kind=alert]{background:var(--bad,#c4352b);color:#fff}' +
     // where an agent scrolled the page to, lit up a moment
     '@keyframes wb-flash{from{outline-color:var(--accent,#1d5bbf)}to{outline-color:transparent}}.wb-flash{outline:3px solid transparent;outline-offset:6px;border-radius:4px;animation:wb-flash 2s ease-out}' +
-    '.wb-toast-dismiss{margin-right:-4px;padding:0 4px;border-left:1px solid rgb(255 255 255/.35);opacity:.75}.wb-toast-dismiss:hover{opacity:1}'
+    '.wb-toast-dismiss{margin-right:-4px;padding:0 4px;border-left:1px solid rgb(255 255 255/.35);opacity:.75}.wb-toast-dismiss:hover{opacity:1}' +
+    // a toast's details (ToastOptions.details): a ▸ on its line, unfolding them under it
+    '.wb-toast{max-width:min(24rem,calc(100vw - 32px));text-align:left}.wb-toast-more{margin:0 -4px 0 -2px;padding:0 4px;opacity:.75}.wb-toast-more:hover{opacity:1}' +
+    '.wb-toast[data-open]{flex-wrap:wrap;border-radius:12px}.wb-toast-details{flex-basis:100%;padding:2px 0 3px;font-weight:400;cursor:text}.wb-toast-details[hidden]{display:none}'
 
   /** `extras`: what plugins add to <head> and <body> (see shellExtras). */
   function shell(

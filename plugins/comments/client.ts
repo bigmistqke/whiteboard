@@ -544,9 +544,10 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
       pending = where
       composer.querySelector('textarea')!.value = text
       composer.hidden = false
-      api.toast("Couldn't send the comment: it's back in the box to try again.", {
+      api.toast("Couldn't send the comment", {
         kind: 'warn',
         name: 'comment-failed',
+        details: "It's back in the box: send it again.",
       })
     }
   })
@@ -575,7 +576,11 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
       console.error('comments:', err)
       const again = popover.querySelector('textarea')
       if (openThread === thread && again && !again.value.trim()) again.value = text
-      api.toast("Couldn't send the reply: it's back in the box to try again.", { kind: 'warn', name: 'comment-failed' })
+      api.toast("Couldn't send the reply", {
+        kind: 'warn',
+        name: 'comment-failed',
+        details: "It's back in the box: send it again.",
+      })
     }
   })
   popover.addEventListener('click', async e => {
@@ -589,7 +594,7 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     refreshComments()
     sent.catch(err => {
       console.error('comments:', err)
-      api.toast("Couldn't close the thread: it's open again.", { kind: 'warn', name: 'comment-failed' })
+      api.toast("Couldn't close the thread", { kind: 'warn', name: 'comment-failed', details: "It's open again." })
     })
   })
   // the page goes to an unread reply here: open its thread

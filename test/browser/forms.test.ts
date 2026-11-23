@@ -380,8 +380,17 @@ test(
     await page.click('form[name=ask] button')
     const toast = page.locator('[data-toast=sent]')
     await toast.waitFor({ state: 'visible' })
-    assert.match((await toast.textContent())!, /no agent is listening/)
-    await toast.click()
+    // short, with the why folded away under a ▸
+    assert.equal(await toast.locator('.wb-toast-text').textContent(), 'Sent · no agent listening')
+    const details = toast.locator('.wb-toast-details')
+    assert.equal(await details.isVisible(), false)
+    await toast.locator('.wb-toast-more').click()
+    assert.match((await details.textContent())!, /stays in the log until an agent checks this page/)
+    assert.equal(await details.isVisible(), true)
+    // unfolded, it stays while it is read: past the 7 s it would have had
+    await page.waitForTimeout(7500)
+    assert.equal(await toast.isVisible(), true, 'unfolded, it stays')
+    await toast.locator('.wb-toast-text').click()
     await toast.waitFor({ state: 'detached' })
 
     // a wait first hands out the answer nobody picked up yet; the next one waits for a new one

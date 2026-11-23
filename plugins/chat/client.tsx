@@ -77,7 +77,11 @@ function Chat(props: ChatProps) {
       console.error(err)
       // it never got there: back into the box, unless something else was written meanwhile
       if (!box!.value.trim()) write(text)
-      wb.toast("Couldn't send the message: it's back in the box to try again.", { kind: 'warn', name: 'chat-failed' })
+      wb.toast("Couldn't send the message", {
+        kind: 'warn',
+        name: 'chat-failed',
+        details: "It's back in the box: send it again.",
+      })
     }
   }
   return (

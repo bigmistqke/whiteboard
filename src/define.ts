@@ -516,6 +516,11 @@ export interface ToastOptions {
   name?: string
   /** where it is among the corner's toasts: lower first (default 0) */
   order?: number
+  /**
+   * more about it, for whoever wants to know: the toast stays a short line, with a ▸ that unfolds
+   * this under it (and keeps it open while it is read). Keep `text` a few words, and put the why here.
+   */
+  details?: string
 }
 
 /** A toast on the screen: change what it says (a count), hide it and show it again, or close it. */
