@@ -1,0 +1,127 @@
+.wb-timeline {
+  margin: 3em 0;
+  text-align: left;
+}
+.wb-tl-caption {
+  font-family: var(--sans);
+  font-size: var(--ui-small);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-2xl);
+}
+.wb-tl-sections,
+.wb-tl-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wb-tl-section + .wb-tl-section {
+  margin-top: var(--space-3xl);
+}
+.wb-tl-section-title {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: var(--ui-text);
+  color: var(--accent);
+  margin-bottom: var(--space-lg);
+}
+
+/* a line down the left, a dot per step */
+.wb-tl-steps {
+  position: relative;
+  padding-left: 28px;
+}
+.wb-tl-steps::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--border);
+}
+.wb-tl-step {
+  position: relative;
+  padding-bottom: var(--space-2xl);
+}
+.wb-tl-step:last-child {
+  padding-bottom: 0;
+}
+/* the dot sits on the title's first line; a step without a title has it at its top */
+.wb-tl-step:has(> .wb-tl-title)::before {
+  display: none;
+}
+.wb-tl-title {
+  position: relative;
+}
+.wb-tl-step::before,
+.wb-tl-title::before {
+  content: '';
+  position: absolute;
+  left: -27px;
+  top: 0.45em;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  box-sizing: border-box;
+}
+.wb-tl-when {
+  display: block;
+  font-family: var(--mono);
+  font-size: var(--ui-tiny);
+  color: var(--muted);
+  line-height: 1.4;
+}
+/* centred on the title's first line (line-height 1.4: its middle is 0.7em down) */
+.wb-tl-title::before {
+  top: calc(0.7em - 6px);
+}
+.wb-tl-title {
+  font-weight: 600;
+  line-height: 1.4;
+}
+.wb-tl-title > .wb-badge:last-child {
+  float: right;
+  margin-left: var(--space-lg);
+}
+.wb-tl-body {
+  font-size: var(--ui-text);
+  line-height: 1.6;
+  margin-top: var(--space-xs);
+}
+.wb-timeline .wb-tl-body > * {
+  margin-top: var(--space-md);
+  margin-bottom: 0;
+}
+.wb-timeline .wb-tl-body > :first-child {
+  margin-top: 0;
+}
+
+/* a quote in a step is what the step means */
+.wb-timeline .wb-tl-body blockquote {
+  all: unset;
+  display: block;
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-lg);
+  border-left: 3px solid var(--accent);
+  background: var(--tint-faint);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text);
+  font-style: normal;
+}
+.wb-timeline .wb-tl-body blockquote::before {
+  content: 'So';
+  display: block;
+  font-family: var(--sans);
+  font-size: var(--ui-tiny);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.wb-timeline .wb-tl-body blockquote > * {
+  margin: 0;
+}

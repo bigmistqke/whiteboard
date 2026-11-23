@@ -1,13 +1,11 @@
 // A table of contents beside the page: its sections (## to ###### headings), numbered as the page
 // numbers them, each one's subsections on a rail under it, the one being read marked, a dot where
 // something waits for the reader (an unanswered question, an unread message). In the margin left
-// of the text when the window has room for it; else a button in the header that opens it. A project turns it on in its config:
+// of the text when the window has room for it; else a button in the header that opens it.
 //
-//   import toc from '@bigmistqke/whiteboard/toc'
-//   export default defineConfig({ plugins: [toc()] })
-//
-// A page has it when its frontmatter says so, under `plugins:` (`plugins: { toc: true }`). With
-// `toc({ always: true })`, every page has it, unless its frontmatter says `toc: false` there.
+// Built in (plugins/index.ts): a page has it when its frontmatter says so, under `plugins:`
+// (`plugins: { toc: true }`). A config that replaces it with `toc({ always: true })` puts it on
+// every page, unless a page's frontmatter says `toc: false` there.
 import { builtinPublic } from '../../src/package.ts'
 import { html } from '../../src/html.ts'
 import type { Plugin } from '../../src/define.ts'

@@ -1,7 +1,8 @@
 // The built-in plugins: what every project has, before its config's `plugins` (which add to them,
 // and replace one of the same name: `code({ themes })` for the default `code`). The terminal and the
 // Claude Code plugin are not among them: they run code, or are about one agent, so a project adds
-// them itself.
+// them itself. The table of contents is, but shows only on a page that asks for it, unless the
+// config replaces it with `toc({ always: true })`.
 import type { Plugin } from '../src/define.ts'
 import callout from './callout/index.ts'
 import chat from './chat/index.ts'
@@ -20,6 +21,8 @@ import draft from './draft/index.ts'
 import lightbox from './lightbox/index.ts'
 import badge from './badge/index.ts'
 import ansi from './ansi/index.ts'
+import timeline from './timeline/index.ts'
+import toc from './toc/index.ts'
 
 export function builtins(): Plugin[] {
   return [
@@ -40,5 +43,7 @@ export function builtins(): Plugin[] {
     lightbox(),
     badge(),
     ansi(),
+    timeline(),
+    toc(),
   ]
 }

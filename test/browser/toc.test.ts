@@ -97,11 +97,10 @@ test('toc: sub headings down to ######, each nested under its section', { timeou
   assert.deepEqual(errors, [])
 })
 
-test('toc: a page opts in through its frontmatter', { timeout: 60000 }, async t => {
-  const OPT_IN = `import toc from '@bigmistqke/whiteboard/toc'\nexport default { plugins: [toc()] }\n`
+test('toc: built in, a page opts in through its frontmatter', { timeout: 60000 }, async t => {
   const BODY = `# Long page\n\n## One\n\n${filler(10, 'One')}\n\n## Two\n\n${filler(10, 'Two')}\n`
+  // no config: the built-in one
   const proj = await project({
-    config: OPT_IN,
     pages: { plain: BODY, asks: `---\nplugins:\n  toc: true\n---\n${BODY}`, top: `---\ntoc: true\n---\n${BODY}` },
   })
   const { browser: b, page, errors } = await browser()

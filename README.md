@@ -424,12 +424,12 @@ Every colour is a `light-dark()` pair, so one line sets it for both themes:
 ```
 
 The built-in plugins are ansi, badge, callout, chat, code, comments, details, draft,
-forge, form, grid, iframe, lightbox, mermaid, quiet, steps and window: every project has them, and
-`whiteboard docs` shows how to write each. A config's `plugins` add to them,
-and one with a built-in's name replaces it. The terminal and the Claude Code
-plugin are opt-in, since they run code or are about one agent, and so is the
-table of contents (`toc`), which a page then asks for in its frontmatter
-(`plugins: { toc: true }`).
+forge, form, grid, iframe, lightbox, mermaid, quiet, steps, timeline, toc and window: every
+project has them, and `whiteboard docs` shows how to write each. A config's `plugins` add to
+them, and one with a built-in's name replaces it. The table of contents (`toc`) shows on a page
+that asks for it in its frontmatter (`plugins: { toc: true }`), or on every page with
+`toc({ always: true })` in the config. The terminal and the Claude Code plugin are opt-in, since
+they run code or are about one agent.
 
 Named forms need nothing in the config: the core sends a submit of any
 `<form name>` as an event, on any page.
