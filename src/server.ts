@@ -22,7 +22,7 @@ import { parse as parseYaml } from 'yaml'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
-import { appendEvent, isEventId, readEvents, matches, pickedUp, fromReader, forAgent } from './events.ts'
+import { appendEvent, isEventId, readEvents, matches, pickedUp, forAgent } from './events.ts'
 import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
@@ -337,11 +337,11 @@ export function createServer(
     }
   }
 
-  /** The pages in a folder of the pages folder, newest first, with when each was last answered. */
+  /**
+   * The pages in a folder of the pages folder, newest first. When each was last answered and what
+   * waits on it are the status's to say (withStatus).
+   */
   function pagesIn(dir: string): PagesSource['pages'] {
-    const last = new Map<string, string>()
-    // the last time the reader sent something: what the agent appended doesn't count
-    for (const e of readEvents(project.eventsFile)) if (fromReader(e)) last.set(e.page, e.ts)
     const out: PagesSource['pages'] = []
     const walk = (d: string) => {
       if (!fs.existsSync(d)) return
@@ -351,7 +351,7 @@ export function createServer(
         if (ent.isDirectory()) walk(full)
         else if (ent.name.endsWith('.md')) {
           const id = path.relative(project.pagesDir, full).split(path.sep).join('/').replace(/\.md$/, '')
-          out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: last.get(id) ?? null, awaiting: 0 })
+          out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: null, awaiting: 0 })
         }
       }
     }
@@ -495,19 +495,17 @@ export function createServer(
    * log read once, and who listens. What `whiteboard status`, the hooks, the page lists and the log's
    * picked-up marks take.
    */
-  async function snapshot(only: string | null = null): Promise<ProjectStatus> {
+  async function snapshot(listed: PagesSource['pages']): Promise<ProjectStatus> {
     const { pages: renderer, handedOut, forReader } = await config()
-    const pages = pagesIn(project.pagesDir)
-      .filter(p => !only || p.id === only || p.id.startsWith(only + '/'))
-      .map(p => {
-        let asks: string[] = []
-        try {
-          asks = renderer?.questions(pageSource(p.id, p.file)) ?? []
-        } catch (err) {
-          console.error('questions:', err)
-        }
-        return { id: p.id, file: p.file, title: titleOf(p.file, path.basename(p.id)), asks }
-      })
+    const pages = listed.map(p => {
+      let asks: string[] = []
+      try {
+        asks = renderer?.questions(pageSource(p.id, p.file)) ?? []
+      } catch (err) {
+        console.error('questions:', err)
+      }
+      return { id: p.id, file: p.file, title: titleOf(p.file, path.basename(p.id)), asks }
+    })
     return projectStatus({
       pages,
       events: readEvents(project.eventsFile),
@@ -517,8 +515,19 @@ export function createServer(
     })
   }
 
-  /** Per page: what `whiteboard status` and the hooks report (see snapshot). */
-  const status = async (only: string | null): Promise<PageStatus[]> => (await snapshot(only)).pages
+  /** Per page, below `only` when given: what `whiteboard status` and the hooks report (see snapshot). */
+  const status = async (only: string | null): Promise<PageStatus[]> =>
+    (await snapshot(pagesIn(project.pagesDir).filter(p => !only || p.id === only || p.id.startsWith(only + '/')))).pages
+
+  /** A list of pages, with when each was last answered and how much waits on it, from one status. */
+  async function withStatus(pages: PagesSource['pages']): Promise<PagesSource['pages']> {
+    const s = await snapshot(pages)
+    pages.forEach((p, i) => {
+      p.awaiting = awaiting(s.pages[i]!)
+      p.lastEvent = s.lastAnswered(p.id)
+    })
+    return pages
+  }
 
   /** How to write pages here, as markdown: the pages' own docs, then each plugin's. */
   async function docs() {
@@ -796,8 +805,7 @@ export function createServer(
       return { redirect: `${base}/${id}/` }
     // a list of pages says which await the reader: where their questions stand takes the config
     if (found.kind === 'pages') {
-      const counts = new Map((await status(found.id || null)).map(s => [s.page, awaiting(s)]))
-      for (const p of found.pages) p.awaiting = counts.get(p.id) ?? 0
+      await withStatus(found.pages)
       if (!found.id && overview) Object.assign(found, await overview())
     }
     return { page: found }
@@ -1222,9 +1230,7 @@ export function createServer(
     listeners: () => listenersFor(null),
     async overview() {
       await config()
-      const pages = pagesIn(project.pagesDir)
-      const counts = new Map((await status(null)).map(s => [s.page, awaiting(s)]))
-      for (const p of pages) p.awaiting = counts.get(p.id) ?? 0
+      const pages = await withStatus(pagesIn(project.pagesDir))
       return { pages, files: !!FILES }
     },
     touch() {
