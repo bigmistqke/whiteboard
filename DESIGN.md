@@ -692,11 +692,16 @@ files it imports get a version in their URL, so a change loads them afresh.
 Nothing compiles browser code: a plugin's or block's browser module is
 served as the file it is, so packages ship JavaScript.
 
-The browser listens at `/api/watch`: `change` (its page changed), `events`
-(the log grew), `style` (a stylesheet changed: reloaded in place) and
-`reload` (browser code changed: the page reloads). The config, `.whiteboard/`
-and the folders of served files are watched; any other change in them loads
-the config afresh and re-renders open pages.
+The browser listens on a WebSocket at `/api/live` (`src/ws.ts`), each
+message `{ event, data }`: `change` (its page changed), `events` (the log
+grew), `listeners`, `scroll`, `style` (a stylesheet changed: reloaded in
+place) and `reload` (browser code changed: the page reloads). Not server-sent
+events: a browser keeps six HTTP/1.1 connections to an origin, every tab of
+the shared server is on the same one, and a stream per tab left none for a
+seventh tab to load or a form to send. `/api/watch` still speaks server-sent
+events, for a tab opened before: it tells it to reload, onto the WebSocket.
+The config, `.whiteboard/` and the folders of served files are watched; any
+other change in them loads the config afresh and re-renders open pages.
 
 ## Pages (`src/pages/`, `src/client/page/`)
 

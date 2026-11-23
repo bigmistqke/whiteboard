@@ -16,6 +16,7 @@
 // plugins bring (pages.ts). When the config fails to load, a page shows as its raw
 // text.
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Duplex } from 'node:stream'
 import fs from 'node:fs'
 import { parse as parseYaml } from 'yaml'
 import { stripTypeScriptTypes } from 'node:module'
@@ -25,7 +26,8 @@ import { appendEvent, readEvents, matches, pickedUp, fromReader, forAgent, CLAIM
 import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
-import { createAuth } from './auth.ts'
+import { createAuth, sameSite } from './auth.ts'
+import { accept, refuse } from './ws.ts'
 import { FROM_SOURCE, PACKAGE_DIR, VERSION } from './package.ts'
 import { awaiting, covers, heard, questionState, unreadMessages } from './status.ts'
 import { titleOf } from './pages/render.ts'
@@ -79,6 +81,8 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
 export interface WhiteboardServer {
   /** answer one request */
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>
+  /** answer one upgrade request (the HTTP server's 'upgrade' event): the page's live channel */
+  upgrade(req: IncomingMessage, conn: Duplex, head: Buffer): void
   /** what is open on each page (or on `page` and below), as /api/status gives it */
   status(page?: string | null): Promise<PageStatus[]>
   /** the project's config, loaded */
@@ -631,13 +635,15 @@ export function createServer(
       .map(({ page, type, command, fallback }) => ({ page, type, command, ...(fallback && { fallback }) }))
 
   // ---- live changes ------------------------------------------------------------------------------
-  // The browser listens at /api/watch. `change`: its page changed; `events`: the log grew;
-  // `listeners`: an agent started or stopped waiting; `style`: a stylesheet changed; `reload`:
-  // browser code changed; `scroll`: an agent shows the reader a place on the page ({ to }).
+  // The browser listens on a WebSocket at /api/live, each message `{ event, data }`. `change`: its
+  // page changed; `events`: the log grew; `listeners`: an agent started or stopped waiting; `style`:
+  // a stylesheet changed; `reload`: browser code changed; `scroll`: an agent shows the reader a place
+  // on the page ({ to }). /api/watch says the same as server-sent events, for a tab opened before
+  // /api/live: it tells it to reload first, so it moves to the WebSocket (see ws.ts for why).
 
-  /** A browser following its page at /api/watch; `pending`: what it will be told in a moment. */
+  /** A browser following its page; `pending`: what it will be told in a moment. */
   interface WatchClient {
-    res: ServerResponse
+    send(event: string, data?: unknown): void
     page: string
     isDir: boolean
     pending?: Set<string>
@@ -648,7 +654,7 @@ export function createServer(
     client.pending ??= new Set()
     if (client.pending.size === 0)
       setTimeout(() => {
-        for (const k of client.pending!) client.res.write(`event: ${k}\ndata: {}\n\n`)
+        for (const k of client.pending!) client.send(k)
         client.pending!.clear()
       }, 60)
     client.pending.add(kind)
@@ -865,7 +871,7 @@ export function createServer(
         let tabs = 0
         for (const c of clients) {
           if (c.isDir || (c.page !== id && c.page + '/index' !== id)) continue
-          c.res.write(`event: scroll\ndata: ${JSON.stringify({ to })}\n\n`)
+          c.send('scroll', { to })
           tabs++
         }
         return sendJson(res, 200, { tabs })
@@ -945,8 +951,14 @@ export function createServer(
           connection: 'keep-alive',
         })
         res.write(': connected\n\n')
-        const client = { res, page: q.page || '', isDir: 'dir' in q }
+        const client: WatchClient = {
+          send: (event, data = {}) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+          page: q.page || '',
+          isDir: 'dir' in q,
+        }
         clients.add(client)
+        // a tab from before /api/live: onto the WebSocket, which leaves its connection free
+        client.send('reload')
         const ping = setInterval(() => res.write(': ping\n\n'), 25000)
         const end = () => {
           clearInterval(ping)
@@ -1204,8 +1216,31 @@ export function createServer(
     return result
   }
 
+  /** The live channel: /api/live, a WebSocket from a page of this server's (see ws.ts). */
+  function upgrade(req: IncomingMessage, conn: Duplex, _head: Buffer) {
+    const url = new URL((req.url ?? '/').replace(/^\/+/, '/'), 'http://localhost')
+    if (decodeURIComponent(url.pathname) !== '/api/live') return refuse(conn, 404, 'Not Found')
+    // no CORS for a WebSocket: any site could open one to localhost, so the origin is checked here
+    if (!sameSite(req)) return refuse(conn, 403, 'Forbidden')
+    const socket = accept(req, conn)
+    if (!socket) return
+    const client: WatchClient = {
+      send: (event, data = {}) => socket.send(JSON.stringify({ event, data })),
+      page: url.searchParams.get('page') ?? '',
+      isDir: url.searchParams.has('dir'),
+    }
+    clients.add(client)
+    const stop = () => socket.close()
+    streams.add(stop)
+    socket.onClose(() => {
+      clients.delete(client)
+      streams.delete(stop)
+    })
+  }
+
   return {
     handle,
+    upgrade,
     listeners: () => listenersFor(null),
     async overview() {
       await config()

@@ -35,6 +35,7 @@ async function serve(
   const http_ = http.createServer((req, res) => {
     void server.handle(req, res)
   })
+  http_.on('upgrade', (req, conn, head) => server.upgrade(req, conn, head))
   await new Promise<void>(r => http_.listen(0, '127.0.0.1', r))
   after(() => {
     server.close()
@@ -53,6 +54,19 @@ const until = async <T>(what: string, check: () => T | Promise<T>, timeout = 300
     if (Date.now() > end) throw new Error(`timed out waiting for: ${what}`)
     await new Promise(r => setTimeout(r, 25))
   }
+}
+
+/** Open the page's live channel (a WebSocket) and collect the names of what it says. */
+function live(url: string, headers: Record<string, string> = {}) {
+  const ws = new WebSocket(url.replace(/^http/, 'ws'), { headers } as unknown as string[])
+  const seen: string[] = []
+  const opened = new Promise<boolean>(r => {
+    ws.onopen = () => r(true)
+    ws.onerror = () => r(false)
+  })
+  ws.onmessage = e => seen.push(JSON.parse(String(e.data)).event)
+  const done = new Promise<string>(r => (ws.onclose = () => r('ended')))
+  return { seen, opened, done, stop: () => ws.close() }
 }
 
 /** Open a server-sent event stream and collect the names of its events. */
@@ -113,7 +127,7 @@ test('status: an unanswered question is open whoever listens; unheard says wheth
   const status = async () => (await server.status('q'))[0]!
   assert.equal((await status()).questions.find(q => q.name === 'pick')!.state, 'open')
   assert.deepEqual((await status()).unheard, ['pick'])
-  const watch = stream(`${base}/api/watch?page=q`)
+  const watch = live(`${base}/api/live?page=q`)
   const listen = stream(`${base}/api/listen?page=q&type=pick&command=wait`)
   await until('heard', async () => !(await status()).unheard.length)
   assert.equal(
@@ -130,7 +144,7 @@ test('status: an unanswered question is open whoever listens; unheard says wheth
 })
 
 test('a changed page file tells the open page', async () => {
-  const watch = stream(`${base}/api/watch?page=q`)
+  const watch = live(`${base}/api/live?page=q`)
   await new Promise(r => setTimeout(r, 100))
   fs.appendFileSync(path.join(dir, '.whiteboard', 'pages', 'q.md'), '\nMore.\n')
   await until('change', () => watch.seen.includes('change'))
@@ -139,10 +153,24 @@ test('a changed page file tells the open page', async () => {
 
 test('close ends the live connections', async () => {
   const { base, server } = await serve()
-  const watch = stream(`${base}/api/watch?page=q`)
+  const watch = live(`${base}/api/live?page=q`)
   await new Promise(r => setTimeout(r, 100))
   server.close()
   assert.equal(await watch.done, 'ended')
+})
+
+test('the live channel: a WebSocket from a page of this machine, not from another site', async () => {
+  const ours = live(`${base}/api/live?page=q`, { origin: base })
+  assert.equal(await ours.opened, true)
+  ours.stop()
+  const theirs = live(`${base}/api/live?page=q`, { origin: 'https://example.com' })
+  assert.equal(await theirs.opened, false, 'refused: a WebSocket has no CORS to keep other sites out')
+})
+
+test('a tab on the old stream (/api/watch) is told to reload, onto the WebSocket', async () => {
+  const old = stream(`${base}/api/watch?page=q`)
+  await until('reload', () => old.seen.includes('reload'))
+  old.stop()
 })
 
 test("a plugin's public folder is served, TypeScript stripped; nothing beside it: not the token, the log, the config", async () => {

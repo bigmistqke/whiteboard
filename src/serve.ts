@@ -25,6 +25,7 @@ export async function start(project: Project): Promise<number> {
   const server = http.createServer((req, res) => {
     void wb.handle(req, res)
   })
+  server.on('upgrade', (req, conn, head) => wb.upgrade(req, conn, head))
   const candidates = [
     ...new Set(
       [recordedPort(project), DEFAULT_PORT, ...Array.from({ length: 50 }, (_, i) => DEFAULT_PORT + 1 + i)].filter(
@@ -100,6 +101,7 @@ export async function startShared(dir = machineDir(), state = stateDir()): Promi
   const server = http.createServer((req, res) => {
     void hub.handle(req, res)
   })
+  server.on('upgrade', (req, conn, head) => hub.upgrade(req, conn, head))
   const first = config.port ?? DEFAULT_PORT
   const candidates = [
     ...new Set(

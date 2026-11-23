@@ -44,6 +44,7 @@ const hub = createHub({
   onShutdown: () => shutdowns++,
 })
 const server = http.createServer((req, res) => void hub.handle(req, res))
+server.on('upgrade', (req, conn, head) => hub.upgrade(req, conn, head))
 await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 after(() => {
@@ -110,9 +111,9 @@ test("the overview at /: every project's pages by project, what waits first, pro
     // the version, and whether it is boxed
     assert.match(index, /whiteboard 1\.2\.0 · not boxed/)
     // and it is live: the overview's own channel answers at the root
-    const watch = await fetch(`${base}/api/watch?page=&dir`)
-    assert.equal(watch.headers.get('content-type'), 'text/event-stream')
-    await watch.body?.cancel()
+    const watch = new WebSocket(`${base.replace(/^http/, 'ws')}/api/live?page=&dir`)
+    assert.ok(await new Promise(r => ((watch.onopen = () => r(true)), (watch.onerror = () => r(false)))))
+    watch.close()
   } finally {
     fs.rmSync(empty, { recursive: true })
     hub.rescan()

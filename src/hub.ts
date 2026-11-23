@@ -20,6 +20,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Duplex } from 'node:stream'
 import { project as projectAt, type Project } from './config.ts'
 import { followEntries, machineDir, readMachineConfig, stateDir, type EntryProject } from './entries.ts'
 import { compareVersions, VERSION } from './package.ts'
@@ -82,6 +83,8 @@ export interface IndexProject {
 
 export interface Hub {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>
+  /** an upgrade request (the HTTP server's 'upgrade' event): a page's live channel */
+  upgrade(req: IncomingMessage, conn: Duplex, head: Buffer): void
   /** the projects it serves now */
   projects(): EntryProject[]
   /** look for projects coming and going now */
@@ -258,30 +261,46 @@ export function createHub({
         res.writeHead(204)
         return void res.end()
       }
-      let s = owner(p)
-      let rest: string
-      if (s) {
-        // the project's overview is at its folder: /rg/develop/
-        if (p === s.base) {
-          res.writeHead(302, { location: `${s.base}/${url.search}` })
-          return void res.end()
-        }
-        // the path less the project's part, encoded again for the project's server to decode
-        rest = p.slice(s.base.length).split('/').map(encodeURIComponent).join('/') + url.search
-      } else {
-        // A plugin's browser module that writes `/api/<name>/…` itself, from before api.url: the page
-        // that asked is in the Referer, and the request is that project's.
-        const from = req.headers.referer ? new URL(req.headers.referer).pathname : null
-        s = /^\/(api|_)\//.test(p) && from ? owner(decodeURIComponent(from)) : null
-        // anything else outside the projects is the overview's: /, its page, its files and live channel
-        if (!s) return root.handle(req, res)
-        rest = (req.url ?? '/').replace(/^\/+/, '/')
+      // the project's overview is at its folder: /rg/develop/
+      const s = owner(p)
+      if (s && p === s.base) {
+        res.writeHead(302, { location: `${s.base}/${url.search}` })
+        return void res.end()
       }
-      req.url = rest
-      return s.server.handle(req, res)
+      return route(req, p, url).handle(req, res)
     } catch (err) {
       console.error(err)
       send(res, 500, String((err as Error)?.stack || err), 'text/plain')
+    }
+  }
+
+  /**
+   * Whose request this is: a project's (`req.url` made the path within it), or else the overview's.
+   */
+  function route(req: IncomingMessage, p: string, url: URL): WhiteboardServer {
+    let s = owner(p)
+    if (s) {
+      // the path less the project's part, encoded again for the project's server to decode
+      req.url = p.slice(s.base.length).split('/').map(encodeURIComponent).join('/') + url.search
+      return s.server
+    }
+    // A plugin's browser module that writes `/api/<name>/…` itself, from before api.url: the page
+    // that asked is in the Referer, and the request is that project's.
+    const from = req.headers.referer ? new URL(req.headers.referer).pathname : null
+    s = /^\/(api|_)\//.test(p) && from ? owner(decodeURIComponent(from)) : null
+    req.url = s ? (req.url ?? '/').replace(/^\/+/, '/') : req.url
+    // anything else outside the projects is the overview's: /, its page, its files and live channel
+    return s ? s.server : root
+  }
+
+  /** An upgrade (a page's live channel), routed as a request is. */
+  function upgrade(req: IncomingMessage, conn: Duplex, head: Buffer) {
+    try {
+      const url = new URL((req.url ?? '/').replace(/^\/+/, '/'), 'http://localhost')
+      route(req, decodeURIComponent(url.pathname), url).upgrade(req, conn, head)
+    } catch (err) {
+      console.error(err)
+      conn.destroy()
     }
   }
 
@@ -330,6 +349,7 @@ export function createHub({
 
   return {
     handle,
+    upgrade,
     projects: list,
     rescan() {
       entries.rescan()

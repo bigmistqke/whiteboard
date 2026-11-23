@@ -205,9 +205,57 @@ if (!handoff.client)
 
 // ---- live channel ------------------------------------------------------------------------------
 
+// A WebSocket, not server-sent events: a browser keeps six HTTP/1.1 connections to an origin, and
+// every whiteboard tab is on the same one; one stream per tab left none for a form's answer (see
+// src/ws.ts). A WebSocket doesn't reconnect by itself: this does, sooner at first, then every few
+// seconds, and at once when the tab is shown or the network comes back.
+const reloadWhenUp = async () => {
+  try {
+    if ((await fetch(url('/api/health'), { cache: 'no-store' })).ok) return location.reload()
+  } catch {
+    /* not up yet */
+  }
+  setTimeout(reloadWhenUp, 500)
+}
+
+/** What the server says on the live channel, by its name. */
+const onLive: Record<string, (data: unknown) => void> = {
+  change: () => {
+    for (const fn of changeListeners) fn()
+  },
+  events: () => loadEvents(),
+  listeners: () => loadListeners(),
+  // browser code changed; the page keeps what matters across a reload itself. Reload only once
+  // the server answers: reloading while it restarts would leave the browser's error page, which
+  // has nothing left in it to recover with.
+  reload: () => reloadWhenUp(),
+  // an agent shows the reader a place on the page
+  scroll: data => {
+    const { to } = data as { to: string }
+    if (!scrollToTarget(root, to)) console.warn(`whiteboard scroll: nothing on the page matches ${JSON.stringify(to)}`)
+  },
+  style: () => {
+    for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')) {
+      const url = new URL(link.href)
+      if (url.origin !== location.origin) continue
+      url.searchParams.set('t', String(Date.now()))
+      link.href = url.pathname + url.search
+    }
+  },
+}
+
+let socket: WebSocket | null = null
+let retries = 0
+let retryTimer: ReturnType<typeof setTimeout> | undefined
+
 function connect() {
-  const es = new EventSource(url(`/api/watch?page=${encodeURIComponent(page)}${isDir ? '&dir' : ''}`))
-  es.onopen = () => {
+  clearTimeout(retryTimer)
+  if (socket && socket.readyState <= WebSocket.OPEN) return
+  const at = new URL(url(`/api/live?page=${encodeURIComponent(page)}${isDir ? '&dir' : ''}`), location.href)
+  at.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const ws = (socket = new WebSocket(at))
+  ws.onopen = () => {
+    retries = 0
     document.documentElement.dataset.wbLive = ''
     // after a server restart: who is listening now, and what was answered meanwhile
     loadListeners()
@@ -217,42 +265,29 @@ function connect() {
     // nothing still redraws, sorts and scrolls, under the reader's hands
     caughtUp()
   }
-  es.onerror = () => {
-    delete document.documentElement.dataset.wbLive
+  ws.onmessage = e => {
+    let message: { event?: string; data?: unknown }
+    try {
+      message = JSON.parse(String(e.data))
+    } catch {
+      return
+    }
+    if (message.event) onLive[message.event]?.(message.data)
   }
-  es.addEventListener('change', () => {
-    for (const fn of changeListeners) fn()
-  })
-  es.addEventListener('events', () => loadEvents())
-  es.addEventListener('listeners', () => loadListeners())
-  // browser code changed; the page keeps what matters across a reload itself. Reload only once
-  // the server answers: reloading while it restarts would leave the browser's error page, which
-  // has nothing left in it to recover with.
-  es.addEventListener('reload', () => {
-    const go = async () => {
-      try {
-        if ((await fetch(url('/api/health'), { cache: 'no-store' })).ok) return location.reload()
-      } catch {
-        /* not up yet */
-      }
-      setTimeout(go, 500)
-    }
-    go()
-  })
-  // an agent shows the reader a place on the page
-  es.addEventListener('scroll', e => {
-    const { to } = JSON.parse((e as MessageEvent).data) as { to: string }
-    if (!scrollToTarget(root, to)) console.warn(`whiteboard scroll: nothing on the page matches ${JSON.stringify(to)}`)
-  })
-  es.addEventListener('style', () => {
-    for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')) {
-      const url = new URL(link.href)
-      if (url.origin !== location.origin) continue
-      url.searchParams.set('t', String(Date.now()))
-      link.href = url.pathname + url.search
-    }
-  })
+  ws.onclose = () => {
+    if (socket !== ws) return
+    socket = null
+    delete document.documentElement.dataset.wbLive
+    retryTimer = setTimeout(connect, Math.min(250 * 2 ** retries++, 5000))
+  }
 }
+// back at once: a tab shown again (a browser may have let its connection go), the network back
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !socket) connect()
+})
+addEventListener('online', () => {
+  if (!socket) connect()
+})
 
 await Promise.all([loadEvents(), loadListeners()])
 if (handoff.client) {

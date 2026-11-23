@@ -32,6 +32,12 @@ export function projectToken(wb: string): string {
   return token
 }
 
+/** From a page of a whiteboard server on this machine, or from no page at all (the command line)? */
+export const sameSite = (req: IncomingMessage): boolean => {
+  const origin = req.headers.origin
+  return !origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+}
+
 /** `base`: the path the project is served under (see ServerOptions), which its cookie is kept to. */
 export function createAuth(wb: string, base = '') {
   const token = projectToken(wb)
@@ -51,8 +57,7 @@ export function createAuth(wb: string, base = '') {
     const jar = cookies(req)
     const has = same(jar[COOKIE], token) || same(req.headers['x-whiteboard-token'], token)
     if (!has) return false
-    const origin = req.headers.origin
-    if (origin && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return false
+    if (!sameSite(req)) return false
     const site = req.headers['sec-fetch-site']
     if (site && site !== 'same-origin' && site !== 'none' && !opensPage(req)) return false
     return true
