@@ -1,6 +1,7 @@
 // The agent's messages the reader hasn't read (status.ts: unreadMessages), and reading them: an
 // element marked `data-wb-message="<event id>"` (a reply in an open thread, a chat bubble) reads
-// its message once it has been mostly in view while the tab is visible. Reads are sent together, a
+// its message once it has been mostly in view (most of it on screen, or filling most of the window)
+// while the tab is visible. Reads are sent together, a
 // moment later, as one `whiteboard:read` event.
 import type { WbEvent } from '../define.ts'
 import { READ, unreadMessages } from '../status.ts'
@@ -38,18 +39,30 @@ export function readsArrived(events: WbEvent[]) {
     if (e.type === READ) for (const id of (e.data?.ids as unknown[] | undefined) ?? []) sending.delete(String(id))
 }
 
+// Mostly in view: most of the message is on screen, or, for one taller than the window, it fills
+// most of the window.
+const MOSTLY = 0.6
+function mostlyInView(entry: IntersectionObserverEntry) {
+  if (!entry.isIntersecting) return false
+  if (entry.intersectionRatio >= MOSTLY) return true
+  const viewport = entry.rootBounds?.height ?? window.innerHeight
+  return entry.intersectionRect.height >= MOSTLY * viewport
+}
+
 // what is in view now, read once the tab is visible too
 const inView = new Set<string>()
 const seen = new IntersectionObserver(
   entries => {
     for (const entry of entries) {
       const id = (entry.target as HTMLElement).dataset.wbMessage!
-      if (entry.isIntersecting) inView.add(id)
+      if (mostlyInView(entry)) inView.add(id)
       else inView.delete(id)
     }
     readVisible()
   },
-  { threshold: 0.6 },
+  // steps: a message taller than the window never reaches 0.6 of itself in view, so its share is
+  // reported as it scrolls by
+  { threshold: Array.from({ length: 21 }, (_, i) => i / 20) },
 )
 
 function readVisible() {

@@ -269,6 +269,39 @@ test(
   },
 )
 
+test('a message taller than the window is read once it fills the window', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { q: '# Q\n\n:::chat{name=notes}\n:::\n' } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => {
+    await b.close()
+    await proj.close()
+  })
+  await page.goto(proj.url('q'))
+  await page.waitForSelector('[data-chat=notes] .wb-chat textarea')
+  const code = Array.from({ length: 40 }, (_, i) => `const line${i} = ${i}`).join('\n')
+  const text = ['A long answer.', ...Array.from({ length: 3 }, () => '```ts\n' + code + '\n```')].join('\n\n')
+  proj.cli('append', '--page', 'q', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'notes', text }))
+  const message = page.locator('[data-chat=notes] [data-wb-message]')
+  await message.waitFor()
+  await page.waitForSelector('[data-chat=notes] [data-wb-message] pre')
+  const box = (await message.boundingBox())!
+  const height = page.viewportSize()!.height
+  assert.ok(box.height > height * 1.5, `taller than the window (${box.height} against ${height})`)
+
+  // scrolled through, a screen at a time
+  await message.evaluate(el => el.scrollIntoView({ block: 'start' }))
+  const sent = proj.events().find(e => e.type === 'chat:message' && e.data.text === text)!
+  for (let y = 0; y < box.height; y += height / 2) {
+    await page.mouse.wheel(0, height / 2)
+    await page.waitForTimeout(100)
+  }
+  await until(
+    'the message is read',
+    () => proj.events().some(e => e.type === 'whiteboard:read' && e.data.ids.includes(sent.id)) || null,
+  )
+  assert.deepEqual(errors, [], 'no console errors')
+})
+
 test(
   'the header lists what waits on other pages, and its link goes to the first waiting form',
   { timeout: 60000 },

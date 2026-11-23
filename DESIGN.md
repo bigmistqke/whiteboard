@@ -560,7 +560,9 @@ Which agent events are messages for the reader is stated the same way:
 `forReader: true` (of the built-ins, `comments:reply` and `chat:message`).
 One from the agent waits for the reader until read. The page marks the
 element showing a message with `data-wb-message="<event id>"`; once it has
-been mostly in view while the tab is visible, the core appends a
+been mostly in view while the tab is visible (most of it on screen, or, for
+a message taller than the window, filling most of the window), the core
+appends a
 `whiteboard:read` event naming it (several at once, a moment later).
 Reading is in the log, not the browser, so it holds in every browser, the
 server counts unread messages on every page (the header, the overview),
