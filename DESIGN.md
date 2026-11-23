@@ -165,9 +165,11 @@ config only says what the server serves, and so what boxes it may be given
   (see Listeners), with `project` (the folder) and the page's `url` added, so
   the agent knows where to answer; picking up is recorded in that project's
   log. The shared server holds it as one listener per entry
-  (`/api/listen?entry=`), on every project of the entry, also ones that
-  appear later, so their pages say an agent listens; a second, or one while a
-  project has a fallback of its own (an older whiteboard's), is refused. It was
+  (`/api/listen?entry=`), through the registry of every project of the entry,
+  also ones that appear later, so their pages say an agent listens; a second,
+  or one while a project has a fallback of its own, is refused. Its stream is
+  told each project of the entry with who listens there, also when projects
+  come or go, so the command follows them without asking. It was
   first a flag (`--entry`), to keep what a page-less wait means; but agents
   wait with `--page` on their own pages, and the one that doesn't is the one
   overseeing them all.
@@ -624,6 +626,20 @@ per project: the server refuses a second (`409`), which exits 1. Without
 this, a page-less listener competed with every page's own agent and was
 rarely what anyone meant. Reading the log never depends on the
 connection, so no answer is missed while the server is away.
+
+A server keeps its listeners in a registry (`src/listeners.ts`): it holds
+them, refuses a second fallback, and says when they change. A fallback's
+own listen stream is told who listens (`event: listeners`: each project it
+covers, with its listeners), at once and on every change; the command side
+(`src/listen.ts`) leaves to them what they would take, and takes the rest
+as it comes. A project's fallback and an entry's run the same loop: a
+project's server names its one project. For the list to be right when an
+answer arrives, a `wait` or `watch` on a page registers before it reads the
+log (when a server runs; without one it reads at once, and registers when
+one appears). So the fallback needs no delay before it takes an answer: it
+once held each answer half a second, for a list that lagged behind a wait
+that had just started; the list no longer lags, and a starting wait is
+known before it takes anything.
 
 ### Pointing at a place
 
