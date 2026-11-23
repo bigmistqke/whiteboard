@@ -68,6 +68,8 @@ test('a slow send shows at once as sending, then sent; one that fails is taken b
   assert.equal((await form()).state, 'sending')
   await until('failed', async () => (await form()).state === 'failed' || null, 20000)
   assert.equal((await form()).pending, true, 'back to the answer the server has')
+  // and it says so, over the line of the answer the server has
+  assert.equal((await form()).label, '"couldn\'t send it: try again"')
   assert.doesNotMatch(log(), /Apples/)
   assert.equal(await page.isChecked('input[value=Apples]'), true, 'what was chosen stays, to send again')
 })

@@ -762,7 +762,8 @@ form.wb-form[data-wb-open] {
   border-top-color: transparent;
   border-bottom-color: transparent;
 }
-form[data-wb-pending]:not([data-wb-state='sending'])::before {
+/* not while sending; :where keeps it as weak as before, so "couldn't send it" still wins */
+form[data-wb-pending]:where(:not([data-wb-state='sending']))::before {
   content: 'sent · waiting for the agent to pick it up';
   display: block;
   margin-bottom: var(--space-md);
