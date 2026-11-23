@@ -157,8 +157,9 @@ function restoreLast(prefill: boolean) {
 const inFlight = new WeakMap<HTMLFormElement, string>()
 
 // The button that sent it says how that goes, in its own text and colour (`data-wb-send` on it):
-// "Sending…" (grey) while on its way, "✓ Sent" (green) a moment once the server has it, "Couldn't
-// send" (red) when no try got through; then its own label again. It keeps its width meanwhile.
+// "Sending…" (grey) while on its way, "✓ Sent" (green) a moment once the server has it, then its own
+// label again; "Try again" (red) when no try got through, until it is pressed. It keeps its width
+// meanwhile.
 type Send = 'sending' | 'sent' | 'failed'
 /** A button's own label, while it says how a send goes. */
 const labelOf = (button: HTMLButtonElement) => {
@@ -166,7 +167,7 @@ const labelOf = (button: HTMLButtonElement) => {
   el.innerHTML = labels.get(button)!.html
   return el.textContent?.trim() ?? ''
 }
-const SEND_TEXT: Record<Send, string> = { sending: 'Sending…', sent: '✓ Sent', failed: "Couldn't send" }
+const SEND_TEXT: Record<Send, string> = { sending: 'Sending…', sent: '✓ Sent', failed: 'Try again' }
 const labels = new WeakMap<HTMLButtonElement, { html: string; timer?: ReturnType<typeof setTimeout> }>()
 
 function sendState(button: HTMLButtonElement | null, state: Send | null) {
@@ -188,8 +189,8 @@ function sendState(button: HTMLButtonElement | null, state: Send | null) {
   }
   button.dataset.wbSend = state
   button.textContent = SEND_TEXT[state]
-  // confirmed or not: said for a moment, then the button is itself again
-  if (state !== 'sending') saved.timer = setTimeout(() => sendState(button, null), state === 'sent' ? 2000 : 4000)
+  // confirmed: said for a moment, then the button is itself again
+  if (state === 'sent') saved.timer = setTimeout(() => sendState(button, null), 2000)
 }
 
 // Optimistic: the answer is the form's at once (api.append puts it in the events, so the form is
@@ -214,6 +215,7 @@ async function onSubmit(e: SubmitEvent) {
   form.dataset.wbSent = action ?? ''
   form.removeAttribute('data-wb-just-sent')
   sendState(button, 'sending')
+  showStatus(form)
   try {
     await api.append(form.getAttribute('name')!, data, action)
     if (inFlight.get(form) !== sent) return // a newer answer took its place
@@ -226,14 +228,19 @@ async function onSubmit(e: SubmitEvent) {
     clearTimeout(justSent.get(form))
     justSent.set(
       form,
-      setTimeout(() => form.removeAttribute('data-wb-just-sent'), 3000),
+      setTimeout(() => {
+        form.removeAttribute('data-wb-just-sent')
+        showStatus(form)
+      }, 3000),
     )
+    showStatus(form)
   } catch (err) {
     if (inFlight.get(form) !== sent) return
     form.dataset.wbState = 'failed'
     sendState(button, 'failed')
     if (before == null) delete form.dataset.wbSent
     else form.dataset.wbSent = before
+    showStatus(form)
     console.error(err)
   } finally {
     if (inFlight.get(form) === sent) inFlight.delete(form)
@@ -241,6 +248,33 @@ async function onSubmit(e: SubmitEvent) {
 }
 
 // ---- where each form stands --------------------------------------------------------------------
+
+// What a sent answer came to, said beside the form's last send button, where the eye is when it is
+// pressed (a line over the form was out of view below a long list of options): `.wb-form-status`,
+// "waiting for the agent to pick it up", or `data-kind="bad"` "couldn't send it". Never what the
+// button says already (sendState): nothing while sending, no "sent".
+const sendButtons = (form: HTMLFormElement) =>
+  [...form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input[type=submit]')].filter(
+    b => (b instanceof HTMLInputElement || (b.type !== 'button' && b.type !== 'reset')) && b.form === form,
+  )
+
+function showStatus(form: HTMLFormElement) {
+  const text =
+    form.dataset.wbState === 'failed'
+      ? (["couldn't send it", 'bad'] as const)
+      : form.dataset.wbState === 'sending' || !form.hasAttribute('data-wb-pending')
+        ? null
+        : (['waiting for the agent to pick it up', null] as const)
+  let el = form.querySelector<HTMLElement>('.wb-form-status')
+  const last = sendButtons(form).at(-1)
+  if (!text || !last) return void el?.remove()
+  if (!el) el = Object.assign(document.createElement('span'), { className: 'wb-form-status' })
+  el.setAttribute('role', 'status')
+  if (el.previousElementSibling !== last) last.after(el)
+  el.textContent = text[0]
+  if (text[1]) el.dataset.kind = text[1]
+  else delete el.dataset.kind
+}
 
 const ATTR: Record<FormState, string> = { open: 'data-wb-open', pending: 'data-wb-pending', decided: 'data-wb-decided' }
 
@@ -287,6 +321,7 @@ function mark() {
     for (const st of STATES) form.toggleAttribute(ATTR[st], st === state)
     if (state === 'decided') form.dataset.wbOutcome = outcome(last!.data, last!.action)
     else delete form.dataset.wbOutcome
+    showStatus(form)
     return { form, name, state, last }
   })
   forms_.notify()

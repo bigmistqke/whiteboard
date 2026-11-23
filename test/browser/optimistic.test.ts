@@ -37,11 +37,14 @@ test('a slow send shows at once as sending, then sent; one that fails is taken b
       state: f.getAttribute('data-wb-state'),
       pending: f.hasAttribute('data-wb-pending'),
       open: f.hasAttribute('data-wb-open'),
-      label: getComputedStyle(f, '::before').content,
+      // what it came to, beside the send button
+      label: f.querySelector('.wb-form-status')?.textContent ?? null,
+      beside: f.querySelector('.wb-form-status')?.previousElementSibling === f.querySelector('button'),
       // the button it was sent with: what it says, and its colour
       button: f.querySelector('button')!.textContent,
       send: f.querySelector('button')!.getAttribute('data-wb-send'),
       fill: getComputedStyle(f.querySelector('button')!).backgroundColor,
+      outline: getComputedStyle(f).outlineStyle === 'none' ? null : getComputedStyle(f).outlineColor,
     }))
   const color = (name: string) =>
     page.evaluate(name => {
@@ -72,13 +75,18 @@ test('a slow send shows at once as sending, then sent; one that fails is taken b
   assert.equal(now.button, 'Sending…')
   assert.equal(now.send, 'sending')
   await until('grey', async () => (await form()).fill === (await color('--wb-sending')) || null)
-  assert.equal(now.label, 'none')
+  assert.equal(now.label, null, 'nothing beside it while the button says it')
+  // its outline grey, as its button
+  await until('a grey outline', async () => (await form()).outline === (await color('--wb-sending')) || null)
   assert.doesNotMatch(log(), /Pears/, 'the server has nothing yet')
   release()
   await until('confirmed', async () => (await form()).state === 'sent' || null)
   assert.equal((await form()).button, '✓ Sent')
   await until('green', async () => (await form()).fill === (await color('--ok')) || null)
-  assert.match((await form()).label, /✓ sent/)
+  assert.equal((await form()).label, 'waiting for the agent to pick it up', 'not "sent" again')
+  assert.equal((await form()).beside, true, 'beside the send button, where the eye is')
+  // confirmed, waiting for the agent to pick it up: still grey
+  assert.equal((await form()).outline, await color('--wb-sending'), 'pending: a grey outline')
   // then the button is itself again
   await until('its own label', async () => ((await form()).button === 'Send' && !(await form()).send) || null)
   assert.equal(log().match(/Pears/g)?.length, 1, 'appended once')
@@ -90,11 +98,12 @@ test('a slow send shows at once as sending, then sent; one that fails is taken b
   await page.click('form[name=pick] button')
   assert.equal((await form()).state, 'sending')
   await until('failed', async () => (await form()).state === 'failed' || null, 20000)
-  assert.equal((await form()).button, "Couldn't send")
+  assert.equal((await form()).button, 'Try again')
   assert.equal((await form()).send, 'failed')
   assert.equal((await form()).pending, true, 'back to the answer the server has')
   // and it says so, over the line of the answer the server has
-  assert.equal((await form()).label, '"couldn\'t send it: try again"')
+  assert.equal((await form()).label, "couldn't send it")
+  await until('a red outline', async () => (await form()).outline === (await color('--bad')) || null)
   assert.doesNotMatch(log(), /Apples/)
   assert.equal(await page.isChecked('input[value=Apples]'), true, 'what was chosen stays, to send again')
 
