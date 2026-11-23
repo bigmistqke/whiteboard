@@ -23,6 +23,10 @@
   align-self: flex-end;
   align-items: flex-end;
 }
+/* shown at once, not yet confirmed by the server */
+.wb-chat-message[data-sending] .wb-chat-bubble {
+  opacity: 0.6;
+}
 .wb-chat-who {
   font: var(--weight-strong) var(--ui-tiny)/1.3 var(--sans);
   letter-spacing: var(--caps-spacing);

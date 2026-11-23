@@ -230,8 +230,14 @@ function renderPopover() {
   const message = (e: WbEvent) => {
     const text = String(e.data.text ?? '')
     const md = rendered.get(text)
-    return html`<div class="wb-thread-message" data-from="${who(e)}" data-wb-message="${e.id}">
-      <span class="wb-thread-who">${who(e)}</span>
+    // shown at once, not yet confirmed by the server
+    return html`<div
+      class="wb-thread-message"
+      data-from="${who(e)}"
+      data-wb-message="${e.id}"
+      ${e.sending ? raw(' data-sending') : ''}
+    >
+      <span class="wb-thread-who">${who(e)}${e.sending ? ' · sending…' : ''}</span>
       <div class="wb-thread-text" ${md != null ? raw(' data-md') : ''}>${md != null ? raw(md) : text}</div>
     </div>`
   }
@@ -519,13 +525,30 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     e.preventDefault()
     const text = composer.querySelector('textarea')!.value.trim()
     if (!text || !pending) return
-    const saved = await api.append(NEW, { ...pending, text })
+    // optimistic: the thread is on the page at once (append puts the comment in the events), open
+    const where = pending
+    const sent = api.append(NEW, { ...where, text })
+    const shown = api.events().findLast(e => e.type === NEW && e.sending && e.data.text === text)
     composer.querySelector('textarea')!.value = ''
     composer.hidden = true
     pending = null
     getSelection()?.removeAllRanges()
     refreshComments()
-    openPopover(saved.id)
+    if (shown) openPopover(shown.id)
+    try {
+      await sent
+    } catch (err) {
+      console.error('comments:', err)
+      // it never got there: the composer again, with the passage and the text
+      if (!composer.hidden) return
+      pending = where
+      composer.querySelector('textarea')!.value = text
+      composer.hidden = false
+      api.toast("Couldn't send the comment: it's back in the box to try again.", {
+        kind: 'warn',
+        name: 'comment-failed',
+      })
+    }
   })
   composer.querySelector('[data-cancel]')!.addEventListener('click', () => {
     composer.hidden = true
@@ -541,9 +564,19 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     const box = popover.querySelector('textarea')!
     const text = box.value.trim()
     if (!text || !openThread) return
-    await api.append(REPLY, { replyTo: openThread, text })
+    // optimistic: the reply is in the thread at once, marked sending, and the box is free
+    const thread = openThread
     box.value = ''
+    const sent = api.append(REPLY, { replyTo: thread, text })
     refreshComments()
+    try {
+      await sent
+    } catch (err) {
+      console.error('comments:', err)
+      const again = popover.querySelector('textarea')
+      if (openThread === thread && again && !again.value.trim()) again.value = text
+      api.toast("Couldn't send the reply: it's back in the box to try again.", { kind: 'warn', name: 'comment-failed' })
+    }
   })
   popover.addEventListener('click', async e => {
     if (!(e.target as HTMLElement).closest('[data-close]') || !openThread) return
@@ -551,8 +584,13 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     closePopover()
     // closed, the thread's replies ask nothing of the reader any more
     api.markRead(threads.find(t => t.id === id)?.replies.map(r => r.id) ?? [])
-    await api.append(RESOLVE, { replyTo: id })
+    // optimistic: the thread leaves the page at once; should that not get through, it comes back
+    const sent = api.append(RESOLVE, { replyTo: id })
     refreshComments()
+    sent.catch(err => {
+      console.error('comments:', err)
+      api.toast("Couldn't close the thread: it's open again.", { kind: 'warn', name: 'comment-failed' })
+    })
   })
   // the page goes to an unread reply here: open its thread
   layer.addEventListener('wb-reveal', e => {

@@ -22,7 +22,7 @@ import { parse as parseYaml } from 'yaml'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
-import { appendEvent, readEvents, matches, pickedUp, fromReader, forAgent, CLAIM } from './events.ts'
+import { appendEvent, isEventId, readEvents, matches, pickedUp, fromReader, forAgent, CLAIM } from './events.ts'
 import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
@@ -42,6 +42,7 @@ import type {
   StoredPage,
   PagesSource,
   BuildConfig,
+  WbEvent,
 } from './define.ts'
 
 const ENGINE_DIR = PACKAGE_DIR
@@ -650,6 +651,8 @@ export function createServer(
   }
 
   const clients = new Set<WatchClient>()
+  /** what the browser appended lately, by id: a send it retries is answered with what it got */
+  const appended = new Map<string, WbEvent>()
   function notify(client: WatchClient, kind: string) {
     client.pending ??= new Set()
     if (client.pending.size === 0)
@@ -860,7 +863,13 @@ export function createServer(
       if (p === '/api/events' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req))
         if (!body.type) return sendJson(res, 400, { error: 'event type required' })
-        return sendJson(res, 200, appendEvent(project.eventsFile, body))
+        // the browser sends it again when it heard nothing back: appended once, the same answer twice
+        const again = isEventId(body.id) ? appended.get(body.id) : undefined
+        if (again) return sendJson(res, 200, again)
+        const event = appendEvent(project.eventsFile, body)
+        appended.set(event.id, event)
+        if (appended.size > 1000) appended.delete(appended.keys().next().value!)
+        return sendJson(res, 200, event)
       }
       // an agent shows the reader a place on a page: every tab with it open scrolls there
       // ({ page, to }: a heading's text, a form's name or any text) → { tabs }

@@ -696,13 +696,20 @@ form.wb-form[data-wb-folded] {
   gap: 0;
 }
 /* named forms: the core marks where each stands (data-wb-open, -pending, -decided); this is how that looks */
-form[data-wb-state='sending'] {
-  opacity: 0.7;
+/* sending: the answer is the form's already (optimistic), but the server hasn't confirmed it. The
+   form stays usable: the same answer isn't sent twice (forms.ts), another one takes its place */
+@keyframes wb-sending {
+  50% {
+    opacity: 0.45;
+  }
 }
-/* sending: the form's buttons can't send twice */
-form[data-wb-state='sending'] button {
-  pointer-events: none;
-  cursor: progress;
+form[data-wb-state='sending']::before {
+  content: 'sending…';
+  display: block;
+  margin-bottom: var(--space-md);
+  color: var(--muted);
+  font: var(--ui-tiny)/var(--ui-line-height) var(--sans);
+  animation: wb-sending 1.2s ease-in-out infinite;
 }
 /* just sent: a short green flash, and a line saying what happened, for a few seconds */
 @keyframes wb-sent {
@@ -723,7 +730,14 @@ form.wb-form[data-wb-state='failed']::before {
   color: var(--bad);
   font: var(--weight-strong) var(--ui-tiny)/var(--ui-line-height) var(--sans);
 }
-form[data-wb-sent]:not(.wb-form)::after {
+form[data-wb-state='sending']:not(.wb-form)::after {
+  content: 'sending ' attr(data-wb-sent) '…';
+  display: block;
+  margin-top: var(--space-sm);
+  color: var(--muted);
+  font: var(--ui-small) var(--sans);
+}
+form[data-wb-sent]:not(.wb-form):not([data-wb-state='sending'])::after {
   content: '✓ sent ' attr(data-wb-sent);
   display: block;
   margin-top: var(--space-sm);
@@ -748,7 +762,7 @@ form.wb-form[data-wb-open] {
   border-top-color: transparent;
   border-bottom-color: transparent;
 }
-form[data-wb-pending]::before {
+form[data-wb-pending]:not([data-wb-state='sending'])::before {
   content: 'sent · waiting for the agent to pick it up';
   display: block;
   margin-bottom: var(--space-md);
@@ -1249,4 +1263,9 @@ main:has(+ .wb-orphans:not([hidden])) {
 }
 :root[data-wb-window-maximized] {
   overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  form[data-wb-state='sending']::before {
+    animation: none;
+  }
 }

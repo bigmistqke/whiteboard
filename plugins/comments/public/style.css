@@ -183,3 +183,7 @@
   font: var(--ui-small) var(--mono, monospace);
   color: var(--muted, #696e76);
 }
+/* shown at once, not yet confirmed by the server */
+.wb-thread-message[data-sending] .wb-thread-text {
+  opacity: 0.6;
+}

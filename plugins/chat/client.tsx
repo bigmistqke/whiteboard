@@ -14,6 +14,8 @@ interface Message {
   id: string
   from: 'you' | 'agent'
   text: string
+  /** shown at once, but the server hasn't confirmed it yet */
+  sending?: boolean
 }
 
 /**
@@ -49,7 +51,12 @@ function Chat(props: ChatProps) {
         props.form && e.data.replyTo ? events.find(x => x.id === e.data.replyTo && x.type === props.form) : undefined
       const asked = to ? written(to, props.choices) : ''
       if (to && asked && !out.some(m => m.id === to.id)) out.push({ id: to.id, from: 'you', text: asked })
-      out.push({ id: e.id, from: e.from === 'cli' ? 'agent' : 'you', text: String(e.data.text ?? '') })
+      out.push({
+        id: e.id,
+        from: e.from === 'cli' ? 'agent' : 'you',
+        text: String(e.data.text ?? ''),
+        sending: !!e.sending,
+      })
     }
     return out
   })
@@ -57,10 +64,21 @@ function Chat(props: ChatProps) {
   const post = async () => {
     const text = box?.value.trim()
     if (!text) return
-    await wb.append(MESSAGE, { chat: props.chat, text })
-    box!.value = ''
-    // measure again: a value set from code fires no input event
-    box!.dispatchEvent(new Event('input'))
+    // optimistic: the message is in the chat at once, marked sending, and the box is free
+    const write = (value: string) => {
+      box!.value = value
+      // measure again: a value set from code fires no input event
+      box!.dispatchEvent(new Event('input'))
+    }
+    write('')
+    try {
+      await wb.append(MESSAGE, { chat: props.chat, text })
+    } catch (err) {
+      console.error(err)
+      // it never got there: back into the box, unless something else was written meanwhile
+      if (!box!.value.trim()) write(text)
+      wb.toast("Couldn't send the message: it's back in the box to try again.", { kind: 'warn', name: 'chat-failed' })
+    }
   }
   return (
     // a div, not a form: forms don't nest, and the box has no name, so it is never part of an answer
@@ -69,8 +87,13 @@ function Chat(props: ChatProps) {
         {m => (
           // the reader's messages on the right, the agent's on the left
           // the agent's: read once in view (the core marks it, see EventSpec.forReader)
-          <div class="wb-chat-message" data-from={m.from} data-wb-message={m.from === 'agent' ? m.id : undefined}>
-            <span class="wb-chat-who">{m.from}</span>
+          <div
+            class="wb-chat-message"
+            data-from={m.from}
+            data-sending={m.sending ? '' : undefined}
+            data-wb-message={m.from === 'agent' ? m.id : undefined}
+          >
+            <span class="wb-chat-who">{m.sending ? `${m.from} · sending…` : m.from}</span>
             <Bubble text={m.text} />
           </div>
         )}

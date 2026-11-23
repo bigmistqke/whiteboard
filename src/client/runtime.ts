@@ -55,9 +55,29 @@ function setEvents(next: WbEvent[]) {
 async function loadEvents() {
   if (!live) return
   const res = await fetch(url(`/api/events?page=${encodeURIComponent(page)}`))
-  const all: WbEvent[] = await res.json()
-  setEvents(all.filter(e => e.page === page))
+  const all: WbEvent[] = (await res.json()).filter((e: WbEvent) => e.page === page)
+  // what is still on its way stays: the log doesn't have it yet
+  const known = new Set(all.map(e => e.id))
+  for (const [id, e] of sending) if (known.has(id)) sending.delete(id)
+  setEvents([...all, ...[...sending.values()]])
 }
+
+// Appending is optimistic: the event is in the page's events at once, marked `sending`, so the page
+// shows it without waiting; the server's copy replaces it once it is in the log. Its id is made
+// here and the server keeps it, so a send that heard nothing back can be sent again without
+// appending it twice: it is retried, and only when none goes through is it taken out again and the
+// append fails.
+
+/** How long one send may take before it is tried again, in ms; and how many tries in all. */
+const SEND_TIMEOUT = 8_000
+const TRIES = 4
+
+/** Events appended here that the server hasn't confirmed: kept in the events when they are loaded. */
+const sending = new Map<string, WbEvent>()
+
+/** An id as the server makes them (isEventId): the time in base 36, a dash, random hex. */
+const newId = () =>
+  `${Date.now().toString(36)}-${[...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join('')}`
 
 async function append(
   type: string,
@@ -65,16 +85,46 @@ async function append(
   action: string | null = null,
 ): Promise<WbEvent> {
   if (!live) throw new Error('a built page is a file: there is no log to append to')
-  const res = await fetch(url('/api/events'), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ page, type, action, data }),
-  })
-  if (!res.ok) throw new Error(await res.text())
-  const saved: WbEvent = await res.json()
-  if (!events.some(e => e.id === saved.id)) setEvents([...events, saved])
-  return saved
+  const id = newId()
+  const shown: WbEvent = { id, ts: new Date().toISOString(), page, type, action, data, sending: true }
+  sending.set(id, shown)
+  setEvents([...events, shown])
+  const body = JSON.stringify({ id, page, type, action, data })
+  let failure: unknown
+  for (let attempt = 0; attempt < TRIES; attempt++) {
+    if (attempt) await new Promise(r => setTimeout(r, 500 * 2 ** attempt))
+    try {
+      const res = await fetch(url('/api/events'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+        // never left hanging: a browser holds a request while it has no connection to send it on
+        signal: AbortSignal.timeout(SEND_TIMEOUT),
+      })
+      // refused: sending it again changes nothing
+      if (res.status >= 400 && res.status < 500) {
+        failure = new Error(await res.text())
+        break
+      }
+      if (!res.ok) throw new Error(await res.text())
+      const saved: WbEvent = await res.json()
+      sending.delete(id)
+      // the server's copy in its place (a load may have brought it already)
+      setEvents([...events.filter(e => e.id !== id && e.id !== saved.id), saved].toSorted(byTime))
+      return saved
+    } catch (err) {
+      failure = err
+    }
+  }
+  // the log has it already (a load brought it), though no answer to a send came back
+  const arrived = !sending.has(id) && events.find(e => e.id === id && !e.sending)
+  if (arrived) return arrived
+  sending.delete(id)
+  setEvents(events.filter(e => e.id !== id))
+  throw failure
 }
+
+const byTime = (a: WbEvent, b: WbEvent) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0)
 
 let listeners: Listener[] = []
 const listenersValue = reactive(() => listeners)

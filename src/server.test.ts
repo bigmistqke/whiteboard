@@ -107,6 +107,21 @@ test('a folder of pages is served with its slash', async () => {
   assert.equal(res.headers.get('location'), '/notes/')
 })
 
+test("the browser's id is kept, and the same send again is appended once", async () => {
+  const send = (id: string) =>
+    fetch(`${base}/api/events`, {
+      method: 'POST',
+      body: JSON.stringify({ id, page: 'retry', type: 'note', data: { n: 1 } }),
+    }).then(r => r.json())
+  const first = await send('m0abc12-0123456789ab')
+  assert.equal(first.id, 'm0abc12-0123456789ab')
+  assert.deepEqual(await send('m0abc12-0123456789ab'), first, 'a retry gets what the first send got')
+  const listed = await (await fetch(`${base}/api/events?page=retry`)).json()
+  assert.equal(listed.length, 1)
+  // an id not of the log's form is not taken: the server makes one
+  assert.notEqual((await send('../x')).id, '../x')
+})
+
 test('events go into the log and come back filtered, picked ones marked', async () => {
   const posted = await (
     await fetch(`${base}/api/events`, {

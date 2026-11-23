@@ -703,6 +703,12 @@ events, for a tab opened before: it tells it to reload, onto the WebSocket.
 The config, `.whiteboard/` and the folders of served files are watched; any
 other change in them loads the config afresh and re-renders open pages.
 
+Appending from the browser is optimistic: the event is in the page's events
+at once, marked `sending` (shown as on its way, not as done), with an id the
+browser made. The server keeps that id and answers a repeat of it with what it
+appended, so a send that heard nothing back is retried without appending it
+twice; only when no try gets through does the event leave the page again.
+
 ## Pages (`src/pages/`, `src/client/page/`)
 
 How the core shows a page. On the server, the markdown engine

@@ -30,6 +30,8 @@ export interface Whiteboard {
   unread(): WbEvent[]
   /** a message's markdown as HTML, rendered by the server (see Api.markdown) */
   markdown: ClientApi['markdown']
+  /** a short note in the page's corner (see Api.toast) */
+  toast: ClientApi['toast']
 }
 
 const WhiteboardContext = createContext<Whiteboard>()
@@ -64,6 +66,7 @@ export function solid<Props extends object>(Component: Component<Props>): Mount<
         forms,
         unread,
         markdown: api.markdown,
+        toast: api.toast,
       }
       return (
         <WhiteboardContext value={value}>

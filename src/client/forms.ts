@@ -4,7 +4,8 @@
 // every page.
 //
 // What the core does with such a form, without drawing anything:
-// - sends a submit as an event, and says how that went: `data-wb-state` is sending, sent or failed;
+// - sends a submit as an event, shown at once (optimistic), and says how that went: `data-wb-state`
+//   is sending (shown, not yet confirmed), sent or failed (taken back);
 // - keeps what the reader typed until it is sent (localStorage, per page and form), across
 //   re-renders and reloads;
 // - puts the last answer back into the form, and its button in `data-wb-sent`;
@@ -152,18 +153,32 @@ function restoreLast(prefill: boolean) {
   }
 }
 
+/** What each form is sending now, as sent: the same answer again is not sent twice. */
+const inFlight = new WeakMap<HTMLFormElement, string>()
+
+// Optimistic: the answer is the form's at once (api.append puts it in the events, so the form is
+// marked pending), with `data-wb-state="sending"` saying it is still on its way; `sent` once the
+// server has it, with the short `data-wb-just-sent` to confirm it. Should it not get through, the
+// answer leaves the form again: `failed`, the button the form had before, the draft kept.
 async function onSubmit(e: SubmitEvent) {
   const form = e.target as HTMLFormElement
   if (!managed(form) || !root.contains(form)) return
   e.preventDefault()
   const button = e.submitter as HTMLButtonElement | null
   const action = button ? button.value || button.textContent?.trim() || null : null
+  const data = readForm(form)
+  const sent = JSON.stringify([action, data])
+  if (inFlight.get(form) === sent) return
+  inFlight.set(form, sent)
+  const before = form.dataset.wbSent
   form.dataset.wbState = 'sending'
+  form.dataset.wbSent = action ?? ''
+  form.removeAttribute('data-wb-just-sent')
   try {
-    await api.append(form.getAttribute('name')!, readForm(form), action)
+    await api.append(form.getAttribute('name')!, data, action)
+    if (inFlight.get(form) !== sent) return // a newer answer took its place
     dropDraft(form)
     form.dataset.wbState = 'sent'
-    form.dataset.wbSent = action ?? ''
     // for the page to confirm the send: set for a few seconds after it, also once the form
     // folds because an agent picked the answer up at once
     form.toggleAttribute('data-wb-just-sent', true)
@@ -173,8 +188,13 @@ async function onSubmit(e: SubmitEvent) {
       setTimeout(() => form.removeAttribute('data-wb-just-sent'), 3000),
     )
   } catch (err) {
+    if (inFlight.get(form) !== sent) return
     form.dataset.wbState = 'failed'
+    if (before == null) delete form.dataset.wbSent
+    else form.dataset.wbSent = before
     console.error(err)
+  } finally {
+    if (inFlight.get(form) === sent) inFlight.delete(form)
   }
 }
 

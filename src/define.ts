@@ -479,6 +479,11 @@ export interface WbEvent {
   from?: 'cli'
   /** in the browser: an agent has picked this event up (`whiteboard wait` or `watch` handed it out) */
   pickedUp?: true
+  /**
+   * in the browser: appended here and shown at once, but the server hasn't confirmed it yet. Show
+   * it as on its way ("sending…"), not as done. Should it fail, it leaves the events again.
+   */
+  sending?: true
 }
 
 /**

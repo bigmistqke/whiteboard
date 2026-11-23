@@ -15,6 +15,8 @@ export { fromReader }
 
 /** What is appended: the id and time are added. */
 export interface EventInput {
+  /** the id the browser gave it, so a send it retries is appended once (see isEventId); else a new one */
+  id?: unknown
   page?: unknown
   type?: unknown
   action?: string | null
@@ -37,6 +39,10 @@ export const CLAIM = 'whiteboard:claim'
 
 // ---- primitives ----------------------------------------------------------------------------------
 
+/** An event id as the log has them: the time in base 36, a dash, random hex. */
+export const isEventId = (id: unknown): id is string =>
+  typeof id === 'string' && /^[0-9a-z]{6,12}-[0-9a-f]{6,32}$/.test(id)
+
 /**
  * Append one event; `action` is the button that submitted a form, null for anything else. `from`
  * is set only for events the command line writes ('cli'), so that waits skip them and pages can
@@ -44,7 +50,7 @@ export const CLAIM = 'whiteboard:claim'
  */
 export function appendEvent(file: string, input: EventInput, from: 'cli' | null = null): WbEvent {
   const event: WbEvent = {
-    id: `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+    id: isEventId(input.id) ? input.id : `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
     ts: new Date().toISOString(),
     page: String(input.page ?? ''),
     type: String(input.type ?? ''),
