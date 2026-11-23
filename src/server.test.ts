@@ -158,6 +158,37 @@ test('status: an unanswered question is open whoever listens; unheard says wheth
   watch.stop()
 })
 
+test("a fallback's listen stream is told who listens, at once and on every change; a second is refused", async () => {
+  const controller = new AbortController()
+  const told: { projects: { dir: string; base: string; listeners: { page: string; fallback?: boolean }[] }[] }[] = []
+  void fetch(`${base}/api/listen?fallback&command=watch`, { signal: controller.signal })
+    .then(async res => {
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) return
+        buf += decoder.decode(value)
+        for (const m of buf.matchAll(/^event: listeners\ndata: (.*)$/gm)) told.push(JSON.parse(m[1]!))
+        buf = buf.slice(buf.lastIndexOf('\n\n') + 2)
+      }
+    })
+    .catch(() => {})
+  await until('told at once', () => told.length > 0)
+  assert.equal(told[0]!.projects[0]!.dir, dir)
+  assert.deepEqual(
+    told[0]!.projects[0]!.listeners.map(l => !!l.fallback),
+    [true],
+  )
+  assert.equal((await fetch(`${base}/api/listen?fallback&command=watch`)).status, 409)
+  const wait = stream(`${base}/api/listen?page=q&command=wait`)
+  await until('told of the wait', () => told.at(-1)!.projects[0]!.listeners.some(l => l.page === 'q'))
+  wait.stop()
+  await until('told it is gone', () => !told.at(-1)!.projects[0]!.listeners.some(l => l.page === 'q'))
+  controller.abort()
+})
+
 test('a changed page file tells the open page', async () => {
   const watch = live(`${base}/api/live?page=q`)
   await new Promise(r => setTimeout(r, 100))

@@ -125,7 +125,12 @@ export function createHub({
         onChange: () => changed(p.base),
       })
       const fallback = fallbacks.get(p.entry)
-      served.set(key, { ...p, project, server, ...(fallback && { fallback: server.addListener(fallback) }) })
+      served.set(key, {
+        ...p,
+        project,
+        server,
+        ...(fallback && { fallback: server.addListener(fallback) ?? undefined }),
+      })
       console.log(`whiteboard: ${p.base} → ${p.dir}`)
     }
   }
@@ -338,7 +343,7 @@ export function createHub({
       fallback: true,
     }
     fallbacks.set(entry, l)
-    for (const s of projects) s.fallback = s.server.addListener(l)
+    for (const s of projects) s.fallback = s.server.addListener(l) ?? undefined
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
     res.write(': listening\n\n')
     const ping = setInterval(() => res.write(': ping\n\n'), 25000)

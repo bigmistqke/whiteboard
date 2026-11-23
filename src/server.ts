@@ -29,8 +29,9 @@ import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type Moun
 import { createAuth, sameSite } from './auth.ts'
 import { accept, refuse } from './ws.ts'
 import { FROM_SOURCE, PACKAGE_DIR, VERSION } from './package.ts'
-import { awaiting, covers, heard, questionState, unreadMessages } from './status.ts'
+import { awaiting, heard, questionState, unreadMessages } from './status.ts'
 import { titleOf } from './pages/render.ts'
+import { createRegistry, holdStream, listenerOf } from './listeners.ts'
 import { inPublic } from './public.ts'
 import type {
   Listener,
@@ -93,9 +94,11 @@ export interface WhiteboardServer {
   /**
    * Hold a listener that is not a connection to this server: the shared server's fallback for a
    * whole entry, which covers every page of each of its projects. Pages are told, as for any
-   * listener. @returns what removes it
+   * listener. @returns what removes it; null when refused (the project has a fallback already)
    */
-  addListener(l: Listener): () => void
+  addListener(l: Listener): (() => void) | null
+  /** call `fn` whenever a listener comes or goes; returns what stops it */
+  onListeners(fn: () => void): () => void
   /** who listens now: the running waits and watches, and a fallback held for it */
   listeners(): Listener[]
   /** the project's pages as its overview lists them, newest first, with what waits on each; whether it serves its files */
@@ -628,17 +631,10 @@ export function createServer(
   }
 
   // ---- listeners ---------------------------------------------------------------------------------
-  // An agent waiting for answers (`whiteboard wait` or `watch`) holds a connection to /api/listen for
-  // as long as it runs: that connection is the listener, gone when the command is. Pages show what an
+  // An agent waiting for answers holds a connection to /api/listen (listeners.ts). Pages show what an
   // agent is waiting for from these, so nothing depends on the agent marking it.
-
-  /** A listener as the server holds it. */
-  const listeners = new Set<Listener>()
-
-  const listenersFor = (page: string | null): Listener[] =>
-    [...listeners]
-      .filter(l => page == null || covers(l, page))
-      .map(({ page, type, command, fallback }) => ({ page, type, command, ...(fallback && { fallback }) }))
+  const registry = createRegistry()
+  const listenersFor = (page: string | null): Listener[] => registry.list(page)
 
   // ---- live changes ------------------------------------------------------------------------------
   // The browser listens on a WebSocket at /api/live, each message `{ event, data }`. `change`: its
@@ -672,10 +668,10 @@ export function createServer(
     for (const c of clients) notify(c, kind)
   }
   // who listens shows on this project's pages, and, under a shared server, on the others' (onChange)
-  const listenersChanged = () => {
+  registry.onChange(() => {
     notifyAll('listeners')
     onChange?.()
-  }
+  })
 
   function pageChanged(id: string) {
     onChange?.()
@@ -923,38 +919,19 @@ export function createServer(
       if (p === '/api/status') return sendJson(res, 200, await status(q.page || null))
       if (p === '/api/listeners') return sendJson(res, 200, listenersFor(q.page ?? null))
       if (p === '/api/listen') {
-        const fallback = 'fallback' in q
-        // one fallback per project: two would split what nobody else takes between them
-        if (fallback && [...listeners].some(l => l.fallback))
-          return sendJson(res, 409, { error: 'another agent is the fallback already' })
-        res.writeHead(200, {
-          'content-type': 'text/event-stream',
-          'cache-control': 'no-store',
-          connection: 'keep-alive',
+        const remove = registry.add(listenerOf(url.searchParams))
+        if (!remove) return sendJson(res, 409, { error: 'another agent is the fallback already' })
+        // a fallback is told who else listens, at once and on every change
+        const off = 'fallback' in q ? registry.onChange(() => tell()) : () => {}
+        const stream = holdStream(req, res, () => {
+          off()
+          remove()
+          streams.delete(stream.end)
         })
-        res.write(': listening\n\n')
-        const l: Listener = {
-          page: q.page || '',
-          type: q.type || null,
-          command: q.command === 'wait' ? 'wait' : 'watch',
-          ...(fallback && { fallback }),
-        }
-        listeners.add(l)
-        listenersChanged()
-        const ping = setInterval(() => res.write(': ping\n\n'), 25000)
-        const end = () => {
-          clearInterval(ping)
-          listeners.delete(l)
-          streams.delete(end)
-        }
-        streams.add(() => {
-          end()
-          res.end()
-        })
-        req.on('close', () => {
-          end()
-          listenersChanged()
-        })
+        const tell = () =>
+          stream.send('listeners', { projects: [{ dir: project.dir, base, listeners: registry.list() }] })
+        if ('fallback' in q) tell()
+        streams.add(stream.end)
         return
       }
       if (p === '/api/page' || p === '/api/render') {
@@ -1273,13 +1250,8 @@ export function createServer(
       for (const c of clients) if (c.isDir && !c.page) notify(c, 'change')
     },
     elsewhere: () => notifyAll('elsewhere'),
-    addListener(l) {
-      listeners.add(l)
-      listenersChanged()
-      return () => {
-        if (listeners.delete(l)) listenersChanged()
-      }
-    },
+    addListener: l => registry.add(l),
+    onListeners: fn => registry.onChange(fn),
     status: (page = null) => status(page),
     config,
     build,
