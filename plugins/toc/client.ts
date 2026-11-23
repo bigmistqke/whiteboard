@@ -14,6 +14,7 @@ const toggle = document.createElement('button')
 toggle.type = 'button'
 toggle.className = 'wb-toc-toggle'
 toggle.title = toggle.ariaLabel = 'Contents'
+toggle.setAttribute('aria-expanded', 'false')
 toggle.innerHTML =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>'
 
@@ -65,6 +66,13 @@ function place() {
 }
 
 let handle: PageHandle
+
+/** Opened from the header (or closed again): the panel shows, and the button says it is open. */
+function setOpen(open: boolean) {
+  panel.classList.toggle('wb-toc-open', open)
+  panel.hidden = !open
+  toggle.setAttribute('aria-expanded', String(open))
+}
 
 /** Does this page have it: what its settings say, and whether it is on everywhere. */
 function wanted() {
@@ -167,10 +175,7 @@ function go(i: number) {
   const h = headings[i]
   if (!h) return
   scrollTo({ top: Math.max(0, scrollY + h.getBoundingClientRect().top - navHeight() - 12), behavior: 'smooth' })
-  if (!fits()) {
-    panel.classList.remove('wb-toc-open')
-    panel.hidden = true
-  }
+  if (!fits()) setOpen(false)
 }
 
 const mount: PluginMount = (root, page, core) => {
@@ -186,11 +191,7 @@ const mount: PluginMount = (root, page, core) => {
     e.preventDefault()
     go(Number(a.dataset.index))
   })
-  toggle.addEventListener('click', () => {
-    const open = !panel.classList.contains('wb-toc-open')
-    panel.classList.toggle('wb-toc-open', open)
-    panel.hidden = !open
-  })
+  toggle.addEventListener('click', () => setOpen(!panel.classList.contains('wb-toc-open')))
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && panel.classList.contains('wb-toc-open')) toggle.click()
   })

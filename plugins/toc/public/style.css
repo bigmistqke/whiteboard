@@ -108,3 +108,9 @@
   color: var(--text, CanvasText);
   border-color: var(--muted, #696e76);
 }
+/* the panel is open from it */
+.wb-toc-toggle[aria-expanded='true'] {
+  color: var(--accent, #1d5bbf);
+  border-color: var(--accent, #1d5bbf);
+  background: color-mix(in srgb, var(--accent, #1d5bbf) var(--tint-faint), transparent);
+}

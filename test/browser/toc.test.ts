@@ -45,10 +45,14 @@ test(
       async () =>
         ((await page.locator('.wb-toc-toggle').isVisible()) && (await page.locator('.wb-toc').isHidden())) || null,
     )
+    const expanded = () => page.getAttribute('.wb-toc-toggle', 'aria-expanded')
+    assert.equal(await expanded(), 'false')
     await page.click('.wb-toc-toggle')
     assert.ok(await page.locator('.wb-toc').isVisible())
+    assert.equal(await expanded(), 'true', 'the button is active while the panel is open')
     await page.click('.wb-toc a >> text=The question')
     await until('there, and closed', async () => (await page.locator('.wb-toc').isHidden()) || null)
+    assert.equal(await expanded(), 'false')
     assert.deepEqual(errors, [])
   },
 )
