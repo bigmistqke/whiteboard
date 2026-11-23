@@ -44,6 +44,7 @@
 }
 .wb-chat-bubble {
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   white-space: pre-wrap;
   padding: var(--space-md) var(--space-xl);
@@ -51,8 +52,12 @@
   background: var(--tint);
   border: var(--hairline) solid var(--border);
 }
-/* rendered from markdown: its paragraphs and code carry the spacing */
+/* rendered from markdown: its paragraphs and code carry the spacing. A column of flex items, not
+   blocks: in a block layout WebKit places what follows a block that scrolls sideways as if its
+   scrollbar weren't there, and draws the scrollbar over it */
 .wb-chat-bubble[data-md] {
+  display: flex;
+  flex-direction: column;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -65,19 +70,18 @@
 .wb-chat-bubble[data-md] :is(p, ul, ol, pre, blockquote) {
   margin: 0 0 0.5em;
 }
-/* code wraps at the bubble's edge, as the text around it does: a long line would otherwise make the
-   bubble as wide (it fits its content), and the chat and the page with it; and a scrollbar under it
-   is drawn over the text below in WebKit (its height left out when the block first lays out) */
+/* code wraps at the bubble's edge, as the text around it does, a diff too; a fence that says {nowrap}
+   keeps its lines whole and scrolls sideways (code/style.css) */
 .wb-chat-bubble[data-md] pre {
   font-size: var(--ui-small);
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-sm);
+}
+.wb-chat-bubble[data-md] pre:not([data-wrap='false']) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* a diff too: the code plugin lays its rows out as wide as the longest line, to tint each row across
-   a block that scrolls; here the rows fill the block and wrap like the rest */
-.wb-chat-bubble[data-md] .shiki code:has(> .line[data-diff]) {
+.wb-chat-bubble[data-md] pre:not([data-wrap='false']) code:has(> .line[data-diff]) {
   width: auto;
   min-width: 0;
 }

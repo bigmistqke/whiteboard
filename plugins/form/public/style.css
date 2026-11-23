@@ -5,6 +5,8 @@
   border-top: var(--hairline) solid var(--border);
   border-bottom: var(--hairline) solid var(--border);
   display: grid;
+  /* one column, as wide as the form: wide content (a code block) scrolls inside it, not past it */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2xl);
 }
 .wb-form-pending {

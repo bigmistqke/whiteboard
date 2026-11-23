@@ -53,3 +53,50 @@ test("a diff in a chat message wraps at the bubble's edge, inside its form", { t
   assert.ok(sizes.chatPastForm <= 0, `the chat stays inside its form (${sizes.chatPastForm}px past it)`)
   assert.ok(sizes.overlap <= 0, `the text after the block starts below it (${sizes.overlap}px over it)`)
 })
+
+test(
+  'a fence says whether it wraps: {nowrap} in a chat scrolls inside its form, {wrap} on a page wraps',
+  { timeout: 60000 },
+  async t => {
+    const nowrap = MESSAGE.replace('````diff', '````diff {nowrap}')
+    const proj = await project({
+      pages: { c: PAGE, p: `# Page\n\n\`\`\`ts {wrap}\nconst x = ${JSON.stringify(long)}\n\`\`\`\n\nAfter.\n` },
+    })
+    const { browser: b, page } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    await page.setViewportSize({ width: 900, height: 900 })
+    proj.cli('append', '--page', 'c', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'q', text: nowrap }))
+    await page.goto(proj.url('c'))
+    await until('the message', () =>
+      page
+        .locator('.wb-chat-bubble pre')
+        .count()
+        .then(n => n > 0 || null),
+    )
+    const chat = await page.evaluate(() => {
+      const pre = document.querySelector<HTMLElement>('.wb-chat-bubble pre')!
+      return {
+        wrap: pre.dataset.wrap,
+        scrolls: pre.scrollWidth > pre.clientWidth,
+        chatPastForm: Math.round(
+          pre.closest('.wb-chat')!.getBoundingClientRect().right - pre.closest('form')!.getBoundingClientRect().right,
+        ),
+        overlap: Math.round(pre.getBoundingClientRect().bottom - pre.nextElementSibling!.getBoundingClientRect().top),
+      }
+    })
+    assert.equal(chat.wrap, 'false')
+    assert.ok(chat.scrolls, 'its lines whole: the block scrolls')
+    assert.ok(chat.chatPastForm <= 0, `inside its form (${chat.chatPastForm}px past it)`)
+    assert.ok(chat.overlap <= 0, `the text after it starts below it (${chat.overlap}px over it)`)
+
+    await page.goto(proj.url('p'))
+    const onPage = await page.evaluate(() => {
+      const pre = document.querySelector<HTMLElement>('#wb-main pre')!
+      return { wrap: pre.dataset.wrap, scrolls: pre.scrollWidth > pre.clientWidth }
+    })
+    assert.deepEqual(onPage, { wrap: 'true', scrolls: false })
+  },
+)

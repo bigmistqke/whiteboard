@@ -22,6 +22,20 @@ bare `@@`: its lines show without numbers. `---` and `+++` lines name the file
 without a `diff --git` above them. Use four backticks around it, since a diff
 can hold three.
 
+A line longer than the block scrolls it sideways on a page, and wraps at the
+edge in a chat message. A fence can say otherwise: `{wrap}` wraps its long
+lines (a diff's rows too), `{nowrap}` keeps them whole and scrolls.
+
+````markdown
+```sh {wrap}
+whiteboard append --page plan --type chat:message --data '{"chat":"notes","text":"a long line"}'
+```
+
+```diff {nowrap}
+- const client = ctx.asset(CLIENT)
+```
+````
+
 A missing or unknown language renders as plain text. Fences named after
 another block, such as `mermaid`, still go to that block.
 

@@ -46,8 +46,12 @@ export default function code(options: Options = {}): Plugin {
   let shiki: typeof Shiki | undefined
   const loaded = new Set<string>()
 
-  /** Highlight `code` as `lang`; an unknown or missing language renders as plain text. */
-  async function highlight(code: string, lang: string | null) {
+  /**
+   * Highlight `code` as `lang`; an unknown or missing language renders as plain text. `wrap`: long
+   * lines wrap at the block's edge (true) or the block scrolls sideways (false); undefined leaves it
+   * to where the block is (a page scrolls, a chat message wraps).
+   */
+  async function highlight(code: string, lang: string | null, wrap?: boolean) {
     shiki ??= await import('shiki')
     highlighter ??= shiki.createHighlighter({ themes: Object.values(themes), langs: [] })
     const h = await highlighter
@@ -59,36 +63,46 @@ export default function code(options: Options = {}): Plugin {
       }
     } else language = 'text'
     const diff = language === 'diff' ? diffLines(code) : null
+    const transformers: Shiki.ShikiTransformer[] = []
+    // the fence's say on long lines; without one, where the block is decides (style.css)
+    if (wrap !== undefined)
+      transformers.push({
+        pre(node) {
+          node.properties['data-wrap'] = String(wrap)
+        },
+      })
+    if (diff)
+      transformers.push({
+        line(node, n) {
+          const info = diff[n - 1]
+          if (!info) return
+          node.properties['data-diff'] = info.kind
+          if (info.n != null) node.properties['data-n'] = String(info.n)
+          if (info.at) node.properties['data-wb-at'] = info.at
+          // a file's headers read as its name; a hunk's header as nothing but the gutter's `⋯`
+          if (info.label != null) node.children = [{ type: 'text', value: info.label }]
+        },
+        // the headers nobody reads go, with the line break after each
+        code(node) {
+          node.children = node.children.filter((child, i, all) => {
+            const isMeta = (c: typeof child | undefined) =>
+              c?.type === 'element' && c.properties['data-diff'] === 'meta'
+            return !isMeta(child) && !(child.type === 'text' && isMeta(all[i - 1]))
+          })
+        },
+      })
     return h.codeToHtml(code, {
       lang: language,
       themes,
       defaultColor: false,
       colorReplacements,
-      transformers: diff
-        ? [
-            {
-              line(node, n) {
-                const info = diff[n - 1]
-                if (!info) return
-                node.properties['data-diff'] = info.kind
-                if (info.n != null) node.properties['data-n'] = String(info.n)
-                if (info.at) node.properties['data-wb-at'] = info.at
-                // a file's headers read as its name; a hunk's header as nothing but the gutter's `⋯`
-                if (info.label != null) node.children = [{ type: 'text', value: info.label }]
-              },
-              // the headers nobody reads go, with the line break after each
-              code(node) {
-                node.children = node.children.filter((child, i, all) => {
-                  const isMeta = (c: typeof child | undefined) =>
-                    c?.type === 'element' && c.properties['data-diff'] === 'meta'
-                  return !isMeta(child) && !(child.type === 'text' && isMeta(all[i - 1]))
-                })
-              },
-            },
-          ]
-        : [],
+      transformers,
     })
   }
+
+  /** A fence's `{wrap}` or `{nowrap}`; neither: undefined. */
+  const wrapOf = (attrs: Record<string, string>): boolean | undefined =>
+    'nowrap' in attrs ? false : 'wrap' in attrs ? attrs.wrap !== 'false' : undefined
 
   return definePlugin({
     name: 'code',
@@ -97,7 +111,7 @@ export default function code(options: Options = {}): Plugin {
       code: {
         // every code fence no other block claims by name, and the code view of repository files
         fence: 'any',
-        html: ctx => highlight((ctx as FenceContext).text, (ctx as FenceContext).lang),
+        html: ctx => highlight((ctx as FenceContext).text, (ctx as FenceContext).lang, wrapOf(ctx.attrs)),
         style: 'style.css',
       },
     },

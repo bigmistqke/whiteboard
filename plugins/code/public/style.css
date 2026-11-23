@@ -24,6 +24,17 @@ pre.shiki {
   text-decoration: var(--shiki-dark-text-decoration);
 }
 
+/* long lines: where the block is decides (a page scrolls it sideways, a chat message wraps), unless
+   the fence says ({wrap}, {nowrap}) */
+pre.shiki[data-wrap='true'] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+pre.shiki[data-wrap='false'] {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
 /* a diff: one row per line, as wide as the longest (a grid leaves out the line breaks between them,
    which stay in the text), tinted by what it is, with its number in a gutter */
 .shiki code:has(> .line[data-diff]) {
@@ -65,4 +76,9 @@ pre.shiki {
 }
 .shiki .line[data-diff='file'] + .line[data-diff='hunk'] {
   margin-top: 0;
+}
+/* a diff that wraps: its rows fill the block, and a long one wraps inside its row */
+pre.shiki[data-wrap='true'] code:has(> .line[data-diff]) {
+  width: auto;
+  min-width: 0;
 }
