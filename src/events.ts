@@ -9,9 +9,9 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import type { WbEvent } from './define.ts'
-import { fromReader } from './status.ts'
+import { CLAIM, PICKED, fromReader, pickedUp } from './status.ts'
 
-export { fromReader }
+export { CLAIM, PICKED, fromReader, pickedUp }
 
 /** What is appended: the id and time are added. */
 export interface EventInput {
@@ -30,12 +30,6 @@ export interface EventFilter {
   /** `page` alone, not the pages below it */
   exact?: boolean
 }
-
-/**
- * The type of the event `whiteboard new` appends when an agent session creates a page:
- * `{ session }`. The colon keeps it apart from form names, which are event types too.
- */
-export const CLAIM = 'whiteboard:claim'
 
 // ---- primitives ----------------------------------------------------------------------------------
 
@@ -269,14 +263,6 @@ export function matches(event: WbEvent, { page, type, exact }: EventFilter = {})
 // When an event is handed to an agent, a `whiteboard:picked` event naming it is appended. The log
 // is the only record: a wait that starts hands out the matching events nobody picked up yet,
 // whatever its filter, and pages show the same events as picked up.
-
-/** The type of the event that says another event was handed to an agent: `{ event: <its id> }`. */
-export const PICKED = 'whiteboard:picked'
-
-/** The ids of the events that were picked up. Only the command line's picks count. */
-export function pickedUp(events: WbEvent[]): Set<string> {
-  return new Set(events.filter(e => e.type === PICKED && !fromReader(e)).map(e => String(e.data?.event)))
-}
 
 /** Record that `event` was handed to an agent: from then on it counts as picked up. */
 export function pick(file: string, event: WbEvent): WbEvent {

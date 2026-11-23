@@ -90,6 +90,99 @@ export function unreadMessages(events: WbEvent[], isMessage: (type: string) => b
 /** How many things on a page wait for the reader: its open questions and unread messages. */
 export const awaiting = (p: Pick<PageStatus, 'open' | 'unread'>): number => p.open.length + p.unread.length
 
+/** The type of the event that says another event was handed to an agent: `{ event: <its id> }`. */
+export const PICKED = 'whiteboard:picked'
+
+/**
+ * The type of the event `whiteboard new` appends when an agent session creates a page:
+ * `{ session }`. The colon keeps it apart from form names, which are event types too.
+ */
+export const CLAIM = 'whiteboard:claim'
+
+/** The ids of the events that were picked up. Only the command line's picks count. */
+export function pickedUp(events: WbEvent[]): Set<string> {
+  return new Set(events.filter(e => e.type === PICKED && !fromReader(e)).map(e => String(e.data?.event)))
+}
+
+/** A page as the snapshot needs it; its questions (`asks`) are its named forms. */
+export interface StatusPage {
+  id: string
+  file: string
+  title: string
+  asks: string[]
+}
+
+/** What a project's status is made of: no disk in it, the server reads and hands it over. */
+export interface StatusInput {
+  pages: StatusPage[]
+  /** the whole log */
+  events: WbEvent[]
+  /** the running waits and watches covering a page */
+  listeners: (page: string) => Listener[]
+  /** the event types handed to an agent (a form's answers; plugins' events declared handOut) */
+  forAgent: (type: string) => boolean
+  /** the event types that are messages for the reader (declared forReader) */
+  forReader: (type: string) => boolean
+}
+
+/** A project's status at one moment: what `whiteboard status`, the page lists and the log's marks take. */
+export interface ProjectStatus {
+  /** per page, in the order given */
+  pages: PageStatus[]
+  /** the events that were picked up, by id */
+  picked: Set<string>
+  /** when the reader last sent something on a page (what the agent appended doesn't count) */
+  lastAnswered: (page: string) => string | null
+}
+
+/**
+ * A project's status from its pages, its log and who listens: per page its questions and where each
+ * stands, what is open and unheard, the agent's messages unread, the reader's events not picked up,
+ * and who listens; which events were picked up; when each page was last answered. The log is
+ * gone through once.
+ */
+export function projectStatus({ pages, events, listeners, forAgent, forReader }: StatusInput): ProjectStatus {
+  const picked = pickedUp(events)
+  const byPage = new Map<string, WbEvent[]>()
+  const owner = new Map<string, string | null>()
+  const last = new Map<string, string>()
+  for (const e of events) {
+    let list = byPage.get(e.page)
+    if (!list) byPage.set(e.page, (list = []))
+    list.push(e)
+    if (fromReader(e)) last.set(e.page, e.ts)
+    else if (e.type === CLAIM) owner.set(e.page, (e.data?.session as string | undefined) ?? null)
+  }
+  return {
+    picked,
+    lastAnswered: page => last.get(page) ?? null,
+    pages: pages.map(p => {
+      const own = byPage.get(p.id) ?? []
+      const listening = listeners(p.id)
+      // where each question stands, as the page shows it
+      const questions = p.asks.map(name => ({
+        name,
+        state: questionState(name, own, listening, id => picked.has(id)).state,
+      }))
+      const open = questions.filter(q => q.state === 'open').map(q => q.name)
+      return {
+        page: p.id,
+        title: p.title,
+        file: p.file,
+        owner: owner.get(p.id) ?? null,
+        asks: p.asks,
+        questions,
+        open,
+        unheard: open.filter(name => !heard(name, listening)),
+        unread: unreadMessages(own, forReader),
+        // the reader's events for an agent: a form's answers, and plugin events declared handOut
+        unpicked: own.filter(e => fromReader(e) && forAgent(e.type) && !picked.has(e.id)),
+        listeners: listening,
+      }
+    }),
+  }
+}
+
 /**
  * What is open on a page, one short line each; the command that picks it up comes last, once.
  * `file` is how to name the page's file to the reader (relative to where they are). Without

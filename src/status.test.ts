@@ -1,7 +1,7 @@
 // Where a question stands: the one definition the server and the page share.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { awaiting, heard, questionState, statusLines, takenByOther, unreadMessages } from './status.ts'
+import { awaiting, heard, projectStatus, questionState, statusLines, takenByOther, unreadMessages } from './status.ts'
 import type { Listener, PageStatus, WbEvent } from './define.ts'
 
 const event = (id: string, type: string, from?: 'cli'): WbEvent => ({
@@ -136,4 +136,57 @@ test('heard: a wait or watch takes the answer; the fallback does not count', () 
   assert.equal(heard('pick', [wait(null)]), true)
   assert.equal(heard('pick', [wait('other')]), false)
   assert.equal(heard('pick', [{ page: '', type: null, command: 'watch', fallback: true }]), false)
+})
+
+test('projectStatus: per page from the log and who listens; picked marks and when each was last answered', () => {
+  const at = (id: string, page: string, type: string, ts: string, extra: Partial<WbEvent> = {}): WbEvent => ({
+    id,
+    ts,
+    page,
+    type,
+    action: null,
+    data: {},
+    ...extra,
+  })
+  const events = [
+    at('c1', 'plan', 'whiteboard:claim', '1', { from: 'cli', data: { session: 's1' } }),
+    at('a1', 'plan', 'pick', '2'),
+    at('p1', 'plan', 'whiteboard:picked', '3', { from: 'cli', data: { event: 'a1' } }),
+    at('a2', 'notes', 'pick', '4'),
+    at('m1', 'notes', 'chat:message', '5', { from: 'cli' }),
+    at('x1', 'notes', 'comments:new', '6'),
+  ]
+  const s = projectStatus({
+    pages: [
+      { id: 'plan', file: '/p/plan.md', title: 'Plan', asks: ['pick', 'other'] },
+      { id: 'notes', file: '/p/notes.md', title: 'Notes', asks: ['pick'] },
+    ],
+    events,
+    listeners: page => (page === 'plan' ? [{ page: 'plan', type: null, command: 'wait' }] : []),
+    forAgent: type => !type.includes(':'),
+    forReader: type => type === 'chat:message',
+  })
+  const [plan, notes] = s.pages
+  assert.deepEqual(
+    [plan!.owner, plan!.questions, plan!.open, plan!.unheard, plan!.unpicked.length],
+    [
+      's1',
+      [
+        { name: 'pick', state: 'decided' },
+        { name: 'other', state: 'open' },
+      ],
+      ['other'],
+      [],
+      0,
+    ],
+  )
+  assert.deepEqual(
+    [notes!.owner, notes!.open, notes!.unpicked.map(e => e.id), notes!.unread.map(e => e.id), awaiting(notes!)],
+    [null, [], ['a2'], ['m1'], 1],
+    "notes: answered, not picked up (comments:new isn't for an agent), one unread message",
+  )
+  assert.deepEqual([...s.picked], ['a1'])
+  assert.equal(s.lastAnswered('notes'), '6', 'the reader’s last event, of any type')
+  assert.equal(s.lastAnswered('plan'), '2', 'the agent’s pick and claim do not count')
+  assert.equal(s.lastAnswered('gone'), null)
 })

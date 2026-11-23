@@ -22,14 +22,14 @@ import { parse as parseYaml } from 'yaml'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
-import { appendEvent, isEventId, readEvents, matches, pickedUp, fromReader, forAgent, CLAIM } from './events.ts'
+import { appendEvent, isEventId, readEvents, matches, pickedUp, fromReader, forAgent } from './events.ts'
 import { html, raw, type Html } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage, type MountedRoute } from './plugins.ts'
 import { createAuth, sameSite } from './auth.ts'
 import { accept, refuse } from './ws.ts'
 import { FROM_SOURCE, PACKAGE_DIR, VERSION } from './package.ts'
-import { awaiting, heard, questionState, unreadMessages } from './status.ts'
+import { awaiting, projectStatus, type ProjectStatus } from './status.ts'
 import { titleOf } from './pages/render.ts'
 import { createRegistry, holdStream, listenerOf } from './listeners.ts'
 import { inPublic } from './public.ts'
@@ -491,53 +491,34 @@ export function createServer(
   }
 
   /**
-   * Per page: the questions it asks that have no answer yet, the reader's events no wait or watch
-   * picked up, who is listening, and the session that claimed it. What `whiteboard status` and the
-   * hooks report. The questions are a page's named forms.
+   * The project's status (status.ts): the pages, below `only` when given, with their questions, the
+   * log read once, and who listens. What `whiteboard status`, the hooks, the page lists and the log's
+   * picked-up marks take.
    */
-  async function status(only: string | null): Promise<PageStatus[]> {
-    const { pages, handedOut, forReader } = await config()
-    const isForAgent = forAgent(handedOut)
-    const all = readEvents(project.eventsFile)
-    const picked = pickedUp(all)
-    const owner = new Map<string, string | null>()
-    for (const e of all)
-      if (e.type === CLAIM && !fromReader(e)) owner.set(e.page, (e.data?.session as string | undefined) ?? null)
-    const out: PageStatus[] = []
-    for (const p of pagesIn(project.pagesDir)) {
-      if (only && p.id !== only && !p.id.startsWith(only + '/')) continue
-      const page = pageSource(p.id, p.file)
-      let asks: string[] = []
-      try {
-        asks = pages?.questions(page) ?? []
-      } catch (err) {
-        console.error('questions:', err)
-      }
-      const events = all.filter(e => e.page === p.id)
-      const listening = listenersFor(p.id)
-      // where each question stands, as the page shows it (see status.ts)
-      const questions = asks.map(name => ({
-        name,
-        state: questionState(name, events, listening, id => picked.has(id)).state,
-      }))
-      const named = (...states: string[]) => questions.filter(q => states.includes(q.state)).map(q => q.name)
-      out.push({
-        page: p.id,
-        title: titleOf(p.file, path.basename(p.id)),
-        file: p.file,
-        owner: owner.get(p.id) ?? null,
-        asks,
-        questions,
-        open: named('open'),
-        unheard: named('open').filter(name => !heard(name, listening)),
-        unread: unreadMessages(events, type => forReader.has(type)),
-        // the reader's events for an agent: a form's answers, and plugin events declared handOut
-        unpicked: events.filter(e => fromReader(e) && isForAgent(e.type) && !picked.has(e.id)),
-        listeners: listening,
+  async function snapshot(only: string | null = null): Promise<ProjectStatus> {
+    const { pages: renderer, handedOut, forReader } = await config()
+    const pages = pagesIn(project.pagesDir)
+      .filter(p => !only || p.id === only || p.id.startsWith(only + '/'))
+      .map(p => {
+        let asks: string[] = []
+        try {
+          asks = renderer?.questions(pageSource(p.id, p.file)) ?? []
+        } catch (err) {
+          console.error('questions:', err)
+        }
+        return { id: p.id, file: p.file, title: titleOf(p.file, path.basename(p.id)), asks }
       })
-    }
-    return out
+    return projectStatus({
+      pages,
+      events: readEvents(project.eventsFile),
+      listeners: listenersFor,
+      forAgent: forAgent(handedOut),
+      forReader: type => forReader.has(type),
+    })
   }
+
+  /** Per page: what `whiteboard status` and the hooks report (see snapshot). */
+  const status = async (only: string | null): Promise<PageStatus[]> => (await snapshot(only)).pages
 
   /** How to write pages here, as markdown: the pages' own docs, then each plugin's. */
   async function docs() {
