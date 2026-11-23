@@ -28,3 +28,20 @@
 .wb-badge:is([data-badge='blocked'], [data-badge='no'], [data-badge='bad'], [data-badge='error']) {
   --c: var(--bad);
 }
+
+/* a badge that ends a title sits at its right edge, centred on its first line: in any heading,
+   and in anything a block marks as a title (data-wb-title: a timeline's step). --wb-title-line is
+   the title's line height in px (registered, so 1lh resolves on the title, not on the badge) */
+@property --wb-title-line {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+:is(h1, h2, h3, h4, h5, h6, [data-wb-title]):has(> .wb-badge:last-child) {
+  --wb-title-line: 1lh;
+}
+:is(h1, h2, h3, h4, h5, h6, [data-wb-title]) > .wb-badge:last-child {
+  float: right;
+  margin: calc(var(--wb-title-line) / 2 - 0.5em) 0 0 var(--space-lg);
+  vertical-align: baseline;
+}

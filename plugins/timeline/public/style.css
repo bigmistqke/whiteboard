@@ -83,10 +83,6 @@
   font-weight: 600;
   line-height: 1.4;
 }
-.wb-tl-title > .wb-badge:last-child {
-  float: right;
-  margin-left: var(--space-lg);
-}
 .wb-tl-body {
   font-size: var(--ui-text);
   line-height: 1.6;

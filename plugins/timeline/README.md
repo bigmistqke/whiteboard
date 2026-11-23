@@ -5,7 +5,7 @@ A heading starts a step, titled by it; its body is any markdown, blocks too: a
 takeaway that should stand out can be a `:::callout` (the timeline around it
 then takes four colons, `::::timeline`). With headings at two
 levels or more, the shallowest one groups the steps into sections. A `---`
-starts an untitled step. A badge ending a step's heading sits at its right. A
+starts an untitled step. A badge ending a heading sits at its right. A
 `:when[2026-11-21 10:43]` in a step's heading is when it happened: shown above
 the title, as written.
 

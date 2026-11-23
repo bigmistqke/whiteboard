@@ -15,7 +15,9 @@ green, `active new info` blue, `open todo maybe warning` amber,
 The release is :badge[blocked] on review.
 ```
 
-A grid card whose heading ends in a badge shows it at the card's right edge.
+A badge that ends a heading sits at its right edge: a page's heading, a grid
+card's, a timeline step's. A block of your own can have the same for a title
+that isn't a heading, with a `data-wb-title` attribute on it.
 
 ### Parser :badge[done]
 

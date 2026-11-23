@@ -82,7 +82,7 @@ async function renderStep(ctx: DirectiveContext, step: Step) {
   const body = await ctx.toHtml(step.body)
   return html`<li class="wb-tl-step">
     ${split.when && html`<time class="wb-tl-when">${split.when}</time>`}
-    ${title && html`<div class="wb-tl-title">${raw(title)}</div>`}
+    ${title && html`<div class="wb-tl-title" data-wb-title>${raw(title)}</div>`}
     ${body.trim() && html`<div class="wb-tl-body">${raw(body)}</div>`}
   </li>`
 }
@@ -94,7 +94,7 @@ async function render(ctx: DirectiveContext) {
       const steps = await Promise.all(s.steps.map(step => renderStep(ctx, step)))
       const title = s.title && (await ctx.toHtml(s.title))
       return html`<li class="wb-tl-section">
-        ${title && html`<div class="wb-tl-section-title">${raw(title)}</div>`}
+        ${title && html`<div class="wb-tl-section-title" data-wb-title>${raw(title)}</div>`}
         <ol class="wb-tl-steps">
           ${steps}
         </ol>

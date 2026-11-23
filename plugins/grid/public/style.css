@@ -35,8 +35,3 @@
   margin-bottom: 0;
 }
 
-/* a badge that ends the heading (`### Parser :badge[done]`) sits at the card's right edge */
-.wb-card h3 > .wb-badge:last-child {
-  float: right;
-  margin: 0.45em 0 0 var(--space-lg);
-}
