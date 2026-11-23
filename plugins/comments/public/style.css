@@ -183,7 +183,7 @@
   font: var(--ui-small) var(--mono, monospace);
   color: var(--muted, #696e76);
 }
-/* shown at once, not yet confirmed by the server */
+/* shown at once, grey until the server has it */
 .wb-thread-message[data-sending] .wb-thread-text {
-  opacity: 0.6;
+  color: var(--wb-sending, #9a9fa7);
 }

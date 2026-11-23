@@ -64,7 +64,8 @@ function Chat(props: ChatProps) {
   const post = async () => {
     const text = box?.value.trim()
     if (!text) return
-    // optimistic: the message is in the chat at once, marked sending, and the box is free
+    // optimistic: the message is in the chat at once, grey until the server has it, and the box is
+    // empty, so a second Send has nothing to send again
     const write = (value: string) => {
       box!.value = value
       // measure again: a value set from code fires no input event
@@ -78,7 +79,7 @@ function Chat(props: ChatProps) {
       // it never got there: back into the box, unless something else was written meanwhile
       if (!box!.value.trim()) write(text)
       wb.toast("Couldn't send the message", {
-        kind: 'warn',
+        kind: 'alert',
         name: 'chat-failed',
         details: "It's back in the box: send it again.",
       })
@@ -97,7 +98,7 @@ function Chat(props: ChatProps) {
             data-sending={m.sending ? '' : undefined}
             data-wb-message={m.from === 'agent' ? m.id : undefined}
           >
-            <span class="wb-chat-who">{m.sending ? `${m.from} · sending…` : m.from}</span>
+            <span class="wb-chat-who">{m.from}</span>
             <Bubble text={m.text} />
           </div>
         )}

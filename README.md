@@ -213,10 +213,11 @@ are named after their plugin, `<plugin>:<what>` (`chat:message`,
 `comments:reply`, whiteboard's own `whiteboard:picked`), so a form's name
 can't contain a colon and its answers never mix with them. Appending is
 optimistic: the event is in `api.events()` at once, with `sending: true`
-until the server has it, so show it then as on its way, not as done. A send
-that heard nothing back is tried again, without being appended twice; only
-when none gets through does the event leave the events again and the
-promise `api.append` returned reject. The built-in
+until the server has it, so show it then as on its way, not as done: in
+`--wb-sending` (grey), as the core does for a form's button and the chat
+for a message. A send that heard nothing back is tried again, without being
+appended twice; only when none gets through does the event leave the
+events again and the promise `api.append` returned reject. The built-in
 `form` plugin writes forms as markdown with inputs inline
 (`:::form{name=ship}` … `:radio[this week]{name=when}` … `:::`); a
 hand-written `<form name="…">` works without it.

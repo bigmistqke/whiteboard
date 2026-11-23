@@ -19,6 +19,10 @@
   --warn: light-dark(#6b4fc0, #b4a0ff);
   --bad: light-dark(#c4352b, #ff6f66);
   --info: light-dark(#1d5bbf, #82aaff);
+  /* what the reader sent, shown at once but not yet confirmed by the server (an event with
+     `sending`): grey, in whatever carries it (a button, a bubble, a comment's text). Confirmed, it
+     takes its usual colour (a button flashes --ok first); never got there, --bad */
+  --wb-sending: light-dark(#9a9fa7, #6c717a);
   --shadow: none;
 
   /* Type. The article is set in --serif at --text-size; everything in it (its margins, its
@@ -696,20 +700,31 @@ form.wb-form[data-wb-folded] {
   gap: 0;
 }
 /* named forms: the core marks where each stands (data-wb-open, -pending, -decided); this is how that looks */
-/* sending: the answer is the form's already (optimistic), but the server hasn't confirmed it. The
-   form stays usable: the same answer isn't sent twice (forms.ts), another one takes its place */
-@keyframes wb-sending {
-  50% {
-    opacity: 0.45;
-  }
+/* the button a form was sent with says how that goes (forms.ts): the answer is the form's already
+   (optimistic), the button grey while the server hasn't confirmed it, green once it has, red when
+   it never got there. The form stays usable: the same answer isn't sent twice. !important: a send's
+   state outranks however a plugin or the project styles its buttons (.wb-primary) */
+form button[data-wb-send] {
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s;
 }
-form[data-wb-state='sending']::before {
-  content: 'sending…';
-  display: block;
-  margin-bottom: var(--space-md);
-  color: var(--muted);
-  font: var(--ui-tiny)/var(--ui-line-height) var(--sans);
-  animation: wb-sending 1.2s ease-in-out infinite;
+form button[data-wb-send='sending'] {
+  background: var(--wb-sending) !important;
+  border-color: var(--wb-sending) !important;
+  color: var(--bg) !important;
+  cursor: progress;
+}
+form button[data-wb-send='sent'] {
+  background: var(--ok) !important;
+  border-color: var(--ok) !important;
+  color: var(--bg) !important;
+}
+form button[data-wb-send='failed'] {
+  background: var(--bad) !important;
+  border-color: var(--bad) !important;
+  color: var(--bg) !important;
 }
 /* just sent: a short green flash, and a line saying what happened, for a few seconds */
 @keyframes wb-sent {
@@ -729,13 +744,6 @@ form.wb-form[data-wb-state='failed']::before {
   margin-bottom: var(--space-md);
   color: var(--bad);
   font: var(--weight-strong) var(--ui-tiny)/var(--ui-line-height) var(--sans);
-}
-form[data-wb-state='sending']:not(.wb-form)::after {
-  content: 'sending ' attr(data-wb-sent) '…';
-  display: block;
-  margin-top: var(--space-sm);
-  color: var(--muted);
-  font: var(--ui-small) var(--sans);
 }
 form[data-wb-sent]:not(.wb-form):not([data-wb-state='sending'])::after {
   content: '✓ sent ' attr(data-wb-sent);
@@ -1266,7 +1274,7 @@ main:has(+ .wb-orphans:not([hidden])) {
   overflow: hidden;
 }
 @media (prefers-reduced-motion: reduce) {
-  form[data-wb-state='sending']::before {
-    animation: none;
+  form button[data-wb-send] {
+    transition: none;
   }
 }

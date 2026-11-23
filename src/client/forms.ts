@@ -156,16 +156,55 @@ function restoreLast(prefill: boolean) {
 /** What each form is sending now, as sent: the same answer again is not sent twice. */
 const inFlight = new WeakMap<HTMLFormElement, string>()
 
+// The button that sent it says how that goes, in its own text and colour (`data-wb-send` on it):
+// "Sending…" (grey) while on its way, "✓ Sent" (green) a moment once the server has it, "Couldn't
+// send" (red) when no try got through; then its own label again. It keeps its width meanwhile.
+type Send = 'sending' | 'sent' | 'failed'
+/** A button's own label, while it says how a send goes. */
+const labelOf = (button: HTMLButtonElement) => {
+  const el = document.createElement('div')
+  el.innerHTML = labels.get(button)!.html
+  return el.textContent?.trim() ?? ''
+}
+const SEND_TEXT: Record<Send, string> = { sending: 'Sending…', sent: '✓ Sent', failed: "Couldn't send" }
+const labels = new WeakMap<HTMLButtonElement, { html: string; timer?: ReturnType<typeof setTimeout> }>()
+
+function sendState(button: HTMLButtonElement | null, state: Send | null) {
+  if (!button) return
+  let saved = labels.get(button)
+  clearTimeout(saved?.timer)
+  if (!state) {
+    if (!saved) return
+    button.innerHTML = saved.html
+    button.style.minWidth = ''
+    delete button.dataset.wbSend
+    labels.delete(button)
+    return
+  }
+  if (!saved) {
+    saved = { html: button.innerHTML }
+    labels.set(button, saved)
+    button.style.minWidth = `${button.getBoundingClientRect().width}px`
+  }
+  button.dataset.wbSend = state
+  button.textContent = SEND_TEXT[state]
+  // confirmed or not: said for a moment, then the button is itself again
+  if (state !== 'sending') saved.timer = setTimeout(() => sendState(button, null), state === 'sent' ? 2000 : 4000)
+}
+
 // Optimistic: the answer is the form's at once (api.append puts it in the events, so the form is
-// marked pending), with `data-wb-state="sending"` saying it is still on its way; `sent` once the
-// server has it, with the short `data-wb-just-sent` to confirm it. Should it not get through, the
-// answer leaves the form again: `failed`, the button the form had before, the draft kept.
+// marked pending), with `data-wb-state="sending"` saying it is still on its way, and its button
+// saying so (sendState); `sent` once the server has it, with the short `data-wb-just-sent` to
+// confirm it. Should it not get through, the answer leaves the form again: `failed`, the button
+// the form had before, the draft kept.
 async function onSubmit(e: SubmitEvent) {
   const form = e.target as HTMLFormElement
   if (!managed(form) || !root.contains(form)) return
   e.preventDefault()
   const button = e.submitter as HTMLButtonElement | null
-  const action = button ? button.value || button.textContent?.trim() || null : null
+  // its label as it is, not as it says how a send goes
+  const label = button ? (labels.get(button) ? labelOf(button) : button.textContent?.trim()) : null
+  const action = button ? button.value || label || null : null
   const data = readForm(form)
   const sent = JSON.stringify([action, data])
   if (inFlight.get(form) === sent) return
@@ -174,11 +213,13 @@ async function onSubmit(e: SubmitEvent) {
   form.dataset.wbState = 'sending'
   form.dataset.wbSent = action ?? ''
   form.removeAttribute('data-wb-just-sent')
+  sendState(button, 'sending')
   try {
     await api.append(form.getAttribute('name')!, data, action)
     if (inFlight.get(form) !== sent) return // a newer answer took its place
     dropDraft(form)
     form.dataset.wbState = 'sent'
+    sendState(button, 'sent')
     // for the page to confirm the send: set for a few seconds after it, also once the form
     // folds because an agent picked the answer up at once
     form.toggleAttribute('data-wb-just-sent', true)
@@ -190,6 +231,7 @@ async function onSubmit(e: SubmitEvent) {
   } catch (err) {
     if (inFlight.get(form) !== sent) return
     form.dataset.wbState = 'failed'
+    sendState(button, 'failed')
     if (before == null) delete form.dataset.wbSent
     else form.dataset.wbSent = before
     console.error(err)

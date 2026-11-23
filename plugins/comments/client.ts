@@ -237,7 +237,7 @@ function renderPopover() {
       data-wb-message="${e.id}"
       ${e.sending ? raw(' data-sending') : ''}
     >
-      <span class="wb-thread-who">${who(e)}${e.sending ? ' · sending…' : ''}</span>
+      <span class="wb-thread-who">${who(e)}</span>
       <div class="wb-thread-text" ${md != null ? raw(' data-md') : ''}>${md != null ? raw(md) : text}</div>
     </div>`
   }
@@ -545,7 +545,7 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
       composer.querySelector('textarea')!.value = text
       composer.hidden = false
       api.toast("Couldn't send the comment", {
-        kind: 'warn',
+        kind: 'alert',
         name: 'comment-failed',
         details: "It's back in the box: send it again.",
       })
@@ -577,7 +577,7 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
       const again = popover.querySelector('textarea')
       if (openThread === thread && again && !again.value.trim()) again.value = text
       api.toast("Couldn't send the reply", {
-        kind: 'warn',
+        kind: 'alert',
         name: 'comment-failed',
         details: "It's back in the box: send it again.",
       })
@@ -594,7 +594,7 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     refreshComments()
     sent.catch(err => {
       console.error('comments:', err)
-      api.toast("Couldn't close the thread", { kind: 'warn', name: 'comment-failed', details: "It's open again." })
+      api.toast("Couldn't close the thread", { kind: 'alert', name: 'comment-failed', details: "It's open again." })
     })
   })
   // the page goes to an unread reply here: open its thread
