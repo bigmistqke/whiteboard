@@ -12,7 +12,8 @@
 //   /api/shutdown      POST { version }: a newer whiteboard takes over; an older one is refused
 //   /api/listen?entry=<name>&command=wait|watch
 //                      the fallback of a whole entry, for as long as the connection is open: one per
-//                      entry, held on every page of its projects, also those that appear meanwhile
+//                      entry, held on every page of its projects, also those that appear meanwhile;
+//                      its stream is told each project with who listens there (listeners.ts)
 //
 // A project's server is made when the project is found and closed when it goes, so a project
 // appears and disappears without a restart. Each keeps its own state, config and log, as it would
@@ -26,6 +27,7 @@ import { followEntries, machineDir, readMachineConfig, stateDir, type EntryProje
 import { compareVersions, VERSION } from './package.ts'
 import { createServer, type WhiteboardServer } from './server.ts'
 import type { Listener, PageStatus } from './define.ts'
+import { holdStream, listenerOf } from './listeners.ts'
 
 export interface HubOptions {
   /** the machine folder (its config.json), which the server only reads; default machineDir() */
@@ -101,8 +103,20 @@ export function createHub({
   version = VERSION,
 }: HubOptions = {}): Hub {
   const served = new Map<string, Served>()
-  // each entry's fallback, while one runs: the listener its projects hold
-  const fallbacks = new Map<string, Listener>()
+  // each entry's fallback, while one runs: the listener its projects hold, and what tells its stream
+  const fallbacks = new Map<string, { listener: Listener; tell: () => void }>()
+  /** An entry's fallback held on one of its projects, followed there; false when the project refuses it. */
+  function hold(s: Served, fb: { listener: Listener; tell: () => void }): boolean {
+    const off = s.server.addListener(fb.listener)
+    if (!off) return false
+    const unfollow = s.server.onListeners(() => fb.tell())
+    s.fallback = () => {
+      unfollow()
+      off()
+      delete s.fallback
+    }
+    return true
+  }
 
   function sync(projects: EntryProject[]) {
     // projects come and go: the overview lists them
@@ -110,6 +124,7 @@ export function createHub({
     const wanted = new Map(projects.map(p => [`${p.base}\n${p.dir}`, p]))
     for (const [key, s] of served)
       if (!wanted.has(key)) {
+        s.fallback?.()
         s.server.close()
         served.delete(key)
         console.log(`whiteboard: ${s.base} is gone (${s.dir})`)
@@ -124,15 +139,14 @@ export function createHub({
         label: [p.group, p.name].filter(Boolean).join(' › '),
         onChange: () => changed(p.base),
       })
-      const fallback = fallbacks.get(p.entry)
-      served.set(key, {
-        ...p,
-        project,
-        server,
-        ...(fallback && { fallback: server.addListener(fallback) ?? undefined }),
-      })
+      const s: Served = { ...p, project, server }
+      served.set(key, s)
+      const fb = fallbacks.get(p.entry)
+      if (fb) hold(s, fb)
       console.log(`whiteboard: ${p.base} → ${p.dir}`)
     }
+    // an entry's fallback follows its projects coming and going
+    for (const fb of fallbacks.values()) fb.tell()
   }
 
   // the overview at /: a project of the shared server's own, in the machine folder, whose overview
@@ -325,42 +339,37 @@ export function createHub({
    * The fallback of a whole entry (a `wait` or `watch` without --page in one of its projects): one
    * per entry, refused (409) while another runs, or while a project of it has a fallback of its own
    * (from a whiteboard before entries). Each project holds it as a listener, so its pages say an
-   * agent listens; the command itself reads the projects' logs.
+   * agent listens; its stream is told each project of the entry with who listens there, at once and
+   * whenever that or the projects change. The command itself reads the projects' logs.
    */
   function listenEntry(req: IncomingMessage, res: ServerResponse, q: URLSearchParams) {
     const entry = q.get('entry')!
-    const projects = [...served.values()].filter(s => s.entry === entry)
     if (fallbacks.has(entry)) return sendJson(res, 409, { error: `another agent is the fallback of ${entry} already` })
-    const own = projects.find(s => s.server.listeners().some(x => x.fallback))
-    if (own)
-      return sendJson(res, 409, {
-        error: `${own.base} has a fallback of its own already (a wait or watch without --page)`,
-      })
-    const l: Listener = {
-      page: '',
-      type: q.get('type') || null,
-      command: q.get('command') === 'wait' ? 'wait' : 'watch',
-      fallback: true,
-    }
-    fallbacks.set(entry, l)
-    for (const s of projects) s.fallback = s.server.addListener(l) ?? undefined
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
-    res.write(': listening\n\n')
-    const ping = setInterval(() => res.write(': ping\n\n'), 25000)
-    const end = () => {
-      clearInterval(ping)
-      if (fallbacks.get(entry) !== l) return
-      fallbacks.delete(entry)
-      for (const s of served.values()) {
-        s.fallback?.()
-        delete s.fallback
+    const mine = () => [...served.values()].filter(s => s.entry === entry)
+    const fb = { listener: listenerOf(q, true), tell: () => {} }
+    const held: Served[] = []
+    for (const s of mine()) {
+      if (!hold(s, fb)) {
+        for (const h of held) h.fallback?.()
+        return sendJson(res, 409, {
+          error: `${s.base} has a fallback of its own already (a wait or watch without --page)`,
+        })
       }
+      held.push(s)
     }
-    closers.add(() => {
-      end()
-      res.end()
+    fallbacks.set(entry, fb)
+    const stream = holdStream(req, res, () => {
+      closers.delete(stream.end)
+      if (fallbacks.get(entry) !== fb) return
+      fallbacks.delete(entry)
+      for (const s of mine()) s.fallback?.()
     })
-    req.on('close', end)
+    fb.tell = () =>
+      stream.send('listeners', {
+        projects: mine().map(s => ({ dir: s.dir, base: s.base, listeners: s.server.listeners() })),
+      })
+    closers.add(stream.end)
+    fb.tell()
   }
   const closers = new Set<() => void>()
 

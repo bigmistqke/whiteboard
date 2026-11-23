@@ -182,6 +182,68 @@ test('a project appearing or going is served or not, without a restart', async (
   assert.equal((await fetch(`${base}/rg/worktrees/fresh/plan`)).status, 404)
 })
 
+test("an entry's fallback is told each project with who listens there, and of projects coming and going", async () => {
+  type Told = { projects: { base: string; listeners: { page: string; fallback?: boolean }[] }[] }
+  const told: Told[] = []
+  const controller = new AbortController()
+  void fetch(`${base}/api/listen?entry=rg&command=watch`, { signal: controller.signal })
+    .then(async res => {
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) return
+        buf += decoder.decode(value)
+        for (const m of buf.matchAll(/^event: listeners\ndata: (.*)$/gm)) told.push(JSON.parse(m[1]!))
+        buf = buf.slice(buf.lastIndexOf('\n\n') + 2)
+      }
+    })
+    .catch(() => {})
+  const until = async (what: string, check: () => boolean) => {
+    for (let i = 0; i < 100 && !check(); i++) await new Promise(r => setTimeout(r, 30))
+    assert.ok(check(), what)
+  }
+  const last = () => told.at(-1)?.projects ?? []
+  await until('told at once', () => told.length > 0)
+  assert.deepEqual(
+    last()
+      .map(p => p.base)
+      .toSorted(),
+    ['/rg/develop', '/rg/worktrees/cmux'],
+  )
+  assert.ok(
+    last().every(p => p.listeners.some(l => l.fallback)),
+    'held on each project',
+  )
+  // a second fallback of the entry, or one of a project's own, is refused
+  assert.equal((await fetch(`${base}/api/listen?entry=rg&command=watch`)).status, 409)
+  assert.equal((await fetch(`${base}/rg/develop/api/listen?fallback&command=watch`)).status, 409)
+  // a wait on a page of one project: told
+  const wait = new AbortController()
+  void fetch(`${base}/rg/develop/api/listen?page=plan&command=wait`, { signal: wait.signal }).catch(() => {})
+  await until('told of the wait', () =>
+    last().some(p => p.base === '/rg/develop' && p.listeners.some(l => l.page === 'plan')),
+  )
+  wait.abort()
+  await until('told it is gone', () => !last().some(p => p.listeners.some(l => l.page === 'plan')))
+  // a project appearing is held and told; going, it is no longer named
+  const fresh = project('rg/develop/.claude/worktrees/fresh')
+  hub.rescan()
+  await until('told of the new project', () =>
+    last().some(p => p.base === '/rg/worktrees/fresh' && p.listeners.some(l => l.fallback)),
+  )
+  fs.rmSync(fresh, { recursive: true })
+  hub.rescan()
+  await until('told it went', () => !last().some(p => p.base === '/rg/worktrees/fresh'))
+  controller.abort()
+  // once it is gone, its projects no longer hold it
+  const held = async () =>
+    ((await (await fetch(`${base}/rg/develop/api/listeners`)).json()) as { fallback?: boolean }[]).some(l => l.fallback)
+  for (let i = 0; i < 50 && (await held()); i++) await new Promise(r => setTimeout(r, 30))
+  assert.ok(!(await held()), 'released')
+})
+
 test("a plugin's browser module that writes /api/… itself reaches its project, by the page that asked", async () => {
   const res = await fetch(`${base}/api/status`, { headers: { referer: `${base}/rg/develop/plan` } })
   assert.equal(res.status, 200)
