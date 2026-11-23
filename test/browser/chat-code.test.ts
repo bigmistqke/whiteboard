@@ -100,3 +100,44 @@ test(
     assert.deepEqual(onPage, { wrap: 'true', scrolls: false })
   },
 )
+
+test('a table in a chat message keeps its words whole and its spacing', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { c: PAGE } })
+  const { browser: b, page } = await browser()
+  t.after(async () => {
+    await b.close()
+    await proj.close()
+  })
+  await page.setViewportSize({ width: 700, height: 900 })
+  const table = [
+    'Today plugins place things by hand:',
+    '',
+    '| plugin | where | how |',
+    '| --- | --- | --- |',
+    '| terminal | a drawer at the bottom | its own `<aside id=wb-terminal>`, found again with `getElementById` |',
+    '| comments | buttons and a layer over the page | appended to `<body>` |',
+  ].join('\n')
+  proj.cli('append', '--page', 'c', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'q', text: table }))
+  await page.goto(proj.url('c'))
+  await until('the table', () =>
+    page
+      .locator('.wb-chat-bubble table')
+      .count()
+      .then(n => n > 0 || null),
+  )
+  const got = await page.evaluate(() => {
+    const t = document.querySelector('.wb-chat-bubble table') as HTMLTableElement
+    // how many lines each first-column word takes: one, unless it was broken inside
+    const lines = [...t.rows].map(r => {
+      const range = document.createRange()
+      range.selectNodeContents(r.cells[0]!)
+      return new Set([...range.getClientRects()].map(x => Math.round(x.top))).size
+    })
+    return {
+      lines,
+      gap: Math.round(t.getBoundingClientRect().top - t.previousElementSibling!.getBoundingClientRect().bottom),
+    }
+  })
+  assert.deepEqual(got.lines, [1, 1, 1], 'plugin, terminal, comments: each on one line')
+  assert.ok(got.gap < 20, `the table sits as a paragraph would (${got.gap}px above it)`)
+})

@@ -67,8 +67,13 @@
 .wb-chat-bubble[data-md] > :last-child {
   margin-bottom: 0;
 }
-.wb-chat-bubble[data-md] :is(p, ul, ol, pre, blockquote) {
+.wb-chat-bubble[data-md] :is(p, ul, ol, pre, blockquote, table) {
   margin: 0 0 0.5em;
+}
+/* a table's cells wrap between words, not inside them (the bubble's own wrapping anywhere would
+   squeeze its columns down to a letter); one too wide for the bubble scrolls sideways */
+.wb-chat-bubble[data-md] table {
+  overflow-wrap: normal;
 }
 /* code wraps at the bubble's edge, as the text around it does, a diff too; a fence that says {nowrap}
    keeps its lines whole and scrolls sideways (code/style.css) */
