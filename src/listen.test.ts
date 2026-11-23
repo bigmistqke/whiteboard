@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { appendEvent, handOut } from './events.ts'
+import { appendEvent, handOut, pick } from './events.ts'
 import { fallback } from './listen.ts'
 import type { Listener, WbEvent } from './define.ts'
 
@@ -84,4 +84,14 @@ test('each project is followed with its own listeners; one no longer named is st
   answer(b, 'later')
   await sleep(50)
   assert.equal(got.length, 1, 'b is no longer followed')
+})
+
+test('what a wait picked up is not the fallback’s, even seen only after that wait stopped', async () => {
+  const a = project()
+  const { got, update } = run()
+  // the wait took the answer and is gone before the fallback looks at the log
+  update({ projects: [{ dir: a, base: '', listeners: [self] }] })
+  pick(log(a), answer(a, 'plan'))
+  await sleep(50)
+  assert.equal(got.length, 0)
 })

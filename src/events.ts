@@ -312,6 +312,12 @@ export interface HandOutOptions {
    */
   skip?: (event: WbEvent) => boolean
   recheck?: (again: () => void) => void
+  /**
+   * Hand out only what nobody picked up by the time it is offered (the fallback: an answer another
+   * listener took is not its, even when it sees it only after that one stopped listening). Without
+   * it, a new event is handed out also when another running hand-out got it too.
+   */
+  unpicked?: boolean
 }
 
 /**
@@ -339,6 +345,7 @@ export function handOut(
     forAgent: isForAgent = forAgent(),
     skip,
     recheck,
+    unpicked = false,
   } = options
   return new Promise(resolve => {
     let got = 0
@@ -361,6 +368,8 @@ export function handOut(
     const left = new Map<string, WbEvent>()
     // false once enough were handed out; a left event is kept to look at again
     const offer = (e: WbEvent) => {
+      // the log as it is now: a pick is appended right after the event it names
+      if (unpicked && pickedUp(read(file).events).has(e.id)) return true
       if (skip?.(e)) {
         left.set(e.id, e)
         return true
