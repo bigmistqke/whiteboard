@@ -110,12 +110,20 @@ async function load() {
   )
 }
 
-// several changes at once (an answer is an event and a listener less) load once
+// several changes at once (an answer is an event and a listener less) load once; a hidden tab
+// loads once it is shown, and not before (the index asks every project of the server)
 let timer = 0
+let stale = false
 const reload = () => {
   clearTimeout(timer)
+  if (document.hidden) return void (stale = true)
   timer = window.setTimeout(load, 100)
 }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !stale) return
+  stale = false
+  reload()
+})
 
 export function trackElsewhere(root: HTMLElement, handle: PageHandle, core: Api) {
   current = handle.id
@@ -138,6 +146,7 @@ export function trackElsewhere(root: HTMLElement, handle: PageHandle, core: Api)
   core.listeners.on(reload)
   handle.onChange(reload)
   load()
-  // other projects' pages change without this page hearing of it: look again now and then
-  if (base) setInterval(reload, 5000)
+  // another project's pages, log or listeners changed: the shared server says so on the live
+  // channel (and the channel opening again may have missed some)
+  if (base) document.addEventListener('wb-elsewhere', reload)
 }

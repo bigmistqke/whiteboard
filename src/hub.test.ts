@@ -156,6 +156,21 @@ test("an entry's projects, as a page's menu of what waits elsewhere asks for the
   )
 })
 
+test('a page is told when what waits in another project changes, not asked to poll', async () => {
+  const ws = new WebSocket(`${base.replace(/^http/, 'ws')}/rg/worktrees/cmux/api/live?page=notes`)
+  const seen: string[] = []
+  ws.onmessage = e => seen.push(JSON.parse(String(e.data)).event)
+  await new Promise(r => (ws.onopen = r))
+  await fetch(`${base}/rg/develop/api/events`, {
+    method: 'POST',
+    body: JSON.stringify({ page: 'plan', type: 'note', data: {} }),
+  })
+  const end = Date.now() + 3000
+  while (!seen.includes('elsewhere') && Date.now() < end) await new Promise(r => setTimeout(r, 25))
+  ws.close()
+  assert.ok(seen.includes('elsewhere'), `heard: ${seen.join(', ') || 'nothing'}`)
+})
+
 test('a project appearing or going is served or not, without a restart', async () => {
   assert.equal((await fetch(`${base}/rg/worktrees/fresh/plan`)).status, 404)
   const fresh = project('rg/develop/.claude/worktrees/fresh')

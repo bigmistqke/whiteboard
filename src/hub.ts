@@ -122,7 +122,7 @@ export function createHub({
         base: p.base,
         entry: p.entry,
         label: [p.group, p.name].filter(Boolean).join(' › '),
-        onChange: () => touch(),
+        onChange: () => changed(p.base),
       })
       const fallback = fallbacks.get(p.entry)
       served.set(key, { ...p, project, server, ...(fallback && { fallback: server.addListener(fallback) }) })
@@ -156,9 +156,21 @@ export function createHub({
   })
   // what the overview lists changed: told a moment later, once for several changes
   let touching: ReturnType<typeof setTimeout> | undefined
+  // the projects that changed since: each other project's open pages are told, for their menu of
+  // what waits elsewhere (pushed, so no page has to ask every project now and then)
+  const changes = new Set<string>()
   const touch = () => {
     clearTimeout(touching)
-    touching = setTimeout(() => root.touch(), 150)
+    touching = setTimeout(() => {
+      root.touch()
+      const from = [...changes]
+      changes.clear()
+      for (const s of served.values()) if (from.some(b => b !== s.base)) s.server.elsewhere()
+    }, 150)
+  }
+  const changed = (base: string) => {
+    changes.add(base)
+    touch()
   }
 
   const entries = followEntries(() => readMachineConfig(dir), sync, { interval, home })

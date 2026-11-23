@@ -695,13 +695,15 @@ served as the file it is, so packages ship JavaScript.
 The browser listens on a WebSocket at `/api/live` (`src/ws.ts`), each
 message `{ event, data }`: `change` (its page changed), `events` (the log
 grew), `listeners`, `scroll`, `style` (a stylesheet changed: reloaded in
-place) and `reload` (browser code changed: the page reloads). Not server-sent
-events: a browser keeps six HTTP/1.1 connections to an origin, every tab of
-the shared server is on the same one, and a stream per tab left none for a
-seventh tab to load or a form to send. `/api/watch` still speaks server-sent
-events, for a tab opened before: it tells it to reload, onto the WebSocket.
-The config, `.whiteboard/` and the folders of served files are watched; any
-other change in them loads the config afresh and re-renders open pages.
+place), `reload` (browser code changed: the page reloads) and, under a shared
+server, `elsewhere` (what waits in another project changed: pushed, so no page
+polls every project). Not server-sent events: a browser keeps six HTTP/1.1
+connections to an origin, every tab of the shared server is on the same one,
+and a stream per tab left none for a seventh tab to load or a form to send.
+`/api/watch` still speaks server-sent events, for a tab opened before: it
+tells it to reload, onto the WebSocket. The config, `.whiteboard/` and the
+folders of served files are watched; any other change in them loads the
+config afresh and re-renders open pages.
 
 Appending from the browser is optimistic: the event is in the page's events
 at once, marked `sending` (shown as on its way, not as done), with an id the

@@ -102,6 +102,8 @@ export interface WhiteboardServer {
   overview(): Promise<{ pages: PagesSource['pages']; files: boolean }>
   /** tell the open overviews (`/`) that what they list changed */
   touch(): void
+  /** tell the open pages that what waits in another project of the shared server changed */
+  elsewhere(): void
   /** stop watching and end the live connections; the server answers nothing after */
   close(): void
 }
@@ -639,7 +641,8 @@ export function createServer(
   // The browser listens on a WebSocket at /api/live, each message `{ event, data }`. `change`: its
   // page changed; `events`: the log grew; `listeners`: an agent started or stopped waiting; `style`:
   // a stylesheet changed; `reload`: browser code changed; `scroll`: an agent shows the reader a place
-  // on the page ({ to }). /api/watch says the same as server-sent events, for a tab opened before
+  // on the page ({ to }); `elsewhere`: under a shared server, what waits in another project changed.
+  // /api/watch says the same as server-sent events, for a tab opened before
   // /api/live: it tells it to reload first, so it moves to the WebSocket (see ws.ts for why).
 
   /** A browser following its page; `pending`: what it will be told in a moment. */
@@ -664,6 +667,11 @@ export function createServer(
   }
   const notifyAll = (kind: string) => {
     for (const c of clients) notify(c, kind)
+  }
+  // who listens shows on this project's pages, and, under a shared server, on the others' (onChange)
+  const listenersChanged = () => {
+    notifyAll('listeners')
+    onChange?.()
   }
 
   function pageChanged(id: string) {
@@ -929,7 +937,7 @@ export function createServer(
           ...(fallback && { fallback }),
         }
         listeners.add(l)
-        notifyAll('listeners')
+        listenersChanged()
         const ping = setInterval(() => res.write(': ping\n\n'), 25000)
         const end = () => {
           clearInterval(ping)
@@ -942,7 +950,7 @@ export function createServer(
         })
         req.on('close', () => {
           end()
-          notifyAll('listeners')
+          listenersChanged()
         })
         return
       }
@@ -1261,11 +1269,12 @@ export function createServer(
     touch() {
       for (const c of clients) if (c.isDir && !c.page) notify(c, 'change')
     },
+    elsewhere: () => notifyAll('elsewhere'),
     addListener(l) {
       listeners.add(l)
-      notifyAll('listeners')
+      listenersChanged()
       return () => {
-        if (listeners.delete(l)) notifyAll('listeners')
+        if (listeners.delete(l)) listenersChanged()
       }
     },
     status: (page = null) => status(page),

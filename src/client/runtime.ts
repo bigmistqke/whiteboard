@@ -275,6 +275,8 @@ const onLive: Record<string, (data: unknown) => void> = {
   },
   events: () => loadEvents(),
   listeners: () => loadListeners(),
+  // under a shared server: what waits in another project changed (the page's menu of it listens)
+  elsewhere: () => document.dispatchEvent(new Event('wb-elsewhere')),
   // browser code changed; the page keeps what matters across a reload itself. Reload only once
   // the server answers: reloading while it restarts would leave the browser's error page, which
   // has nothing left in it to recover with.
@@ -307,9 +309,11 @@ function connect() {
   ws.onopen = () => {
     retries = 0
     document.documentElement.dataset.wbLive = ''
-    // after a server restart: who is listening now, and what was answered meanwhile
+    // after a server restart: who is listening now, and what was answered meanwhile, here and
+    // elsewhere
     loadListeners()
     loadEvents()
+    document.dispatchEvent(new Event('wb-elsewhere'))
     // and the page, if it changed while the channel wasn't open yet (just after loading, or while
     // the server restarted): that change was never announced. Only then: an update that changes
     // nothing still redraws, sorts and scrolls, under the reader's hands
