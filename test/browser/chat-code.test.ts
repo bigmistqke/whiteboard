@@ -1,64 +1,85 @@
-// Code in a chat message wraps at the bubble's edge, a diff too: a line longer than the bubble
-// neither makes the chat wider than what holds it, nor gives the block a scrollbar (which WebKit
-// draws over the text below it).
+// Code in a chat message keeps its lines whole and scrolls sideways, as on a page; a fence that says
+// {wrap} wraps them. A block that scrolls stays inside the chat and its form, and the text after it
+// starts below it (WebKit drew the scrollbar of such a block over the next line).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { browser, project, until } from './project.ts'
+import type { Page } from 'playwright'
 
 const PAGE = `# Code in a chat\n\n:::form{name=q}\n:button[Go]\n:::\n`
 const long =
   'return { body: drawer(state, await term.screens(state.sessions), client, and, a, good, deal, more, than, fits) }'
-const MESSAGE = [
-  'Before:',
-  '',
-  '````diff',
-  '   setup(ctx) {',
-  `-    ${long}`,
-  `+    ${long.replace('client, ', '')}`,
-  '````',
-  '',
-  'After the block.',
-].join('\n')
+const message = (fence: string) =>
+  [
+    'Before:',
+    '',
+    fence,
+    '   setup(ctx) {',
+    `-    ${long}`,
+    `+    ${long.replace('client, ', '')}`,
+    '````',
+    '',
+    'After the block.',
+  ].join('\n')
 
-test("a diff in a chat message wraps at the bubble's edge, inside its form", { timeout: 60000 }, async t => {
-  const proj = await project({ pages: { c: PAGE } })
-  const { browser: b, page } = await browser()
-  t.after(async () => {
-    await b.close()
-    await proj.close()
-  })
-  await page.setViewportSize({ width: 900, height: 900 })
-  proj.cli('append', '--page', 'c', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'q', text: MESSAGE }))
-  await page.goto(proj.url('c'))
-  // a decided-or-not form folds its chat: open it, so the message lays out
+/** The first code block in a chat message: whether it scrolls, how far the chat reaches past its form, and over the text after it. */
+async function chatBlock(page: Page) {
   await until('the message', () =>
     page
       .locator('.wb-chat-bubble pre')
       .count()
       .then(n => n > 0 || null),
   )
-  await page.evaluate(() => document.querySelectorAll('details').forEach(d => (d.open = true)))
-  const sizes = await page.evaluate(() => {
+  return page.evaluate(() => {
     const pre = document.querySelector<HTMLElement>('.wb-chat-bubble pre')!
-    const after = pre.nextElementSibling!
-    const form = pre.closest('form')!
-    const chat = pre.closest('.wb-chat')!
+    // the code inside the block scrolls (code/style.css), never the block itself
+    const code = pre.querySelector('code')!
     return {
-      preScrolls: pre.scrollWidth - pre.clientWidth,
-      chatPastForm: Math.round(chat.getBoundingClientRect().right - form.getBoundingClientRect().right),
-      overlap: Math.round(pre.getBoundingClientRect().bottom - after.getBoundingClientRect().top),
+      scrolls: code.scrollWidth > code.clientWidth,
+      blockOverflows: pre.scrollWidth > pre.clientWidth || pre.scrollHeight > pre.clientHeight,
+      verticalBar: code.offsetWidth - code.clientWidth,
+      chatPastForm: Math.round(
+        pre.closest('.wb-chat')!.getBoundingClientRect().right - pre.closest('form')!.getBoundingClientRect().right,
+      ),
+      overlap: Math.round(pre.getBoundingClientRect().bottom - pre.nextElementSibling!.getBoundingClientRect().top),
     }
   })
-  assert.equal(sizes.preScrolls, 0, 'the block wraps, no scrollbar')
-  assert.ok(sizes.chatPastForm <= 0, `the chat stays inside its form (${sizes.chatPastForm}px past it)`)
-  assert.ok(sizes.overlap <= 0, `the text after the block starts below it (${sizes.overlap}px over it)`)
-})
+}
 
 test(
-  'a fence says whether it wraps: {nowrap} in a chat scrolls inside its form, {wrap} on a page wraps',
+  'a code block in a chat message keeps its lines whole and scrolls, inside its form, above the text after it',
   { timeout: 60000 },
   async t => {
-    const nowrap = MESSAGE.replace('````diff', '````diff {nowrap}')
+    const proj = await project({ pages: { c: PAGE } })
+    const { browser: b, page } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    await page.setViewportSize({ width: 900, height: 900 })
+    proj.cli(
+      'append',
+      '--page',
+      'c',
+      '--type',
+      'chat:message',
+      '--data',
+      JSON.stringify({ chat: 'q', text: message('````diff') }),
+    )
+    await page.goto(proj.url('c'))
+    const got = await chatBlock(page)
+    assert.ok(got.scrolls, 'its lines whole: the code scrolls')
+    assert.equal(got.blockOverflows, false, 'the block itself neither scrolls nor overflows')
+    assert.equal(got.verticalBar, 0, 'no vertical scrollbar')
+    assert.ok(got.chatPastForm <= 0, `inside its form (${got.chatPastForm}px past it)`)
+    assert.ok(got.overlap <= 0, `the text after it starts below it (${got.overlap}px over it)`)
+  },
+)
+
+test(
+  'a fence that says {wrap} wraps its long lines, a diff too, in a chat message and on a page',
+  { timeout: 60000 },
+  async t => {
     const proj = await project({
       pages: { c: PAGE, p: `# Page\n\n\`\`\`ts {wrap}\nconst x = ${JSON.stringify(long)}\n\`\`\`\n\nAfter.\n` },
     })
@@ -68,36 +89,28 @@ test(
       await proj.close()
     })
     await page.setViewportSize({ width: 900, height: 900 })
-    proj.cli('append', '--page', 'c', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'q', text: nowrap }))
-    await page.goto(proj.url('c'))
-    await until('the message', () =>
-      page
-        .locator('.wb-chat-bubble pre')
-        .count()
-        .then(n => n > 0 || null),
+    proj.cli(
+      'append',
+      '--page',
+      'c',
+      '--type',
+      'chat:message',
+      '--data',
+      JSON.stringify({ chat: 'q', text: message('````diff {wrap}') }),
     )
-    const chat = await page.evaluate(() => {
-      const pre = document.querySelector<HTMLElement>('.wb-chat-bubble pre')!
-      return {
-        wrap: pre.dataset.wrap,
-        scrolls: pre.scrollWidth > pre.clientWidth,
-        chatPastForm: Math.round(
-          pre.closest('.wb-chat')!.getBoundingClientRect().right - pre.closest('form')!.getBoundingClientRect().right,
-        ),
-        overlap: Math.round(pre.getBoundingClientRect().bottom - pre.nextElementSibling!.getBoundingClientRect().top),
-      }
-    })
-    assert.equal(chat.wrap, 'false')
-    assert.ok(chat.scrolls, 'its lines whole: the block scrolls')
-    assert.ok(chat.chatPastForm <= 0, `inside its form (${chat.chatPastForm}px past it)`)
-    assert.ok(chat.overlap <= 0, `the text after it starts below it (${chat.overlap}px over it)`)
-
+    await page.goto(proj.url('c'))
+    const got = await chatBlock(page)
+    assert.equal(got.scrolls, false, 'in a chat: wrapped')
+    assert.ok(got.chatPastForm <= 0)
     await page.goto(proj.url('p'))
-    const onPage = await page.evaluate(() => {
-      const pre = document.querySelector<HTMLElement>('#wb-main pre')!
-      return { wrap: pre.dataset.wrap, scrolls: pre.scrollWidth > pre.clientWidth }
-    })
-    assert.deepEqual(onPage, { wrap: 'true', scrolls: false })
+    assert.equal(
+      await page.evaluate(() => {
+        const code = document.querySelector<HTMLElement>('#wb-main pre code')!
+        return code.scrollWidth > code.clientWidth
+      }),
+      false,
+      'on a page: wrapped',
+    )
   },
 )
 

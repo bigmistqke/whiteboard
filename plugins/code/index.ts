@@ -47,11 +47,10 @@ export default function code(options: Options = {}): Plugin {
   const loaded = new Set<string>()
 
   /**
-   * Highlight `code` as `lang`; an unknown or missing language renders as plain text. `wrap`: long
-   * lines wrap at the block's edge (true) or the block scrolls sideways (false); undefined leaves it
-   * to where the block is (a page scrolls, a chat message wraps).
+   * Highlight `code` as `lang`; an unknown or missing language renders as plain text. A long line
+   * scrolls the block sideways; with `wrap` it wraps at the block's edge.
    */
-  async function highlight(code: string, lang: string | null, wrap?: boolean) {
+  async function highlight(code: string, lang: string | null, wrap = false) {
     shiki ??= await import('shiki')
     highlighter ??= shiki.createHighlighter({ themes: Object.values(themes), langs: [] })
     const h = await highlighter
@@ -64,11 +63,11 @@ export default function code(options: Options = {}): Plugin {
     } else language = 'text'
     const diff = language === 'diff' ? diffLines(code) : null
     const transformers: Shiki.ShikiTransformer[] = []
-    // the fence's say on long lines; without one, where the block is decides (style.css)
-    if (wrap !== undefined)
+    // a fence that says {wrap}: its long lines wrap (style.css)
+    if (wrap)
       transformers.push({
         pre(node) {
-          node.properties['data-wrap'] = String(wrap)
+          node.properties['data-wrap'] = ''
         },
       })
     if (diff)
@@ -100,10 +99,6 @@ export default function code(options: Options = {}): Plugin {
     })
   }
 
-  /** A fence's `{wrap}` or `{nowrap}`; neither: undefined. */
-  const wrapOf = (attrs: Record<string, string>): boolean | undefined =>
-    'nowrap' in attrs ? false : 'wrap' in attrs ? attrs.wrap !== 'false' : undefined
-
   return definePlugin({
     name: 'code',
     public: builtinPublic('code'),
@@ -111,7 +106,7 @@ export default function code(options: Options = {}): Plugin {
       code: {
         // every code fence no other block claims by name, and the code view of repository files
         fence: 'any',
-        html: ctx => highlight((ctx as FenceContext).text, (ctx as FenceContext).lang, wrapOf(ctx.attrs)),
+        html: ctx => highlight((ctx as FenceContext).text, (ctx as FenceContext).lang, 'wrap' in ctx.attrs),
         style: 'style.css',
       },
     },

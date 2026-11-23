@@ -52,12 +52,8 @@
   background: var(--tint);
   border: var(--hairline) solid var(--border);
 }
-/* rendered from markdown: its paragraphs and code carry the spacing. A column of flex items, not
-   blocks: in a block layout WebKit places what follows a block that scrolls sideways as if its
-   scrollbar weren't there, and draws the scrollbar over it */
+/* rendered from markdown: its paragraphs and code carry the spacing */
 .wb-chat-bubble[data-md] {
-  display: flex;
-  flex-direction: column;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -75,20 +71,11 @@
 .wb-chat-bubble[data-md] table {
   overflow-wrap: normal;
 }
-/* code wraps at the bubble's edge, as the text around it does, a diff too; a fence that says {nowrap}
-   keeps its lines whole and scrolls sideways (code/style.css) */
+/* code keeps its lines whole and scrolls sideways, as on a page (code/style.css: {wrap} wraps it) */
 .wb-chat-bubble[data-md] pre {
   font-size: var(--ui-small);
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-sm);
-}
-.wb-chat-bubble[data-md] pre:not([data-wrap='false']) {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.wb-chat-bubble[data-md] pre:not([data-wrap='false']) code:has(> .line[data-diff]) {
-  width: auto;
-  min-width: 0;
 }
 .wb-chat-message[data-from='you'] .wb-chat-bubble[data-md] a {
   color: inherit;

@@ -24,23 +24,30 @@ pre.shiki {
   text-decoration: var(--shiki-dark-text-decoration);
 }
 
-/* long lines: where the block is decides (a page scrolls it sideways, a chat message wraps), unless
-   the fence says ({wrap}, {nowrap}) */
-pre.shiki[data-wrap='true'] {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-pre.shiki[data-wrap='false'] {
+/* a long line scrolls the block sideways, wherever it is; a fence that says {wrap} wraps it. The
+   code inside the block scrolls, not the block: WebKit sizes a block that scrolls sideways without
+   its scrollbar, so the bar ate into its height (a vertical scrollbar came with it), and in a column
+   of blocks what followed was placed over it */
+pre.shiki {
   white-space: pre;
   overflow-wrap: normal;
+  overflow: visible;
+}
+pre.shiki > code {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+pre.shiki[data-wrap] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* a diff: one row per line, as wide as the longest (a grid leaves out the line breaks between them,
    which stay in the text), tinted by what it is, with its number in a gutter */
 .shiki code:has(> .line[data-diff]) {
   display: grid;
-  width: max-content;
-  min-width: 100%;
+  grid-template-columns: minmax(max-content, 1fr);
 }
 .shiki .line[data-diff='add'] {
   background: color-mix(in srgb, #16a34a var(--tint-soft), transparent);
@@ -78,7 +85,6 @@ pre.shiki[data-wrap='false'] {
   margin-top: 0;
 }
 /* a diff that wraps: its rows fill the block, and a long one wraps inside its row */
-pre.shiki[data-wrap='true'] code:has(> .line[data-diff]) {
-  width: auto;
-  min-width: 0;
+pre.shiki[data-wrap] code:has(> .line[data-diff]) {
+  grid-template-columns: minmax(0, 1fr);
 }
