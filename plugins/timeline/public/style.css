@@ -100,6 +100,36 @@
   margin-top: 0;
 }
 
+/* a step's sub steps: a timeline of their own inside it, a level in: a thinner line, smaller
+   rings, the same at every depth */
+.wb-tl-sub {
+  margin-top: var(--space-md);
+  padding-left: 20px;
+}
+.wb-tl-sub::before {
+  left: 4px;
+  width: 1px;
+}
+.wb-tl-sub > .wb-tl-step {
+  padding-bottom: var(--space-md);
+}
+.wb-tl-sub > .wb-tl-step:last-child {
+  padding-bottom: 0;
+}
+.wb-tl-sub > .wb-tl-step::before,
+.wb-tl-sub > .wb-tl-step > .wb-tl-title::before {
+  left: -20px;
+  width: 9px;
+  height: 9px;
+  border-width: 1.5px;
+}
+.wb-tl-sub > .wb-tl-step > .wb-tl-title::before {
+  top: calc(0.7em - 4.5px);
+}
+.wb-tl-sub .wb-tl-title {
+  font-size: var(--ui-text);
+}
+
 /* a quote in a step is what the step means */
 .wb-timeline .wb-tl-body blockquote {
   all: unset;

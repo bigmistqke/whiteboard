@@ -1,6 +1,7 @@
 // Timeline: steps in order down a line, a dot per step, each with room for full sentences: what was
 // done, what it showed, and (a quote) what it means. Headings at two levels group the steps into
-// sections; a `:when[…]` in a step's heading is when it happened. Rendered on the server; no script.
+// sections, and each level below that is a step's sub steps, a timeline inside it; a `:when[…]` in
+// a step's heading is when it happened. Rendered on the server; no script.
 import fs from 'node:fs'
 import { definePlugin, html, raw, type DirectiveContext, type Plugin } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'
@@ -10,6 +11,8 @@ type Node = { type: string; name?: string; value?: string; depth?: number; child
 interface Step {
   title: Node[] | null
   body: Node[]
+  /** its sub steps, from the next heading level down: a timeline of their own inside the step */
+  steps: Step[]
 }
 
 const text = (node: Node): string => node.value ?? (node.children ?? []).map(text).join('')
@@ -39,56 +42,75 @@ interface Section {
 }
 
 /**
- * Splits the block's content into sections and steps. With headings at two levels, the shallowest
- * starts a section and the next one a step; with one level, every heading starts a step. A `---`
- * also starts a step, untitled. Content before the first heading is an untitled step.
+ * Steps from content: a heading at `depths[0]` starts one, titled by it, and so does a `---`
+ * (untitled) where `breaks`. A step's content up to its first heading at the next level is its
+ * body; from there on it is that level's steps, the same way, so they nest to any depth. A heading
+ * of a level a step doesn't use before that is ordinary content of its body. Content before the
+ * first step is an untitled one.
  */
-export function parse(children: Node[]): Section[] {
-  const depths = [...new Set(children.filter(n => n.type === 'heading').map(n => n.depth!))].sort()
-  const sectionDepth = depths.length > 1 ? depths[0] : null
-  const stepDepth = depths.length > 1 ? depths[1] : depths[0]
-
-  const sections: Section[] = [{ title: null, steps: [] }]
-  let step: Step | null = null
-  const section = () => sections[sections.length - 1]
-
-  for (const node of children) {
-    if (node.type === 'heading' && node.depth === sectionDepth) {
-      sections.push({ title: node.children ?? [], steps: [] })
-      step = null
-    } else if (node.type === 'heading' && node.depth === stepDepth) {
-      step = { title: node.children ?? [], body: [] }
-      section().steps.push(step)
-    } else if (node.type === 'thematicBreak') {
-      step = { title: null, body: [] }
-      section().steps.push(step)
-    } else {
-      if (!step) {
-        step = { title: null, body: [] }
-        section().steps.push(step)
-      }
-      step.body.push(node)
+function stepsOf(nodes: Node[], depths: number[], breaks: boolean): Step[] {
+  const [depth, ...deeper] = depths
+  const groups: { title: Node[] | null; nodes: Node[] }[] = []
+  for (const node of nodes) {
+    if (node.type === 'heading' && node.depth === depth) groups.push({ title: node.children ?? [], nodes: [] })
+    else if (breaks && node.type === 'thematicBreak') groups.push({ title: null, nodes: [] })
+    else {
+      if (!groups.length) groups.push({ title: null, nodes: [] })
+      groups[groups.length - 1].nodes.push(node)
     }
   }
-  return sections.filter(s => s.title || s.steps.length)
+  return groups.map(({ title, nodes }) => {
+    const at = deeper.length ? nodes.findIndex(n => n.type === 'heading' && n.depth === deeper[0]) : -1
+    if (at === -1) return { title, body: nodes, steps: [] }
+    return { title, body: nodes.slice(0, at), steps: stepsOf(nodes.slice(at), deeper, false) }
+  })
+}
+
+/**
+ * Splits the block's content into sections and steps. With headings at two levels or more, the
+ * shallowest starts a section and the next one a step, and each level below that a step's sub
+ * steps; with one level, every heading starts a step. A `---` also starts a step, untitled.
+ * Content before the first heading is an untitled step.
+ */
+export function parse(children: Node[]): Section[] {
+  const depths = [...new Set(children.filter(n => n.type === 'heading').map(n => n.depth!))].sort((a, b) => a - b)
+  const sectionDepth = depths.length > 1 ? depths[0] : null
+  const stepDepths = depths.length > 1 ? depths.slice(1) : depths
+
+  const sections: { title: Node[] | null; nodes: Node[] }[] = [{ title: null, nodes: [] }]
+  for (const node of children) {
+    if (node.type === 'heading' && node.depth === sectionDepth) sections.push({ title: node.children ?? [], nodes: [] })
+    else sections[sections.length - 1].nodes.push(node)
+  }
+  return sections
+    .map(s => ({ title: s.title, steps: s.nodes.length ? stepsOf(s.nodes, stepDepths, true) : [] }))
+    .filter(s => s.title || s.steps.length)
+}
+
+/** A step: when, title and body, then its sub steps as a timeline of their own. */
+async function renderStep(ctx: DirectiveContext, step: Step): Promise<ReturnType<typeof html>> {
+  const split = step.title ? when(step.title) : { when: null, title: null }
+  const title = split.title && (await ctx.toHtml(split.title))
+  const body = await ctx.toHtml(step.body)
+  const steps = await Promise.all(step.steps.map(sub => renderStep(ctx, sub)))
+  return html`<li class="wb-tl-step">
+    ${split.when && html`<time class="wb-tl-when">${split.when}</time>`}
+    ${title && html`<div class="wb-tl-title">${raw(title)}</div>`}
+    ${body.trim() && html`<div class="wb-tl-body">${raw(body)}</div>`}
+    ${
+      steps.length > 0 &&
+      html`<ol class="wb-tl-steps wb-tl-sub">
+        ${steps}
+      </ol>`
+    }
+  </li>`
 }
 
 async function render(ctx: DirectiveContext) {
   const sections = parse(ctx.children as Node[])
   const rendered = await Promise.all(
     sections.map(async s => {
-      const steps = await Promise.all(
-        s.steps.map(async step => {
-          const split = step.title ? when(step.title) : { when: null, title: null }
-          const title = split.title && (await ctx.toHtml(split.title))
-          const body = await ctx.toHtml(step.body)
-          return html`<li class="wb-tl-step">
-            ${split.when && html`<time class="wb-tl-when">${split.when}</time>`}
-            ${title && html`<div class="wb-tl-title">${raw(title)}</div>`}
-            <div class="wb-tl-body">${raw(body)}</div>
-          </li>`
-        }),
-      )
+      const steps = await Promise.all(s.steps.map(step => renderStep(ctx, step)))
       const title = s.title && (await ctx.toHtml(s.title))
       return html`<li class="wb-tl-section">
         ${title && html`<div class="wb-tl-section-title">${raw(title)}</div>`}
