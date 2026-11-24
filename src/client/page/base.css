@@ -113,10 +113,14 @@ body {
 }
 /* The column: headings sit on its left edge, everything else is indented by --indent, and section
    numbers hang in the margin left of the headings. */
+/* --wb-aside: the room a panel docked at the window's left edge takes (the table of contents sets
+   it); the page centres in the space right of it */
 main {
   --indent: 34px;
   max-width: calc(var(--measure) + var(--indent) + 32px);
   margin: 0 auto;
+  position: relative;
+  left: calc(var(--wb-aside, 0px) / 2);
   padding: 120px var(--space-2xl) 220px;
 }
 main > :first-child {
@@ -516,7 +520,7 @@ details[open] > :last-child {
 /* positioned with left + transform, not margins, so a block's own margin rules can't undo it */
 /* only from the text column: in a container (see Containers) it keeps to it */
 .wb-wide {
-  width: var(--wb-wide-width, min(var(--wide), 100vw - 32px));
+  width: var(--wb-wide-width, min(var(--wide), 100vw - 32px - var(--wb-aside, 0px)));
   position: relative;
   left: var(--wb-wide-left, 50%);
   transform: var(--wb-wide-shift, translateX(-50%));
@@ -1156,6 +1160,8 @@ form[data-wb-just-sent] .wb-folded-change {
   --indent: 34px;
   max-width: calc(var(--measure) + var(--indent) + 32px);
   margin: 0 auto;
+  position: relative;
+  left: calc(var(--wb-aside, 0px) / 2);
   padding: 0 var(--space-2xl) 220px;
   box-sizing: border-box;
   font: var(--ui-text)/var(--ui-line-height) var(--sans);

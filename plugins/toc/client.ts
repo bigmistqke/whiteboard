@@ -28,10 +28,13 @@ const navHeight = () => document.querySelector<HTMLElement>('.wb-nav')?.getBound
 const GAP = 40
 const EDGE = 16
 
-/** Is there room left of the text for the panel at its narrowest? Else it opens from the header. */
+/** The room beside the text for the panel: the window, less the page and the gaps around the panel. */
+const room = () => document.documentElement.clientWidth - main.offsetWidth - EDGE - GAP
+
+/** Is there room beside the text for the panel at its narrowest? Else it opens from the header. */
 function fits() {
   const narrowest = parseFloat(getComputedStyle(panel).minWidth) || 0
-  return main.getBoundingClientRect().left >= narrowest + GAP + EDGE
+  return room() >= narrowest
 }
 
 /** A width as the settings or the options give it: a CSS length, or a number of pixels. */
@@ -58,11 +61,17 @@ function bounds() {
   }
 }
 
-/** Docked: its right edge a gap left of the text, so a wider panel grows away from it. */
-function place() {
-  const left = main.getBoundingClientRect().left
-  panel.style.setProperty('--wb-toc-right', `${document.documentElement.clientWidth - left + GAP}px`)
-  panel.style.setProperty('--wb-toc-room', `${left - GAP - EDGE}px`)
+/**
+ * Docked: at the window's left edge, as wide as its items allow within the room there is, and the
+ * page centred in the space right of it: the room it takes is --wb-aside on the root (base.css).
+ * Not docked, it takes none.
+ */
+function place(docked: boolean) {
+  const root = document.documentElement.style
+  panel.style.setProperty('--wb-toc-room', `${room()}px`)
+  if (!docked) return root.removeProperty('--wb-aside')
+  // its edge and itself: the page centres in the rest, as far from it as from the window's right edge
+  root.setProperty('--wb-aside', `${EDGE + panel.getBoundingClientRect().width}px`)
 }
 
 let handle: PageHandle
@@ -126,10 +135,11 @@ function build() {
   })
   const any = headings.length > 1
   bounds()
-  place()
-  toggle.hidden = !any || fits()
-  panel.hidden = !any || (!fits() && !panel.classList.contains('wb-toc-open'))
-  panel.classList.toggle('wb-toc-docked', fits())
+  const docked = any && fits()
+  toggle.hidden = !any || docked
+  panel.hidden = !any || (!docked && !panel.classList.contains('wb-toc-open'))
+  panel.classList.toggle('wb-toc-docked', docked)
+  place(docked)
   mark()
   current()
 }

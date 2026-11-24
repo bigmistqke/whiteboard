@@ -14,9 +14,10 @@
 .wb-toc-toggle[hidden] {
   display: none;
 }
+/* docked: at the window's left edge; the page centres in the room right of it (client.ts, --wb-aside) */
 .wb-toc-docked {
   top: 72px;
-  right: var(--wb-toc-right);
+  left: 16px;
   max-width: min(var(--wb-toc-max-width, 320px), var(--wb-toc-room, 320px));
   max-height: calc(100vh - 120px - var(--wb-inset-bottom, 0px));
   overflow: auto;

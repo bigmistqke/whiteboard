@@ -179,14 +179,17 @@ test(
     const panel = async (name: string) => {
       await page.goto(proj.url(name))
       await until(`contents on ${name}`, async () => (await page.locator('.wb-toc a').count()) === 2 || null)
+      // at the window's left edge, and the page centred in the space right of it: as far from the
+      // panel as from the window's right edge
       return page.evaluate(() => {
         const r = document.querySelector('.wb-toc')!.getBoundingClientRect()
-        const text = document.querySelector('#wb-main')!.getBoundingClientRect().left
-        return { width: Math.round(r.width), gap: Math.round(text - r.right) }
+        const m = document.querySelector('#wb-main')!.getBoundingClientRect()
+        const balance = Math.round(m.left - r.right - (document.documentElement.clientWidth - m.right))
+        return { width: Math.round(r.width), left: Math.round(r.left), balance }
       })
     }
-    assert.deepEqual(await panel('short'), { width: 160, gap: 40 }, 'short items: the minimum, 40px left of the text')
-    assert.deepEqual(await panel('long'), { width: 300, gap: 40 }, "long ones: the project's maximum")
+    assert.deepEqual(await panel('short'), { width: 160, left: 16, balance: 0 }, 'short items: the minimum')
+    assert.deepEqual(await panel('long'), { width: 300, left: 16, balance: 0 }, "long ones: the project's maximum")
     assert.equal((await panel('narrow')).width, 200, "the page's own maximum, from YAML")
 
     // frontmatter that isn't YAML: said on the page, and read as none
