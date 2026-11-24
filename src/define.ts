@@ -9,7 +9,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Html } from './html.ts'
 
-// HTML from a template literal, escaped by default: for a block, a plugin's `shell`
+// HTML from a template literal, escaped by default: for a block, a plugin's `slots`
 export { html, raw, escape, Html } from './html.ts'
 export { windowFrame, type WindowOptions } from './pages/window.ts'
 
@@ -185,11 +185,9 @@ export interface PluginContext {
   dataDir: string
   /**
    * whether a request carries the project's token: for a check of its own, beyond a route's `auth`.
-   * No request (`shell` for a page being built) has none.
+   * No request (`slots` for a page being built) has none.
    */
   authorized(req: IncomingMessage | null): boolean
-  /** the URL that serves a file of the plugin (its browser module, a stylesheet) */
-  asset(file: URL | string): string
 }
 
 /**
@@ -233,30 +231,10 @@ export interface PluginHooks {
    */
   slots?(req: IncomingMessage | null): SlotMarkup | null | Promise<SlotMarkup | null>
   /**
-   * Markup for the page shell, outside the page's root: `head` at the end of <head>, `body` at
-   * the end of <body>. Called for every page; null adds nothing. The body is there for the first
-   * render, so an element in it can take part in the view transition between two pages.
-   *
-   * Something that covers an edge of the window (a drawer at the bottom) says how much of it, as a
-   * length in `--wb-inset-bottom` on :root, registered with `@property` so that it computes to
-   * pixels. The page keeps its own fixed elements clear of it and counts what is behind it as out
-   * of view.
-   *
-   * `req` is the browser's request for the page; null for a page `whiteboard build` writes, which no
-   * browser asked for: what is only for the project's own browser (the terminal's drawer, behind
-   * `authorized`) has nothing to add there.
-   */
-  shell?(
-    req: IncomingMessage | null,
-  ):
-    | { head?: string | Html; body?: string | Html }
-    | null
-    | Promise<{ head?: string | Html; body?: string | Html } | null>
-  /**
    * A browser module whose default export is an `PluginMount`: on every page, the core imports
    * it once the page has mounted, and hands it the page and its api. For
    * behaviour on the page's own content (its forms, say); markup of the plugin's own can come
-   * from `shell` instead. A file in the plugin's public folder: `'client.js'`.
+   * from `slots` instead. A file in the plugin's public folder: `'client.js'`.
    */
   client?: URL | string
 }
@@ -612,12 +590,6 @@ export interface Api {
   rendered(): void
   /** called after each `rendered()`; returns an unsubscribe */
   onRendered(fn: () => void): () => void
-  /**
-   * The page's corner: a column at the bottom right, above whatever covers the bottom of the
-   * window (`--wb-inset-bottom`), for floating buttons. The page and the plugins each add
-   * their own; the core draws nothing in it.
-   */
-  corner(): HTMLElement
   /**
    * Mount on this plugin's own element in a slot (SlotName): `mount` is called with it, holding
    * what the plugin's `slots` rendered there on the server, or empty, and what it returns is called

@@ -8,14 +8,14 @@ const hook = (name: string, extra: Partial<SetUp> = {}): SetUp =>
   ({ name, table: [], plugin: { name }, ...extra }) as SetUp
 
 const hooks = [
-  hook('drawer', { shell: req => ({ body: `<aside>${req ? 'served' : 'built'}</aside>` }), client: '/p/drawer.js' }),
+  hook('drawer', { slots: req => ({ bottom: `<aside>${req ? 'served' : 'built'}</aside>` }), client: '/p/drawer.js' }),
   hook('broken', { error: new Error('no setup') }),
   hook('throws', {
-    shell: () => {
+    slots: () => {
       throw new Error('oops')
     },
   }),
-  hook('skipped', { shell: () => ({ head: '<meta name=skipped>' }), client: '/p/skipped.js' }),
+  hook('skipped', { slots: () => ({ head: '<meta name=skipped>' }), client: '/p/skipped.js' }),
 ]
 
 test("pluginParts: each plugin's markup and module; one that fails is told, one left out is quiet", async () => {
@@ -26,7 +26,10 @@ test("pluginParts: each plugin's markup and module; one that fails is told, one 
     leaveOut: new Set(['skipped']),
     failed: m => failed.push(m),
   })
-  assert.equal(parts.body.map(String).join(''), '<aside>built</aside>')
+  assert.deepEqual(
+    parts.slots.bottom.map(x => [x.name, String(x.html)]),
+    [['drawer', '<aside>built</aside>']],
+  )
   assert.equal(parts.head.map(String).join(''), '', 'the skipped plugin adds nothing')
   assert.deepEqual(parts.clients, [{ name: 'drawer', client: 'addr:/p/drawer.js' }])
   assert.deepEqual(parts.messages, ['chat:message'])
@@ -47,7 +50,7 @@ test('pageDocument: the render, the parts and a handoff saying how the page is p
     pageDocument(
       page,
       { page: true, out: { html: '<h1>Plan</h1>', title: 'Plan' }, notices: ['a notice'] },
-      { head: [], body: [], clients: [], messages: [], slots: { aside: [], bottom: [], overlay: [], corner: [] } },
+      { head: [], clients: [], messages: [], slots: { aside: [], bottom: [], overlay: [], corner: [] } },
       {
         live,
         base: live ? '/rg' : '',

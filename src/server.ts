@@ -165,15 +165,13 @@ export function createServer(
             try {
               pluginDirs.add(e.name)
               const dataDir = pluginDir(project.wb, e.name)
-              // what it serves is in its public folder: its client, and what it asks ctx.asset for
+              // what it serves is in its public folder: its client, named in its hooks
               const dir = c.publicDirs.get(e.name)!
-              const own = (ref: URL | string) => asset(inPublic(dir, ref, `plugin ${e.name}`))
               const hooks =
                 (await e.setup?.({
                   project: { name: project.name, dir: project.dir, wb: project.wb },
                   dataDir,
                   authorized: auth.authorized,
-                  asset: own,
                 })) ?? {}
               const client = hooks.client != null ? inPublic(dir, hooks.client, `plugin ${e.name}: client`) : undefined
               return { name: e.name, ...hooks, client, table: mountRoutes(e.name, hooks.routes), plugin: e }

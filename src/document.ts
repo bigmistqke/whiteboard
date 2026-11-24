@@ -8,7 +8,7 @@ import type { IncomingMessage } from 'node:http'
 import { html, raw, type Html } from './html.ts'
 import { PACKAGE_DIR } from './package.ts'
 import type { MountedRoute } from './plugins.ts'
-import type { Plugin, PluginHooks, Rendered, SlotMarkup, SlotName, StoredPage } from './define.ts'
+import type { Plugin, PluginHooks, Rendered, SlotName, StoredPage } from './define.ts'
 
 /** The browser runtime, built by build.ts. */
 export const RUNTIME = path.join(PACKAGE_DIR, 'dist', 'client', 'runtime.js')
@@ -39,7 +39,6 @@ type Slotted = { name: string; html: Html }
 /** What the plugins add to a page. */
 export interface PageParts {
   head: Html[]
-  body: Html[]
   /** each plugin's markup in each slot, in plugin order */
   slots: { [K in Exclude<SlotName, 'header'>]: Slotted[] }
   /** their browser modules, which the runtime imports after the page's */
@@ -49,7 +48,7 @@ export interface PageParts {
 }
 
 /**
- * What the plugins add to a page: each one's markup (`shell`, asked with the browser's request, or
+ * What the plugins add to a page: each one's markup for the slots (`slots`, asked with the browser's request, or
  * null for a page no browser asked for), and its browser module. One that failed to start or fails
  * here is left out and told to `failed`; so are those in `leaveOut` (a build's skip), silently.
  */
@@ -74,21 +73,20 @@ export async function pluginParts(
   const parts = await Promise.all(
     working.map(async h => {
       try {
-        return [(await h.shell?.(req)) ?? null, (await h.slots?.(req)) ?? null] as const
+        return (await h.slots?.(req)) ?? null
       } catch (err) {
         failed(`plugin "${h.name}" failed on this page: ${(err as Error).message}`)
-        return [null, null] as const
+        return null
       }
     }),
   )
   const slotted = (slot: Exclude<SlotName, 'header'>): Slotted[] =>
     working.flatMap((h, i) => {
-      const markup = (parts[i]![1] as SlotMarkup | null)?.[slot]
+      const markup = parts[i]?.[slot]
       return markup == null ? [] : [{ name: h.name, html: raw(String(markup)) }]
     })
   return {
-    head: parts.flatMap(([shell, slots]) => [raw(String(shell?.head ?? '')), raw(String(slots?.head ?? ''))]),
-    body: parts.map(([shell]) => raw(String(shell?.body ?? ''))),
+    head: parts.map(x => raw(String(x?.head ?? ''))),
     slots: {
       aside: slotted('aside'),
       bottom: slotted('bottom'),
@@ -107,7 +105,7 @@ export const frontmatterOf = (page: StoredPage): Record<string, unknown> =>
 /** JSON made safe inside a <script>. */
 const json = (s: unknown) => JSON.stringify(s).replace(/</g, '\\u003c')
 
-// the page's corner (api.corner()): the one thing the core puts on every page, empty, for the
+// the page's corner (the corner slot): the one thing the core puts on every page, empty, for the
 // page's and the plugins' floating buttons and toasts; above what covers the bottom of the window.
 // Above the page and what floats on it (comment threads: 20), under what fills the window (a
 // maximized frame: 40, a lightbox or the terminal drawer: 50)
@@ -186,7 +184,7 @@ export function pageDocument(
             ${raw(json(handoff))}
           </script>
           <script type="module" src="${o.runtime}"></script>
-          ${parts.body} ${BODY_SLOTS.map(name => html`<div data-wb-slot="${name}">${slotted(parts.slots[name])}</div>`)}
+          ${BODY_SLOTS.map(name => html`<div data-wb-slot="${name}">${slotted(parts.slots[name])}</div>`)}
         </body>
       </html>`,
   )

@@ -239,7 +239,6 @@ const api: Api = {
     renderedListeners.add(fn)
     return () => renderedListeners.delete(fn)
   },
-  corner: cornerOfPage,
   // the page's own (not a plugin's): before the plugins' in a slot
   slot: (name, mount) => slotFor('', name, mount),
   badge(key, text, order = 0) {

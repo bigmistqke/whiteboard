@@ -196,22 +196,12 @@ export async function build(
       leaveOut: skip,
       failed: message => warnings.push(`${path.relative(project.dir, file)}: ${message}`),
     })
-    let doc = pageDocument(stored, { page: true, out, notices: [] }, parts, {
+    const doc = pageDocument(stored, { page: true, out, notices: [] }, parts, {
       live: false,
       base: '',
       asset: assetHere,
       runtime: assetHere(RUNTIME),
       title: project.name,
-    })
-    // a file a plugin named the server's way (its asset URL, /_/file/<path>): its copy
-    doc = doc.replace(/\/_\/file(\/[^"'\s)<>]+)/g, (all, served: string) => {
-      let file: string
-      try {
-        file = path.resolve(served.split('/').map(decodeURIComponent).join(path.sep))
-      } catch {
-        return all
-      }
-      return fs.existsSync(file) && fs.statSync(file).isFile() ? assetHere(file) : all
     })
     fs.mkdirSync(here, { recursive: true })
     fs.writeFileSync(dest, doc)

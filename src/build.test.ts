@@ -155,12 +155,12 @@ test("build: skip is the config's, or what is given; a folder the build didn't w
   await assert.rejects(server.build({ pages: ['nothing/*.md'] }), /no markdown files match/)
 })
 
-test("build: what plugins add to the shell is there, asked with no request; not a skipped plugin's", async () => {
+test("build: what plugins put in their slots is there, asked with no request; not a skipped plugin's", async () => {
   const { server, read } = docsProject(
     [
       'export default { plugins: [',
-      "  { name: 'probe', setup: () => ({ shell: req => ({ head: `<meta name=\"probe\" content=\"${req ? 'browser' : 'build'}\">` }) }) },",
-      "  { name: 'gone', setup: () => ({ shell: () => ({ head: '<meta name=\"gone\">' }) }) },",
+      "  { name: 'probe', setup: () => ({ slots: req => ({ head: `<meta name=\"probe\" content=\"${req ? 'browser' : 'build'}\">` }) }) },",
+      "  { name: 'gone', setup: () => ({ slots: () => ({ head: '<meta name=\"gone\">' }) }) },",
       '] }',
       '',
     ].join('\n'),
