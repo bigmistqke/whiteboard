@@ -8,7 +8,8 @@ blocks too: a takeaway that should stand out can be a `:::callout` (the
 timeline around it then takes four colons, `::::timeline`). A `---` starts an
 untitled step. A badge ending a step's heading sits at its right. A
 `:when[2026-11-21 10:43]` in a step's heading is when it happened: shown above
-the title, as written.
+the title, as written. It works in any other heading too, on the page or in a
+step's body: wherever it is written in the heading, it shows above it.
 
 **Sub steps.** A timeline inside a step is that step's sub steps: drawn a level
 in, on a thinner line, and a timeline inside one of those again a level

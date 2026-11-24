@@ -117,3 +117,22 @@
 .wb-tl-body .wb-tl-title {
   font-size: var(--ui-text);
 }
+
+/* a :when in any other heading: above it, wherever it was written in it; the room it takes comes
+   on top of the heading's own margin */
+:is(h1, h2, h3, h4, h5, h6):has(> .wb-when) {
+  position: relative;
+  padding-top: calc(var(--ui-tiny) * 1.4);
+}
+:is(h1, h2, h3, h4, h5, h6) > .wb-when {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: var(--mono);
+  font-size: var(--ui-tiny);
+  font-weight: normal;
+  font-style: normal;
+  color: var(--muted);
+  line-height: 1.4;
+  white-space: nowrap;
+}

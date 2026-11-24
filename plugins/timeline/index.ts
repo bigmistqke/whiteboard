@@ -1,6 +1,6 @@
 // Timeline: steps in order down a line, a dot per step, each with room for full sentences: what was
 // done and what it showed. The shallowest headings in it are its steps; deeper headings are a
-// step's own. A `:when[…]` in a step's heading is when it happened. A timeline inside a step is
+// step's own. A `:when[…]` in a step's heading is when it happened, and in any other heading too. A timeline inside a step is
 // that step's sub steps, drawn a level in (style.css). Rendered on the server; no script.
 import fs from 'node:fs'
 import { definePlugin, html, raw, type DirectiveContext, type Plugin } from '@bigmistqke/whiteboard'
@@ -71,6 +71,13 @@ async function renderStep(ctx: DirectiveContext, step: Step) {
   </li>`
 }
 
+/** `:when[…]` anywhere else, in any heading: shown above it (style.css), as in a step. */
+export function renderWhen(ctx: DirectiveContext) {
+  // its label as written: the node, since a `:59` in it is a directive of its own (whenText)
+  const at = whenText((ctx as DirectiveContext & { node: Node }).node).trim()
+  return at ? html`<time class="wb-when">${at}</time>` : html``
+}
+
 async function render(ctx: DirectiveContext) {
   const steps = await Promise.all(parse(ctx.children as Node[]).map(step => renderStep(ctx, step)))
   return html`<div class="wb-timeline">
@@ -86,7 +93,7 @@ export default function timeline(): Plugin {
     name: 'timeline',
     public: builtinPublic('timeline'),
     style: 'style.css',
-    blocks: { timeline: { html: render } },
+    blocks: { timeline: { html: render }, when: { html: renderWhen } },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),
   })
 }

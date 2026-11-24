@@ -94,10 +94,10 @@ function wanted() {
   return always
 }
 
-/** A heading's text, without a badge that ends it (a status, not part of the title). */
+/** A heading's text, without a badge that ends it or a when above it (not part of the title). */
 function titleOf(h: HTMLElement) {
   const copy = h.cloneNode(true) as HTMLElement
-  copy.querySelectorAll('.wb-badge').forEach(b => b.remove())
+  copy.querySelectorAll('.wb-badge, .wb-when').forEach(b => b.remove())
   return copy.textContent?.trim() ?? ''
 }
 
