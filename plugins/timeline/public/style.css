@@ -1,5 +1,5 @@
 .wb-timeline {
-  margin: 3em 0;
+  margin: var(--gap-block) 0;
   text-align: left;
 }
 .wb-tl-caption {
@@ -78,7 +78,7 @@
   margin-top: var(--space-xs);
 }
 .wb-timeline .wb-tl-body > * {
-  margin-top: var(--space-md);
+  margin-top: var(--gap-attach);
   margin-bottom: 0;
 }
 .wb-timeline .wb-tl-body > :first-child {

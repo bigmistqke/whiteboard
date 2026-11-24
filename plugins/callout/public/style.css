@@ -1,7 +1,7 @@
 /* a margin note: a coloured rule and a light tint, set in the body face */
 .wb-callout {
   --c: var(--info);
-  margin: calc(var(--rhythm) * 3) 0;
+  margin: var(--gap-block) 0;
   padding: 1em 1.3em;
   border-left: 3px solid var(--c);
   background: color-mix(in srgb, var(--c) var(--tint-faint), var(--bg));
@@ -9,10 +9,10 @@
 }
 /* callouts in a row read as a group */
 .wb-callout:has(+ .wb-callout) {
-  margin-bottom: var(--rhythm);
+  margin-bottom: var(--gap-group);
 }
 .wb-callout + .wb-callout {
-  margin-top: var(--rhythm);
+  margin-top: var(--gap-group);
 }
 .wb-callout > :first-child {
   margin-top: 0;
@@ -23,7 +23,7 @@
 .wb-callout-title {
   font: var(--weight-strong) var(--ui-small)/var(--ui-line-height) var(--sans);
   color: var(--c);
-  margin-bottom: 0.5em;
+  margin-bottom: var(--gap-attach);
   letter-spacing: 0.01em;
 }
 .wb-callout:is([data-type='tip'], [data-type='success']) {

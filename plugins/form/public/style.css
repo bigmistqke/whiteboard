@@ -1,6 +1,7 @@
 /* a form reads as a set-off part of the article: hairline rules above and below, no box */
 .wb-form {
-  margin: calc(var(--rhythm) * 3.75) 0;
+  /* a block, plus the ring that sets it off (base.css) */
+  margin: calc(var(--gap-block) + 16px) 0;
   padding: 1.6em 0 1.7em;
   border-top: var(--hairline) solid var(--border);
   border-bottom: var(--hairline) solid var(--border);
@@ -88,7 +89,7 @@
    option and its explanation read as one */
 .wb-form li[data-wb-explained] + li,
 .wb-form li + li[data-wb-explained] {
-  margin-top: calc(var(--space-2xl) + var(--space-xs));
+  margin-top: var(--gap-group);
 }
 .wb-form li[data-wb-explained] {
   --wb-hang: calc(12px + var(--space-md));
@@ -96,7 +97,7 @@
 .wb-form li[data-wb-explained] > .wb-form-option:first-child,
 .wb-form li[data-wb-explained] > p:first-child > .wb-form-option:first-child {
   margin-left: calc(0px - var(--wb-hang));
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--gap-attach);
 }
 .wb-form li:has(> p:first-child > .wb-form-option:first-child):hover,
 .wb-form li:has(> .wb-form-option:first-child):hover {
@@ -136,7 +137,7 @@
 }
 /* fields one after another (on lines of one paragraph): apart, each label with its own input */
 .wb-form-field + .wb-form-field {
-  margin-top: var(--space-xl);
+  margin-top: var(--gap-group);
 }
 .wb-form-label:empty {
   display: none;

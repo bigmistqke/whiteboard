@@ -99,7 +99,7 @@
 
 /* :::chat on its own: set off from the article like a form, hairlines above and below */
 .wb-chat-block {
-  margin: calc(var(--rhythm) * 3) 0;
+  margin: var(--gap-block) 0;
   padding: 1.6em 0 1.7em;
   border-top: var(--hairline) solid var(--border);
   border-bottom: var(--hairline) solid var(--border);

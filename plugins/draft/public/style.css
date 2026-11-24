@@ -1,6 +1,6 @@
 /* A draft (index.ts): set apart, plainly not final */
 .wb-draft {
-  margin: calc(var(--rhythm) * 2) 0;
+  margin: var(--gap-block) 0;
   padding: var(--space-md) var(--space-xl) var(--space-xl);
   border: var(--hairline) dashed color-mix(in srgb, var(--warn) var(--tint-strong), transparent);
   border-radius: var(--radius);

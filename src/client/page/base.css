@@ -38,8 +38,16 @@
   --weight-strong: 600;
   --caps-spacing: 0.04em;
 
-  /* The article's rhythm: the space between blocks, and around a set-off one (a form, a window) */
-  --rhythm: 1.2em;
+  /* The article's rhythm, and the steps of space made of it: the closer two things belong
+     together, the smaller the step between them. A multiple of the text's size, not em, so a step
+     is the same on a heading as on a paragraph. Inside a container (see "containers" below) the
+     block and prose steps become the attach step. */
+  --rhythm: calc(var(--text-size) * 1.2);
+  --gap-section: calc(var(--rhythm) * 4); /* a new section begins */
+  --gap-block: calc(var(--rhythm) * 3); /* a set-off block of the article: code, a table, a form */
+  --gap-prose: calc(var(--rhythm) * 2); /* paragraphs of running text */
+  --gap-group: var(--rhythm); /* things side by side: callouts in a row, a form's explained options */
+  --gap-attach: calc(var(--rhythm) * 0.45); /* a part attached to what is above it */
 
   /* The interface's spacing, a 2px grid: paddings and gaps */
   --space-2xs: 2px;
@@ -159,16 +167,16 @@ h4 {
 h1 {
   font-size: calc(var(--text-size) * 2.6);
   line-height: 1.08;
-  margin: 0 0 var(--rhythm);
+  margin: 0 0 var(--gap-group);
   letter-spacing: -0.022em;
 }
 h2 {
   font-size: calc(var(--text-size) * 2);
-  margin: 2.4em 0 1.5em;
+  margin: var(--gap-section) 0 var(--gap-group);
 }
 h3 {
   font-size: calc(var(--text-size) * 1.4);
-  margin: calc(var(--rhythm) * 3) 0 var(--rhythm);
+  margin: var(--gap-block) 0 var(--gap-group);
 }
 #wb-main > h3 {
   font-style: italic;
@@ -177,7 +185,7 @@ h4,
 h5,
 h6 {
   font: var(--weight-strong) var(--text-size)/1.3 var(--serif);
-  margin: 3em 0 var(--rhythm);
+  margin: var(--gap-block) 0 var(--gap-group);
 }
 p,
 ul,
@@ -185,10 +193,7 @@ ol,
 blockquote,
 pre,
 table {
-  margin: 0 0 calc(var(--rhythm) * 2);
-}
-p {
-  margin-bottom: calc(var(--rhythm) * 2);
+  margin: 0 0 var(--gap-prose);
 }
 p {
   text-wrap: pretty;
@@ -207,24 +212,28 @@ li + li {
 }
 li:has(> p) + li,
 li + li:has(> p) {
-  margin-top: 0.6em;
-}
-li > p {
-  margin-bottom: 0.5em;
-}
-/* a set-off block in an item (code, a table, a callout, a details) belongs to the item: close to
-   its text, not spaced like a block of the article */
-li > :is(pre, table, blockquote, figure, details, .wb-callout, .wb-island, .wb-window, .wb-grid) {
-  margin-top: 0.6em;
-  margin-bottom: 0.6em;
+  margin-top: var(--gap-attach);
 }
 li > :last-child {
   margin-bottom: 0;
 }
-/* a list in an item belongs to it: close under its line, nothing after it */
+/* a list in an item: close under its line */
 li > :is(ul, ol) {
   margin-top: 0.25em;
-  margin-bottom: 0.6em;
+}
+
+/* Containers: what is inside a form, a list item, a card, a details, a callout or a timeline step
+   is part of it, not a block of the article. A code block, a table, a callout, a grid in one sits
+   the attach step from what is around it, and so do its paragraphs; a wide block keeps to it, and
+   a grid takes its columns from the room it has (--wb-room). Set on the children, so the
+   container's own margins stay those of a block. */
+:is(.wb-form, li, .wb-card-body, .wb-details-body, .wb-callout, .wb-tl-body) > * {
+  --gap-block: var(--gap-attach);
+  --gap-prose: var(--gap-attach);
+  --wb-room: 100%;
+  --wb-wide-width: auto;
+  --wb-wide-left: auto;
+  --wb-wide-shift: none;
 }
 strong {
   font-weight: 650;
@@ -236,12 +245,12 @@ video {
   border-radius: var(--radius-sm);
 }
 figure {
-  margin: calc(var(--rhythm) * 3) 0;
+  margin: var(--gap-block) 0;
 }
 figcaption {
   font: italic var(--ui-text)/var(--ui-line-height) var(--serif);
   color: var(--muted);
-  margin-top: 0.7em;
+  margin-top: var(--gap-attach);
 }
 code {
   font: 0.82em/var(--ui-line-height) var(--mono);
@@ -250,7 +259,7 @@ code {
   border-radius: var(--radius-sm);
 }
 pre {
-  margin: 3em 0;
+  margin: var(--gap-block) 0;
   background: var(--code-bg);
   padding: var(--space-xl) var(--space-2xl);
   border-radius: var(--radius);
@@ -264,7 +273,7 @@ pre code {
   font-size: var(--ui-small);
 }
 table {
-  margin: 3em 0;
+  margin: var(--gap-block) 0;
   border-collapse: collapse;
   display: block;
   overflow-x: auto;
@@ -295,13 +304,13 @@ li > input[type='checkbox'] {
   font-size: 1.24em;
   line-height: var(--ui-line-height);
   color: color-mix(in srgb, var(--text) 72%, var(--bg));
-  margin-bottom: calc(var(--rhythm) * 3);
+  margin-bottom: var(--gap-block);
   padding-bottom: 2.6em;
   border-bottom: var(--hairline) solid var(--border);
 }
 /* pull quote */
 blockquote {
-  margin: calc(var(--rhythm) * 3) 0;
+  margin: var(--gap-block) 0;
   padding: 0 0 0 1em;
   border-left: 2px solid var(--text);
   font-size: 1.24em;
@@ -315,7 +324,7 @@ blockquote > :last-child {
 /* a section break: an asterism instead of a rule */
 hr {
   border: 0;
-  margin: 4.6em 0;
+  margin: var(--gap-block) 0;
   text-align: center;
   height: auto;
 }
@@ -399,12 +408,12 @@ hr::after {
 
 /* a <details>: a quiet, collapsible section rather than a box */
 details {
-  margin: 3.2em 0;
+  margin: var(--gap-block) 0;
   border-top: var(--hairline) solid var(--border);
   border-bottom: var(--hairline) solid var(--border);
 }
 details + details {
-  margin-top: -3.2em;
+  margin-top: calc(0px - var(--gap-block));
   border-top: 0;
 }
 details > summary {
@@ -462,8 +471,8 @@ details[open] > :last-child {
 }
 #wb-main > p:has(> img:only-child),
 #wb-main > p:has(> a:only-child > img:only-child) {
-  margin-top: calc(var(--rhythm) * 3);
-  margin-bottom: calc(var(--rhythm) * 3);
+  margin-top: var(--gap-block);
+  margin-bottom: var(--gap-block);
 }
 #wb-main > :is(figure, .wb-figure) figcaption {
   text-align: center;
@@ -471,18 +480,12 @@ details[open] > :last-child {
 
 /* blocks that may run wider than the text column (blocks opt in with .wb-wide) */
 /* positioned with left + transform, not margins, so a block's own margin rules can't undo it */
+/* only from the text column: in a container (see Containers) it keeps to it */
 .wb-wide {
-  width: min(var(--wide), 100vw - 32px);
+  width: var(--wb-wide-width, min(var(--wide), 100vw - 32px));
   position: relative;
-  left: 50%;
-  transform: translateX(-50%);
-}
-/* only from the text column: inside a form, a list item, a card, a details or a callout, a wide
-   block stays within what holds it */
-:is(.wb-form, li, .wb-card, details, .wb-callout) .wb-wide {
-  width: auto;
-  left: auto;
-  transform: none;
+  left: var(--wb-wide-left, 50%);
+  transform: var(--wb-wide-shift, translateX(-50%));
 }
 
 /* frame */
@@ -1183,7 +1186,7 @@ main:has(+ .wb-orphans:not([hidden])) {
 /* a window around a block (src/pages/window.ts, window.ts here): a header like a browser window's,
    with its label, open on its own, fill the window */
 .wb-window {
-  margin: 1.6em 0;
+  margin: var(--gap-block) 0;
   border: var(--hairline) solid var(--border);
   border-radius: var(--radius, 6px);
   overflow: hidden;

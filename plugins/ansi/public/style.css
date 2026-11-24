@@ -1,7 +1,7 @@
 /* Terminal output: dark as a terminal in either theme, since the colours in it are a terminal's
    palette, written inline. Wide output scrolls sideways rather than wrapping. */
 .wb-ansi {
-  margin: 1.6em 0;
+  margin: var(--gap-block) 0;
   padding: 12px 16px;
   overflow-x: auto;
   background: #0f1115;
