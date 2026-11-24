@@ -15,6 +15,9 @@ to an ndjson log you can wait on.
 
 The commands below are written as `whiteboard …`. When that is not on the
 PATH, the project has it installed locally: run them as `npx whiteboard …`.
+`whiteboard <command> --help` says what any command takes and does (the
+project's plugins' commands too) and runs nothing; `whiteboard help` lists
+them all.
 
 ## Writing a page
 

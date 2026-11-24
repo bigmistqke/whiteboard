@@ -209,6 +209,28 @@ export function pluginCommands(plugin: Plugin): PluginCommand[] {
   })
 }
 
+/** Do these arguments ask for help (--help or -h before any `--`)? */
+export function asksHelp(args: string[]): boolean {
+  const cut = args.indexOf('--')
+  return (cut < 0 ? args : args.slice(0, cut)).some(a => a === '--help' || a === '-h')
+}
+
+/** `whiteboard <plugin> [sub] --help`: its usage, description, and each option with what it means. */
+export function pluginCommandHelp({ name, command }: PluginCommand): string {
+  const options = Object.entries(command.options ?? {}).map(([key, o]) => {
+    const { type } = parseType(o.type, key)
+    const flag = `--${key}${type === 'boolean' ? '' : ` <${o.value ?? type}>`}${o.short ? `, -${o.short}` : ''}`
+    return `  ${flag.padEnd(22)} ${o.description ?? ''}`.trimEnd()
+  })
+  return [
+    `usage: whiteboard ${[name, usage(command)].filter(Boolean).join(' ')}`,
+    '',
+    command.description,
+    ...(options.length ? ['', ...options] : []),
+    ...(command.rest ? ['', `after --: ${command.rest}, passed on as they are`] : []),
+  ].join('\n')
+}
+
 /** `[page] [--restart] [-- <arguments>]` */
 export function usage(command: Command): string {
   const options = Object.entries(command.options ?? {}).map(([name, o]) => {

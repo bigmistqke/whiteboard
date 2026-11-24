@@ -348,6 +348,9 @@ session that ran it, and `whiteboard status` marks that session's pages.
 
 Every command works on the project of the current folder: the nearest folder
 upward with a `.whiteboard/` folder.
+`whiteboard <command> --help` (or `whiteboard help <command>`) says what a
+command takes and does, its options included, and runs nothing; a plugin's
+commands answer it too.
 
 | command | does |
 | --- | --- |

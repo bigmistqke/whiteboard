@@ -23,7 +23,8 @@ import {
   forAgent,
 } from '../src/events.ts'
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
-import { pluginCommands, parseCommandArgs, usage } from '../src/plugins.ts'
+import { pluginCommands, parseCommandArgs, usage, pluginCommandHelp, asksHelp } from '../src/plugins.ts'
+import { commandHelp, commandList } from '../src/help.ts'
 import { projectToken } from '../src/auth.ts'
 import { PACKAGE_DIR, packagePath } from '../src/package.ts'
 import { recordedSharedPort, runningServer, sharedServer } from '../src/running.ts'
@@ -50,39 +51,9 @@ process.on('unhandledRejection', fail)
 
 const HELP = `whiteboard — markdown pages in the browser, what the reader does on them as events in an ndjson log
 
-  whiteboard init [name]           make this folder a project: .whiteboard/pages/
-  whiteboard root                  print where pages go (this project's .whiteboard/pages)
-  whiteboard new <name>            create a page under a name no other page has (name, name-2, …), print its path
-  whiteboard show <page|file>      start this project's server if needed, print the page URL
-  whiteboard url <page|file>       the same: print the page URL
-  whiteboard close <page>          a page that did its job: remove its file, and its events from the log
-  whiteboard prune <page> [--type <t>] [--id <id>]   remove a page's events from the log, keep the page
-  whiteboard build [globs…] [--out <dir>] [--skip <a,b>]   pages as a static site: plain HTML, links
-                                   relative, without forms, chats, comments and drafts (the config's build)
-  whiteboard edit <event id> --data <json>   change an agent's own event in place (merged into its data)
-  whiteboard scroll <page|file> <where>  scroll the tabs that have the page open to a heading's text,
-                                   a form's name or any text on it (opening details around it)
-  whiteboard docs [plugin]         how to write pages here: markdown, and each plugin's blocks — read before writing one;
-                                   with a plugin's name, only its docs
-  whiteboard events [filters]      print recorded events as ndjson; --follow: then each new one as it comes
-  whiteboard wait [filters]        block until the next matching event, print it, exit
-  whiteboard watch [filters]       like wait, but never exits: print each matching event once
-  whiteboard append --page <p> --type <t> [--data <json>]   add an event to a page's log (e.g. a reply)
-  whiteboard pick <event id>       record an event as picked up, as wait does when it hands one out
-  whiteboard status [--page <p>]   per page: questions without an answer, answers no agent picked up, who listens
-  whiteboard serve                 run this project's server in the foreground; for a project of the
-                                   machine's entries, or outside any project, the shared server
-  whiteboard skill [dir]           print where the agent skill is, or link it into a skills folder
-  whiteboard paths [--write|--read]  the folders the shared server needs, ':' between them, for a sandbox
-                                   wrapper to grant: --write the entries' folders and its state, --read
-                                   the machine config and whiteboard itself
+${commandList()}
 
-filters: --page <page|file> (includes pages below it)  --type <type>
-wait:    --timeout <seconds> (exit 2 on timeout)  --count <n> (default 1)
-wait, watch without --page: the fallback, taking only what no other wait or watch would, on any
-         page, also once they stop; one per project (a second exits 1), or, in a project of the
-         machine's entries, one for the whole entry, each event with its project and url
-events:  --since <iso time or event id>  --last <n>
+\`whiteboard <command> --help\` says what a command takes and does, and does nothing else.
 
 Every command works on the project of the current folder: the nearest folder upward with a
 .whiteboard/ folder. A project needs no config: .whiteboard/config.ts only says what differs from
@@ -122,6 +93,14 @@ const { values: opts, positionals } =
           read: { type: 'boolean' },
         },
       })
+
+// `whiteboard <command> --help` (or -h): that command's help, and nothing else: never run a
+// command that was only asked about (a wait would pick an answer up). A plugin's commands are
+// helped where they run (below).
+if (cmd && cmd !== 'help' && BUILTIN_COMMANDS.has(cmd) && opts.help) {
+  console.log(commandHelp(cmd))
+  process.exit(0)
+}
 
 const project = projectAt(findProjectDir())
 
@@ -830,8 +809,26 @@ switch (cmd) {
   default: {
     // `whiteboard <plugin> [sub] …`: a command of one of the project's plugins
     const commands = project ? await projectCommands(project) : []
+    // `whiteboard help <command> [sub]`: as `<command> [sub] --help`
+    if (cmd === 'help' && rest[0]) {
+      const [name, sub] = rest
+      if (BUILTIN_COMMANDS.has(name!)) console.log(commandHelp(name!))
+      else {
+        const theirs = commands.filter(c => c.plugin === name)
+        const one = theirs.find(c => c.sub === sub) ?? (sub ? undefined : theirs.find(c => !c.sub))
+        if (!theirs.length) throw new Error(`no command ${name}${project ? '' : ' (outside a project only the built-in ones)'}`)
+        console.log(one ? pluginCommandHelp(one) : theirs.map(c => pluginCommandHelp(c)).join('\n\n'))
+      }
+      break
+    }
     const mine = commands.filter(c => c.plugin === cmd)
     const found = mine.find(c => c.sub && c.sub === rest[0]) ?? mine.find(c => !c.sub)
+    // `whiteboard <plugin> <sub> --help`: that command's help; `whiteboard <plugin> --help`: all of
+    // the plugin's commands
+    if (mine.length && asksHelp(found?.sub ? rest.slice(1) : rest)) {
+      console.log(found?.sub ? pluginCommandHelp(found) : mine.map(c => pluginCommandHelp(c)).join('\n\n'))
+      break
+    }
     if (found && project) {
       const args = found.sub ? rest.slice(1) : rest
       const { options, positionals, rest: after } = parseCommandArgs(found.command, args, found.name)
