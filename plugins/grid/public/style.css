@@ -10,6 +10,14 @@
 .wb-grid:not(.wb-wide) {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
 }
+/* inside something narrower than the page (a form, a card, a details): its columns from the room it
+   has, as many as asked for while each is at least 200px */
+:is(.wb-form, li, .wb-card, details, .wb-callout) .wb-grid {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, max(200px, 100% / var(--wb-grid-cols, 3) - var(--space-3xl))), 1fr)
+  );
+}
 .wb-card {
   background: var(--surface);
   border: var(--hairline) solid var(--border);

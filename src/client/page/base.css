@@ -476,6 +476,13 @@ details[open] > :last-child {
   left: 50%;
   transform: translateX(-50%);
 }
+/* only from the text column: inside a form, a list item, a card, a details or a callout, a wide
+   block stays within what holds it */
+:is(.wb-form, li, .wb-card, details, .wb-callout) .wb-wide {
+  width: auto;
+  left: auto;
+  transform: none;
+}
 
 /* frame */
 .wb-nav {
