@@ -30,7 +30,7 @@
      other. The article's margins are in em, so they follow; headings are multiples of it, never
      smaller. Only small labels (--ui-tiny) are below it. */
   --text-size: 15px;
-  --line-height: 1.56;
+  --line-height: 1.48;
   --ui-line-height: 1.45;
   --ui-tiny: 0.7rem;
   --ui-small: var(--text-size);
