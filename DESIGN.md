@@ -984,6 +984,56 @@ the open pages (drafts keep what was typed), a changed style reloads in
 place, anything else (server functions, docs) loads the config afresh
 and re-renders.
 
+## Spacing and type
+
+A page is read, so how far apart things are says how they belong
+together. These rules decide the space and the sizes on a page; a new
+block or plugin stylesheet follows them by using the variables in
+`base.css`, not numbers of its own.
+
+1. **The closer two things belong together, the less space between
+   them.** Equal things sit closer than different things: paragraph to
+   paragraph (`--gap-paragraph`, 14px) is less than a paragraph to a
+   list, code or a table (`--gap-prose`, 22.5px), which is less than
+   around a set-off block such as a callout or a form (`--gap-block`,
+   31.5px).
+2. **A heading belongs to what follows it.** The space before a heading
+   is more than the space from it to its first item, which is at least
+   the space between headings in a row, which is at least the space
+   between the items under them. In the article: 72 before a section
+   (`--gap-section`), 54 before a subsection (`--gap-subsection`), 36
+   under a heading (`--gap-heading`), 18 between headings in a row
+   (`--gap-heading-next`). What follows a heading adds no margin of its
+   own, so headings in a row never add up.
+3. **The space around a group is never smaller than any space inside
+   it.** A timeline inside a step has the space between steps around it,
+   since inside it headings have more space above them than a block
+   would get.
+4. **The same rules at every level.** Inside a container (a form, a list
+   item, a card, a details, a callout, a timeline step) the same steps
+   apply at half the rhythm: the steps are declared for the article and
+   again for each container's children, where `--rhythm` is halved. A
+   container repeats the order; it doesn't flatten it to one gap. Only
+   `--gap-attach` (8px, a label to its explanation, a title to its card)
+   is the same everywhere.
+5. **Space comes from one place.** Decoration takes no space and nothing
+   is counted twice: a form's ring is drawn outside it (`::before`) and
+   its margin grows by the ring's distance only while the ring shows; an
+   outlined form has no padding inside the ring as well.
+6. **One size for text, multiples of it for the rest.** The article, its
+   buttons, inputs and tables are one `--text-size`; headings are
+   multiples of it, never smaller. Only small labels (`--ui-tiny`) are
+   below it, and code, at `--code-size`, since monospace reads larger
+   than the text's face at the same size. Corners follow the same idea:
+   a form's ring is twice a button's.
+
+All steps are multiples of `--rhythm` (1.2 × `--text-size`, not `em`, so
+a step is the same on a heading as on a paragraph), so a project that
+sets `--text-size` or `--rhythm` scales them together. Spacing inside
+interface pieces (a chat's bubbles, the terminal's bar, a thread's
+replies) uses the `--space-*` scale instead: those are controls, not
+the article.
+
 ## Layout
 
 ```
