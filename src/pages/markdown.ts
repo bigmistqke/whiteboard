@@ -226,7 +226,7 @@ function literalDirective(node: MdNode, label: MdNode[] | null) {
  * code block doesn't count.
  */
 export function formNames(source: string) {
-  const tree = parseMarkdown(String(source ?? '').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, ''))
+  const tree = parseMarkdown(String(source ?? ''))
   const names: string[] = []
   const walk = (node: MdNode) => {
     if (node.type === 'containerDirective' && node.name === 'form') {

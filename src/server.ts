@@ -19,7 +19,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { parse as parseYaml } from 'yaml'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
@@ -34,6 +33,7 @@ import { SCROLL, awaiting, projectStatus, type ProjectStatus } from './status.ts
 import { titleOf } from './pages/render.ts'
 import { createRegistry, holdStream, listenerOf } from './listeners.ts'
 import { inPublic } from './public.ts'
+import { SKIP_DIRS, isRepoId, pageSource, servedSite, within } from './site.ts'
 import type {
   Listener,
   PageSource,
@@ -76,9 +76,6 @@ const MIME: Record<string, string> = {
 }
 // files in .whiteboard/ that are the server's own bookkeeping, not content
 const OWN_FILES = new Set(['events.ndjson', 'server.json', 'server.log', 'server.lock', 'token'])
-const SKIP_DIRS = new Set(['node_modules', '.git'])
-// a page's frontmatter: YAML between `---` lines, at the very start
-const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
 
 /** A project's server: its request handler, and what it knows. */
 export interface WhiteboardServer {
@@ -297,140 +294,11 @@ export function createServer(
     return `${base}/_/file${file.split(path.sep).map(encodeURIComponent).join('/')}`
   }
 
-  const within = (file: string, dir: string) => file === dir || file.startsWith(dir + path.sep)
-
-  // ---- stored pages ------------------------------------------------------------------------------
-
-  /** Resolve a path inside a base folder, refusing anything that escapes it. */
-  function inside(base: string, rel: string): string | null {
-    const p = path.resolve(base, '.' + path.posix.normalize('/' + rel))
-    return within(p, base) ? p : null
-  }
-
-  const isRepoId = (id: string) => id === '-' || id.startsWith('-/')
-
-  /** A page's frontmatter, parsed as YAML; empty, with the reason, when it isn't fields. */
-  function frontmatter(source: string): { data: Record<string, unknown>; error: string | null } {
-    const m = FRONTMATTER.exec(source)
-    if (!m) return { data: {}, error: null }
-    let data: unknown
-    try {
-      data = parseYaml(m[1]!)
-    } catch (err) {
-      return { data: {}, error: (err as Error).message }
-    }
-    if (data == null) return { data: {}, error: null }
-    if (typeof data !== 'object' || Array.isArray(data))
-      return { data: {}, error: 'it must be fields (`key: value` lines), not a single value or a list' }
-    return { data: data as Record<string, unknown>, error: null }
-  }
-
-  function pageSource(id: string, file: string): PageSource {
-    const source = fs.readFileSync(file, 'utf8')
-    return {
-      kind: 'page',
-      id,
-      file,
-      mtime: fs.statSync(file).mtimeMs,
-      source,
-      body: source.replace(FRONTMATTER, ''),
-      ...(({ data, error }) => ({ frontmatter: data, frontmatterError: error }))(frontmatter(source)),
-    }
-  }
-
-  /**
-   * The pages in a folder of the pages folder, newest first. When each was last answered and what
-   * waits on it are the status's to say (withStatus).
-   */
-  function pagesIn(dir: string): PagesSource['pages'] {
-    const out: PagesSource['pages'] = []
-    const walk = (d: string) => {
-      if (!fs.existsSync(d)) return
-      for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
-        if (ent.name.startsWith('.') || ent.name === 'node_modules') continue
-        const full = path.join(d, ent.name)
-        if (ent.isDirectory()) walk(full)
-        else if (ent.name.endsWith('.md')) {
-          const id = path.relative(project.pagesDir, full).split(path.sep).join('/').replace(/\.md$/, '')
-          out.push({ id, file: full, mtime: fs.statSync(full).mtimeMs, lastEvent: null, awaiting: 0 })
-        }
-      }
-    }
-    walk(dir)
-    return out.sort((a, b) => b.mtime - a.mtime)
-  }
-
-  /** Text files show as files; anything with a NUL byte near the start is binary. */
-  function isText(file: string): boolean {
-    const fd = fs.openSync(file, 'r')
-    const buf = Buffer.alloc(8192)
-    const n = fs.readSync(fd, buf, 0, buf.length, 0)
-    fs.closeSync(fd)
-    return !buf.subarray(0, n).includes(0)
-  }
-
-  /**
-   * A page id → the stored page, or one of: { redirect } (a folder asked for without its slash),
-   * { raw: file } (serve the bytes), null (nothing there).
-   */
-  function stored(id: string): StoredPage | { raw: string } | null {
-    if (!id) return { kind: 'pages', id: '', file: project.pagesDir, mtime: null, pages: pagesIn(project.pagesDir) }
-    if (isRepoId(id)) {
-      const rel = id.slice(2)
-      const target = inside(project.dir, rel)
-      if (!target || path.relative(project.dir, target).split(path.sep).includes('.git') || !fs.existsSync(target))
-        return null
-      const stat = fs.statSync(target)
-      if (stat.isDirectory()) {
-        const entries = fs
-          .readdirSync(target, { withFileTypes: true })
-          .filter(e => !SKIP_DIRS.has(e.name) && e.name !== '.DS_Store')
-          .map(e => ({ name: e.name, dir: e.isDirectory() }))
-          .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name))
-        return { kind: 'folder', id, file: target, mtime: stat.mtimeMs, entries }
-      }
-      if (/\.(md|markdown)$/i.test(target)) return pageSource(id, target)
-      if (stat.size > 1e6 || !isText(target)) return { raw: target }
-      return { kind: 'file', id, file: target, mtime: stat.mtimeMs, source: fs.readFileSync(target, 'utf8') }
-    }
-    const target = inside(project.pagesDir, id)
-    if (!target) return null
-    if (path.extname(id) && fs.existsSync(target) && fs.statSync(target).isFile()) return { raw: target }
-    if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
-      const index = path.join(target, 'index.md')
-      if (fs.existsSync(index)) return pageSource(id, index)
-      return { kind: 'pages', id, file: target, mtime: null, pages: pagesIn(target) }
-    }
-    const file = target + '.md'
-    return fs.existsSync(file) ? pageSource(id, file) : null
-  }
-
-  /** The URL that serves a file or folder on disk, or null when nothing here serves it. */
-  function urlOf(abs: string): string | null {
-    const rel = (dir: string) => path.relative(dir, abs).split(path.sep).map(encodeURIComponent).join('/')
-    if (within(abs, project.pagesDir)) return `${base}/${rel(project.pagesDir).replace(/\.md$/, '')}`
-    if (FILES && within(abs, project.dir)) {
-      if (
-        rel(project.dir)
-          .split('/')
-          .some(part => SKIP_DIRS.has(part))
-      )
-        return null
-      return `${base}/-/${rel(project.dir)}`
-    }
-    return null
-  }
-
-  /** For links: the target if it exists (also with .md added), mapped to its URL. */
-  function urlFor(abs: string): string | null {
-    for (const candidate of [abs, abs + '.md']) {
-      if (fs.existsSync(candidate)) {
-        const url = urlOf(candidate)
-        if (url) return url + (fs.statSync(candidate).isDirectory() && !url.endsWith('/') ? '/' : '')
-      }
-    }
-    return null
-  }
+  // ---- stored pages: the site (site.ts) --------------------------------------------------------------
+  const site = servedSite(project, { base, files: () => !!FILES })
+  const stored = site.page
+  const pagesIn = site.pagesIn
+  const urlFor = site.urlFor
 
   // ---- rendering ---------------------------------------------------------------------------------
 

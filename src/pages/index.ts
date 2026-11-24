@@ -39,6 +39,6 @@ export function createPages(options: PagesOptions): Pages {
     render: createRender(blocks, options.style, options.styles ?? [], options.links ?? [], options.composers),
     message: createMessageRender(blocks, options.links ?? []),
     docs: createDocs(blocks),
-    questions: page => formNames(page.source),
+    questions: page => formNames(page.body),
   }
 }

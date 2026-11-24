@@ -2,6 +2,7 @@
 // directives and fences handed to the plugins' blocks (markdown.ts); repository files show as highlighted
 // code, folders as listings with their README on top; around all of it goes the page's frame.
 // What the page draws itself is built with `html` (../html.ts), which escapes every value.
+import { FRONTMATTER } from '../site.ts'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -51,8 +52,8 @@ const CODE_LANG: Record<string, string> = {
   yaml: 'yaml',
 }
 
-/** Frontmatter is the core's; the page starts after it. */
-const body = (source: string) => source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
+/** Frontmatter is the core's; the page starts after it (a page's own is cut off by the site: PageSource.body). */
+const body = (source: string) => source.replace(FRONTMATTER, '')
 
 /** A page's title: its first heading, else its name. */
 export function titleOf(file: string, fallback: string) {
@@ -342,10 +343,11 @@ export function createRender(
   const PLUGIN_STYLES = pluginStyles
     .map(s => ({ plugin: s.plugin, file: stylePath(s.file) }))
     .filter((s): s is { plugin: string; file: string } => !!s.file)
-  async function markdown(source: string, page: string, file: string, ctx: RenderContext) {
+  /** `content`: the markdown without its frontmatter. */
+  async function markdown(content: string, page: string, file: string, ctx: RenderContext) {
     const { blocks: set, code } = blocks()
     const skip = ctx.skip
-    return renderMarkdown(body(source), {
+    return renderMarkdown(content, {
       page,
       file,
       resolve: name => {
@@ -371,7 +373,7 @@ export function createRender(
     const { project } = ctx
     switch (page.kind) {
       case 'page':
-        return markdown(page.source, page.id, page.file, ctx)
+        return markdown(page.body, page.id, page.file, ctx)
       case 'pages': {
         // the shared server's overview: every project's pages, by project, the projects with
         // something waiting first, and in each the pages waiting first
@@ -436,7 +438,7 @@ export function createRender(
         const readme = readmeOf(page)
         if (!readme) return { html: listing, title: rel || project.name, islands: {}, styles: [] }
         // markdown's output is HTML already
-        const r = await markdown(readme.source, page.id, readme.file, ctx)
+        const r = await markdown(body(readme.source), page.id, readme.file, ctx)
         return {
           ...r,
           html: html`${raw(r.html)}
