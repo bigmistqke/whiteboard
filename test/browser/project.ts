@@ -36,6 +36,8 @@ export interface Project {
   ): { stdout: string; stderr: string; status: number }
   /** start a long-running command (a wait), and collect what it prints */
   spawn(...args: string[]): ChildProcess & { output(): string }
+  /** the same, with more in its environment */
+  spawnWith(extra: Record<string, string>, ...args: string[]): ChildProcess & { output(): string }
   /** the project's events, as the log has them */
   events(): Record<string, any>[]
   /** an agent acted on the reader's answers of `type`: once one is in the log, mark them all handled */
@@ -75,6 +77,15 @@ export async function project({
     return file
   }
   for (const [name, source] of Object.entries(pages)) page(name, source)
+  const spawnWith = (extra: Record<string, string>, ...args: string[]) => {
+    const child = spawn(process.execPath, [CLI, ...args], { cwd: dir, env: { ...env, ...extra } })
+    let out = ''
+    child.stdout!.on('data', d => {
+      out += d
+    })
+    children.push(child)
+    return Object.assign(child, { output: () => out })
+  }
   const events = (): Record<string, any>[] => {
     const file = path.join(dir, '.whiteboard', 'events.ndjson')
     return fs.existsSync(file)
@@ -102,15 +113,8 @@ export async function project({
       })
       return { stdout: r.stdout, stderr: r.stderr, status: r.status ?? -1 }
     },
-    spawn(...args) {
-      const child = spawn(process.execPath, [CLI, ...args], { cwd: dir, env })
-      let out = ''
-      child.stdout!.on('data', d => {
-        out += d
-      })
-      children.push(child)
-      return Object.assign(child, { output: () => out })
-    },
+    spawn: (...args: string[]) => spawnWith({}, ...args),
+    spawnWith,
     events,
     page,
     async handle(type) {

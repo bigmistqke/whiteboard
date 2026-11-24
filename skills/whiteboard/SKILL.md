@@ -227,6 +227,16 @@ Each submit of a named form appends one line to the project's
 {"id":"…","ts":"2026-…","page":"plan","type":"deploy-review","action":"Approve","data":{"notes":"…"}}
 ```
 
+**In Claude Code with the whiteboard channel,** answers come to you by
+themselves: messages `<channel source="whiteboard" page="…" id="…">`, one
+per answer on the pages your session made with `whiteboard new`, even
+while you work. You then need no `wait` on those pages. For each message:
+call the channel's `received` tool with its id as you start on it (the
+user's form folds, and they see you have it), act on it, then handle it
+(reply in its chat, or `whiteboard handled <id>`). The channel is there
+when the session's tools include whiteboard's `received`; the page shows
+it as listening. Without it, wait as below.
+
 Pass your page's file path as `--page`, so you only hear about your own
 page (`--page plan` also works, and includes the pages below `plan/`).
 
@@ -309,7 +319,8 @@ unanswered, with the command to wait again: run it once you've acted on the
 answers.
 
 A project can have Claude Code hooks for this: the Claude Code plugin in
-its config, and `whiteboard claude-code install`:
+its config, and `whiteboard claude-code install` (which sets up the channel
+too; `install hooks` for only the hooks):
 
 - when your turn ends with something on your pages nobody listens for, your
   turn goes on once, telling you to start the wait: start it in the

@@ -777,6 +777,26 @@ agent forgetting a wait is caught from outside it:
   command gets the status and handing out from the core (`ctx.status()`,
   `ctx.handOut()`); the hooks hand out only the session's own pages, not
   the pages below them, which can be another session's.
+- **The channel.** Pulling kept leaving gaps: an agent forgets to start its
+  wait again, and the hooks only remind it at the end of a turn. So the
+  Claude Code plugin also pushes: `whiteboard claude-code channel` is an MCP
+  server Claude Code starts with each session (`plugins/claude-code/
+  channel.ts`), declaring Claude Code's `claude/channel` capability. It
+  follows the pages the session claimed, each with a listener at the server
+  (`ctx.listen`, as a watch holds one), and sends each answer as a
+  `notifications/claude/channel` message: one line in words (what was chosen
+  or written), the page, id and type as attributes. It marks nothing when it
+  sends (`ctx.handOut` with `mark: false`): Claude Code doesn't tell a server
+  whether it loaded it as a channel (a session without the development
+  flag starts the server all the same and drops its messages), so a send
+  proves nothing. The agent marks an answer received with the channel's
+  `received` tool as it starts on it. Tried first: `watch --send
+  claude-code`, posting into Claude Code's cross-session socket; it worked,
+  but the format was undocumented, every message came framed as one from
+  another Claude session, and the agent had to start a watch per page.
+  Pushing into a session is particular to each agent program (MCP has no
+  standard for it), so it stays in this plugin; the log, the states and
+  `wait` work with any agent.
 
 ### Loading and reloading
 

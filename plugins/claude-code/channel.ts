@@ -1,14 +1,20 @@
-// PROTOTYPE: whiteboard as a Claude Code channel. Claude Code starts this as an MCP server (stdio)
-// with each session; it pushes the reader's answers on the session's own pages into the session
-// with `notifications/claude/channel`. Started with
+// Whiteboard as a Claude Code channel: an MCP server (stdio) that Claude Code starts with each
+// session, `whiteboard claude-code channel`. It pushes the reader's answers on the session's own
+// pages into the session (`notifications/claude/channel`), so the agent needs no wait. Channels are
+// a research preview: a session loads it only when started with
 //
 //   claude --dangerously-load-development-channels server:whiteboard
 //
-// and `.mcp.json`: { "mcpServers": { "whiteboard": { "command": "whiteboard", "args": ["claude-code", "channel"] } } }
+// and the server registered in `.mcp.json` (`whiteboard claude-code install`) or for the user
+// (`claude mcp add --scope user whiteboard -- whiteboard claude-code channel`).
 //
-// What it learns for the design goes to `.whiteboard/claude-code/channel.log`: the environment it
-// gets (is the session's id there?), and what Claude Code says it supports (can it tell whether it
-// was loaded as a channel?).
+// The session is `CLAUDE_CODE_SESSION_ID`; its pages are those it claimed with `whiteboard new`,
+// also later ones. For each, the channel holds a listener at the server, as a `watch` does, and
+// hands out the reader's answers there without marking them: Claude Code doesn't tell a server
+// whether it loaded it as a channel, so a send proves nothing. The agent marks an answer received
+// with the channel's `received` tool as it starts on it; until then the page and the hooks show it
+// as not received. Problems (a page another wait holds, a hand-out that failed) go to
+// `.whiteboard/claude-code/channel.log`; normal work leaves no trace.
 import fs from 'node:fs'
 import path from 'node:path'
 import readline from 'node:readline'
@@ -47,24 +53,23 @@ export function describe(e: WbEvent): string {
 }
 
 export async function channel(ctx: CommandContext) {
-  const logFile = path.join(ctx.dataDir, 'channel.log')
-  fs.mkdirSync(ctx.dataDir, { recursive: true })
-  const log = (what: string, data?: unknown) =>
-    fs.appendFileSync(logFile, `${new Date().toISOString()} ${what}${data === undefined ? '' : ' ' + JSON.stringify(data)}\n`)
+  const problem = (what: string, data?: unknown) => {
+    fs.mkdirSync(ctx.dataDir, { recursive: true })
+    fs.appendFileSync(
+      path.join(ctx.dataDir, 'channel.log'),
+      `${new Date().toISOString()} ${what}${data === undefined ? '' : ' ' + JSON.stringify(data)}\n`,
+    )
+  }
   const send = (msg: object) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...msg }) + '\n')
 
   const session = process.env.CLAUDE_CODE_SESSION_ID || null
-  log('start', {
-    session,
-    pid: process.pid,
-    ppid: process.ppid,
-    env: Object.keys(process.env).filter(k => /CLAUDE|MCP|WHITEBOARD/.test(k)),
-  })
+  if (!session) problem('no CLAUDE_CODE_SESSION_ID: no pages to follow')
 
+  // what came before Claude Code said it is ready waits for it
   let ready = false
-  const queue: WbEvent[] = []
+  const queue: [WbEvent, boolean][] = []
   const push = (e: WbEvent, again: boolean) => {
-    if (!ready) return void queue.push(e)
+    if (!ready) return void queue.push([e, again])
     send({
       method: 'notifications/claude/channel',
       params: {
@@ -72,13 +77,10 @@ export async function channel(ctx: CommandContext) {
         meta: { page: e.page, id: e.id, type: e.type },
       },
     })
-    log('sent', { id: e.id, page: e.page })
   }
 
-  // the session's pages, and any it claims later: each followed on its own, so another session's
-  // answers are never received here
-  // A page another wait holds is left to it, and tried again later. Nothing is marked received here:
-  // the agent does that with the `received` tool, once the message reached it.
+  // Each page followed on its own, so another session's answers are never handed out here. A page
+  // another wait holds is left to it, and tried again on the next round.
   const followed = new Set<string>()
   const refused = new Set<string>()
   const follow = async () => {
@@ -89,22 +91,21 @@ export async function channel(ctx: CommandContext) {
       const stop = new AbortController()
       const held = await ctx.listen(page, {
         onReplaced: () => {
-          log('replaced', { page })
+          problem('a wait --force took the page over', { page })
           stop.abort()
           followed.delete(page)
         },
       })
       if (held.refused) {
-        if (!refused.has(page)) log('refused', { page, reason: held.refused })
+        if (!refused.has(page)) problem('another wait holds the page', { page, reason: held.refused })
         refused.add(page)
         followed.delete(page)
         continue
       }
       refused.delete(page)
-      log('follow', { page })
       void ctx
         .handOut({ page, exact: true }, push, { mark: false, signal: stop.signal })
-        .catch(err => log('handOut failed', { page, err: String(err) }))
+        .catch(err => problem('handing out failed', { page, err: String(err) }))
     }
   }
 
@@ -117,7 +118,6 @@ export async function channel(ctx: CommandContext) {
       if (!e) return `${id}: no such event`
       if (received.has(id)) return `${id}: received already`
       receive(ctx.eventsFile, e)
-      log('received', { id })
       return `${id}: received`
     })
   }
@@ -130,21 +130,19 @@ export async function channel(ctx: CommandContext) {
     } catch {
       return
     }
-    if (msg.method === 'initialize') {
-      log('initialize', msg.params)
+    if (msg.method === 'initialize')
       send({
         id: msg.id,
         result: {
           protocolVersion: (msg.params?.protocolVersion as string) ?? '2025-06-18',
           capabilities: { experimental: { 'claude/channel': {} }, tools: {} },
-          serverInfo: { name: 'whiteboard', version: '0.0.0-prototype' },
+          serverInfo: { name: 'whiteboard', version: '1' },
           instructions: INSTRUCTIONS,
         },
       })
-    } else if (msg.method === 'notifications/initialized') {
+    else if (msg.method === 'notifications/initialized') {
       ready = true
-      log('initialized')
-      for (const e of queue.splice(0)) push(e, false)
+      for (const [e, again] of queue.splice(0)) push(e, again)
     } else if (msg.method === 'ping') send({ id: msg.id, result: {} })
     else if (msg.method === 'tools/list') send({ id: msg.id, result: { tools: [RECEIVED] } })
     else if (msg.method === 'tools/call') {
@@ -153,17 +151,15 @@ export async function channel(ctx: CommandContext) {
       if (params?.name !== 'received' || !ids.length)
         send({ id: msg.id, result: { isError: true, content: [{ type: 'text', text: 'received needs ids' }] } })
       else send({ id: msg.id, result: { content: [{ type: 'text', text: receiveIds(ids).join('\n') }] } })
-    } else if (msg.id !== undefined) {
-      log('unhandled request', { method: msg.method })
-      send({ id: msg.id, error: { code: -32601, message: `no method ${msg.method}` } })
-    } else log('notification', { method: msg.method })
+    }
+    // anything else asked (Claude Code probes with methods of its own): not offered here
+    else if (msg.id !== undefined) send({ id: msg.id, error: { code: -32601, message: `no method ${msg.method}` } })
   })
-  rl.on('close', () => {
-    log('stdin closed')
-    process.exit(0)
-  })
+  // the session ended
+  rl.on('close', () => process.exit(0))
 
-  await follow()
-  setInterval(() => void follow().catch(err => log('follow failed', String(err))), 5000)
+  const round = () => follow().catch(err => problem('finding the session’s pages failed', String(err)))
+  await round()
+  setInterval(() => void round(), 5000)
   await new Promise(() => {})
 }

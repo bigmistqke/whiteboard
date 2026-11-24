@@ -1,12 +1,14 @@
 // Claude Code, as a whiteboard plugin: the pages an agent session makes are claimed for that
-// session, and Claude Code hooks report to it what is open on them. In a config:
+// session, a channel pushes the reader's answers on them into it (channel.ts), and Claude Code
+// hooks report to it what is open on them. In a config:
 //
 //   import claudeCode from '@bigmistqke/whiteboard/claude-code'
 //   export default defineConfig({ plugins: [claudeCode()] })
 //
-// `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json, and
-// `uninstall` takes them out again. Each runs `whiteboard claude-code hook <stop|prompt|session>`,
-// and none of them ever blocks but once:
+// `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json and the
+// channel to its .mcp.json (`install hooks` or `install channel` only one), and `uninstall` takes
+// them out again. Each hook runs `whiteboard claude-code hook <stop|prompt|session>`, and none of
+// them ever blocks but once:
 // - stop (a turn ends): when the session's pages have questions nobody listens for, the agent's turn
 //   goes on once, told to start its wait (it forgot); a turn a hook already continued ends, and the
 //   reader sees what is open;
@@ -63,16 +65,26 @@ export default function claudeCode(): Plugin {
       },
       channel: {
         description:
-          "PROTOTYPE: an MCP channel server Claude Code starts with the session; pushes the reader's answers on the session's pages into it",
+          "the MCP channel Claude Code starts with each session (with the development-channels flag): pushes the reader's answers on the session's pages into it",
         run: channel,
       },
       install: {
-        description: "add the hooks to this project's .claude/settings.json",
-        run: ctx => install(ctx.project.dir),
+        description:
+          "add the hooks to this project's .claude/settings.json and the channel to its .mcp.json; `hooks` or `channel` for only one",
+        args: '[hooks|channel]',
+        run: ctx => {
+          for (const part of parts(ctx.positionals, 'install'))
+            (part === 'hooks' ? installHooks : installChannel)(ctx.project.dir)
+        },
       },
       uninstall: {
-        description: "take the hooks out of this project's .claude/settings.json again; other hooks and settings stay",
-        run: ctx => uninstall(ctx.project.dir),
+        description:
+          "take the hooks and the channel out of this project's settings again, or only `hooks` or `channel`; other hooks, servers and settings stay",
+        args: '[hooks|channel]',
+        run: ctx => {
+          for (const part of parts(ctx.positionals, 'uninstall'))
+            (part === 'hooks' ? uninstallHooks : uninstallChannel)(ctx.project.dir)
+        },
       },
     },
   }
@@ -173,22 +185,37 @@ async function hook(ctx: CommandContext, mode: Mode) {
   if (out.length) console.log(out.join('\n'))
 }
 
-/** Add the hooks to the project's .claude/settings.json, replacing ours that run another command. */
-/** The project's .claude/settings.json, and its settings ({} when there is none). */
-function readSettings(dir: string): { file: string; settings: Settings } {
-  const file = path.join(dir, '.claude', 'settings.json')
-  if (!fs.existsSync(file)) return { file, settings: {} }
+/** A JSON file of Claude Code's settings ({} when there is none). */
+function readJson<T extends object>(file: string): T {
+  if (!fs.existsSync(file)) return {} as T
   try {
-    return { file, settings: JSON.parse(fs.readFileSync(file, 'utf8')) }
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
   } catch {
     throw new Error(`${file} is not valid JSON; fix it first`)
   }
 }
 
-function writeSettings(file: string, settings: Settings) {
+/** Write it in one rename; one left empty goes. */
+function writeJson(file: string, value: object) {
+  if (!Object.keys(value).length) return void fs.rmSync(file, { force: true })
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(`${file}.tmp`, JSON.stringify(settings, null, 2) + '\n')
+  fs.writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 2) + '\n')
   fs.renameSync(`${file}.tmp`, file)
+}
+
+/** How Claude Code runs whiteboard here: it runs outside any project's node_modules/.bin. */
+function whiteboardCommand(): string[] {
+  const onPath = spawnSync('sh', ['-c', 'command -v whiteboard'], { encoding: 'utf8' }).status === 0
+  return onPath ? ['whiteboard'] : ['npx', 'whiteboard']
+}
+
+/** What install and uninstall act on: both, or the one named. */
+type Part = 'hooks' | 'channel'
+function parts(positionals: string[], command: string): Part[] {
+  const named = positionals[0]
+  if (!named) return ['hooks', 'channel']
+  if (named === 'hooks' || named === 'channel') return [named]
+  throw new Error(`usage: whiteboard claude-code ${command} [hooks|channel]`)
 }
 
 /** The hook groups of one event without ours, and without the groups that leaves empty. */
@@ -197,11 +224,13 @@ const withoutOurs = (groups: NonNullable<Settings['hooks']>[string]) =>
     .map(g => ({ ...g, hooks: (g.hooks ?? []).filter(h => !OURS.test(h.command ?? '')) }))
     .filter(g => g.hooks.length)
 
-function install(dir: string) {
-  const { file, settings } = readSettings(dir)
-  // the hooks run outside any project folder's node_modules/.bin, so name the command that works here
-  const onPath = spawnSync('sh', ['-c', 'command -v whiteboard'], { encoding: 'utf8' }).status === 0
-  const bin = onPath ? 'whiteboard' : 'npx whiteboard'
+const settingsFile = (dir: string) => path.join(dir, '.claude', 'settings.json')
+
+/** Add the hooks to the project's .claude/settings.json, replacing ours that run another command. */
+function installHooks(dir: string) {
+  const file = settingsFile(dir)
+  const settings = readJson<Settings>(file)
+  const bin = whiteboardCommand().join(' ')
   const changed: string[] = []
   const hooks = (settings.hooks ??= {})
   for (const [mode, event] of Object.entries(MODES)) {
@@ -212,11 +241,8 @@ function install(dir: string) {
     hooks[event] = [...withoutOurs(groups), { hooks: [{ type: 'command', command }] }]
     changed.push(event)
   }
-  if (!changed.length) {
-    console.log(`hooks already installed: ${file}`)
-    return
-  }
-  writeSettings(file, settings)
+  if (!changed.length) return console.log(`hooks already installed: ${file}`)
+  writeJson(file, settings)
   console.log(`hooks added to ${file}: ${changed.join(', ')}`)
 }
 
@@ -224,8 +250,9 @@ function install(dir: string) {
  * Take this plugin's hooks out of the project's .claude/settings.json, and nothing else: other
  * hooks and settings stay. A file that held only ours goes.
  */
-function uninstall(dir: string) {
-  const { file, settings } = readSettings(dir)
+function uninstallHooks(dir: string) {
+  const file = settingsFile(dir)
+  const settings = readJson<Settings>(file)
   const removed: string[] = []
   for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
     if (!groups.some(g => g.hooks?.some(h => OURS.test(h.command ?? '')))) continue
@@ -234,12 +261,42 @@ function uninstall(dir: string) {
     if (kept.length) settings.hooks![event] = kept
     else delete settings.hooks![event]
   }
-  if (!removed.length) {
-    console.log(`no whiteboard hooks in ${file}`)
-    return
-  }
+  if (!removed.length) return console.log(`no whiteboard hooks in ${file}`)
   if (settings.hooks && !Object.keys(settings.hooks).length) delete settings.hooks
-  if (!Object.keys(settings).length) fs.rmSync(file)
-  else writeSettings(file, settings)
+  writeJson(file, settings)
   console.log(`hooks removed from ${file}: ${removed.join(', ')}`)
+}
+
+/** The project's MCP servers, as far as the channel goes. */
+interface McpConfig {
+  mcpServers?: Record<string, { command?: string; args?: string[] }>
+}
+const mcpFile = (dir: string) => path.join(dir, '.mcp.json')
+
+/** Register the channel (channel.ts) in the project's .mcp.json, as the server `whiteboard`. */
+function installChannel(dir: string) {
+  const file = mcpFile(dir)
+  const config = readJson<McpConfig>(file)
+  const [command, ...args] = [...whiteboardCommand(), 'claude-code', 'channel']
+  const servers = (config.mcpServers ??= {})
+  const now = servers.whiteboard
+  if (now?.command === command && JSON.stringify(now.args) === JSON.stringify(args))
+    return console.log(`channel already installed: ${file}`)
+  servers.whiteboard = { command, args }
+  writeJson(file, config)
+  console.log(
+    `channel added to ${file}; a session loads it when started with: claude --dangerously-load-development-channels server:whiteboard`,
+  )
+}
+
+/** Take the channel out of the project's .mcp.json; other servers stay. A file that held only it goes. */
+function uninstallChannel(dir: string) {
+  const file = mcpFile(dir)
+  const config = readJson<McpConfig>(file)
+  const ours = config.mcpServers?.whiteboard
+  if (!ours?.args?.includes('channel')) return console.log(`no whiteboard channel in ${file}`)
+  delete config.mcpServers!.whiteboard
+  if (!Object.keys(config.mcpServers!).length) delete config.mcpServers
+  writeJson(file, config)
+  console.log(`channel removed from ${file}`)
 }

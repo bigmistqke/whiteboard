@@ -323,10 +323,10 @@ running `whiteboard show` does); the terminal and everything else it starts
 are then boxed in the same way. A server started outside the sandbox lets an
 agent reach past it, through the terminal or simply by editing `config.ts`.
 
-## Claude Code hooks
+## Claude Code
 
-The Claude Code plugin tells an agent session what is open on its pages,
-from outside the agent, so a forgotten wait gets noticed:
+The Claude Code plugin brings your answers to an agent session without the
+agent having to wait for them, and tells it what is open on its pages:
 
 ```ts
 import claudeCode from '@bigmistqke/whiteboard/claude-code'
@@ -338,8 +338,44 @@ export default defineConfig({
 
 With it, `whiteboard new` claims the page it makes for the Claude Code
 session that ran it, and `whiteboard status` marks that session's pages.
-`whiteboard claude-code install` adds three hooks to the project's
-`.claude/settings.json`:
+`whiteboard claude-code install` sets up two things: the channel in the
+project's `.mcp.json`, and three hooks in its `.claude/settings.json`.
+`install channel` or `install hooks` sets up only one, and `uninstall`
+(with the same choice) takes them out again, leaving other servers, hooks
+and settings as they are.
+
+### The channel
+
+An MCP server, `whiteboard claude-code channel`, that Claude Code starts
+with each session. It listens on the pages that session claimed (also ones
+it claims later), as a `watch` does, and pushes each answer you give there
+into the session, as a message:
+
+```text
+<channel source="whiteboard" page="plan" id="mwv…" type="scope">form scope: "Smaller"</channel>
+```
+
+The agent needs no `wait`, and gets your answer while it works. It calls
+the channel's `received` tool as it starts on it: only then does the answer
+count as received, and the form folds. Until then the page shows it as not
+received, since Claude Code doesn't tell the server whether a message
+arrived.
+
+Channels are a research preview of Claude Code: a session loads one only
+when started with
+
+```sh
+claude --dangerously-load-development-channels server:whiteboard
+```
+
+(an alias saves typing it). It works with Claude Code only: the push is
+Claude Code's own extension of MCP. With many projects under one shared
+server, registering it once for your user covers them all:
+`claude mcp add --scope user whiteboard -- whiteboard claude-code channel`.
+Problems (a page another wait holds, say) are written to
+`.whiteboard/claude-code/channel.log`.
+
+### The hooks
 
 - when a turn ends with something on the session's pages nobody listens for,
   the turn goes on once, telling the agent to start its wait (agents forget);
@@ -350,8 +386,8 @@ session that ran it, and `whiteboard status` marks that session's pages.
 - a new session starts with the same, plus what is open on other sessions'
   pages (not handed over: those answers stay for whoever waits on them).
 
-`whiteboard claude-code uninstall` takes them out again, and leaves other
-hooks and settings in the file as they are.
+With the channel, the hooks are the safety net: for a session started
+without the flag, or an answer the agent received and then forgot.
 
 ## Commands
 
