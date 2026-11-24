@@ -412,8 +412,11 @@ used by every built-in plugin, which a project's stylesheet overrides:
   smaller; the article's `--line-height` (its margins are in `em`, so they
   follow); small labels' `--ui-tiny`, and `--ui-line-height`;
 - space: the article's `--rhythm` (1.2 × `--text-size`) and the steps made
-  of it, from far to close: `--gap-section` (a new section), `--gap-block`
-  (a set-off block: code, a table, a form), `--gap-prose` (paragraphs),
+  of it, from far to close: `--gap-section` (above a section's heading),
+  `--gap-subsection` (above a subsection's), `--gap-heading` (under a
+  heading), `--gap-block` (a set-off block: a callout, a form, a grid),
+  `--gap-prose` (around a list, code, a table among paragraphs),
+  `--gap-paragraph` (paragraph to paragraph),
   `--gap-group` (things side by side) and `--gap-attach` (a part attached to
   what is above it); inside a form, list item, card, details, callout or
   timeline step, the block and prose steps are the attach step; the interface's `--space-2xs` … `--space-3xl` (2, 4,
