@@ -47,14 +47,8 @@
      as on a paragraph. Inside a container (see "containers" below) the block and prose steps
      become the attach step. */
   --rhythm: calc(var(--text-size) * 1.2);
-  --gap-section: calc(var(--rhythm) * 4); /* above a section's heading (h2) */
-  --gap-subsection: calc(var(--rhythm) * 3); /* above a subsection's heading (h3) */
-  --gap-heading: calc(var(--rhythm) * 2); /* under a heading, to what it heads */
-  --gap-block: calc(var(--rhythm) * 1.75); /* around a set-off block: a callout, a form, a grid */
-  --gap-prose: calc(var(--rhythm) * 1.25); /* around a list, code, a table among paragraphs */
-  --gap-paragraph: calc(var(--rhythm) * 0.8); /* paragraph to paragraph: equal things closer */
-  --gap-group: var(--rhythm); /* things side by side: callouts in a row, a form's explained options */
-  --gap-attach: calc(var(--rhythm) * 0.45); /* a part attached to what is above it */
+  /* a part attached to what is above it: the same everywhere, in a container too */
+  --gap-attach: calc(var(--text-size) * 0.54);
 
   /* The interface's spacing, a 2px grid: paddings and gaps */
   --space-2xs: 2px;
@@ -148,12 +142,14 @@ main > :first-child {
 }
 /* what follows a heading is the heading's step away, a heading too: headings one after another
    don't add up their space */
-#wb-main > :is(h1, h2, h3, h4, h5, h6) + * {
+#wb-main > :is(h1, h2, h3, h4, h5, h6) + *,
+:is(.wb-form, li, .wb-card-body, .wb-details-body, .wb-callout, .wb-tl-body) > :is(h1, h2, h3, h4, h5, h6) + * {
   margin-top: 0;
 }
 /* a heading right under a heading heads the same thing: closer, the group step */
-#wb-main > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h2, h3, h4, h5, h6)) {
-  margin-bottom: var(--gap-group);
+#wb-main > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h2, h3, h4, h5, h6)),
+:is(.wb-form, li, .wb-card-body, .wb-details-body, .wb-callout, .wb-tl-body) > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h2, h3, h4, h5, h6)) {
+  margin-bottom: var(--gap-heading-next);
 }
 
 /* text */
@@ -239,15 +235,31 @@ li > :is(ul, ol) {
   margin-top: 0.25em;
 }
 
-/* Containers: what is inside a form, a list item, a card, a details, a callout or a timeline step
-   is part of it, not a block of the article. A code block, a table, a callout, a grid in one sits
-   the attach step from what is around it, and so do its paragraphs; a wide block keeps to it, and
-   a grid takes its columns from the room it has (--wb-room). Set on the children, so the
-   container's own margins stay those of a block. */
+/* The steps, from the rhythm: in the article, and again in each container, where the rhythm is
+   half (below), so the same order holds at every level: a container's parts are closer to each
+   other than its headings are to them, and those closer than a heading is to what came before. */
+:root,
 :is(.wb-form, li, .wb-card-body, .wb-details-body, .wb-callout, .wb-tl-body) > * {
-  --gap-block: var(--gap-attach);
-  --gap-prose: var(--gap-attach);
-  --gap-paragraph: var(--gap-attach);
+  --gap-section: calc(var(--rhythm) * 4); /* above a section's heading (h2) */
+  --gap-subsection: calc(var(--rhythm) * 3); /* above a subsection's heading (h3), between steps */
+  --gap-heading: calc(var(--rhythm) * 2); /* under a heading or a step's title, to what it heads */
+  --gap-heading-next: var(--rhythm); /* under a heading right above another heading */
+  --gap-block: calc(var(--rhythm) * 1.75); /* around a set-off block: a callout, a form, a grid */
+  --gap-prose: calc(var(--rhythm) * 1.25); /* around a list, code, a table among paragraphs */
+  --gap-paragraph: calc(var(--rhythm) * 0.8); /* paragraph to paragraph: equal things closer */
+  --gap-group: var(--rhythm); /* things side by side: callouts in a row, a form's explained options */
+}
+
+/* Containers: what is inside a form, a list item, a card, a details, a callout or a timeline step
+   is part of it, so it is spaced at half the article's rhythm, by the same steps. A wide block
+   keeps to it, and a grid takes its columns from the room it has (--wb-room). Set on the
+   children, so the container's own margins stay those of a block. */
+:is(.wb-form, li, .wb-card-body, .wb-details-body, .wb-callout, .wb-tl-body) > * {
+  --rhythm: calc(var(--text-size) * 0.6);
+  /* a heading in a container is closer to what it heads than in the article: a third of the space
+     before it, not a half */
+  --gap-heading: calc(var(--rhythm) * 1.2);
+  --gap-heading-next: calc(var(--rhythm) * 0.7);
   --wb-room: 100%;
   --wb-wide-width: auto;
   --wb-wide-left: auto;

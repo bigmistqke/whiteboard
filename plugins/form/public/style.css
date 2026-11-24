@@ -89,7 +89,8 @@
    option and its explanation read as one */
 .wb-form li[data-wb-explained] + li,
 .wb-form li + li[data-wb-explained] {
-  margin-top: var(--gap-group);
+  /* as far as a heading is from what it heads: each option is a small section of its own */
+  margin-top: var(--gap-heading);
 }
 .wb-form li[data-wb-explained] {
   --wb-hang: calc(12px + var(--space-md));
@@ -137,7 +138,7 @@
 }
 /* fields one after another (on lines of one paragraph): apart, each label with its own input */
 .wb-form-field + .wb-form-field {
-  margin-top: var(--gap-group);
+  margin-top: var(--gap-prose);
 }
 .wb-form-label:empty {
   display: none;

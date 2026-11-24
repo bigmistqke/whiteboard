@@ -32,10 +32,11 @@
 }
 .wb-tl-step {
   position: relative;
-  padding-bottom: var(--space-2xl);
 }
-.wb-tl-step:last-child {
-  padding-bottom: 0;
+/* between steps: a subsection's distance, at the rhythm inside a step (base.css), more than a
+   step's title is from its body */
+.wb-tl-step:not(:last-child) > :last-child {
+  margin-bottom: var(--gap-subsection);
 }
 /* the dot sits on the title's first line; a step without a title has it at its top */
 .wb-tl-step:has(> .wb-tl-title)::before {
@@ -72,36 +73,31 @@
   font-weight: 600;
   line-height: 1.4;
 }
+/* the body under its title as a heading's content under it; inside, the page's steps (base.css) */
 .wb-tl-body {
   font-size: var(--ui-text);
   line-height: 1.6;
-  margin-top: var(--space-xs);
-}
-.wb-timeline .wb-tl-body > * {
-  margin-top: var(--gap-attach);
-  margin-bottom: 0;
+  margin-top: var(--gap-heading);
 }
 .wb-timeline .wb-tl-body > :first-child {
   margin-top: 0;
 }
+/* a body that starts with a heading: two headings in a row, closer */
+.wb-tl-body:has(> :first-child:is(h2, h3, h4, h5, h6)) {
+  margin-top: var(--gap-heading-next);
+}
+.wb-timeline .wb-tl-body > :last-child {
+  margin-bottom: 0;
+}
 
 /* a timeline inside a step is its sub steps: a level in, a thinner line and smaller rings, the
    same at every depth */
-.wb-tl-body .wb-timeline {
-  margin: var(--space-md) 0 0;
-}
 .wb-tl-body .wb-tl-steps {
   padding-left: 20px;
 }
 .wb-tl-body .wb-tl-steps::before {
   left: 4px;
   width: 1px;
-}
-.wb-tl-body .wb-tl-step {
-  padding-bottom: var(--space-md);
-}
-.wb-tl-body .wb-tl-step:last-child {
-  padding-bottom: 0;
 }
 .wb-tl-body .wb-tl-step::before,
 .wb-tl-body .wb-tl-title::before {
