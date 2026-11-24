@@ -124,9 +124,13 @@ test('a slow send shows at once as sending, then sent; one that fails is taken b
   assert.equal(await chat.locator('textarea').inputValue(), '', 'the box is empty at once')
   assert.equal(await bubble.getAttribute('data-sending'), '')
   assert.equal(await bubble.locator('.wb-chat-who').textContent(), 'you', 'no "sending…" label')
-  assert.equal(
-    await bubble.locator('.wb-chat-bubble').evaluate(b => getComputedStyle(b).backgroundColor),
-    await color('--wb-sending'),
+  // grey while it is on its way; waited for, as the other colours are: the chat draws the bubble
+  // again as the message comes in, and one read of an element it just replaced reads as nothing
+  const grey = await color('--wb-sending')
+  await until(
+    'a grey bubble',
+    async () =>
+      (await bubble.locator('.wb-chat-bubble').evaluate(b => getComputedStyle(b).backgroundColor)) === grey || null,
   )
   let_go()
   await bubble.and(page.locator(':not([data-sending])')).waitFor()
