@@ -201,11 +201,29 @@ ol {
 li::marker {
   color: var(--muted);
 }
+/* a list's items sit close; an item of paragraphs (a loose list) a little apart */
 li + li {
-  margin-top: 0.8em;
+  margin-top: 0.25em;
+}
+li:has(> p) + li,
+li + li:has(> p) {
+  margin-top: 0.6em;
 }
 li > p {
-  margin-bottom: 0.8em;
+  margin-bottom: 0.5em;
+}
+/* a set-off block in an item (code, a table, a callout, a details) belongs to the item: close to
+   its text, not spaced like a block of the article */
+li > :is(pre, table, blockquote, figure, details, .wb-callout, .wb-island, .wb-window, .wb-grid) {
+  margin-top: 0.6em;
+  margin-bottom: 0.6em;
+}
+li > :last-child {
+  margin-bottom: 0;
+}
+/* a list in an item belongs to it: close under its line, nothing after it */
+li > :is(ul, ol) {
+  margin-top: 0.25em;
 }
 strong {
   font-weight: 650;
