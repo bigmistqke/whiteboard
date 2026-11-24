@@ -29,7 +29,7 @@ const STYLE = 'style.css'
  * render, and each session's screen is in it as HTML, so a page shows it from its first render on;
  * client.js puts the live terminal in its place.
  */
-const drawer = (state: Sessions, screens: Record<string, string>, client: string) =>
+const drawer = (state: Sessions, screens: Record<string, string>) =>
   html`<aside id="wb-terminal" aria-label="Terminal" data-sessions="${JSON.stringify(state)}">
       <div class="wb-term-grip" title="drag to resize"></div>
       <div class="wb-term-bar">
@@ -61,8 +61,7 @@ const drawer = (state: Sessions, screens: Record<string, string>, client: string
           t.querySelector('.wb-term-placeholder[data-id="' + a.dataset.id + '"]')?.classList.add('wb-current')
         }
       } catch {}
-    </script>
-    <script type="module" src="${client}"></script>`
+    </script>`
 
 export default function terminal(): Plugin {
   return {
@@ -72,8 +71,9 @@ export default function terminal(): Plugin {
     style: STYLE,
     setup(ctx) {
       const term = createTerminal({ dir: ctx.project.dir, home: ctx.dataDir })
-      const client = ctx.asset(CLIENT)
       return {
+        // the drawer comes alive: client.js mounts on it in its slot
+        client: CLIENT,
         // all of them run code or show what runs, so all need the project's token
         routes: {
           'GET /sessions': {
@@ -132,10 +132,12 @@ export default function terminal(): Plugin {
             run: ({ body }) => term.open(body.id as string | undefined, body.path as string),
           },
         },
-        async shell(req) {
+        // the drawer, in the bottom slot, there on the first render: the view transition between two
+        // pages morphs it, and the page leaves room for it from the first paint
+        async slots(req) {
           if (!ctx.authorized(req)) return null
           const state = await term.sessions()
-          return { body: drawer(state, await term.screens(state.sessions), client) }
+          return { bottom: drawer(state, await term.screens(state.sessions)) }
         },
       }
     },

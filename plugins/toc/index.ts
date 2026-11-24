@@ -42,7 +42,7 @@ export default function toc(options: TocOptions = {}): Plugin {
     setup: () => ({
       client: 'client.js',
       // how the browser part knows: on every page, or only where the frontmatter asks
-      shell: () => ({
+      slots: () => ({
         head: html`<meta
           name="wb-toc"
           content="${options.always ? 'always' : 'opt-in'}"

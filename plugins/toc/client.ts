@@ -190,8 +190,15 @@ const mount: PluginMount = (root, page, core) => {
   handle = page
   main = root.querySelector<HTMLElement>('#wb-main') ?? root
   api = core
-  document.body.append(panel)
-  root.querySelector('.wb-nav .wb-theme')?.before(toggle)
+  // the panel beside the text, its button in the header bar
+  core.slot('aside', place => {
+    place.append(panel)
+    return () => panel.remove()
+  })
+  core.slot('header', place => {
+    place.append(toggle)
+    return () => toggle.remove()
+  })
   list.addEventListener('click', e => {
     const a = (e.target as HTMLElement).closest<HTMLElement>('a[data-index]')
     if (!a) return

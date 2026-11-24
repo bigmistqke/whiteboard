@@ -476,7 +476,14 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
   root = el
   main = root.querySelector('main') ?? root
   api = core
-  document.body.append(layer, startButton, lineButton, popover, composer)
+  // over the page, in document coordinates: its element in the overlay slot is laid out as if these
+  // were at the end of <body>
+  core.slot('overlay', place => {
+    place.append(layer, startButton, lineButton, popover, composer)
+    return () => {
+      for (const part of [layer, startButton, lineButton, popover, composer]) part.remove()
+    }
+  })
 
   document.addEventListener('mousemove', onLinePointer)
   // the pointer left the page: no line is hovered any more (a drag keeps its lines until mouseup)

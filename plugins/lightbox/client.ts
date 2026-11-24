@@ -61,7 +61,7 @@ function open(scope: Element, picture: HTMLImageElement) {
     else if (target.closest('.wb-lightbox-next')) step(1)
     else if (target.closest('.wb-lightbox-close') || target === overlay || target.matches('.wb-lightbox-stage')) close()
   })
-  document.body.append(overlay)
+  place?.append(overlay)
   show()
 }
 
@@ -76,14 +76,24 @@ function close() {
   overlay = null
 }
 
+/** Where an open lightbox goes: this plugin's element in the overlay slot. */
+let place: HTMLElement | null = null
+
 let listening = false
-const mount: PluginMount = () => {
+const mount: PluginMount = (_root, _page, api) => {
+  api.slot('overlay', el => {
+    place = el
+    return () => {
+      close()
+      place = null
+    }
+  })
   if (listening) return
   listening = true
   document.addEventListener('click', e => {
     const picture = (e.target as Element).closest?.('img')
     const scope = picture?.closest('[data-lightbox]')
-    if (!picture || !scope || picture.closest('a, .wb-lightbox')) return
+    if (!picture || !scope || !place || picture.closest('a, .wb-lightbox')) return
     e.preventDefault()
     open(scope, picture)
   })

@@ -204,6 +204,13 @@ function slotFor(owner: string, name: SlotName, mount: (el: HTMLElement) => void
   }
 }
 
+/** The page's own element in the corner (its toasts), made the first time it is asked for. */
+let pageCorner: HTMLElement | null = null
+const cornerOfPage = (): HTMLElement => {
+  if (!pageCorner) slotFor('', 'corner', el => void (pageCorner = el))
+  return pageCorner ?? corner
+}
+
 const api: Api = {
   page,
   url,
@@ -232,7 +239,7 @@ const api: Api = {
     renderedListeners.add(fn)
     return () => renderedListeners.delete(fn)
   },
-  corner: () => corner,
+  corner: cornerOfPage,
   // the page's own (not a plugin's): before the plugins' in a slot
   slot: (name, mount) => slotFor('', name, mount),
   badge(key, text, order = 0) {
@@ -244,7 +251,7 @@ const api: Api = {
     baseTitle = title
     writeTitle()
   },
-  toast: createToast(() => corner),
+  toast: createToast(cornerOfPage),
   ...formsApi,
 }
 

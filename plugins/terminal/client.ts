@@ -8,6 +8,7 @@
 // its tab, so switching pages loses nothing.
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import type { PluginMount } from '../../src/define.ts'
 
 const store = {
   get: (k: string) => {
@@ -379,5 +380,12 @@ function post(url: string, body: unknown) {
   return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 }
 
-const drawer = document.getElementById('wb-terminal')
-if (drawer) init(drawer)
+/** Mounts on the drawer the server rendered into this plugin's element in the bottom slot. */
+const mount: PluginMount = (_root, _page, api) => {
+  api.slot('bottom', el => {
+    const drawer = el.querySelector<HTMLElement>('#wb-terminal')
+    if (drawer) init(drawer)
+  })
+}
+
+export default mount

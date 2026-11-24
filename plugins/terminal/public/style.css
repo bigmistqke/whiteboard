@@ -17,10 +17,10 @@
   --wb-term-h: 320px;
   --wb-term-bar: 34px;
 }
-:root:has(body > #wb-terminal) {
+:root:has(#wb-terminal) {
   --wb-inset-bottom: var(--wb-term-bar);
 }
-:root:has(body > #wb-terminal[data-state='open']) {
+:root:has(#wb-terminal[data-state='open']) {
   --wb-inset-bottom: calc(var(--wb-term-bar) + var(--wb-term-h));
 }
 
@@ -42,7 +42,7 @@
     system-ui,
     sans-serif;
 }
-body:has(> #wb-terminal) {
+body:has(#wb-terminal) {
   padding-bottom: var(--wb-inset-bottom);
 }
 
