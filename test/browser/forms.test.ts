@@ -197,6 +197,22 @@ test('a chat whose form is gone shows after the page, until the form is back', {
   await until('the answer shows', () =>
     page.evaluate(() => document.querySelector('.wb-orphans')!.textContent!.includes('still here')),
   )
+  // unread in the folded list: the corner's toast goes there, opens it, and the message is read
+  const toast = page.locator('[data-toast=unread]')
+  await toast.waitFor({ state: 'visible' })
+  await toast.locator('.wb-toast-text').click()
+  await until('the list opened', () =>
+    page.evaluate(() => (document.querySelector('.wb-orphans details') as HTMLDetailsElement).open || null),
+  )
+  const still = proj.events().find(e => e.type === 'chat:message' && e.data.text === 'still here')!
+  await until(
+    'the message is read',
+    () =>
+      proj
+        .events()
+        .some(e => e.type === 'whiteboard:read' && (e.data.ids as string[]).includes(still.id)) || null,
+  )
+  await toast.waitFor({ state: 'hidden' })
 
   // the form comes back: so does its thread, and the list is gone
   proj.page('q', `# Q\n\n${FORM}`)
