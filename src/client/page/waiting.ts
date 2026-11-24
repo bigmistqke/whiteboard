@@ -58,14 +58,15 @@ let unreadShown = false
 // stay unread (the tab title still counts them)
 let dismissed: Set<string> | null = null
 
-// A handled form folds into a card: what was chosen, what was written under it (a few lines), and
-// "decided · change" (a click on the card opens the form again). Its chat folds too, into
+// A form an agent received folds into a card, since it is no longer the reader's to do: what was
+// chosen, what was written under it (a few lines), and "received · change" while the agent is on it,
+// "decided · change" once it handled it (a click on the card opens the form again). Its chat folds too, into
 // "💬 n messages", opened by a click; a message from the agent the reader hasn't read opens it, and
 // it stays open once read, until the reader folds it, so a reply never hides in the fold. The card is the page's, put back in the
 // form after each update.
 const chatsOpen = new Set<string>()
 
-function card(form: HTMLFormElement, name: string, last: WbEvent) {
+function card(form: HTMLFormElement, name: string, last: WbEvent, state: FormStatus['state']) {
   let el = form.querySelector<HTMLElement>(':scope > .wb-folded')
   if (!el) {
     el = document.createElement('div')
@@ -84,9 +85,7 @@ function card(form: HTMLFormElement, name: string, last: WbEvent) {
   const choices = el.querySelector<HTMLElement>('.wb-folded-choices')!
   choices.replaceChildren(...list.map(c => Object.assign(document.createElement('li'), { textContent: c })))
   choices.hidden = !list.length
-  el.querySelector('.wb-folded-change')!.textContent = form.hasAttribute('data-wb-just-sent')
-    ? '✓ the agent has it'
-    : 'decided · change'
+  el.querySelector('.wb-folded-change')!.textContent = state === 'received' ? 'received · change' : 'decided · change'
   const text = el.querySelector<HTMLElement>('.wb-folded-text')!
   text.textContent = written.join('\n\n')
   text.hidden = !written.length
@@ -118,10 +117,11 @@ function card(form: HTMLFormElement, name: string, last: WbEvent) {
 function show(list: FormStatus[] = forms) {
   forms = list
   for (const { form, name, state, last } of forms) {
-    if (last && reopened.has(name) && reopened.get(name) !== last.id && state === 'handled') reopened.delete(name)
-    const folded = state === 'handled' && !reopened.has(name)
+    const done = state === 'received' || state === 'handled'
+    if (last && reopened.has(name) && reopened.get(name) !== last.id && done) reopened.delete(name)
+    const folded = done && !reopened.has(name)
     form.toggleAttribute('data-wb-folded', folded)
-    if (folded && last) card(form, name, last)
+    if (folded && last) card(form, name, last, state)
     else {
       form.querySelector(':scope > .wb-folded')?.remove()
       form.removeAttribute('data-wb-chat-open')

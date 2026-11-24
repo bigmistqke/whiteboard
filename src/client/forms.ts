@@ -13,7 +13,7 @@
 //     data-wb-open      no answer yet, or the agent asks again (a wait asks for it by name after
 //                       its answer was handled)
 //     data-wb-pending   answered, but no agent has received the answer yet
-//     data-wb-received     a wait handed the answer to an agent, which hasn't handled it yet
+//     data-wb-received  an agent received the answer, and hasn't handled it yet
 //     data-wb-handled   the agent handled its latest answer; data-wb-outcome quotes it in one line
 // and, for a few seconds after a send went through, `data-wb-just-sent`, to confirm it
 //
@@ -223,8 +223,7 @@ async function onSubmit(e: SubmitEvent) {
     dropDraft(form)
     form.dataset.wbState = 'sent'
     sendState(button, 'sent')
-    // for the page to confirm the send: set for a few seconds after it, also once the form
-    // folds because an agent picked the answer up at once
+    // for the page to confirm the send: set for a few seconds after it
     form.toggleAttribute('data-wb-just-sent', true)
     clearTimeout(justSent.get(form))
     justSent.set(
@@ -329,7 +328,7 @@ function mark() {
     const name = form.getAttribute('name')!
     const { state, last } = questionState(name, api.events(), listening, api.marks)
     for (const st of STATES) form.toggleAttribute(ATTR[st], st === state)
-    if (state === 'handled') form.dataset.wbOutcome = outcome(last!.data, last!.action)
+    if (state === 'received' || state === 'handled') form.dataset.wbOutcome = outcome(last!.data, last!.action)
     else delete form.dataset.wbOutcome
     showStatus(form)
     return { form, name, state, last }

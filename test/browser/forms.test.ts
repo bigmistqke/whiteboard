@@ -80,14 +80,20 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   const got = JSON.parse(out)
   assert.equal(got.type, 'pick')
   assert.deepEqual(got.data, { fruit: 'Pears', why: 'because' })
+  // the wait printed it: received, so no longer the reader's to do, and folded
+  s = await until('received and folded', async () => {
+    const x = await state()
+    return x.attrs.includes('data-wb-folded') && x.attrs.includes('data-wb-received') ? x : null
+  })
+  await until('says received', () =>
+    page.evaluate(() => document.querySelector('.wb-folded-change')?.textContent === 'received · change' || null),
+  )
   // the agent acted on it: handled, the form is decided
   proj.cli('handled', got.id)
-
-  s = await until('decided and folded', async () => {
+  s = await until('decided', async () => {
     const x = await state()
-    return x.attrs.includes('data-wb-folded') ? x : null
+    return x.attrs.includes('data-wb-folded') && x.attrs.includes('data-wb-handled') ? x : null
   })
-  assert.ok(s.attrs.includes('data-wb-handled'))
   assert.ok(!s.title.startsWith('(!'), 'the badge is gone')
 
   // a live update: the marks stay, the new block is marked new
