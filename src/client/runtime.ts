@@ -1,7 +1,7 @@
 // The core in the browser: the page's events, the live channel, and handing the page to the page
 // module (./page: markdown live, the blocks' islands) and the plugins' modules. When the config failed
 // to load, the page is its raw text: the server's HTML, replaced when it changes.
-import type { Api, PluginMount, Listener, PageHandle, RenderedPage, StoredPage, WbEvent } from '../define'
+import type { Api, PluginMount, Listener, PageHandle, RenderedPage, SlotName, StoredPage, WbEvent } from '../define'
 import { html } from '../html.ts'
 import { formsApi, trackForms } from './forms'
 import { createToast } from './toast'
@@ -167,6 +167,43 @@ function writeTitle() {
   document.title = `${list.map(b => `(${b.text}) `).join('')}${baseTitle}`
 }
 
+// ---- slots -------------------------------------------------------------------------------------
+
+/** The plugins in their order, which is the order of their elements in a slot. */
+const pluginOrder = (handoff.plugins ?? []).map(p => p.name)
+
+/**
+ * Mount `owner`'s element in a slot (Api.slot): the one the server rendered with its markup, or a
+ * new one, put among the others in plugin order. What `mount` returns runs when it is taken away.
+ */
+function slotFor(owner: string, name: SlotName, mount: (el: HTMLElement) => void | (() => void)): () => void {
+  const holder =
+    name === 'corner'
+      ? corner
+      : name === 'header'
+        ? root.querySelector<HTMLElement>('[data-wb-slot=header]')
+        : document.querySelector<HTMLElement>(`body > [data-wb-slot=${name}]`)
+  if (!holder) return () => {}
+  let el = [...holder.children].find((c): c is HTMLElement => c instanceof HTMLElement && c.dataset.plugin === owner)
+  if (!el) {
+    el = document.createElement('div')
+    el.dataset.plugin = owner
+    const at = pluginOrder.indexOf(owner)
+    const next = [...holder.children].find(
+      c => c instanceof HTMLElement && c.dataset.plugin != null && pluginOrder.indexOf(c.dataset.plugin) > at,
+    )
+    holder.insertBefore(el, next ?? null)
+  }
+  const unmount = mount(el)
+  let gone = false
+  return () => {
+    if (gone) return
+    gone = true
+    unmount?.()
+    el.remove()
+  }
+}
+
 const api: Api = {
   page,
   url,
@@ -196,6 +233,8 @@ const api: Api = {
     return () => renderedListeners.delete(fn)
   },
   corner: () => corner,
+  // the page's own (not a plugin's): before the plugins' in a slot
+  slot: (name, mount) => slotFor('', name, mount),
   badge(key, text, order = 0) {
     if (text == null) badges.delete(key)
     else badges.set(key, { text, order, since: badges.get(key)?.since ?? badgeCount++ })
@@ -427,7 +466,7 @@ await Promise.all(
       const mount: PluginMount = (await import(moduleUrl(ext.client))).default
       if (typeof mount !== 'function')
         throw new Error('the client module must export a mount(root, page, api) function as default')
-      await mount(root, handleFor(ext.name), api)
+      await mount(root, handleFor(ext.name), { ...api, slot: (name, mount) => slotFor(ext.name, name, mount) })
     } catch (err) {
       console.error(`plugin ${ext.name}:`, err)
       root.insertAdjacentHTML(

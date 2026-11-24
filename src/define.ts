@@ -198,9 +198,40 @@ export interface PluginContext {
  */
 export type FieldType = 'string' | 'number' | 'boolean' | 'string[]' | 'string?' | 'number?' | 'boolean?' | 'string[]?'
 
+/**
+ * The places on a page the core owns, for what a plugin puts there (each plugin its own element in
+ * each, in plugin order; see Api.slot): `header`, in the page's header bar before the theme button;
+ * `aside`, `bottom` and `overlay`, at the end of <body>, laid out as their content says (a panel
+ * beside the text, a drawer, something over the page); `corner`, the column of floating labels at
+ * the bottom right.
+ */
+export type SlotName = 'header' | 'aside' | 'bottom' | 'overlay' | 'corner'
+
+/**
+ * What a plugin's `slots` gives a page on the server: `head` at the end of <head>, and markup for
+ * its element in each slot but `header` (the header bar is the page's own render; a plugin adds to
+ * it in the browser).
+ */
+export type SlotMarkup = { [K in 'head' | Exclude<SlotName, 'header'>]?: string | Html }
+
 export interface PluginHooks {
   /** by method and path, `'POST /start'`: mounted at `/api/<name>/start` */
   routes?: Record<string, Route>
+  /**
+   * Markup for the page's slots (SlotMarkup), on the server: there on the first render, so an
+   * element in it can take part in the view transition between two pages. The browser module then
+   * mounts on its element in each slot (Api.slot). Called for every page; null adds nothing.
+   *
+   * Something that covers an edge of the window (a drawer at the bottom) says how much of it, as a
+   * length in `--wb-inset-bottom` on :root, registered with `@property` so that it computes to
+   * pixels. The page keeps its own fixed elements clear of it and counts what is behind it as out
+   * of view.
+   *
+   * `req` is the browser's request for the page; null for a page `whiteboard build` writes, which no
+   * browser asked for: what is only for the project's own browser (the terminal's drawer, behind
+   * `authorized`) has nothing to add there.
+   */
+  slots?(req: IncomingMessage | null): SlotMarkup | null | Promise<SlotMarkup | null>
   /**
    * Markup for the page shell, outside the page's root: `head` at the end of <head>, `body` at
    * the end of <body>. Called for every page; null adds nothing. The body is there for the first
@@ -587,6 +618,13 @@ export interface Api {
    * their own; the core draws nothing in it.
    */
   corner(): HTMLElement
+  /**
+   * Mount on this plugin's own element in a slot (SlotName): `mount` is called with it, holding
+   * what the plugin's `slots` rendered there on the server, or empty, and what it returns is called
+   * when the element is taken away. The plugin never makes or looks up the element. Returns what
+   * takes it away. A page without the slot (raw text has no header bar) mounts nothing.
+   */
+  slot(name: SlotName, mount: (el: HTMLElement) => void | (() => void)): () => void
   /**
    * A count in the tab title, under `key`: `(text)` in front of the page's title; null removes it.
    * Lower `order` comes first (default 0), so what waits for the reader can lead.

@@ -485,7 +485,7 @@ export function createRender(
     const nav =
       ctx.live === false
         ? html`<nav class="wb-nav">
-            <span>${ctx.project.name}</span
+            <span>${ctx.project.name}</span><span data-wb-slot="header"></span
             ><button
               type="button"
               class="wb-theme"
@@ -495,7 +495,10 @@ export function createRender(
           </nav>`
         : html`<nav class="wb-nav">
             <span>${crumbs(page.id, ctx.entry?.label || ctx.project.name, ctx.base ?? '', ctx.entry)}</span
-            >${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<button
+            >${page.mtime != null && html`<span class="wb-meta">updated <time id="wb-updated" data-ts="${page.mtime}"></time></span>`}<span
+              data-wb-slot="header"
+            ></span
+            ><button
               type="button"
               class="wb-theme"
               title="Theme: follow the system, light or dark"

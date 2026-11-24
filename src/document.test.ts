@@ -47,7 +47,7 @@ test('pageDocument: the render, the parts and a handoff saying how the page is p
     pageDocument(
       page,
       { page: true, out: { html: '<h1>Plan</h1>', title: 'Plan' }, notices: ['a notice'] },
-      { head: [], body: [], clients: [], messages: [] },
+      { head: [], body: [], clients: [], messages: [], slots: { aside: [], bottom: [], overlay: [], corner: [] } },
       {
         live,
         base: live ? '/rg' : '',
@@ -72,4 +72,30 @@ test('pageDocument: the render, the parts and a handoff saying how the page is p
   const built = handoff(doc(false))
   assert.equal(built.live, false)
   assert.equal(built.stamps, undefined, 'a built page has nothing to compare with')
+})
+
+test("pluginParts: a plugin's slot markup, in its own element in each slot, in plugin order; head in <head>", async () => {
+  const parts = await pluginParts(
+    [
+      hook('a', {
+        slots: () => ({ head: '<meta name=a>', bottom: '<aside id=a-drawer></aside>', corner: '<b>a</b>' }),
+      }),
+      hook('b', { slots: () => ({ bottom: '<aside id=b-drawer></aside>' }) }),
+    ],
+    null,
+    { asset: String, messages: [], failed: () => {} },
+  )
+  const doc = pageDocument(
+    { kind: 'page', id: 'p', file: '/p.md', mtime: 1, source: '', body: '', frontmatter: {} },
+    { page: true, out: { html: '' }, notices: [] },
+    parts,
+    { live: true, base: '', asset: String, runtime: '/_/runtime.js', title: 'x' },
+  )
+  assert.match(doc, /<meta name=a>[\s\S]*<\/head>/)
+  assert.match(
+    doc,
+    /<div data-wb-slot="bottom"><div data-plugin="a"><aside id=a-drawer><\/aside><\/div><div data-plugin="b"><aside id=b-drawer><\/aside><\/div><\/div>/,
+  )
+  assert.match(doc, /<div id="wb-dock" data-wb-slot="corner"><div data-plugin="a"><b>a<\/b><\/div><\/div>/)
+  assert.match(doc, /<div data-wb-slot="aside"><\/div>/, 'a slot nobody filled is there, empty')
 })

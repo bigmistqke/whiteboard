@@ -8,7 +8,7 @@ import type { IncomingMessage } from 'node:http'
 import { html, raw, type Html } from './html.ts'
 import { PACKAGE_DIR } from './package.ts'
 import type { MountedRoute } from './plugins.ts'
-import type { Plugin, PluginHooks, Rendered, StoredPage } from './define.ts'
+import type { Plugin, PluginHooks, Rendered, SlotMarkup, SlotName, StoredPage } from './define.ts'
 
 /** The browser runtime, built by build.ts. */
 export const RUNTIME = path.join(PACKAGE_DIR, 'dist', 'client', 'runtime.js')
@@ -30,10 +30,18 @@ export interface Render {
   notices: string[]
 }
 
+/** The slots at the end of <body>, in the order they are there; `corner` is the page's dock. */
+const BODY_SLOTS = ['aside', 'bottom', 'overlay'] as const
+
+/** A plugin's markup in a slot. */
+type Slotted = { name: string; html: Html }
+
 /** What the plugins add to a page. */
 export interface PageParts {
   head: Html[]
   body: Html[]
+  /** each plugin's markup in each slot, in plugin order */
+  slots: { [K in Exclude<SlotName, 'header'>]: Slotted[] }
   /** their browser modules, which the runtime imports after the page's */
   clients: { name: string; client: string }[]
   /** the event types that, from the agent, are messages for the reader (EventSpec.forReader) */
@@ -66,16 +74,27 @@ export async function pluginParts(
   const parts = await Promise.all(
     working.map(async h => {
       try {
-        return (await h.shell?.(req)) ?? null
+        return [(await h.shell?.(req)) ?? null, (await h.slots?.(req)) ?? null] as const
       } catch (err) {
         failed(`plugin "${h.name}" failed on this page: ${(err as Error).message}`)
-        return null
+        return [null, null] as const
       }
     }),
   )
+  const slotted = (slot: Exclude<SlotName, 'header'>): Slotted[] =>
+    working.flatMap((h, i) => {
+      const markup = (parts[i]![1] as SlotMarkup | null)?.[slot]
+      return markup == null ? [] : [{ name: h.name, html: raw(String(markup)) }]
+    })
   return {
-    head: parts.map(x => raw(String(x?.head ?? ''))),
-    body: parts.map(x => raw(String(x?.body ?? ''))),
+    head: parts.flatMap(([shell, slots]) => [raw(String(shell?.head ?? '')), raw(String(slots?.head ?? ''))]),
+    body: parts.map(([shell]) => raw(String(shell?.body ?? ''))),
+    slots: {
+      aside: slotted('aside'),
+      bottom: slotted('bottom'),
+      overlay: slotted('overlay'),
+      corner: slotted('corner'),
+    },
     clients: working.filter(h => h.client).map(h => ({ name: h.name, client: asset(h.client!) })),
     messages,
   }
@@ -93,7 +112,10 @@ const json = (s: unknown) => JSON.stringify(s).replace(/</g, '\\u003c')
 // Above the page and what floats on it (comment threads: 20), under what fills the window (a
 // maximized frame: 40, a lightbox or the terminal drawer: 50)
 const DOCK_STYLE =
-  '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:30;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:empty{display:none}' +
+  '#wb-dock{position:fixed;right:16px;bottom:calc(16px + var(--wb-inset-bottom,0px));z-index:30;display:flex;flex-direction:column;align-items:flex-end;gap:6px}#wb-dock:not(:has(> :not(:empty))){display:none}' +
+  // the slots (SlotName) and each plugin's element in one: laid out as what is in them says, as if
+  // that were where the slot is (a fixed drawer, a panel, a button in the header bar)
+  '[data-wb-slot]:not(#wb-dock),[data-wb-slot]>[data-plugin]{display:contents}' +
   // toasts (api.toast): labels in the corner, in the page's theme colours where it has them
   '.wb-toasts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.wb-toasts:empty{display:none}' +
   '.wb-toast{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:5px 12px;border-radius:99px;font:600 .8rem/1.4 var(--sans,system-ui,sans-serif);background:var(--accent,#1d5bbf);color:var(--accent-text,#fff);border:1px solid transparent;box-shadow:0 2px 10px rgb(0 0 0/.18)}' +
@@ -120,6 +142,9 @@ export interface Output {
   /** what the browser runs and how it looks, compared again when the live channel is back */
   stamps?: { code: string; style: string }
 }
+
+/** Each plugin's own element in a slot, with what it rendered there. */
+const slotted = (list: Slotted[]) => list.map(x => html`<div data-plugin="${x.name}">${x.html}</div>`)
 
 /** A page as a document: the render, the plugins' parts, and the handoff for the browser runtime. */
 export function pageDocument(
@@ -156,12 +181,12 @@ export function pageDocument(
         <body data-page="${page.id}" data-kind="${page.kind}">
           ${notices.map(n => html`<pre class="wb-error" role="alert">${n}</pre>`)}
           <div id="wb-root">${raw(String(out.html))}</div>
-          <div id="wb-dock"></div>
+          <div id="wb-dock" data-wb-slot="corner">${slotted(parts.slots.corner)}</div>
           <script type="application/json" id="wb-page">
             ${raw(json(handoff))}
           </script>
           <script type="module" src="${o.runtime}"></script>
-          ${parts.body}
+          ${parts.body} ${BODY_SLOTS.map(name => html`<div data-wb-slot="${name}">${slotted(parts.slots[name])}</div>`)}
         </body>
       </html>`,
   )

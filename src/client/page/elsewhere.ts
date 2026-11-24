@@ -129,7 +129,8 @@ export function trackElsewhere(root: HTMLElement, handle: PageHandle, core: Api)
   current = handle.id
   const nav = root.querySelector('.wb-nav')
   if (!nav) return
-  nav.querySelector('.wb-theme')?.before(box)
+  // before the plugins' place in the header bar (its header slot), and the theme button after it
+  ;(nav.querySelector('[data-wb-slot=header]') ?? nav.querySelector('.wb-theme'))?.before(box)
   toggle.addEventListener('click', () => open(!!list.hidden))
   document.addEventListener('click', e => {
     if (!box.contains(e.target as Node)) open(false)
