@@ -135,7 +135,7 @@ config only says what the server serves, and so what boxes it may be given
   by project, as a project's own overview lists its pages, so it is read the
   same way. It is a project's overview, of a project of the shared server's
   own (`overview/` in its state folder, `createServer` with `overview`):
-  rendered by the same core, in the same shell, live through the same
+  rendered by the same core, in the same page around them, live through the same
   channel, which each project's server tells when its pages or log change
   (`onChange`). A project is named by its group, the include it came from
   (`develop`, `worktrees`, `jobs`), and what the wildcards matched, so it says
@@ -292,6 +292,13 @@ What the core reads is the page as stored (`StoredPage` in `src/define.ts`):
 
 Images and other binary files are served as they are.
 
+Where they are is a site's to say (`src/site.ts`): a page's id, its file and
+its address, its frontmatter (parsed and cut off once, as `body`), a folder's
+pages, and the address of a file a link names. The server serves a project
+through `servedSite`, below its base; `whiteboard build` writes one out with
+ids, files and addresses of its own (see Building a site). Neither patches a
+finished page: whatever names a file asks the site for its address.
+
 ### Showing a page
 
 - **One seam.** The server renders through one interface, made by the
@@ -307,7 +314,17 @@ Images and other binary files are served as they are.
   `/_/file/…`. What is served: the core's own files (its page module and
   styles, the project's stylesheet), and what is inside a plugin's public
   folder (see Plugins); nothing else. `ctx.urlFor(file)`
-  gives the URL that shows a file or folder on disk, for links.
+  gives the URL that shows a file or folder on disk, for links; a block's
+  `fileUrl(src)` does the same for a file named relative to its page (an
+  image's `src`), and so does the markdown renderer for `src`, `href` and
+  `poster` in a page's own HTML. A URL, an address from the root, or a file
+  that isn't there stays as written.
+- **The page around it** is put together in one place (`src/document.ts`),
+  for a page the server serves and for one a build writes: the render, what
+  the plugins put in their slots, their browser modules, and the handoff the
+  runtime starts from. What differs is told: how a file is addressed, whether
+  the page is live, which plugins a build leaves out, and that a plugin that
+  fails is a notice on a served page and a warning from a build.
 - **Browser.** The core's runtime (`src/client/runtime.ts`) imports the page
   module (`src/client/page/main.ts`) and calls `mount(root, page, api)`.
   `page` has the page's id, kind, `data` and `frontmatter`, `onChange(fn)`,
@@ -316,9 +333,9 @@ Images and other binary files are served as they are.
   data, action)`, the `listeners`, `forms` and `unread` messages, and three
   things the page's parts share:
   `rendered()` (the page module says it patched its content, and plugins
-  listening with `onRendered` put back what they add to it), `corner()` (an
-  empty column at the bottom right, the one element the core puts on every
-  page, for floating buttons) and `badge(key, text, order)` with
+  listening with `onRendered` put back what they add to it), `slot(name,
+  mount)` (the caller's own element in one of the page's slots, see Slots)
+  and `badge(key, text, order)` with
   `title(title)` (counts in the tab title, in front of the page's own
   title). Then the runtime starts the named forms and imports the plugins'
   modules, with the same arguments.
@@ -331,8 +348,11 @@ Images and other binary files are served as they are.
 
 ### Building a site
 
-`whiteboard build` (server.ts `build`) renders pages once, through the same
-render and shell as the live server, with `live: false`: the page's handoff
+`whiteboard build` (`src/build.ts`) renders pages once, through the same
+render and the same page assembly as the live server, with `live: false`, as
+a site of its own: its ids and files come from the pages its globs name, a
+README or index is its folder's `index.html`, and an address is a path
+relative to the page, to a copy beside it. The page's handoff
 says so, and the runtime then loads no events, opens no channel and tracks
 no forms or reading; the page module leaves out what is new, what waits and
 what is elsewhere. What a page loads is named relative to it and copied
@@ -344,10 +364,39 @@ What a site leaves out is the build's to decide, not the plugins': its
 (rather than as its markdown, as an unknown directive does), a skipped
 plugin's stylesheet and browser module are not included. The default is
 what the core knows is for writing: form, chat, comments and draft. What
-plugins add to the shell is included, but a skipped plugin's: `shell` is
+plugins put in their slots is included, but a skipped plugin's: `slots` is
 asked with a null request, since no browser asked for the page, so what is
 only for the project's own browser (the terminal's drawer, behind
-`authorized`) leaves itself out.
+`authorized`) leaves itself out. Nothing in a built page is patched after
+it is written: every address in it came from the built site.
+
+### Slots
+
+The core owns the places on a page where something other than the page's
+content goes, and a plugin fills its own element in them instead of putting
+things on the page by hand:
+
+| slot | where |
+| --- | --- |
+| `header` | the page's header bar, after what waits elsewhere, before the theme button |
+| `aside` | at the end of `<body>`: a panel beside the text (toc) |
+| `bottom` | at the end of `<body>`: a drawer the page makes room for (the terminal, through `--wb-inset-bottom`) |
+| `overlay` | at the end of `<body>`: what goes over the page (comments, the lightbox) |
+| `corner` | the dock at the bottom right: floating buttons and toasts |
+
+Each plugin has its own element in each slot, in plugin order, and a slot
+and its elements are laid out as if what is in them were where the slot is
+(`display: contents`), so a fixed drawer, a panel or a comment placed in
+document coordinates behaves as it would at the end of `<body>`.
+
+A slot's part is shaped like a block: markup from the server, optional
+(`slots(req)`: there on the first render, so the terminal's drawer takes part
+in the view transition between two pages), and a mount in the browser on the
+element that holds it (`api.slot(name, el => unmount)`), handed to it whether
+the server filled it or not; what the mount returns runs when the core takes
+the element away. A plugin never makes or looks up the element, and nothing
+in its markup is an address. The `header` slot is in the page's own render,
+so it has no server markup; a plugin adds to it in the browser.
 
 ### Plugins
 
@@ -433,9 +482,10 @@ that name, so two plugins can't collide:
 - `session()`: the agent session a command runs in (see Status and hooks).
 - `setup(ctx)`, run once per loaded config on the server: its `routes` are
   mounted at `/api/<name>/…` (the core checks a route's token and arguments
-  before its code runs), `shell(req)` adds markup to every page's `<head>`
-  and `<body>`, and `client` is a module on every page. Its files go in
-  `.whiteboard/<name>/`.
+  before its code runs), `slots(req)` gives markup for its element in each of
+  the page's slots and for `<head>` (see Slots), and `client` is a module on
+  every page. It names its files (`client`, `style`) and never writes an
+  address: the site makes them. Its data goes in `.whiteboard/<name>/`.
 
 The built-in plugins are in `plugins/<name>/`: ansi, callout, chat, code,
 comments, details, draft, form (with its input blocks), grid, iframe,
@@ -460,8 +510,9 @@ config, like what a config imports itself.
   after the page module has mounted, with the same `mount(root, page, api)`
   arguments. A plugin that works on the page's content puts back what it
   adds after `api.onRendered`; the page module keeps the `data-wb-*`
-  attributes a plugin set when it morphs. Floating buttons go in
-  `api.corner()` and counts in the title through `api.badge()`, so the page
+  attributes a plugin set when it morphs. What it puts on the page outside
+  the content goes in its slots (`api.slot`), floating buttons in the
+  `corner` one, and counts in the title through `api.badge()`, so the page
   and plugins never need to know about each other.
 - **A plugin owns a whole feature.** Its event types, what it draws
   and what it tells agents, end to end, so taking it out of the config
