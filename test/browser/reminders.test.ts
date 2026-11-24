@@ -3,6 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import path from 'node:path'
 import { browser, project, until } from './project.ts'
 
 const FORM = (name: string) => `:::form{name=${name}}\n:text[Why]{name=why}\n:::\n`
@@ -54,7 +55,7 @@ test(
     assert.equal(first.decision, 'block')
     assert.match(
       first.reason,
-      /On your whiteboard page mine: nobody listens for ask\. Run `whiteboard wait --page \S*mine\.md` in the background before ending your turn\./,
+      /On your whiteboard page mine: nobody listens for ask\. Before ending your turn: run `whiteboard wait --page \S*mine\.md` in the background\./,
     )
     const again = JSON.parse(stop(true).stdout)
     assert.equal(again.decision, undefined, 'a turn the hook continued ends')
@@ -63,6 +64,14 @@ test(
     // with a wait on the page, nothing to say
     const wait = proj.spawn('wait', '--page', 'mine')
     await until('the wait listens', async () => !stop(false).stdout.trim() || null)
+
+    // a chat where the reader wrote last: the turn goes on, to reply there
+    fs.appendFileSync(
+      path.join(proj.dir, '.whiteboard', 'events.ndjson'),
+      JSON.stringify({ id: 'c1', ts: new Date().toISOString(), page: 'mine', type: 'chat:message', action: null, data: { chat: 'talk', text: '?' } }) + '\n',
+    )
+    const asked = JSON.parse(await until('the hook sees the chat', () => stop(false).stdout.trim() || null))
+    assert.match(asked.reason, /reply in the chat talk/)
     wait.kill()
   },
 )

@@ -25,6 +25,22 @@ test('registry: one fallback at a time; another once it is gone', () => {
   assert.ok(r.add({ ...fallback }), 'the first is gone: a new one is held')
 })
 
+test('registry: one wait a page; a newer one evicts it, and the evicted one is told', () => {
+  const r = createRegistry()
+  let told = 0
+  r.add(wait('plan'), () => told++)
+  assert.equal(r.holder(wait('plan'))?.listener.page, 'plan', 'the same page is held')
+  assert.equal(r.holder(wait('plan', 'pick'))?.listener.page, 'plan', 'a type of it overlaps an any-type wait')
+  assert.equal(r.holder(wait('plan/sub')), null, 'a page below is another page')
+  assert.equal(r.holder(wait('notes')), null)
+  assert.equal(r.holder({ ...fallback }), null, 'the fallback is not a page')
+  r.evict(wait('plan'))
+  assert.equal(told, 1)
+  assert.deepEqual(r.list('plan'), [])
+  r.add(wait('notes', 'a'))
+  assert.equal(r.holder(wait('notes', 'b')), null, 'different types on a page do not overlap')
+})
+
 test('registry: tells whoever follows it of each change, until they stop', () => {
   const r = createRegistry()
   let changes = 0

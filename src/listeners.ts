@@ -8,18 +8,33 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Listener } from './define.ts'
 import { covers } from './status.ts'
 
-/** The listeners of one project, and the rule that one fallback holds it at a time. */
+/**
+ * The listeners of one project, and the rules that one fallback holds it at a time, and one wait or
+ * watch a page: a second on the same page would take answers from under the first.
+ */
 export interface Registry {
   /** the listeners, those covering `page` when given; each a copy */
   list(page?: string | null): Listener[]
-  /** hold `l` until the returned function is called; null when refused: a second fallback */
-  add(l: Listener): (() => void) | null
+  /**
+   * hold `l` until the returned function is called; null when refused: a second fallback. `replaced`
+   * is called when a newer listener takes its page over (`evict`).
+   */
+  add(l: Listener, replaced?: () => void): (() => void) | null
+  /** the listener that has `l`'s page already, and since when (ms): the same page, overlapping types */
+  holder(l: Listener): { listener: Listener; since: number } | null
+  /** take `l`'s page from whoever has it: each is told (`replaced`) and let go */
+  evict(l: Listener): void
   /** call `fn` whenever a listener comes or goes; returns what stops it */
   onChange(fn: () => void): () => void
 }
 
+/** Would `a` and `b` take the same answers: the same page, and the same type or either any? */
+const overlap = (a: Listener, b: Listener) =>
+  !a.fallback && !b.fallback && !!a.page && a.page === b.page && (!a.type || !b.type || a.type === b.type)
+
 export function createRegistry(): Registry {
   const listeners = new Set<Listener>()
+  const held = new Map<Listener, { since: number; replaced?: () => void }>()
   const watchers = new Set<() => void>()
   const changed = () => {
     for (const fn of watchers) fn()
@@ -29,14 +44,30 @@ export function createRegistry(): Registry {
       [...listeners]
         .filter(l => page == null || covers(l, page))
         .map(({ page, type, command, fallback }) => ({ page, type, command, ...(fallback && { fallback }) })),
-    add(l) {
+    add(l, replaced) {
       // one fallback per project: two would split what nobody else takes between them
       if (l.fallback && [...listeners].some(x => x.fallback)) return null
       listeners.add(l)
+      held.set(l, { since: Date.now(), replaced })
       changed()
       return () => {
+        held.delete(l)
         if (listeners.delete(l)) changed()
       }
+    },
+    holder(l) {
+      const x = [...listeners].find(x => overlap(x, l))
+      return x ? { listener: { ...x }, since: held.get(x)!.since } : null
+    },
+    evict(l) {
+      for (const x of [...listeners])
+        if (overlap(x, l)) {
+          const told = held.get(x)?.replaced
+          held.delete(x)
+          listeners.delete(x)
+          told?.()
+        }
+      changed()
     },
     onChange(fn) {
       watchers.add(fn)

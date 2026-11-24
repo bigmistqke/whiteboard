@@ -38,6 +38,8 @@ export interface Project {
   spawn(...args: string[]): ChildProcess & { output(): string }
   /** the project's events, as the log has them */
   events(): Record<string, any>[]
+  /** an agent acted on the reader's answers of `type`: once one is in the log, ack them all */
+  handle(type: string): Promise<void>
   /** write a page */
   page(name: string, source: string): string
   /** stop its server and anything it started, and remove the folder */
@@ -73,6 +75,17 @@ export async function project({
     return file
   }
   for (const [name, source] of Object.entries(pages)) page(name, source)
+  const events = (): Record<string, any>[] => {
+    const file = path.join(dir, '.whiteboard', 'events.ndjson')
+    return fs.existsSync(file)
+      ? fs
+          .readFileSync(file, 'utf8')
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .map(l => JSON.parse(l))
+      : []
+  }
   cli('show', Object.keys(pages)[0] ?? '/')
   return {
     dir,
@@ -98,18 +111,17 @@ export async function project({
       children.push(child)
       return Object.assign(child, { output: () => out })
     },
-    events() {
-      const file = path.join(dir, '.whiteboard', 'events.ndjson')
-      return fs.existsSync(file)
-        ? fs
-            .readFileSync(file, 'utf8')
-            .trim()
-            .split('\n')
-            .filter(Boolean)
-            .map(l => JSON.parse(l))
-        : []
-    },
+    events,
     page,
+    async handle(type) {
+      const ids = await until(`an answer of ${type}`, () => {
+        const found = events()
+          .filter(e => e.type === type && e.from !== 'cli')
+          .map(e => e.id as string)
+        return found.length ? found : null
+      })
+      cli('ack', ...ids)
+    },
     async close() {
       for (const c of children) c.kill()
       // the terminal's host, if a test started one

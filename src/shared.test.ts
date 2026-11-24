@@ -245,9 +245,9 @@ test("a wait without --page in a project of an entry is the whole entry's fallba
   assert.equal(lines[0].data.x, 'B')
   assert.equal(lines[0].project, b)
   assert.equal(lines[0].url, `http://localhost:${m.port}/rg/jobs/b/plan`)
-  // and it is picked up, in b's own log
+  // and it is taken, in b's own log
   assert.ok(
-    fs.readFileSync(path.join(b, '.whiteboard', 'events.ndjson'), 'utf8').includes(`"type":"whiteboard:picked"`),
+    fs.readFileSync(path.join(b, '.whiteboard', 'events.ndjson'), 'utf8').includes(`"type":"whiteboard:taken"`),
   )
 })
 

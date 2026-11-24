@@ -94,7 +94,7 @@ writes only the shared server's state, when you run one
   config.ts       optional: what differs from the defaults (plugins, a stylesheet, options)
   pages/          the pages: pages/plan.md is served at /plan
   events.ndjson   the events, one JSON object per line: form submits, comments, replies,
-                  and which ones an agent picked up
+                  and which ones an agent took and handled
   token           the secret for what runs code (the terminal)
   server.json     the port and process of the running server
   server.log      that server's output
@@ -235,24 +235,26 @@ whiteboard watch --page plan                # streams submits, never exits
 whiteboard events --page plan --last 1      # what was already submitted
 ```
 
-`wait` never misses an answer and never hands one out twice. Handing an
-answer out is itself an event in the log (`whiteboard:picked`), and when a
-wait starts it first returns the answers nobody picked up yet, including
-ones given before it started, whatever filter handed out the others. So an
-agent can ask, do other work, and wait later.
+`wait` never loses an answer. Handing one out marks it *taken* in the log
+(`whiteboard:taken`), so no other wait takes it too; it is *handled* once the
+agent acted on it: it replied in its chat or thread, or ran `whiteboard ack
+<id>` (`whiteboard:picked`). A wait prints every answer on its page not
+handled yet, including ones given before it started and ones handed out
+before (marked `"again": true`), so an answer an agent saw and forgot comes
+back. So an agent can ask, do other work, and wait later. One wait or watch
+holds a page; a second is refused unless `--force`, which stops the first.
 
 `wait` is built from smaller pieces that are commands too, for a script that
-wants to use the log its own way (pick an answer up only once it has acted
-on it, say):
+wants to use the log its own way:
 
 ```sh
 whiteboard events --follow --page plan      # every new event as it comes, marking nothing
-whiteboard pick <event id>                  # record one as picked up, as wait does
+whiteboard ack <event id>                   # the agent handled it
 whiteboard append --page plan --type <t>    # write one
 ```
 
 The same pieces are a module, `@bigmistqke/whiteboard/log`: `read`,
-`follow`, `appendEvent`, `pick`, and `handOut`, which is `wait` itself.
+`follow`, `appendEvent`, `take`, `ack`, and `handOut`, which is `wait` itself.
 
 ## A terminal on every page
 
@@ -340,7 +342,8 @@ session that ran it, and `whiteboard status` marks that session's pages.
   the turn goes on once, telling the agent to start its wait (agents forget);
   a turn the hook already continued ends, and you see what is open;
 - when you send a message, answers on the session's pages that no wait
-  picked up come with it, and count as picked up from then on;
+  took come with it, and count as taken from then on; answers it was given
+  and hasn't handled, and chats waiting for its reply, are named;
 - a new session starts with the same, plus what is open on other sessions'
   pages (not handed over: those answers stay for whoever waits on them).
 
@@ -365,18 +368,18 @@ commands answer it too.
 | `whiteboard scroll <page\|file> <where>` | scroll the tabs that have the page open to a heading's text, a form's name or any text on it; exits 1 when nothing matches or no tab has it open |
 | `whiteboard docs [name]` | print how to write pages in this project: the blocks, then each plugin's docs; with a name, only that plugin's |
 | `whiteboard events [filters] [--follow]` | print recorded events; with `--follow`, then each new one as it comes, marking nothing |
-| `whiteboard wait [filters]` | print the next matching event not handed out before, waiting for it if needed; without `--page`, only what no other wait or watch would take (the fallback: one per project, or, in a project of the machine config's entries, one for the whole entry, each event with its `project` and `url`) |
-| `whiteboard watch [filters]` | like `wait`, but never exits: print each matching event once |
+| `whiteboard wait [filters] [--force]` | print every matching answer the agent hasn't handled (one handed out before with `"again": true`), or wait for the next; one wait a page (`--force` takes it over); without `--page`, only what no other wait or watch would take (the fallback: one per project, or, in a project of the machine config's entries, one for the whole entry, each event with its `project` and `url`) |
+| `whiteboard watch [filters] [--force]` | like `wait`, but never exits: print each answer as it comes |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
-| `whiteboard pick <event id>` | record an event as picked up, as `wait` does when it hands one out |
-| `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent picked up, who is listening |
+| `whiteboard ack <event id…>` | the agent handled these answers (a reply in their chat does it too): no wait hands them out again |
+| `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent took, answers handed out and not handled, chats waiting for a reply, who is listening |
 | `whiteboard build [globs…] [--out <dir>] [--skip <a,b>]` | pages as a static site (see [Building a site](#building-a-site)) |
 | `whiteboard serve` | run the server in the foreground; for a project of the machine config's entries, or outside any project, the shared server |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
 | `whiteboard paths [--write\|--read]` | the folders the shared server needs, `:` between them, for a sandbox wrapper to grant (see [Many projects, one server](#many-projects-one-server)) |
 
 Filters: `--page <page|file>` (includes pages below it), `--type <type>` (a form's type is its name).
-`wait` also takes `--timeout <seconds>` (exits 2 on timeout) and `--count <n>`;
+`wait` also takes `--timeout <seconds>` (exits 2 on timeout);
 `events` takes `--since <time or event id>` and `--last <n>`.
 
 ## Configuration

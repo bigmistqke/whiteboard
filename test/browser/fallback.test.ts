@@ -60,8 +60,9 @@ test(
     await new Promise(r => setTimeout(r, 500))
     assert.ok(!fallback.output().includes('"page":"a"'), 'the fallback left a to its wait')
 
-    // with the wait gone, a is the fallback's too
+    // with the wait gone, a is the fallback's too; its agent acted on the answer (ack)
     await until('the wait ended', async () => !(await listeners()).some(l => l.page === 'a') || null)
+    proj.cli('ack', JSON.parse(wait.output()).id)
     // decided, the form folded: a click opens it again to answer anew
     await page.click('form[name=a-q][data-wb-folded]', { position: { x: 20, y: 12 } })
     await page.fill('input[name=note]', 'again')

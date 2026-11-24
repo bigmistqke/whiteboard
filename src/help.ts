@@ -76,20 +76,27 @@ One chat's messages: whiteboard chat prune <page|file> <chat>.`,
   --follow             then print each new one as it comes`,
   },
   wait: {
-    usage: '[--page <p>] [--type <t>] [--timeout <s>]',
-    summary: 'block until the next matching event, print it, exit; it counts as picked up',
+    usage: '[--page <p>] [--type <t>] [--timeout <s>] [--force]',
+    summary: "print every answer you haven't handled, or block for the next; each counts as taken",
     details: `${FILTERS}
   --timeout <seconds>  exit 2 when nothing came
-  --count <n>          wait for n events (default 1)
+  --force              take the page over from another wait or watch on it (that one exits 3)
 
-It first hands out what nobody picked up yet, also from before it started. Without --page it is the
+It prints, one line each, every answer on the page you haven't handled, also from before it started,
+and exits; with none, it blocks until the next comes. An answer printed before and still not
+handled comes again, with "again": true. You handle one by replying in its chat (or to it), or with
+whiteboard ack <id>. Then it lists what is left: answers to handle, chats waiting for your reply,
+questions still unanswered.
+
+One wait or watch a page: a second is refused (exit 1) unless --force. Without --page it is the
 fallback: only what no other wait or watch would take, on any page; one runs per project (a second
 exits 1), or, in a project of the machine's entries, one for the whole entry.`,
   },
   watch: {
-    usage: '[--page <p>] [--type <t>]',
-    summary: 'like wait, but never exits: print each matching event once',
+    usage: '[--page <p>] [--type <t>] [--force]',
+    summary: 'like wait, but never exits: print each answer as it comes',
     details: `${FILTERS}
+  --force              take the page over from another wait or watch on it
 
 Without --page it is the fallback, as for wait.`,
   },
@@ -97,10 +104,14 @@ Without --page it is the fallback, as for wait.`,
     usage: '--page <p> --type <t> [--data <json>]',
     summary: "add an event to a page's log, as the agent (a reply, a chat message)",
   },
-  pick: { usage: '<event id>', summary: 'record an event as picked up, as wait does when it hands one out' },
+  ack: {
+    usage: '<event id> [<event id>…]',
+    summary: 'you acted on these answers: handled, so no wait hands them out again',
+    details: 'Replying in an answer\'s chat (or to it) handles it too, without ack.',
+  },
   status: {
     usage: '[--page <p>]',
-    summary: 'per page: questions without an answer, answers no agent picked up, who listens',
+    summary: 'per page: questions without an answer, answers to take or handle, chats waiting for a reply, who listens',
   },
   serve: {
     usage: '',

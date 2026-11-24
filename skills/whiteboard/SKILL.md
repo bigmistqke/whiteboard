@@ -230,21 +230,29 @@ Each submit of a named form appends one line to the project's
 Pass your page's file path as `--page`, so you only hear about your own
 page (`--page plan` also works, and includes the pages below `plan/`).
 
-- `whiteboard wait --page <file> --type <name>` prints the next answer to that
-  form and exits (`--timeout <s>` exits 2 on timeout). It first hands out
-  answers it has not handed out before, also ones given before you started
-  waiting, so you never miss one and never get one twice. Run it in the
-  background and keep working; you are notified when it exits.
-- **A page with several forms: one `wait` per answer.** Run
-  `whiteboard wait --page <file>` (no `--type`: any answer on the page) in
-  the background. It exits on the next answer, and that exit notifies you.
-  Act on the answer, then run the wait again for as long as the page still
-  has forms without an answer. When all are answered, stop: nothing keeps
-  running. When you add a question later, start a wait again. An answer
-  given between two waits is not lost: the next wait hands it out first.
-  Background commands have no time limit, unlike a monitor tool, which
-  expires. Do not use `wait --count <n>`: it returns only after all n
-  answers, so the first ones go unread until the last arrives.
+- `whiteboard wait --page <file>` prints every answer on the page you
+  haven't handled yet, one line each, and exits; with none, it blocks until
+  the next one comes (`--type <name>` for one form only, `--timeout <s>`
+  exits 2). Answers given before you started waiting are there too, so you
+  never miss one. Run it in the background and keep working; you are
+  notified when it exits.
+- **Handle every answer you're given.** Once you acted on an answer, reply
+  in its chat (that handles it) or run `whiteboard ack <id>`. Until then it
+  counts as taken, not done: the next wait hands it to you again, marked
+  `"again": true`, and the page shows "the agent has it" instead of
+  decided. A chat message is handled by replying in that chat, a comment
+  by replying in its thread.
+- **Run the wait again** for as long as the page has questions or chats
+  waiting: when it exits it lists, on stderr, the answers still to handle
+  (with the `ack` command), the chats waiting for your reply, and the
+  questions still unanswered. When nothing is left, stop: nothing keeps
+  running. When you add a question later, start a wait again. Background
+  commands have no time limit, unlike a monitor tool, which expires.
+- **One wait per page.** A second wait or watch on a page that already has
+  one is refused (exit 1). Check you don't have one running already (an
+  earlier background task); if it is stale, `--force` takes the page over,
+  and the old one exits 3, saying a newer wait took it over. A wait of
+  yours that exits 3 no longer listens.
 - `whiteboard watch --page <file>` is `wait` that never exits: it prints
   every answer on the page once, also those given while no watch ran. Use it
   only with something that reports each printed line as it comes (a
@@ -260,9 +268,7 @@ page (`--page plan` also works, and includes the pages below `plan/`).
 - `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer. With `--follow` it then prints each new event as it comes, without
-  picking anything up; `whiteboard pick <event id>` marks one picked up
-  yourself. Use these only for something `wait` doesn't do, such as picking
-  an answer up after you acted on it.
+  taking anything. Use these only for something `wait` doesn't do.
 
 The page shows the user what waits for them: every question without an
 answer is outlined as waiting for them, and so is a message from you they
@@ -272,11 +278,11 @@ and the tab title and the header count them. Whether
 your wait runs doesn't change that, so answers given while none runs wait in
 the log for you. So:
 
-- An answer counts as picked up once your `wait` or `watch` hands it to you;
-  the form then folds into a card showing the answer, as decided, with its
-  chat folded into "💬 n messages" (your messages there still open it for
-  the user). Answers no wait
-  has handed out show as waiting for you to pick them up. Waiting on a
+- An answer is taken once your `wait` or `watch` hands it to you (the form
+  says "the agent has it"), and decided once you handled it: the form then
+  folds into a card showing the answer, with its chat folded into "💬 n
+  messages" (your messages there still open it for the user). Answers no
+  wait has handed out show as waiting for you to pick them up. Waiting on a
   decided form by name (`--type`) asks the user again: it is open again.
 - Keep a `wait` or `watch` running for as long as you want answers, and only
   then. Don't poll `whiteboard events` in a loop instead: it picks nothing
@@ -290,15 +296,17 @@ the log for you. So:
 ### Status and hooks
 
 `whiteboard status` lists, per page, the questions waiting for the user (no
-answer yet, or a wait asks for a new one), the answers no agent picked up,
-and who is listening, with the `wait` command
-that picks them up. Pages are claimed by the session that ran
+answer yet, or a wait asks for a new one), the answers no agent took, the
+answers handed out and not handled (with the `ack` command), the chats
+waiting for a reply, and who is listening, with the `wait` command that
+takes them. It covers every page: it is your inbox. Pages are claimed by the session that ran
 `whiteboard new` for them, and `status` marks yours. Run it when you resume
 work, or when you're unsure what is still open.
 
-When `wait` hands you an answer, it also says (on stderr) what is still
-unanswered on the page, with the command to wait again: run it once you've
-acted on the answer.
+When `wait` hands you answers, it also says (on stderr) what is left on the
+page: answers to handle, chats waiting for your reply, questions still
+unanswered, with the command to wait again: run it once you've acted on the
+answers.
 
 A project can have Claude Code hooks for this: the Claude Code plugin in
 its config, and `whiteboard claude-code install`:
@@ -306,8 +314,10 @@ its config, and `whiteboard claude-code install`:
 - when your turn ends with something on your pages nobody listens for, your
   turn goes on once, telling you to start the wait: start it in the
   background and end your turn;
-- when the user sends a message, answers on your pages that no wait picked
-  up come with it, and count as picked up from then on;
+- when the user sends a message, answers on your pages that no wait took
+  come with it, and count as taken from then on (handle them as any
+  others); answers you were given and haven't handled, and chats waiting
+  for your reply, are named;
 - a new session starts with the same, plus what is open on other sessions'
   pages (not handed over: those answers stay for whoever waits on them).
 

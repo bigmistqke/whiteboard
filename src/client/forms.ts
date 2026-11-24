@@ -11,9 +11,10 @@
 // - puts the last answer back into the form, and its button in `data-wb-sent`;
 // - marks where the form stands, from the log and the listeners, with one of these attributes:
 //     data-wb-open      no answer yet, or the agent asks again (a wait asks for it by name after
-//                       its answer was picked up)
-//     data-wb-pending   answered, but no agent has picked the answer up yet
-//     data-wb-decided   an agent picked up its latest answer; data-wb-outcome quotes it in one line
+//                       its answer was handled)
+//     data-wb-pending   answered, but no agent has taken the answer yet
+//     data-wb-taken     a wait handed the answer to an agent, which hasn't handled it yet
+//     data-wb-decided   the agent handled its latest answer; data-wb-outcome quotes it in one line
 // and, for a few seconds after a send went through, `data-wb-just-sent`, to confirm it
 //
 // How that looks is the page's: it styles the attributes, and can follow `api.forms.on`. A form
@@ -262,9 +263,13 @@ function showStatus(form: HTMLFormElement) {
   const text =
     form.dataset.wbState === 'failed'
       ? (["couldn't send it", 'bad'] as const)
-      : form.dataset.wbState === 'sending' || !form.hasAttribute('data-wb-pending')
+      : form.dataset.wbState === 'sending'
         ? null
-        : (['waiting for the agent to pick it up', null] as const)
+        : form.hasAttribute('data-wb-pending')
+          ? (['waiting for the agent to pick it up', null] as const)
+          : form.hasAttribute('data-wb-taken')
+            ? (['the agent has it', null] as const)
+            : null
   let el = form.querySelector<HTMLElement>('.wb-form-status')
   const last = sendButtons(form).at(-1)
   if (!text || !last) return void el?.remove()
@@ -276,7 +281,12 @@ function showStatus(form: HTMLFormElement) {
   else delete el.dataset.kind
 }
 
-const ATTR: Record<FormState, string> = { open: 'data-wb-open', pending: 'data-wb-pending', decided: 'data-wb-decided' }
+const ATTR: Record<FormState, string> = {
+  open: 'data-wb-open',
+  pending: 'data-wb-pending',
+  taken: 'data-wb-taken',
+  decided: 'data-wb-decided',
+}
 
 /** One line quoting an answer: what was chosen, then what was written. */
 /**
@@ -317,7 +327,7 @@ function mark() {
   const listening = api.listeners()
   current = forms().map(form => {
     const name = form.getAttribute('name')!
-    const { state, last } = questionState(name, api.events(), listening, api.pickedUp)
+    const { state, last } = questionState(name, api.events(), listening, api.marks)
     for (const st of STATES) form.toggleAttribute(ATTR[st], st === state)
     if (state === 'decided') form.dataset.wbOutcome = outcome(last!.data, last!.action)
     else delete form.dataset.wbOutcome

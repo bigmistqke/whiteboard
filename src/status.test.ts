@@ -43,12 +43,13 @@ const cases: [string, WbEvent[], Listener[], string[], string][] = [
 
 for (const [what, events, listeners, picked, expected] of cases) {
   test(`questionState: ${what}`, () => {
-    assert.equal(questionState('pick', events, listeners, id => picked.includes(id)).state, expected)
+    const marks = { taken: (id: string) => picked.includes(id), handled: (id: string) => picked.includes(id) }
+    assert.equal(questionState('pick', events, listeners, marks).state, expected)
   })
 }
 
 test('questionState gives the latest answer', () => {
-  assert.equal(questionState('pick', [answer, newer, reply], [], () => false).last?.id, 'a2')
+  assert.equal(questionState('pick', [answer, newer, reply], [], { taken: () => false, handled: () => false }).last?.id, 'a2')
 })
 
 const page = (over: Partial<PageStatus>): PageStatus => ({
@@ -62,6 +63,8 @@ const page = (over: Partial<PageStatus>): PageStatus => ({
   unheard: [],
   unread: [],
   unpicked: [],
+  unhandled: [],
+  awaitingReply: [],
   listeners: [],
   ...over,
 })
@@ -69,7 +72,7 @@ const page = (over: Partial<PageStatus>): PageStatus => ({
 test('statusLines: what is open, the command once, then what an agent waits on', () => {
   const p = page({ open: ['a', 'b'], unheard: ['a'], unpicked: [answer, newer] })
   assert.deepEqual(statusLines(p, 'p.md'), [
-    '2 answers no agent picked up (pick)',
+    '2 answers no agent took (pick)',
     'nobody listens for a',
     '→ whiteboard wait --page p.md',
     'waiting for the reader: b',
@@ -185,7 +188,7 @@ test('projectStatus: per page from the log and who listens; picked marks and whe
     [null, [], ['a2'], ['m1'], 1],
     "notes: answered, not picked up (comments:new isn't for an agent), one unread message",
   )
-  assert.deepEqual([...s.picked], ['a1'])
+  assert.deepEqual([...s.handled], ['a1'])
   assert.equal(s.lastAnswered('notes'), '6', 'the reader’s last event, of any type')
   assert.equal(s.lastAnswered('plan'), '2', 'the agent’s pick and claim do not count')
   assert.equal(s.lastAnswered('gone'), null)

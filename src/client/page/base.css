@@ -794,7 +794,7 @@ form.wb-form[data-wb-folded] {
   gap: 0;
   margin: var(--gap-prose) 0;
 }
-/* named forms: the core marks where each stands (data-wb-open, -pending, -decided); this is how that looks */
+/* named forms: the core marks where each stands (data-wb-open, -pending, -taken, -decided); this is how that looks */
 /* the button a form was sent with says how that goes (forms.ts): the answer is the form's already
    (optimistic), the button grey while the server hasn't confirmed it, green a moment once it has,
    red ("Try again") when it never got there. The form stays usable: the same answer isn't sent twice. !important: a send's
@@ -869,7 +869,7 @@ form[data-wb-open] {
 }
 /* the ring sets it off: the form's rules above and below (its borders, which the ring would
    enclose) step aside meanwhile */
-form.wb-form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [data-wb-state='failed']) {
+form.wb-form:is([data-wb-open], [data-wb-pending], [data-wb-taken], [data-wb-state='sending'], [data-wb-state='failed']) {
   border-top-color: transparent;
   border-bottom-color: transparent;
   /* the ring's distance is the space around the content: no padding inside it as well, and the
@@ -881,7 +881,7 @@ form.wb-form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [d
 /* the ring speaks the language of a send too: grey while the answer is on its way (it is the
    form's already, so no longer ringed as unanswered) and while it waits for the agent to pick it
    up, red when it never got there; gone once the agent took it (decided) */
-form:is([data-wb-state='sending'], [data-wb-pending]) {
+form:is([data-wb-state='sending'], [data-wb-pending], [data-wb-taken]) {
   --wb-ring: var(--wb-sending);
 }
 form[data-wb-state='failed'] {
@@ -1342,7 +1342,7 @@ main:has(+ .wb-orphans:not([hidden])) {
 }
 @media (prefers-reduced-motion: reduce) {
   form button[data-wb-send],
-  form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [data-wb-state='failed']) {
+  form:is([data-wb-open], [data-wb-pending], [data-wb-taken], [data-wb-state='sending'], [data-wb-state='failed']) {
     transition: none;
   }
 }

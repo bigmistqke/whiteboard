@@ -29,6 +29,7 @@ test(
       'because it ships together with the font and density fix in the same build',
     )
     await page.click('form[name=go] button.wb-primary')
+    await proj.handle('go')
     await page.waitForSelector('form[name=go][data-wb-folded] .wb-folded')
     assert.equal(await page.textContent('form[name=go] .wb-folded-choice'), '✓ Yes, build it')
     assert.equal(
@@ -43,6 +44,7 @@ test(
       'just a remark, long enough to count as written text rather than a choice',
     )
     await page.click('form[name=note] button.wb-primary')
+    await proj.handle('note')
     await page.waitForSelector('form[name=note][data-wb-folded] .wb-folded')
     assert.match((await page.textContent('form[name=note] .wb-folded-choice'))!, /^✓ just a remark/)
     assert.ok(await page.locator('form[name=note] .wb-folded-text').isHidden())
@@ -97,6 +99,7 @@ test(
     await page.check('input[value="Option B"]')
     await page.check('input[value="Option C"]')
     await page.click('button:text("Decide")')
+    await proj.handle('many')
     await page.waitForSelector('form[name=many][data-wb-folded] .wb-folded')
     assert.equal(await page.textContent('.wb-folded-choice'), '✓ Decide')
     assert.deepEqual(await page.$$eval('.wb-folded-choices li', ls => ls.map(l => l.textContent)), [
@@ -127,6 +130,7 @@ test("folded: a chat being written in doesn't fold when its form is decided", { 
   await page.keyboard.type('one more thing')
   // the agent picks the answer up: the form folds, the chat being written in doesn't
   const wait = proj.spawn('wait', '--page', 'w')
+  await proj.handle('ask')
   await page.waitForSelector('form[name=ask][data-wb-folded] .wb-folded')
   await page.waitForTimeout(300)
   assert.ok(await box.isVisible(), 'the box is still there')

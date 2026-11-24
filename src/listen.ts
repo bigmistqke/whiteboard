@@ -17,8 +17,10 @@ export interface ListenOptions {
   query: Record<string, string>
   /** a fallback: who listens on each project it covers, at once and on every change */
   onSnapshot?: (snapshot: Snapshot) => void
-  /** the server refused it (another fallback holds it): the reason it gave */
+  /** the server refused it (another fallback holds it, or another wait the page): the reason it gave */
   onRefused: (reason: string) => void
+  /** a newer wait took its page over (--force): it no longer listens */
+  onReplaced?: (page: string) => void
 }
 
 /**
@@ -26,7 +28,10 @@ export interface ListenOptions {
  * Resolves once the server holds it; with `orNone`, also after a first try that found no server
  * running (a wait reads the log all the same, and registers once one appears).
  */
-export function listen({ at, query, onSnapshot, onRefused }: ListenOptions, { orNone = false } = {}): Promise<void> {
+export function listen(
+  { at, query, onSnapshot, onRefused, onReplaced }: ListenOptions,
+  { orNone = false } = {},
+): Promise<void> {
   return new Promise(settled => {
     const connect = async () => {
       let base: string | null = null
@@ -72,6 +77,7 @@ export function listen({ at, query, onSnapshot, onRefused }: ListenOptions, { or
             const event = /^event: (.*)$/m.exec(block)?.[1]
             const data = /^data: (.*)$/m.exec(block)?.[1]
             if (event === 'listeners' && data && onSnapshot) onSnapshot(JSON.parse(data) as Snapshot)
+            if (event === 'replaced') return onReplaced?.(data ? (JSON.parse(data) as { page: string }).page : '')
           }
         })
         res.on('close', () => retry(1000))
@@ -85,12 +91,12 @@ export function listen({ at, query, onSnapshot, onRefused }: ListenOptions, { or
 }
 
 /** What the fallback hands a project's hand-out: what it leaves to others, and when to look again. */
-export type FallbackHandOut = Required<Pick<HandOutOptions, 'skip' | 'recheck' | 'signal' | 'unpicked'>>
+export type FallbackHandOut = Required<Pick<HandOutOptions, 'skip' | 'recheck' | 'signal' | 'untaken'>>
 
 /**
  * The fallback over the projects a server names: `start` is called once for each project as it
- * appears, to hand out from its log what no other listener there takes (`skip`) and nobody picked
- * up (`unpicked`), looked at again (`recheck`) whenever who listens there changes; a project no
+ * appears, to hand out from its log what no other listener there takes (`skip`) and nobody took
+ * (`untaken`), looked at again (`recheck`) whenever who listens there changes; a project no
  * longer named is stopped (`signal`).
  * @returns what takes each snapshot the server sends
  */
@@ -113,7 +119,7 @@ export function fallback(start: (project: Followed, handOut: FallbackHandOut) =>
         },
         signal: f.stop.signal,
         // what another listener picked up is never the fallback's, however late it sees it
-        unpicked: true,
+        untaken: true,
       })
     }
     for (const [dir, f] of followed)

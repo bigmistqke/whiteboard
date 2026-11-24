@@ -7,9 +7,17 @@
 //
 // A question is a named form; its answers are the reader's events of its name. It stands:
 //   open      no answer yet, or the agent asks again: a wait or watch asks for it by name after its
-//             answer was picked up
-//   pending   answered, but no agent has picked the answer up yet
-//   decided   an agent picked up its latest answer
+//             answer was handled
+//   pending   answered, but no agent has taken the answer yet
+//   taken     a wait handed the answer to an agent, which hasn't handled it yet
+//   decided   an agent handled its latest answer
+//
+// An answer (any event of the reader's an agent is handed) is taken once a wait or watch printed it
+// (`whiteboard:taken`), so no other one takes it too; it is handled once the agent acted on it: it
+// acknowledged it (`whiteboard ack`, a `whiteboard:picked` naming it), or replied to it, after it:
+// an event of the agent's whose `replyTo` is the answer or the answer's own `replyTo` (a reply in
+// the same thread), or whose `chat` is the answer's chat or, for a form's answer, the form's name.
+// A taken answer not handled is handed out again by the next wait on its page.
 // Whether an agent listens is told apart where it helps when something goes wrong: the toast after
 // a submit, and `whiteboard status` (`unheard`: open, and no wait or watch takes it).
 //
@@ -17,7 +25,7 @@
 // thread, a chat message). It is unread until a `whiteboard:read` event from the reader names it,
 // which the page appends once the message has been in view; one the agent replaced (`replaces`)
 // no longer counts.
-import type { FormState, Listener, PageStatus, WbEvent } from './define.ts'
+import type { FormState, Listener, Marks, PageStatus, WbEvent } from './define.ts'
 
 /**
  * Can this be a question's name, the type of its answers? Not with a colon: types with one belong
@@ -27,7 +35,7 @@ import type { FormState, Listener, PageStatus, WbEvent } from './define.ts'
 export const isQuestionName = (name: string): boolean => !!name && !name.includes(':')
 
 /** The states, in the order a reader should see them: what waits on them first. */
-export const STATES: FormState[] = ['open', 'pending', 'decided']
+export const STATES: FormState[] = ['open', 'pending', 'taken', 'decided']
 
 /**
  * Was this event written by the reader (a form submit, a comment), not by an agent? Agents write
@@ -48,19 +56,26 @@ export const takenByOther = (listeners: Listener[], event: WbEvent): boolean =>
 
 /**
  * Where the question `name` stands. `events` are the page's, `listeners` the running waits and
- * watches that cover the page (only one asking for it by name counts: it asks again),
- * `pickedUp` whether an event was handed to an agent. `last` is its latest answer: the reader's
- * latest event of its name.
+ * watches that cover the page (only one asking for it by name counts: it asks again), `marks`
+ * what became of each answer. `last` is its latest answer: the reader's latest event of its name.
  */
 export function questionState(
   name: string,
   events: WbEvent[],
   listeners: Listener[],
-  pickedUp: (id: string) => boolean,
+  marks: Marks,
 ): { state: FormState; last: WbEvent | undefined } {
   const last = events.findLast(e => e.type === name && fromReader(e))
   const askedAgain = listeners.some(l => !l.fallback && l.type === name)
-  const state: FormState = !last ? 'open' : !pickedUp(last.id) ? 'pending' : askedAgain ? 'open' : 'decided'
+  const state: FormState = !last
+    ? 'open'
+    : marks.handled(last.id)
+      ? askedAgain
+        ? 'open'
+        : 'decided'
+      : marks.taken(last.id)
+        ? 'taken'
+        : 'pending'
   return { state, last }
 }
 
@@ -97,8 +112,14 @@ export function unreadMessages(events: WbEvent[], isMessage: (type: string) => b
 /** How many things on a page wait for the reader: its open questions and unread messages. */
 export const awaiting = (p: Pick<PageStatus, 'open' | 'unread'>): number => p.open.length + p.unread.length
 
-/** The type of the event that says another event was handed to an agent: `{ event: <its id> }`. */
+/**
+ * The type of the event that says the agent handled another (`whiteboard ack`): `{ event: <its id> }`.
+ * Named for picking an answer up; older logs wrote it when a wait printed one, so those stay handled.
+ */
 export const PICKED = 'whiteboard:picked'
+
+/** The type of the event a wait or watch appends when it prints an answer: `{ event: <its id> }`. */
+export const TAKEN = 'whiteboard:taken'
 
 /**
  * The type of the event `whiteboard new` appends when an agent session creates a page:
@@ -106,9 +127,54 @@ export const PICKED = 'whiteboard:picked'
  */
 export const CLAIM = 'whiteboard:claim'
 
-/** The ids of the events that were picked up. Only the command line's picks count. */
-export function pickedUp(events: WbEvent[]): Set<string> {
-  return new Set(events.filter(e => e.type === PICKED && !fromReader(e)).map(e => String(e.data?.event)))
+/** The ids of the answers a wait or watch printed. Only the command line's marks count. */
+export function takenIds(events: WbEvent[]): Set<string> {
+  return new Set(events.filter(e => e.type === TAKEN && !fromReader(e)).map(e => String(e.data?.event)))
+}
+
+/**
+ * The ids of the reader's events the agent handled: acknowledged (`whiteboard:picked`), or replied
+ * to after them (see the top of this file). The log is gone through once: each of the reader's
+ * events is filed under what a reply would name (its id, its thread, its chat, its form), and an
+ * agent's event takes out all filed under what it names.
+ */
+export function handledIds(events: WbEvent[]): Set<string> {
+  const done = new Set<string>()
+  const filed = new Map<string, string[]>()
+  const file = (key: string, id: string) => filed.set(key, [...(filed.get(key) ?? []), id])
+  const take = (key: string) => {
+    for (const id of filed.get(key) ?? []) done.add(id)
+    filed.delete(key)
+  }
+  for (const e of events) {
+    const d = (e.data ?? {}) as Record<string, unknown>
+    if (e.type === PICKED) {
+      if (!fromReader(e)) done.add(String(d.event))
+      continue
+    }
+    if (e.type.startsWith('whiteboard:')) continue
+    if (fromReader(e)) {
+      file(`id:${e.id}`, e.id)
+      if (d.replyTo) file(`id:${d.replyTo}`, e.id)
+      if (typeof d.chat === 'string') file(`chat:${d.chat}`, e.id)
+      else file(`chat:${e.type}`, e.id)
+      continue
+    }
+    if (d.replyTo) take(`id:${d.replyTo}`)
+    if (typeof d.chat === 'string') take(`chat:${d.chat}`)
+  }
+  return done
+}
+
+/**
+ * The chats on a page waiting for the agent: those whose latest message is the reader's. A chat is
+ * what events share a `chat` name.
+ */
+export function awaitingReply(events: WbEvent[]): string[] {
+  const lastBy = new Map<string, WbEvent>()
+  for (const e of events)
+    if (typeof e.data?.chat === 'string' && !e.type.startsWith('whiteboard:')) lastBy.set(e.data.chat, e)
+  return [...lastBy].filter(([, e]) => fromReader(e)).map(([chat]) => chat)
 }
 
 /** A page as the snapshot needs it; its questions (`asks`) are its named forms. */
@@ -136,8 +202,10 @@ export interface StatusInput {
 export interface ProjectStatus {
   /** per page, in the order given */
   pages: PageStatus[]
-  /** the events that were picked up, by id */
-  picked: Set<string>
+  /** the answers a wait or watch printed, by id */
+  taken: Set<string>
+  /** the answers the agent handled, by id */
+  handled: Set<string>
   /** when the reader last sent something on a page (what the agent appended doesn't count) */
   lastAnswered: (page: string) => string | null
 }
@@ -149,7 +217,9 @@ export interface ProjectStatus {
  * gone through once.
  */
 export function projectStatus({ pages, events, listeners, forAgent, forReader }: StatusInput): ProjectStatus {
-  const picked = pickedUp(events)
+  const taken = takenIds(events)
+  const handled = handledIds(events)
+  const marks: Marks = { taken: id => taken.has(id), handled: id => handled.has(id) }
   const byPage = new Map<string, WbEvent[]>()
   const owner = new Map<string, string | null>()
   const last = new Map<string, string>()
@@ -161,7 +231,8 @@ export function projectStatus({ pages, events, listeners, forAgent, forReader }:
     else if (e.type === CLAIM) owner.set(e.page, (e.data?.session as string | undefined) ?? null)
   }
   return {
-    picked,
+    taken,
+    handled,
     lastAnswered: page => last.get(page) ?? null,
     pages: pages.map(p => {
       const own = byPage.get(p.id) ?? []
@@ -169,7 +240,7 @@ export function projectStatus({ pages, events, listeners, forAgent, forReader }:
       // where each question stands, as the page shows it
       const questions = p.asks.map(name => ({
         name,
-        state: questionState(name, own, listening, id => picked.has(id)).state,
+        state: questionState(name, own, listening, marks).state,
       }))
       const open = questions.filter(q => q.state === 'open').map(q => q.name)
       return {
@@ -182,8 +253,11 @@ export function projectStatus({ pages, events, listeners, forAgent, forReader }:
         open,
         unheard: open.filter(name => !heard(name, listening)),
         unread: unreadMessages(own, forReader),
-        // the reader's events for an agent: a form's answers, and plugin events declared handOut
-        unpicked: own.filter(e => fromReader(e) && forAgent(e.type) && !picked.has(e.id)),
+        // the reader's events for an agent (a form's answers, plugin events declared handOut): those
+        // no wait took, and those taken but not handled
+        unpicked: own.filter(e => fromReader(e) && forAgent(e.type) && !taken.has(e.id) && !handled.has(e.id)),
+        unhandled: own.filter(e => fromReader(e) && forAgent(e.type) && taken.has(e.id) && !handled.has(e.id)),
+        awaitingReply: awaitingReply(own),
         listeners: listening,
       }
     }),
@@ -199,7 +273,7 @@ export function statusLines(p: PageStatus, file: string, { waiting = true } = {}
   const lines: string[] = []
   if (p.unpicked.length)
     lines.push(
-      `${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent picked up (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`,
+      `${p.unpicked.length} answer${p.unpicked.length > 1 ? 's' : ''} no agent took (${[...new Set(p.unpicked.map(e => e.type))].join(', ')})`,
     )
   const fallback = p.listeners.some(l => l.fallback)
   if (p.unheard.length)
@@ -209,6 +283,13 @@ export function statusLines(p: PageStatus, file: string, { waiting = true } = {}
         : `nobody listens for ${p.unheard.join(', ')}`,
     )
   if (lines.length && !(fallback && !p.unpicked.length)) lines.push(`→ whiteboard wait --page ${file}`)
+  // handed out, not yet acted on: the agent replies, or acks them; a wait hands them out again
+  if (p.unhandled.length)
+    lines.push(
+      `${p.unhandled.length} answer${p.unhandled.length > 1 ? 's' : ''} handed out and not handled → reply in its chat, or whiteboard ack ${p.unhandled.map(e => e.id).join(' ')}`,
+    )
+  if (p.awaitingReply.length)
+    lines.push(`waiting for a reply: the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}`)
   const listened = p.open.filter(t => !p.unheard.includes(t))
   if (waiting && listened.length) lines.push(`waiting for the reader: ${listened.join(', ')}`)
   return lines

@@ -216,7 +216,10 @@ const api: Api = {
   url,
   events: eventsValue,
   last: type => events.findLast(e => e.type === type),
-  pickedUp: id => !!events.find(e => e.id === id)?.pickedUp,
+  marks: {
+    taken: id => !!events.find(e => e.id === id)?.taken,
+    handled: id => !!events.find(e => e.id === id)?.handled,
+  },
   unread,
   markRead: ids => {
     markRead(ids)

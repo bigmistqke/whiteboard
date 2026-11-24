@@ -22,7 +22,7 @@ import crypto from 'node:crypto'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
-import { appendEvent, isEventId, readEvents, matches, pickedUp, forAgent } from './events.ts'
+import { appendEvent, isEventId, readEvents, matches, takenIds, handledIds, forAgent } from './events.ts'
 import { html, raw } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage } from './plugins.ts'
@@ -710,11 +710,15 @@ export function createServer(
       }
       if (p === '/api/events') {
         const all = readEvents(project.eventsFile)
-        const picked = pickedUp(all)
+        // what became of each: taken by a wait, handled by the agent (status.ts)
+        const taken = takenIds(all)
+        const handled = handledIds(all)
         return sendJson(
           res,
           200,
-          all.filter(e => matches(e, q)).map(e => (picked.has(e.id) ? { ...e, pickedUp: true } : e)),
+          all
+            .filter(e => matches(e, q))
+            .map(e => ({ ...e, ...(taken.has(e.id) && { taken: true }), ...(handled.has(e.id) && { handled: true }) })),
         )
       }
       if (p === '/api/docs') return sendJson(res, 200, await docs())
@@ -722,7 +726,20 @@ export function createServer(
       if (p === '/api/listeners') return sendJson(res, 200, listenersFor(q.page ?? null))
       if (p === '/api/stamps') return sendJson(res, 200, stamps())
       if (p === '/api/listen') {
-        const remove = registry.add(listenerOf(url.searchParams))
+        const l = listenerOf(url.searchParams)
+        // one wait or watch a page: a second is refused, unless it takes the page over (--force)
+        const holder = registry.holder(l)
+        if (holder && !('force' in q)) {
+          const since = new Date(holder.since).toTimeString().slice(0, 5)
+          return sendJson(res, 409, {
+            error: `another ${holder.listener.command} has waited on ${l.page}${holder.listener.type ? ` for ${holder.listener.type}` : ''} since ${since}; --force takes it over (that one then stops)`,
+          })
+        }
+        if (holder) registry.evict(l)
+        const remove = registry.add(l, () => {
+          stream.send('replaced', { page: l.page })
+          stream.end()
+        })
         if (!remove) return sendJson(res, 409, { error: 'another agent is the fallback already' })
         // a fallback is told who else listens, at once and on every change
         const off = 'fallback' in q ? registry.onChange(() => tell()) : () => {}

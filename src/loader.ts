@@ -43,7 +43,7 @@ export const BUILTIN_COMMANDS = new Set([
   'wait',
   'watch',
   'append',
-  'pick',
+  'ack',
   'status',
   'scroll',
   'close',

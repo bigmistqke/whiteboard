@@ -48,7 +48,7 @@ one shared server serves, and that server's state folder (see Entries):
 <repo>/.whiteboard/
   config.ts     optional: defineConfig({ name, plugins, style, files }), only what differs
   pages/        the project's pages, served at /<page>
-  events.ndjson the project's events: form submits, threads, comments, and what agents picked up
+  events.ndjson the project's events: form submits, threads, comments, and what agents took and handled
   token         the secret for what runs code (the terminal)
   server.json   the port and process of the project's running server
   server.log    that server's output
@@ -250,22 +250,33 @@ each other's answers. A person can still write a page file directly. A name
 that has submits in the log stays taken after its page is deleted, so a new
 page never inherits the answers of an old one.
 
-`whiteboard wait` and `watch` hand out each event once, without the agent keeping
-track: handing an event out appends a `whiteboard:picked` event naming it,
-so the log is the only record of what was handed out. Each command first
-returns the matching events nobody picked up, also those from before it
-started, whatever filter handed out the others; then it follows the log, and
-gets every new matching event, also when another running wait gets it too.
+`whiteboard wait` and `watch` hand out the reader's events without the agent
+keeping track, and an event isn't done because it was printed. Handing one
+out marks it *taken* (a `whiteboard:taken` event naming it), so no other
+wait or watch takes it too. It is *handled* once the agent acted on it:
+acknowledged (`whiteboard ack`, a `whiteboard:picked` naming it; older logs
+wrote that on printing, so their answers stay handled), or replied to after
+it: an event of the agent's whose `replyTo` is the event or its thread, or
+whose `chat` is its chat or, for a form's answer, the form's name
+(`handledIds` in `src/status.ts`). The log is the only record. A wait on a
+page returns every matching event not handled, also those from before it
+started and those taken before (marked `again`), at once, or with none,
+the first to come; then it says what is left on the page: answers to
+handle, chats whose last message is the reader's, questions unanswered.
+This came from an agent that lost answers: printed meant done, so a wait
+that died, a second wait that raced it, or a skimmed batch dropped an
+answer for good. A `watch` follows the log and prints each new one as it
+comes.
 The backlog and the following split the log at one line boundary, so no
 event falls between them, not even one being written as the command starts.
 
 This is handing out (`handOut` in `src/events.ts`), and it is built only
 from the log's primitives: read the log (to the end of its last whole
-line), follow it from an offset, append to it, and record a pick. Each
-primitive is a command too (`events`, `events --follow`, `append`, `pick`)
-and a module (`@bigmistqke/whiteboard/log`), so an agent or a script can use
-the log in a way whiteboard doesn't offer, such as picking an answer up only
-once it has acted on it, without writing a plugin. A plugin's command hands
+line), follow it from an offset, append to it, and mark an event taken or
+handled. Each primitive is a command too (`events`, `events --follow`,
+`append`, `ack`) and a module (`@bigmistqke/whiteboard/log`), so an agent or
+a script can use the log in a way whiteboard doesn't offer, without writing
+a plugin. A plugin's command hands
 out through `ctx.handOut`, the same function.
 
 Relative links and images in any rendered markdown are resolved from that
@@ -550,13 +561,14 @@ Whiteboard's one interaction primitive, so the core's, on every page
   the last answer goes back into the form, its button in `data-wb-sent`. A
   form marked `data-wb-self` (or inside an element that is) keeps its own
   fields, for a block's client that shows them itself.
-- **Where each stands.** Every form gets one of three attributes, from the
+- **Where each stands.** Every form gets one of four attributes, from the
   log: `data-wb-open` when it has no answer, or when a listener asks for it
-  by name after its answer was picked up (the agent wants a new answer);
-  `data-wb-pending` when it is answered but no `wait` or `watch` handed the
-  answer out (the core marks such events `pickedUp`, from the
-  `whiteboard:picked` events in the log); `data-wb-decided` once one did,
-  with `data-wb-outcome` quoting the answer in one line. The states are
+  by name after its answer was handled (the agent wants a new answer);
+  `data-wb-pending` when it is answered but no `wait` or `watch` took the
+  answer; `data-wb-taken` once one did and the agent hasn't handled it
+  ("the agent has it"); `data-wb-decided` once it did, with
+  `data-wb-outcome` quoting the answer in one line (the core marks events
+  `taken` and `handled` as the log says). The states are
   marked again when the log, the listeners or the page change, and
   `api.forms` gives them to the page and plugins, for drawing more than the
   attributes allow.
@@ -669,6 +681,13 @@ or watch covers it (its own, or the project-wide one), grey while live with
 nobody listening, and a ring while it is not connected; its title says
 which.
 
+One wait or watch holds a page: a second on the same page (with the same
+type, or either without one) is refused with what holds it and since when,
+unless `--force`, which takes the page over: the server tells the older one
+on its stream (`event: replaced`), and it says so and exits 3. Two waits on
+one page split its answers between them; an agent that restarted often had
+an old wait still running.
+
 A `wait` or `watch` without `--page` is the project's fallback: it takes
 only what no other listener would take, by page and type, on any page,
 also answers left from sessions that ended, and an event another listener
@@ -730,7 +749,9 @@ agent forgetting a wait is caught from outside it:
 - **Status.** `/api/status` and `whiteboard status` give, per page: its open
   questions, those no listener covers (unheard), the agent's messages the
   reader hasn't read, the reader's events for an agent (see Events) no wait
-  or watch picked up, its listeners and its claim. What waits for the
+  or watch took, those taken and not handled, the chats whose last message
+  is the reader's, its listeners and its claim. Across pages it is the
+  agent's inbox. What waits for the
   reader on a page (`awaiting`) is its open questions and unread messages.
 - **Hooks.** Reporting the status to an agent is a plugin, since how is
   particular to each agent, and the core has no agent-specific code. The
@@ -738,15 +759,16 @@ agent forgetting a wait is caught from outside it:
   `CLAUDE_CODE_SESSION_ID`, and adds `whiteboard claude-code hook
   stop|prompt|session`, which Claude Code runs (`whiteboard claude-code
   install` adds them). `stop`: when a turn ends with questions on the
-  session's pages nobody listens for (or answers no wait picked up), the
+  session's pages nobody listens for (or answers no wait took), the
   turn goes on once, with that as the reason, so the agent starts its wait;
   a turn a hook already continued (`stop_hook_active`) ends, and the reader
   sees what is open. An earlier version only showed the reader, and agents
   kept forgetting to wait again: the reader saw the warning, the agent
   didn't. `wait` itself also says, on stderr with the answer it hands out,
   what is still unanswered on the page and the command to wait again. `prompt` and `session` give the agent,
-  as context, the answers on its pages nobody picked up, and count them as
-  picked up (a `whiteboard:picked` event each); `session` also lists what is
+  as context, the answers on its pages nobody took, and count them as
+  taken (a `whiteboard:taken` event each), and name those taken and not
+  handled and the chats waiting for its reply; `session` also lists what is
   open on other sessions' pages, without handing it over. A plugin's
   command gets the status and handing out from the core (`ctx.status()`,
   `ctx.handOut()`); the hooks hand out only the session's own pages, not

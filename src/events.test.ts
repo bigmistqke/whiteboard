@@ -11,8 +11,10 @@ import {
   fromReader,
   editEvent,
   handOut,
-  pick,
-  pickedUp,
+  take,
+  ack,
+  takenIds,
+  handledIds,
   prune,
   read,
   readEvents,
@@ -87,28 +89,71 @@ test("fromReader: what the command line wrote is not the reader's", () => {
   assert.equal(fromReader(agent(log, 'p')), false)
 })
 
-test("pickedUp counts only the command line's picks", () => {
+test("takenIds counts only the command line's marks", () => {
   const log = tempLog()
   const e = reader(log, 'p')
   // a browser could append an event of this type; it must not count
-  appendEvent(log, { page: 'p', type: 'whiteboard:picked', data: { event: e.id } })
-  assert.equal(pickedUp(readEvents(log)).has(e.id), false)
-  pick(log, e)
-  assert.equal(pickedUp(readEvents(log)).has(e.id), true)
+  appendEvent(log, { page: 'p', type: 'whiteboard:taken', data: { event: e.id } })
+  assert.equal(takenIds(readEvents(log)).has(e.id), false)
+  take(log, e)
+  assert.equal(takenIds(readEvents(log)).has(e.id), true)
 })
 
 // ---- handing out ---------------------------------------------------------------------------------
 
-test('hands out the backlog once, and marks it picked up', async () => {
+test('hands out the backlog, and marks it taken; again, marked so, until it is handled', async () => {
   const log = tempLog()
   const a = reader(log, 'p')
   const b = reader(log, 'p')
+  const seen = async () => {
+    const got: string[] = []
+    await handOut(log, {}, (e, again) => got.push(`${e.id}${again ? ' again' : ''}`), { follow: false })
+    return got
+  }
+  assert.deepEqual(await seen(), [a.id, b.id])
+  assert.ok(takenIds(readEvents(log)).has(a.id))
+  assert.deepEqual(await seen(), [`${a.id} again`, `${b.id} again`], 'taken, not handled: handed out again')
+  ack(log, a)
+  assert.deepEqual(await seen(), [`${b.id} again`], 'acknowledged: no longer')
+})
+
+test('handled: acknowledged, or the agent replied after it, in its chat, its thread or to it', () => {
+  const log = tempLog()
+  const at = (data: Record<string, unknown>, type = 'chat:message', from?: 'cli') =>
+    appendEvent(log, { page: 'p', type, data }, from)
+  const form = at({ choice: 'A' }, 'pick')
+  const question = at({ chat: 'talk', text: '?' })
+  const comment = at({ text: 'odd' }, 'comments:new')
+  const inThread = at({ replyTo: comment.id, text: 'and' }, 'comments:reply')
+  const other = at({ chat: 'elsewhere', text: '?' })
+  // after them: in the form's chat, in the same chat, in the thread
+  at({ chat: 'pick', text: 'on it' }, 'chat:message', 'cli')
+  at({ chat: 'talk', text: 'yes' }, 'chat:message', 'cli')
+  at({ replyTo: comment.id, text: 'fixed' }, 'comments:reply', 'cli')
+  const done = handledIds(readEvents(log))
   assert.deepEqual(
-    (await backlog(log)).map(e => e.id),
-    [a.id, b.id],
+    [form, question, comment, inThread, other].map(e => done.has(e.id)),
+    [true, true, true, true, false],
   )
-  assert.deepEqual(await backlog(log), [])
-  assert.ok(pickedUp(readEvents(log)).has(a.id))
+  // a reply before the answer doesn't handle it
+  const early = tempLog()
+  appendEvent(early, { page: 'p', type: 'chat:message', data: { chat: 'x', text: 'hi' } }, 'cli')
+  const after = appendEvent(early, { page: 'p', type: 'chat:message', data: { chat: 'x', text: '?' } })
+  assert.equal(handledIds(readEvents(early)).has(after.id), false)
+})
+
+test('a batch: all there is at once; with nothing there, the first to come', async () => {
+  const log = tempLog()
+  const a = reader(log, 'p')
+  const b = reader(log, 'p')
+  const got: string[] = []
+  assert.equal(await handOut(log, {}, e => got.push(e.id), { batch: true, untaken: true, ...FAST }), 2)
+  assert.deepEqual(got, [a.id, b.id])
+  const next: string[] = []
+  const done = handOut(log, {}, e => next.push(e.id), { batch: true, untaken: true, ...FAST })
+  const c = reader(log, 'p')
+  assert.equal(await done, 1)
+  assert.deepEqual(next, [c.id])
 })
 
 test('never hands out what an agent wrote', async () => {
@@ -121,7 +166,7 @@ test('never hands out what an agent wrote', async () => {
   )
 })
 
-test('what one filter picked up, another does not hand out again', async () => {
+test('untaken (the fallback) leaves what another took; a wait on the page hands it out again', async () => {
   const log = tempLog()
   const a = reader(log, 'p', 'pick')
   const b = reader(log, 'p', 'other')
@@ -130,8 +175,12 @@ test('what one filter picked up, another does not hand out again', async () => {
     [a.id],
   )
   assert.deepEqual(
-    (await backlog(log, { page: 'p' })).map(e => e.id),
+    (await backlog(log, { page: 'p' }, { untaken: true })).map(e => e.id),
     [b.id],
+  )
+  assert.deepEqual(
+    (await backlog(log, { page: 'p' })).map(e => e.id),
+    [a.id, b.id],
   )
 })
 
@@ -145,7 +194,7 @@ test('a page covers the pages below it, unless exact', async () => {
     [top.id],
   )
   assert.deepEqual(
-    (await backlog(log, { page: 'task' })).map(e => e.id),
+    (await backlog(log, { page: 'task' }, { untaken: true })).map(e => e.id),
     [below.id],
   )
 })
@@ -156,10 +205,10 @@ test('count stops it; the rest stays for the next', async () => {
   const b = reader(log, 'p')
   assert.equal(await handOut(log, {}, () => {}, { count: 1, ...FAST }), 1)
   assert.deepEqual(
-    (await backlog(log)).map(e => e.id),
+    (await backlog(log, {}, { untaken: true })).map(e => e.id),
     [b.id],
   )
-  assert.ok(pickedUp(readEvents(log)).has(a.id))
+  assert.ok(takenIds(readEvents(log)).has(a.id))
 })
 
 test('follows new events after the backlog, and resolves at count', async () => {
@@ -207,7 +256,7 @@ test('a signal stops following', async () => {
   // nothing is handed out once stopped
   reader(log, 'p')
   await sleep(30)
-  assert.equal(pickedUp(readEvents(log)).size, 0)
+  assert.equal(takenIds(readEvents(log)).size, 0)
 })
 
 test("a plugin's events reach an agent only when declared handOut, or asked for by type", async () => {
@@ -230,7 +279,7 @@ test("a plugin's events reach an agent only when declared handOut, or asked for 
   assert.equal(forAgent()('chat:message'), false)
 })
 
-test('skip leaves an event for now; a recheck hands it out once it is no longer left, unless picked up meanwhile', async () => {
+test('skip leaves an event for now; a recheck hands it out once it is no longer left, unless taken meanwhile', async () => {
   const log = tempLog()
   const taken = reader(log, 'taken')
   const free = reader(log, 'free')
@@ -249,11 +298,11 @@ test('skip leaves an event for now; a recheck hands it out once it is no longer 
   })
   await sleep(20)
   assert.deepEqual(got, ['free'], 'only what nobody else would take')
-  // another agent picked one of the left ones up; then nobody covers either
-  pick(log, gone)
+  // another agent took one of the left ones; then nobody covers either
+  take(log, gone)
   covered = new Set()
   again()
-  assert.deepEqual(got, ['free', 'taken'], 'the left one, once it is free; not the one picked meanwhile')
+  assert.deepEqual(got, ['free', 'taken'], 'the left one, once it is free; not the one taken meanwhile')
   void taken
   void free
   ac.abort()

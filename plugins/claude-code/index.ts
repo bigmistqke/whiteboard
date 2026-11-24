@@ -82,48 +82,68 @@ async function hook(ctx: CommandContext, mode: Mode) {
   const input = hookInput()
   const session = input.session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
   const pages = await ctx.status()
-  const busy = pages.filter(p => p.unpicked.length || p.open.length)
+  const busy = pages.filter(
+    p => p.unpicked.length || p.open.length || p.unhandled.length || p.awaitingReply.length,
+  )
   const mine = busy.filter(p => session && p.owner === session)
 
   if (mode === 'stop') {
-    // A turn ends with questions on the session's pages nobody listens for, or answers no wait
-    // picked up: the agent forgot to wait again. Its turn goes on once, with that as the reason, so
-    // it starts the wait; Claude Code marks a turn a hook continued (stop_hook_active), and that
-    // one ends, with what is open shown to the reader instead.
-    const loose = mine.filter(p => p.unheard.length || p.unpicked.length)
+    // A turn ends with something on the session's pages left: questions nobody listens for or
+    // answers no wait took (the agent forgot to wait again), answers it was given and didn't
+    // handle, chats where the reader wrote last. Its turn goes on once, with that as the reason;
+    // Claude Code marks a turn a hook continued (stop_hook_active), and that one ends, with what
+    // is open shown to the reader instead.
+    const loose = mine.filter(p => p.unheard.length || p.unpicked.length || p.unhandled.length || p.awaitingReply.length)
     if (!loose.length) return
-    const said = (p: PageStatus) => {
-      const l = openOn(p, { waiting: false })
-      return `${l.slice(0, -1).join('; ')} ${l.at(-1)}`
-    }
+    // what is left, without the command line: the reason says what to do
+    const said = (p: PageStatus) =>
+      openOn(p, { waiting: false })
+        .filter(l => !l.startsWith('→'))
+        .join('; ')
     const shown = `whiteboard: ${loose.map(p => `${p.page}: ${said(p)}`).join(' · ')}`
     if (input.stop_hook_active) {
       console.log(JSON.stringify({ systemMessage: shown }))
       return
     }
+    // what to do about each: wait for what nobody listens for, handle what it was given, reply in
+    // the chats waiting for it
     const reason = loose
-      .map(
-        p =>
-          `On your whiteboard page ${p.page}: ${openOn(p, { waiting: false }).slice(0, -1).join('; ')}. Run \`whiteboard wait --page ${relFile(p.file)}\` in the background before ending your turn.`,
-      )
+      .map(p => {
+        const todo: string[] = []
+        if (p.unheard.length || p.unpicked.length)
+          todo.push(`run \`whiteboard wait --page ${relFile(p.file)}\` in the background`)
+        if (p.unhandled.length)
+          todo.push(
+            `act on the answers you were given and reply in their chat, or \`whiteboard ack ${p.unhandled.map(e => e.id).join(' ')}\``,
+          )
+        if (p.awaitingReply.length) todo.push(`reply in the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}`)
+        return `On your whiteboard page ${p.page}: ${said(p)}. Before ending your turn: ${todo.join('; ')}.`
+      })
       .join('\n')
     console.log(JSON.stringify({ decision: 'block', reason, systemMessage: shown }))
     return
   }
 
   // prompt and session: what is printed becomes context for the agent. Answers on its own pages
-  // that no wait picked up are handed over here, as a wait would, and count as picked up from then
-  // on. Only the page itself: a page below it may be another session's.
+  // that no wait took are handed over here, as a wait would, and count as taken from then on; the
+  // agent still handles each (replies, or acks it). Those taken before and not handled are named,
+  // not repeated in full. Only the page itself: a page below it may be another session's.
   const out: string[] = []
   for (const p of mine) {
     const handed: WbEvent[] = []
-    await ctx.handOut({ page: p.page, exact: true }, e => handed.push(e), { follow: false })
+    await ctx.handOut({ page: p.page, exact: true }, e => handed.push(e), { follow: false, untaken: true })
     if (handed.length) {
       out.push(
-        `Answers on your page ${p.page} (${relFile(p.file)}) that no wait picked up; they count as picked up now:`,
+        `Answers on your page ${p.page} (${relFile(p.file)}) that no wait took; they are yours now: reply in their chat, or \`whiteboard ack <id>\` once you acted on one:`,
       )
       for (const e of handed) out.push(JSON.stringify(e))
     }
+    if (p.unhandled.length)
+      out.push(
+        `Answers on your page ${p.page} you were handed and haven't handled: ${p.unhandled.map(e => `${e.type} ${e.id}`).join(', ')}. Reply in their chat, or \`whiteboard ack <id>\` once you acted on one.`,
+      )
+    if (p.awaitingReply.length)
+      out.push(`Waiting for your reply on ${p.page}: the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}.`)
     if (p.unheard.length)
       out.push(
         `Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}: run \`whiteboard wait --page ${relFile(p.file)}\` in the background.`,

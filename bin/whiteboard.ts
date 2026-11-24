@@ -13,8 +13,8 @@ import {
   readEvents,
   follow,
   matches,
-  pickedUp,
-  pick,
+  handledIds,
+  ack,
   prune,
   editEvent,
   handOut,
@@ -39,7 +39,7 @@ import {
 import { compareVersions, VERSION } from '../src/package.ts'
 import { statusLines, whose } from '../src/status.ts'
 import { fallback as fallbackLoop, listen } from '../src/listen.ts'
-import type { Listener, PageStatus } from '../src/define.ts'
+import type { Listener, PageStatus, WbEvent } from '../src/define.ts'
 
 // a failing command prints its message, not a stack trace
 const fail = (err: unknown) => {
@@ -81,7 +81,7 @@ const { values: opts, positionals } =
           type: { type: 'string' },
           data: { type: 'string' },
           timeout: { type: 'string' },
-          count: { type: 'string' },
+          force: { type: 'boolean' },
           since: { type: 'string' },
           last: { type: 'string' },
           follow: { type: 'boolean' },
@@ -656,26 +656,27 @@ switch (cmd) {
       })
     break
   }
-  case 'pick': {
-    // what a wait does when it hands an event out, for a script that hands out events itself
+  case 'ack': {
+    // the agent acted on these answers: they are handled, and no wait hands them out again
     const proj = needProject()
-    const id = positionals[0]
-    if (!id) throw new Error('usage: whiteboard pick <event id>')
+    if (!positionals.length) throw new Error('usage: whiteboard ack <event id> [<event id>…]')
     const events = readEvents(proj.eventsFile)
-    const event = events.find(e => e.id === id)
-    if (!event) throw new Error(`no event ${id} in ${proj.eventsFile}`)
-    if (pickedUp(events).has(id)) {
-      console.error(`whiteboard: ${id} was picked up already`)
-      break
+    const handled = handledIds(events)
+    for (const id of positionals) {
+      const event = events.find(e => e.id === id)
+      if (!event) throw new Error(`no event ${id} in ${proj.eventsFile}`)
+      if (handled.has(id)) console.error(`whiteboard: ${id} was handled already`)
+      else console.log(JSON.stringify(ack(proj.eventsFile, event)))
     }
-    console.log(JSON.stringify(pick(proj.eventsFile, event)))
     break
   }
   case 'wait':
   case 'watch': {
-    // Each answer once, also one given before the command started, never the agent's own; of the
-    // plugins' events, those they declare for an agent (see handOut). `wait` stops after --count
-    // events (default 1); `watch` never does.
+    // The answers the agent hasn't handled, also those given before the command started, never the
+    // agent's own; of the plugins' events, those they declare for an agent (see handOut). One taken
+    // before and still not handled comes again, marked `"again": true`. `wait` prints all there are
+    // and stops, or with none, the first to come; `watch` never stops. One wait or watch a page:
+    // a second is refused, unless --force, which stops the first (it exits 3).
     const proj = needProject()
     const f = filter()
     // without --page in a project of the machine's entries: the fallback of the whole entry
@@ -689,15 +690,24 @@ switch (cmd) {
       command: cmd,
       ...(f.page ? { page: f.page } : {}),
       ...(f.type ? { type: f.type } : {}),
+      ...(opts.force ? { force: '' } : {}),
     }
     const refused = (reason: string) => {
       console.error(
-        `whiteboard: ${reason}: another agent already takes what no other listener does (a wait or watch without --page; one per project). Add --page to wait on a page of your own.`,
+        f.page
+          ? `whiteboard: ${reason}`
+          : `whiteboard: ${reason}: another agent already takes what no other listener does (a wait or watch without --page; one per project). Add --page to wait on a page of your own.`,
       )
       process.exit(1)
     }
+    const replaced = (page: string) => {
+      console.error(`whiteboard: stopped waiting on ${page}: a newer wait took it over`)
+      process.exit(3)
+    }
+    // one line each; one handed out before and still not handled says so
+    const print = (e: WbEvent, again: boolean) => console.log(JSON.stringify(again ? { ...e, again: true } : e))
     const at = () => needServer().catch(() => null)
-    const options = { count: cmd === 'wait' ? Number(opts.count ?? 1) : Infinity, forAgent: forAgent(handedOut) }
+    const options = { batch: cmd === 'wait', forAgent: forAgent(handedOut) }
     if (opts.timeout && cmd === 'wait')
       setTimeout(
         () => {
@@ -711,27 +721,36 @@ switch (cmd) {
     const fallback = !f.page
     if (fallback) {
       const update = fallbackLoop((_, handing) => {
-        void handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), { ...options, ...handing }).then(() =>
-          process.exit(0),
-        )
+        void handOut(proj.eventsFile, f, print, { ...options, ...handing }).then(() => process.exit(0))
       })
       await listen({ at, query: { ...query, fallback: '' }, onSnapshot: update, onRefused: refused })
     } else {
       // registered before it reads the log, so a fallback leaves its answers to it from the first one
-      await listen({ at, query, onRefused: refused }, { orNone: true })
-      void handOut(proj.eventsFile, f, e => console.log(JSON.stringify(e)), options).then(async () => {
-        // a wait on a page ends with an answer, and the agent acts on it; what is still unanswered
-        // there needs the next wait, which is easily forgotten: say so, right with the answer
+      await listen({ at, query, onRefused: refused, onReplaced: replaced }, { orNone: true })
+      void handOut(proj.eventsFile, f, print, options).then(async () => {
+        // a wait on a page ends with answers, and the agent acts on them. What is left needs it
+        // again, which is easily forgotten: say so, right with the answers: the answers to handle
+        // (reply, or ack), the chats waiting for a reply, the questions still unanswered
         if (cmd === 'wait') {
           try {
             const pages = (await api(`/api/status?page=${encodeURIComponent(f.page!)}`)) as PageStatus[]
-            for (const p of pages)
+            for (const p of pages) {
+              const again = `\`whiteboard wait --page ${relFile(p.file)}\``
+              if (p.unhandled.length)
+                console.error(
+                  `whiteboard: handle these on ${p.page} once you acted on them: reply in their chat, or \`whiteboard ack ${p.unhandled.map(e => e.id).join(' ')}\`; until then each wait hands them out again`,
+                )
+              if (p.awaitingReply.length)
+                console.error(
+                  `whiteboard: waiting for your reply on ${p.page}: the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}`,
+                )
               if (p.open.length)
                 console.error(
-                  `whiteboard: still unanswered on ${p.page}: ${p.open.join(', ')} → run \`whiteboard wait --page ${relFile(p.file)}\` again, in the background, once you've acted on this`,
+                  `whiteboard: still unanswered on ${p.page}: ${p.open.join(', ')} → run ${again} again, in the background, once you've acted on this`,
                 )
+            }
           } catch {
-            /* no status: the answer is what matters */
+            /* no status: the answers are what matters */
           }
         }
         process.exit(0)
@@ -877,10 +896,11 @@ switch (cmd) {
  */
 async function entryFallback(entry: string, f: EventFilter, command: 'wait' | 'watch') {
   const file = machineServerFile()
-  const count = command === 'wait' ? Number(opts.count ?? 1) : Infinity
+  // an entry's fallback hands out across projects as they come: a wait stops at the first
+  const count = command === 'wait' ? 1 : Infinity
   const done = new AbortController()
   let total = 0
-  // after the last event is recorded as picked up, which follows handing it out
+  // after the last event is recorded as taken, which follows handing it out
   done.signal.addEventListener('abort', () => setImmediate(() => process.exit(0)))
   if (opts.timeout && command === 'wait')
     setTimeout(

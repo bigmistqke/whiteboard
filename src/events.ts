@@ -9,9 +9,9 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import type { WbEvent } from './define.ts'
-import { CLAIM, PICKED, fromReader, pickedUp } from './status.ts'
+import { CLAIM, PICKED, TAKEN, fromReader, handledIds, takenIds } from './status.ts'
 
-export { CLAIM, PICKED, fromReader, pickedUp }
+export { CLAIM, PICKED, TAKEN, fromReader, handledIds, takenIds }
 
 /** What is appended: the id and time are added. */
 export interface EventInput {
@@ -260,12 +260,17 @@ export function matches(event: WbEvent, { page, type, exact }: EventFilter = {})
   return true
 }
 
-// When an event is handed to an agent, a `whiteboard:picked` event naming it is appended. The log
-// is the only record: a wait that starts hands out the matching events nobody picked up yet,
-// whatever its filter, and pages show the same events as picked up.
+// When an event is handed to an agent, a `whiteboard:taken` event naming it is appended; when the
+// agent acknowledges it, a `whiteboard:picked` (status.ts says what else counts as handled). The
+// log is the only record: pages and `status` read the same marks.
 
-/** Record that `event` was handed to an agent: from then on it counts as picked up. */
-export function pick(file: string, event: WbEvent): WbEvent {
+/** Record that `event` was handed to an agent: taken, so no other wait takes it too. */
+export function take(file: string, event: WbEvent): WbEvent {
+  return appendEvent(file, { page: event.page, type: TAKEN, data: { event: event.id } }, 'cli')
+}
+
+/** Record that the agent handled `event` (`whiteboard ack`): it is no longer handed out. */
+export function ack(file: string, event: WbEvent): WbEvent {
   return appendEvent(file, { page: event.page, type: PICKED, data: { event: event.id } }, 'cli')
 }
 
@@ -285,6 +290,11 @@ export interface HandOutOptions {
   forAgent?: (type: string) => boolean
   /** stop after this many (default: no limit) */
   count?: number
+  /**
+   * `whiteboard wait`: everything there is now at once, and with nothing there, the first that
+   * comes (and any that come with it), then stop
+   */
+  batch?: boolean
   /** after the backlog, follow the log for new events (default true) */
   follow?: boolean
   /** how often to look for new events, in ms (default 200) */
@@ -299,18 +309,18 @@ export interface HandOutOptions {
   skip?: (event: WbEvent) => boolean
   recheck?: (again: () => void) => void
   /**
-   * Hand out only what nobody picked up by the time it is offered (the fallback: an answer another
+   * Hand out only what nobody took by the time it is offered (the fallback: an answer another
    * listener took is not its, even when it sees it only after that one stopped listening). Without
-   * it, a new event is handed out also when another running hand-out got it too.
+   * it (a wait or watch on a page), an answer taken before and not handled is handed out again.
    */
-  unpicked?: boolean
+  untaken?: boolean
 }
 
 /**
- * Hand the reader's events that match `filter` to `onEvent`, each marked as picked up once it is
- * handed out. First the backlog: those nobody picked up yet, also from before this started,
- * whatever filter picked up the others. Then, with `follow`, every new one as it comes, also when
- * another running hand-out gets it too. The backlog and the following split the log at one line
+ * Hand the reader's events that match `filter` to `onEvent`, each marked as taken once it is
+ * handed out. First the backlog: those the agent hasn't handled, also from before this started,
+ * and also those taken before (`again` says so), unless `untaken`. Then, with `follow`, every new
+ * one as it comes. The backlog and the following split the log at one line
  * boundary, so no event falls between them. Events an agent wrote are never handed out, and of the
  * plugins' events only those for an agent (`forAgent`), unless the filter asks for a type by name.
  *
@@ -320,7 +330,7 @@ export interface HandOutOptions {
 export function handOut(
   file: string,
   filter: EventFilter,
-  onEvent: (event: WbEvent) => void,
+  onEvent: (event: WbEvent, again: boolean) => void,
   options: HandOutOptions = {},
 ): Promise<number> {
   const {
@@ -331,7 +341,8 @@ export function handOut(
     forAgent: isForAgent = forAgent(),
     skip,
     recheck,
-    unpicked = false,
+    untaken = false,
+    batch = false,
   } = options
   return new Promise(resolve => {
     let got = 0
@@ -343,10 +354,12 @@ export function handOut(
     }
     // the reader's events, and of those, the ones for an agent, unless the filter names a type
     const wanted = (e: WbEvent) => fromReader(e) && matches(e, filter) && (!!filter.type || isForAgent(e.type))
+    // what was taken before, by id: handed out again, it says so
+    let before = new Set<string>()
     // false once enough were handed out
     const hand = (e: WbEvent) => {
-      onEvent(e)
-      pick(file, e)
+      onEvent(e, before.has(e.id))
+      take(file, e)
       // onEvent may have aborted it (a hand-out over several logs that has enough)
       return ++got < count && !signal?.aborted
     }
@@ -355,7 +368,10 @@ export function handOut(
     // false once enough were handed out; a left event is kept to look at again
     const offer = (e: WbEvent) => {
       // the log as it is now: a pick is appended right after the event it names
-      if (unpicked && pickedUp(read(file).events).has(e.id)) return true
+      if (untaken) {
+        const now = read(file).events
+        if (takenIds(now).has(e.id) || handledIds(now).has(e.id)) return true
+      }
       if (skip?.(e)) {
         left.set(e.id, e)
         return true
@@ -364,17 +380,21 @@ export function handOut(
     }
     if (count <= 0 || signal?.aborted) return finish()
     const { events, end } = read(file)
-    const picked = pickedUp(events)
+    const handled = handledIds(events)
+    before = takenIds(events)
     for (const e of events) {
-      if (wanted(e) && !picked.has(e.id) && !offer(e)) return finish()
+      if (wanted(e) && !handled.has(e.id) && !(untaken && before.has(e.id)) && !offer(e)) return finish()
     }
+    // a batch: what there was, if anything; else it goes on for the first to come
+    if (batch && got) return finish()
     if (!following) return finish()
     signal?.addEventListener('abort', finish)
     recheck?.(() => {
       if (!left.size || got >= count) return
-      const picked = pickedUp(read(file).events)
+      const now = read(file).events
+      const gone = new Set([...takenIds(now), ...handledIds(now)])
       for (const [id, e] of left) {
-        if (picked.has(id)) {
+        if (gone.has(id)) {
           left.delete(id)
           continue
         }
@@ -382,12 +402,15 @@ export function handOut(
         left.delete(id)
         if (!hand(e)) return finish()
       }
+      if (batch && got) finish()
     })
     stop = follow(
       file,
       end,
       e => {
-        if (got < count && wanted(e) && !offer(e)) finish()
+        if (got < count && wanted(e) && !offer(e)) return finish()
+        // a batch ends with the first that came, once the events read with it are handed out too
+        if (batch && got) queueMicrotask(finish)
       },
       { interval },
     )
