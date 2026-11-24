@@ -1,9 +1,11 @@
 // Chats no longer on the page. A chat is found by its name: a form's chat by the form's, a chat
 // block by its own. So when the writer removes or renames one, what the reader and the agent said in
 // it would vanish from the page without a trace. The page lists those chats after its
-// content instead, read-only: the agent can still answer in one (`whiteboard append --type chat:message`).
+// content instead, read-only and folded: the agent can still answer in one (`whiteboard append --type
+// chat:message`), and prunes one it is done with (`whiteboard prune --type chat:message --data
+// '{"chat":"<name>"}'`).
 import type { Api, WbEvent } from '../../define.ts'
-import { html } from '../../html.ts'
+import { html, raw } from '../../html.ts'
 
 /** A message in a chat: the chat block's event. */
 const isMessage = (e: WbEvent) => e.type === 'chat:message' && typeof e.data.chat === 'string'
@@ -29,8 +31,11 @@ export function trackOrphanThreads(main: HTMLElement, api: Api) {
     }
     box.hidden = threads.size === 0
     if (box.hidden) return box.replaceChildren()
+    // folded: talk left over from questions taken off the page, kept for whoever wants it
+    const open = box.querySelector('details')?.open ?? false
     box.innerHTML = String(
-      html`<h2>Chats no longer on this page</h2>
+      html`<details ${open ? raw('open') : ''}>
+        <summary>${threads.size} chat${threads.size === 1 ? '' : 's'} no longer on this page</summary>
         ${[...threads].map(([chat, messages]) => {
           // a message can take the place of an earlier one (`replaces`), to correct it
           const replaced = new Set(
@@ -51,7 +56,8 @@ export function trackOrphanThreads(main: HTMLElement, api: Api) {
                 </div>`
               })}
           </div>`
-        })}`,
+        })}
+      </details>`,
     )
   }
 

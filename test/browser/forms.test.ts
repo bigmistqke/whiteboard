@@ -176,6 +176,14 @@ test('a chat whose form is gone shows after the page, until the form is back', {
       return !box.hidden && box.querySelector('[data-chat=pick]')?.textContent?.includes('about pick')
     }),
   )
+  // folded, saying how many
+  assert.deepEqual(
+    await page.$eval('.wb-orphans details', d => [
+      (d as HTMLDetailsElement).open,
+      d.querySelector('summary')!.textContent!.trim(),
+    ]),
+    [false, '1 chat no longer on this page'],
+  )
   // and the agent can still answer in it
   proj.cli(
     'append',

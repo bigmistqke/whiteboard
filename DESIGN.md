@@ -866,8 +866,11 @@ interface above; in the browser, the page module (`src/client/page/`).
    the log only grows, and in a form's chat can name the submit whose typed
    text it answers (`replyTo`), shown as the reader's message before it. A
    chat no longer on the page (its form or block removed or renamed) is
-   listed after the page's content, read-only, until one of its name is
-   back (`src/client/page/orphans.ts`).
+   listed after the page's content, read-only and folded into a details
+   that says how many, until one of its name is back
+   (`src/client/page/orphans.ts`). An agent that takes a question off for
+   good prunes its chat (`prune --data '{"chat":…}'`), so the list holds
+   only what was left behind.
 7. Shows what waits for the reader: open questions and unread messages. An
    open form is outlined (without a label: one laid into the form landed on
    its content in some layouts), a decided one folds

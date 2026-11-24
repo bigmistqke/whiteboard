@@ -1163,9 +1163,9 @@ form[data-wb-just-sent] .wb-folded-change {
 .wb-orphans > * {
   margin-left: var(--indent);
 }
-.wb-orphans > h2 {
-  margin-left: 0;
-  padding-top: 2em;
+/* folded, as a details of the page: a summary line with how many */
+.wb-orphans > details {
+  margin: var(--gap-section) 0 0;
 }
 /* the page's own bottom space moves below the list */
 main:has(+ .wb-orphans:not([hidden])) {
@@ -1178,11 +1178,6 @@ main:has(+ .wb-orphans:not([hidden])) {
 }
 .wb-orphans[hidden] {
   display: none;
-}
-.wb-orphans h2 {
-  font-size: 1rem;
-  margin: 0 0 0.8em;
-  color: var(--muted);
 }
 .wb-orphans h3 {
   font: var(--weight-strong) var(--ui-small)/var(--ui-line-height) var(--mono, monospace);
