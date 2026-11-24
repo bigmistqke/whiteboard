@@ -802,37 +802,45 @@ form[data-wb-just-sent] {
   font-weight: var(--weight-strong);
 }
 
-/* a question the reader hasn't answered, or one the agent asks again: outlined, without a label of
-   its own (one laid into the form landed on its content in some layouts; the corner counts them) */
-form[data-wb-open] {
-  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  outline-offset: 16px;
-  border-radius: var(--radius-sm);
+/* a question the reader hasn't answered, or one the agent asks again: ringed, without a label of
+   its own (one laid into the form landed on its content in some layouts; the corner counts them).
+   The ring is drawn by ::before, --wb-ring-at outside the form, not by an outline: an outline's
+   corners grow with its offset, and the ring's corners stay small. It takes no space, as an outline
+   doesn't. --wb-ring is its colour; none, no ring. */
+form.wb-form {
+  position: relative;
+  --wb-ring-at: 16px;
 }
-/* the outline sets it off: the form's rules above and below (its borders, which the outline would
+form.wb-form::before {
+  content: '';
+  position: absolute;
+  inset: calc(0px - var(--wb-ring-at));
+  border: 1px solid var(--wb-ring, transparent);
+  /* twice a button's corner */
+  border-radius: calc(var(--radius-sm) * 2);
+  pointer-events: none;
+  transition: border-color 0.2s;
+}
+form[data-wb-open] {
+  --wb-ring: color-mix(in srgb, var(--accent) 45%, var(--bg));
+}
+/* the ring sets it off: the form's rules above and below (its borders, which the ring would
    enclose) step aside meanwhile */
 form.wb-form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [data-wb-state='failed']) {
   border-top-color: transparent;
   border-bottom-color: transparent;
-  /* the outline's offset is the space around the content: no padding inside it as well */
+  /* the ring's distance is the space around the content: no padding inside it as well */
   padding-top: 0;
   padding-bottom: 0;
 }
-/* the outline speaks the language of a send too: grey while the answer is on its way (it is the
-   form's already, so no longer outlined as unanswered) and while it waits for the agent to pick it
+/* the ring speaks the language of a send too: grey while the answer is on its way (it is the
+   form's already, so no longer ringed as unanswered) and while it waits for the agent to pick it
    up, red when it never got there; gone once the agent took it (decided) */
-form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [data-wb-state='failed']) {
-  transition: outline-color 0.2s;
-}
 form:is([data-wb-state='sending'], [data-wb-pending]) {
-  outline: 1px solid var(--wb-sending);
-  outline-offset: 16px;
-  border-radius: var(--radius-sm);
+  --wb-ring: var(--wb-sending);
 }
 form[data-wb-state='failed'] {
-  outline: 1px solid var(--bad);
-  outline-offset: 16px;
-  border-radius: var(--radius-sm);
+  --wb-ring: var(--bad);
 }
 
 /* decided: the agent picked up the latest answer; the form folds into one line quoting it */

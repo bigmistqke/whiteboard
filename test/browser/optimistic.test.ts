@@ -44,7 +44,8 @@ test('a slow send shows at once as sending, then sent; one that fails is taken b
       button: f.querySelector('button')!.textContent,
       send: f.querySelector('button')!.getAttribute('data-wb-send'),
       fill: getComputedStyle(f.querySelector('button')!).backgroundColor,
-      outline: getComputedStyle(f).outlineStyle === 'none' ? null : getComputedStyle(f).outlineColor,
+      // the ring around it (::before; transparent: none)
+      outline: (c => (c === 'rgba(0, 0, 0, 0)' ? null : c))(getComputedStyle(f, '::before').borderTopColor),
     }))
   const color = (name: string) =>
     page.evaluate(name => {
