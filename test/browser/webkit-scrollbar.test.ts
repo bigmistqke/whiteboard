@@ -18,7 +18,7 @@ const SCROLLBARS = `* { scrollbar-width: auto !important; scrollbar-color: auto 
 
 const PAGE = `# Code in a chat\n\n:::form{name=q}\n:button[Go]\n:::\n`
 // too long for a narrow window, short enough for the page's text column in a wide one
-const long = `const x = ${JSON.stringify('abcdefghij'.repeat(5))}`
+const long = `const x = ${JSON.stringify('abcdefghij'.repeat(4))}`
 const MESSAGE = ['Short:', '', '```ts', 'const x = 1', '```', '', 'Long:', '', '```ts', long, '```', '', 'After.'].join(
   '\n',
 )

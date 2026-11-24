@@ -25,15 +25,16 @@
   --wb-sending: light-dark(#9a9fa7, #6c717a);
   --shadow: none;
 
-  /* Type. The article is set in --serif at --text-size; everything in it (its margins, its
-     headings) is in em, so it follows. The interface (buttons, toasts, cards, the header) is in
-     --sans at three sizes of its own. */
-  --text-size: 19px;
-  --line-height: 1.72;
+  /* Type. One size for the text: the article in --serif and the interface beside it (buttons,
+     inputs, tables, cards) in --sans are both --text-size, so neither looks oversized next to the
+     other. The article's margins are in em, so they follow; headings are multiples of it, never
+     smaller. Only small labels (--ui-tiny) are below it. */
+  --text-size: 15px;
+  --line-height: 1.56;
   --ui-line-height: 1.45;
   --ui-tiny: 0.7rem;
-  --ui-small: 0.8rem;
-  --ui-text: 0.9rem;
+  --ui-small: var(--text-size);
+  --ui-text: var(--text-size);
   --weight-strong: 600;
   --caps-spacing: 0.04em;
 
@@ -154,28 +155,28 @@ h4 {
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
+/* headings: multiples of the text's size, so never smaller than it */
 h1 {
-  font-size: 2.9rem;
+  font-size: calc(var(--text-size) * 2.6);
   line-height: 1.08;
   margin: 0 0 var(--rhythm);
   letter-spacing: -0.022em;
 }
 h2 {
-  font-size: 1.62rem;
-  margin: 4.6em 0 1.5em;
+  font-size: calc(var(--text-size) * 2);
+  margin: 2.4em 0 1.5em;
 }
 h3 {
-  font-size: 1.2rem;
+  font-size: calc(var(--text-size) * 1.4);
   margin: calc(var(--rhythm) * 3) 0 var(--rhythm);
 }
 #wb-main > h3 {
   font-style: italic;
 } /* section headings only; card titles stay upright */
-h4 {
-  font: var(--weight-strong) var(--ui-tiny)/var(--ui-line-height) var(--sans);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--muted);
+h4,
+h5,
+h6 {
+  font: var(--weight-strong) var(--text-size)/1.3 var(--serif);
   margin: 3em 0 var(--rhythm);
 }
 p,
@@ -357,7 +358,6 @@ hr::after {
 }
 #wb-main > h4::before {
   content: counter(h2) '.' counter(h3) '.' counter(h4);
-  font-size: 1.3em;
 }
 #wb-main > h5::before {
   content: counter(h2) '.' counter(h3) '.' counter(h4) '.' counter(h5);
@@ -753,8 +753,8 @@ form[data-wb-just-sent] {
 /* a question the reader hasn't answered, or one the agent asks again: outlined, without a label of
    its own (one laid into the form landed on its content in some layouts; the corner counts them) */
 form[data-wb-open] {
-  outline: 2px solid var(--accent);
-  outline-offset: 10px;
+  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 16px;
   border-radius: var(--radius-sm);
 }
 /* the outline sets it off: the form's rules above and below (its borders, which the outline would
@@ -762,6 +762,9 @@ form[data-wb-open] {
 form.wb-form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [data-wb-state='failed']) {
   border-top-color: transparent;
   border-bottom-color: transparent;
+  /* the outline's offset is the space around the content: no padding inside it as well */
+  padding-top: 0;
+  padding-bottom: 0;
 }
 /* the outline speaks the language of a send too: grey while the answer is on its way (it is the
    form's already, so no longer outlined as unanswered) and while it waits for the agent to pick it
@@ -770,13 +773,13 @@ form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [data-wb-s
   transition: outline-color 0.2s;
 }
 form:is([data-wb-state='sending'], [data-wb-pending]) {
-  outline: 2px solid var(--wb-sending);
-  outline-offset: 10px;
+  outline: 1px solid var(--wb-sending);
+  outline-offset: 16px;
   border-radius: var(--radius-sm);
 }
 form[data-wb-state='failed'] {
-  outline: 2px solid var(--bad);
-  outline-offset: 10px;
+  outline: 1px solid var(--bad);
+  outline-offset: 16px;
   border-radius: var(--radius-sm);
 }
 
@@ -876,14 +879,11 @@ form[data-wb-just-sent] .wb-folded-change {
 }
 
 @media (max-width: 600px) {
-  body {
-    font-size: 18px;
-  }
   main {
     padding-top: 32px;
   }
   h1 {
-    font-size: 2.2rem;
+    font-size: calc(var(--text-size) * 2.2);
   }
   .wb-new {
     --wb-new-at: 9px;

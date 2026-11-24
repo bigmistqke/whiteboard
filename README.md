@@ -406,12 +406,13 @@ used by every built-in plugin, which a project's stylesheet overrides:
 
 - colours: `--bg`, `--text`, `--muted`, `--border`, `--accent`,
   `--accent-text`, `--ok`, `--warn`, `--bad`;
-- type: `--serif`, `--sans`, `--mono`; the article's `--text-size` and
-  `--line-height` (its margins and headings are in `em`, so they follow);
-  the interface's `--ui-tiny`, `--ui-small`, `--ui-text` and
-  `--ui-line-height`;
+- type: `--serif`, `--sans`, `--mono`; `--text-size`, one size for the
+  article and the interface beside it (buttons, inputs, tables; `--ui-small`
+  and `--ui-text` follow it), with headings as multiples of it, never
+  smaller; the article's `--line-height` (its margins are in `em`, so they
+  follow); small labels' `--ui-tiny`, and `--ui-line-height`;
 - space: the article's `--rhythm` (between blocks; a set-off block such as
-  a form gets three), the interface's `--space-2xs` … `--space-3xl` (2, 4,
+  a form gets 3.75), the interface's `--space-2xs` … `--space-3xl` (2, 4,
   6, 8, 10, 12, 16, 24px);
 - shape: `--radius-sm`, `--radius`, `--radius-lg`, `--radius-pill`,
   `--hairline`, `--shadow-pop`; tints `--tint-faint`, `--tint-soft`,
@@ -426,7 +427,7 @@ Every colour is a `light-dark()` pair, so one line sets it for both themes:
 /* .whiteboard/site.css */
 :root { --accent: light-dark(#c2410c, #fb923c); --serif: "Source Serif 4", Georgia, serif; }
 /* denser: smaller text, tighter blocks */
-:root { --text-size: 17px; --rhythm: 1em; }
+:root { --text-size: 14px; --rhythm: 1em; }
 ```
 
 The built-in plugins are ansi, badge, callout, chat, code, comments, details, draft,
