@@ -75,3 +75,24 @@ test(
     wait.kill()
   },
 )
+
+test('claude-code uninstall: takes out only its own hooks; a file that held only them goes', { timeout: 60000 }, async t => {
+  const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
+  const proj = await project({ config: CONFIG })
+  t.after(() => proj.close())
+  const file = path.join(proj.dir, '.claude', 'settings.json')
+  const settings = () => JSON.parse(fs.readFileSync(file, 'utf8'))
+  proj.run(['claude-code', 'install'])
+  assert.deepEqual(Object.keys(settings().hooks).sort(), ['SessionStart', 'Stop', 'UserPromptSubmit'])
+  assert.match(proj.run(['claude-code', 'uninstall']).stdout, /hooks removed from .*: Stop, UserPromptSubmit, SessionStart/)
+  assert.equal(fs.existsSync(file), false, 'nothing else was in it')
+
+  // with a hook and a setting of the project's own: those stay
+  const own = { model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] } }
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(own))
+  proj.run(['claude-code', 'install'])
+  proj.run(['claude-code', 'uninstall'])
+  assert.deepEqual(settings(), own)
+  assert.match(proj.run(['claude-code', 'uninstall']).stdout, /no whiteboard hooks in/)
+})

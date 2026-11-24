@@ -4,8 +4,9 @@
 //   import claudeCode from '@bigmistqke/whiteboard/claude-code'
 //   export default defineConfig({ plugins: [claudeCode()] })
 //
-// `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json. Each runs
-// `whiteboard claude-code hook <stop|prompt|session>`, and none of them ever blocks but once:
+// `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json, and
+// `uninstall` takes them out again. Each runs `whiteboard claude-code hook <stop|prompt|session>`,
+// and none of them ever blocks but once:
 // - stop (a turn ends): when the session's pages have questions nobody listens for, the agent's turn
 //   goes on once, told to start its wait (it forgot); a turn a hook already continued ends, and the
 //   reader sees what is open;
@@ -35,8 +36,8 @@ interface Settings {
 
 const MODES: Record<Mode, string> = { stop: 'Stop', prompt: 'UserPromptSubmit', session: 'SessionStart' }
 
-/** A hook command this plugin installs. */
-const OURS = /\bwhiteboard claude-code hook\b/
+/** A hook command this plugin installs, also one that runs whiteboard another way (`node …/whiteboard.ts`). */
+const OURS = /\bwhiteboard(\.ts"?)? claude-code hook\b/
 
 export default function claudeCode(): Plugin {
   return {
@@ -62,6 +63,10 @@ export default function claudeCode(): Plugin {
       install: {
         description: "add the hooks to this project's .claude/settings.json",
         run: ctx => install(ctx.project.dir),
+      },
+      uninstall: {
+        description: "take the hooks out of this project's .claude/settings.json again; other hooks and settings stay",
+        run: ctx => uninstall(ctx.project.dir),
       },
     },
   }
@@ -163,16 +168,31 @@ async function hook(ctx: CommandContext, mode: Mode) {
 }
 
 /** Add the hooks to the project's .claude/settings.json, replacing ours that run another command. */
-function install(dir: string) {
+/** The project's .claude/settings.json, and its settings ({} when there is none). */
+function readSettings(dir: string): { file: string; settings: Settings } {
   const file = path.join(dir, '.claude', 'settings.json')
-  let settings: Settings = {}
-  if (fs.existsSync(file)) {
-    try {
-      settings = JSON.parse(fs.readFileSync(file, 'utf8'))
-    } catch {
-      throw new Error(`${file} is not valid JSON; fix it first`)
-    }
+  if (!fs.existsSync(file)) return { file, settings: {} }
+  try {
+    return { file, settings: JSON.parse(fs.readFileSync(file, 'utf8')) }
+  } catch {
+    throw new Error(`${file} is not valid JSON; fix it first`)
   }
+}
+
+function writeSettings(file: string, settings: Settings) {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(`${file}.tmp`, JSON.stringify(settings, null, 2) + '\n')
+  fs.renameSync(`${file}.tmp`, file)
+}
+
+/** The hook groups of one event without ours, and without the groups that leaves empty. */
+const withoutOurs = (groups: NonNullable<Settings['hooks']>[string]) =>
+  groups
+    .map(g => ({ ...g, hooks: (g.hooks ?? []).filter(h => !OURS.test(h.command ?? '')) }))
+    .filter(g => g.hooks.length)
+
+function install(dir: string) {
+  const { file, settings } = readSettings(dir)
   // the hooks run outside any project folder's node_modules/.bin, so name the command that works here
   const onPath = spawnSync('sh', ['-c', 'command -v whiteboard'], { encoding: 'utf8' }).status === 0
   const bin = onPath ? 'whiteboard' : 'npx whiteboard'
@@ -182,19 +202,38 @@ function install(dir: string) {
     const command = `${bin} claude-code hook ${mode}`
     const groups = hooks[event] ?? []
     if (groups.some(g => g.hooks?.some(h => h.command === command))) continue
-    // drop the hooks of ours that run another command, and the groups that leaves empty
-    const kept = groups
-      .map(g => ({ ...g, hooks: (g.hooks ?? []).filter(h => !OURS.test(h.command ?? '')) }))
-      .filter(g => g.hooks.length)
-    hooks[event] = [...kept, { hooks: [{ type: 'command', command }] }]
+    // ours that run another command go
+    hooks[event] = [...withoutOurs(groups), { hooks: [{ type: 'command', command }] }]
     changed.push(event)
   }
   if (!changed.length) {
     console.log(`hooks already installed: ${file}`)
     return
   }
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(`${file}.tmp`, JSON.stringify(settings, null, 2) + '\n')
-  fs.renameSync(`${file}.tmp`, file)
+  writeSettings(file, settings)
   console.log(`hooks added to ${file}: ${changed.join(', ')}`)
+}
+
+/**
+ * Take this plugin's hooks out of the project's .claude/settings.json, and nothing else: other
+ * hooks and settings stay. A file that held only ours goes.
+ */
+function uninstall(dir: string) {
+  const { file, settings } = readSettings(dir)
+  const removed: string[] = []
+  for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
+    if (!groups.some(g => g.hooks?.some(h => OURS.test(h.command ?? '')))) continue
+    const kept = withoutOurs(groups)
+    removed.push(event)
+    if (kept.length) settings.hooks![event] = kept
+    else delete settings.hooks![event]
+  }
+  if (!removed.length) {
+    console.log(`no whiteboard hooks in ${file}`)
+    return
+  }
+  if (settings.hooks && !Object.keys(settings.hooks).length) delete settings.hooks
+  if (!Object.keys(settings).length) fs.rmSync(file)
+  else writeSettings(file, settings)
+  console.log(`hooks removed from ${file}: ${removed.join(', ')}`)
 }

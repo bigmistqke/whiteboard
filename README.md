@@ -347,6 +347,9 @@ session that ran it, and `whiteboard status` marks that session's pages.
 - a new session starts with the same, plus what is open on other sessions'
   pages (not handed over: those answers stay for whoever waits on them).
 
+`whiteboard claude-code uninstall` takes them out again, and leaves other
+hooks and settings in the file as they are.
+
 ## Commands
 
 Every command works on the project of the current folder: the nearest folder
