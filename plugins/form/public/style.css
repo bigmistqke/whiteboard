@@ -74,8 +74,28 @@
 .wb-form li:has(> .wb-form-option:first-child) {
   list-style: none;
   margin-left: -1.2em;
-  padding: var(--space-sm) var(--space-lg);
+  /* --wb-hang: how far an explained row's text hangs in (below) */
+  padding: var(--space-2xs) var(--space-lg) var(--space-2xs) calc(var(--space-lg) + var(--wb-hang, 0px));
   border-radius: var(--radius-sm);
+}
+/* rows to pick sit close: their padding (the room for the tint) is the space between them */
+.wb-form li:has(> p:first-child > .wb-form-option:first-child) + li,
+.wb-form li:has(> .wb-form-option:first-child) + li {
+  margin-top: 0;
+}
+/* a row with an explanation under its option (marked by the form block) stands apart from the
+   next, and what it says hangs under the option's label, past the radio or checkbox, so the
+   option and its explanation read as one */
+.wb-form li[data-wb-explained] + li,
+.wb-form li + li[data-wb-explained] {
+  margin-top: var(--space-xl);
+}
+.wb-form li[data-wb-explained] {
+  --wb-hang: calc(12px + var(--space-md));
+}
+.wb-form li[data-wb-explained] > .wb-form-option:first-child,
+.wb-form li[data-wb-explained] > p:first-child > .wb-form-option:first-child {
+  margin-left: calc(0px - var(--wb-hang));
 }
 .wb-form li:has(> p:first-child > .wb-form-option:first-child):hover,
 .wb-form li:has(> .wb-form-option:first-child):hover {
@@ -98,7 +118,7 @@
 .wb-form-field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   margin: 0;
   min-width: 0;
 }
@@ -108,10 +128,14 @@
 .wb-form-field textarea {
   resize: vertical;
 }
+/* a field's label reads like an option's: the text's face and size, in bold */
 .wb-form-label {
-  font: var(--weight-strong) var(--ui-small)/var(--ui-line-height) var(--sans);
-  color: var(--muted);
-  letter-spacing: 0.01em;
+  font-weight: var(--weight-strong);
+  line-height: var(--ui-line-height);
+}
+/* fields one after another (on lines of one paragraph): apart, each label with its own input */
+.wb-form-field + .wb-form-field {
+  margin-top: var(--space-xl);
 }
 .wb-form-label:empty {
   display: none;

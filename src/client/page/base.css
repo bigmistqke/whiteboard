@@ -224,6 +224,7 @@ li > :last-child {
 /* a list in an item belongs to it: close under its line, nothing after it */
 li > :is(ul, ol) {
   margin-top: 0.25em;
+  margin-bottom: 0.6em;
 }
 strong {
   font-weight: 650;
@@ -671,6 +672,32 @@ select {
   border-radius: var(--radius-sm);
   padding: var(--space-md) var(--space-lg);
   max-width: 100%;
+}
+/* every one-line field the same height, whatever the browser draws inside it (a date's parts, a
+   select's own button) */
+input:not([type='checkbox'], [type='radio'], [type='range']),
+select {
+  height: calc(var(--ui-text) * var(--ui-line-height) + 2 * var(--space-md) + 2 * var(--hairline));
+}
+input::-webkit-datetime-edit,
+input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+input::-webkit-date-and-time-value {
+  text-align: left;
+}
+/* a select drawn like the other fields, with a chevron of its own instead of the system's button */
+select {
+  appearance: none;
+  padding-right: calc(var(--space-lg) * 3);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
 }
 input:focus,
 textarea:focus,

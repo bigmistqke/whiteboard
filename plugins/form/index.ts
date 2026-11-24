@@ -36,6 +36,28 @@ function inputsOf(nodes: Node[]) {
   return found
 }
 
+/**
+ * Marks the list items that start with an option and say more under it (`data-wb-explained`): rows
+ * to pick with an explanation are spaced apart, plain ones sit close. The explanation is text in the
+ * item, which a stylesheet can't tell from nothing, so the markdown is looked at instead.
+ */
+function markExplained(nodes: Node[]) {
+  const walk = (node: Node & { value?: string; data?: { hProperties?: Record<string, unknown> } }) => {
+    if (node.type === 'containerDirective' && node.name === 'form') return
+    if (node.type === 'listItem') {
+      const [first, ...rest] = node.children ?? []
+      const lead = first?.type === 'paragraph' ? (first.children ?? []) : []
+      const option = lead[0]?.type === 'textDirective' && (lead[0].name === 'radio' || lead[0].name === 'check')
+      const more =
+        rest.length > 0 ||
+        lead.slice(1).some(n => n.type !== 'text' || !!(n as { value?: string }).value?.trim())
+      if (option && more) node.data = { ...node.data, hProperties: { ...node.data?.hProperties, dataWbExplained: '' } }
+    }
+    for (const child of node.children ?? []) walk(child)
+  }
+  nodes.forEach(walk)
+}
+
 const recommendedTag = html`<span class="wb-form-recommended">recommended</span>`
 
 const form: Block = {
@@ -47,6 +69,7 @@ const form: Block = {
     if (!isQuestionName(name))
       throw new Error(`form name "${name}" has a colon: those names are reserved for events of whiteboard and plugins`)
     const inputs = inputsOf(c.children as Node[])
+    markExplained(c.children as Node[])
     const choices = [...new Set(inputs.filter(i => CHOICES.has(i.name) && i.attrs.name).map(i => i.attrs.name))]
     const hasButton = inputs.some(i => i.name === 'button')
     // the first button is the form's primary one; the markup is the button block's own
