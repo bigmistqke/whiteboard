@@ -154,3 +154,49 @@ test('a table in a chat message keeps its words whole and its spacing', { timeou
   assert.deepEqual(got.lines, [1, 1, 1], 'plugin, terminal, comments: each on one line')
   assert.ok(got.gap < 20, `the table sits as a paragraph would (${got.gap}px above it)`)
 })
+
+test(
+  'a code block in a chat of its own (no form) scrolls inside the chat, its scrollbar inside the block',
+  { timeout: 60000 },
+  async t => {
+    const proj = await project({ pages: { c: '# A chat\n\n:::chat{name=talk}\n:::\n' } })
+    const { browser: b, page } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    await page.setViewportSize({ width: 700, height: 900 })
+    proj.cli(
+      'append',
+      '--page',
+      'c',
+      '--type',
+      'chat:message',
+      '--data',
+      JSON.stringify({ chat: 'talk', text: message('````ts') }),
+    )
+    await page.goto(proj.url('c'))
+    await until('the message', () =>
+      page
+        .locator('.wb-chat-bubble pre')
+        .count()
+        .then(n => n > 0 || null),
+    )
+    const got = await page.evaluate(() => {
+      const pre = document.querySelector<HTMLElement>('.wb-chat-bubble pre')!
+      const code = pre.querySelector('code')!
+      return {
+        scrolls: code.scrollWidth > code.clientWidth,
+        pastChat: Math.round(
+          pre.closest('.wb-chat-bubble')!.getBoundingClientRect().right -
+            pre.closest('.wb-chat-block')!.getBoundingClientRect().right,
+        ),
+        // the scroller ends inside the block's background, above its bottom padding
+        barInside: Math.round(pre.getBoundingClientRect().bottom - code.getBoundingClientRect().bottom),
+      }
+    })
+    assert.ok(got.scrolls)
+    assert.ok(got.pastChat <= 0, `the message stays inside its chat (${got.pastChat}px past it)`)
+    assert.ok(got.barInside >= 0, `the scrollbar is inside the block (${got.barInside}px)`)
+  },
+)
