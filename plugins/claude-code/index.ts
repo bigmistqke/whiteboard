@@ -23,6 +23,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import type { CommandContext, PageStatus, Plugin, WbEvent } from '../../src/define.ts'
 import { statusLines, whose } from '../../src/status.ts'
+import { channel } from './channel.ts'
 
 /** What is open on a page, in short phrases; the command that picks it up comes last, once. */
 const openOn = (p: PageStatus, options?: { waiting?: boolean }) => statusLines(p, relFile(p.file), options)
@@ -59,6 +60,11 @@ export default function claudeCode(): Plugin {
             console.error(`whiteboard claude-code hook ${mode}: ${(err as Error).message}`)
           }
         },
+      },
+      channel: {
+        description:
+          "PROTOTYPE: an MCP channel server Claude Code starts with the session; pushes the reader's answers on the session's pages into it",
+        run: channel,
       },
       install: {
         description: "add the hooks to this project's .claude/settings.json",
