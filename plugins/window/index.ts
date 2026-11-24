@@ -45,12 +45,12 @@ ${kind}: needs a src, like ::${kind}[a label]{src="${kind === 'image' ? 'shot.pn
     return html`<pre class="wb-error">${kind}: src must be an http(s) URL or a path, not ${src.split(':')[0]}:</pre>`
   const alt = ctx.labelText ?? ctx.attrs.alt ?? ''
   const flag = (name: string) => name in ctx.attrs && raw(` ${name}`)
-  const poster = ctx.attrs.poster && safeSrc(ctx.attrs.poster) ? html` poster="${ctx.attrs.poster}"` : ''
+  const poster = ctx.attrs.poster && safeSrc(ctx.attrs.poster) ? html` poster="${ctx.fileUrl(ctx.attrs.poster)}"` : ''
   const body =
     kind === 'image'
-      ? html`<img src="${src}" alt="${alt}" loading="lazy" />`
+      ? html`<img src="${ctx.fileUrl(src)}" alt="${alt}" loading="lazy" />`
       : html`<video
-          src="${src}"
+          src="${ctx.fileUrl(src)}"
           controls${flag('loop')}${flag('autoplay')}${'autoplay' in ctx.attrs || 'muted' in ctx.attrs ? raw(' muted') : ''}
           playsinline
           preload="metadata"
@@ -62,7 +62,7 @@ ${kind}: needs a src, like ::${kind}[a label]{src="${kind === 'image' ? 'shot.pn
 /** What an image or video shows on its own, for the ↗ of a window around it: its file. */
 const mediaOpen = (ctx: DirectiveContext) => {
   const src = (ctx.attrs.src ?? '').trim()
-  return src && safeSrc(src) ? src : null
+  return src && safeSrc(src) ? ctx.fileUrl(src) : null
 }
 
 export async function render(ctx: DirectiveContext) {

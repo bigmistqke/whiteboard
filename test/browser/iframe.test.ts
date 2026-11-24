@@ -32,12 +32,16 @@ test(
     await fig.waitFor()
     assert.equal(await fig.locator('.wb-window-title').textContent(), 'The demo')
     assert.equal(await fig.locator('.wb-window-address').count(), 0, 'with a label, no address')
-    assert.equal(await fig.locator('.wb-window-name').getAttribute('title'), 'demo.html', 'the address on hover')
+    assert.equal(
+      await fig.locator('.wb-window-name').getAttribute('title'),
+      '/demo.html',
+      'the address on hover: where the server serves it',
+    )
     assert.equal(await page.locator('div.wb-window').count(), 2, 'without compose=window, no window')
     assert.equal(await page.locator('#wb-main > .wb-iframe-frame').count(), 1, 'the frame alone')
     assert.equal(
       await page.locator('div.wb-window').nth(1).locator('.wb-window-name').textContent(),
-      'demo.html?unlabelled',
+      '/demo.html?unlabelled',
       'without a label, the address',
     )
     await until(

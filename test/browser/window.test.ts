@@ -48,14 +48,14 @@ test(
     assert.deepEqual(info, [
       { title: 'A screenshot', open: '/shot.png', bar: true, media: 'IMG' }, // resolved, as markdown's images are
       { title: 'A table', open: null, bar: true, media: null },
-      { title: 'The image', open: 'shot.png', bar: true, media: 'IMG' },
+      { title: 'The image', open: '/shot.png', bar: true, media: 'IMG' },
       { title: 'The video', open: 'clip.mp4', bar: true, media: 'VIDEO' },
       { title: null, open: null, bar: true, media: null }, // a diagram: no label, nothing to open
       { title: 'Two cards', open: null, bar: true, media: null },
     ])
     assert.equal((await page.locator('.wb-window .wb-mermaid, .wb-window svg').count()) > 0, true, 'the diagram inside')
     assert.equal(await page.locator('.wb-window .wb-grid').count(), 1, 'the grid inside')
-    assert.equal(await page.locator('#wb-main > img[src="shot.png"]').count(), 1, 'without window: the picture alone')
+    assert.equal(await page.locator('#wb-main > img[src="/shot.png"]').count(), 1, 'without window: the picture alone')
     assert.match(
       (await page.textContent('pre.wb-error'))!,
       /image: src must be an http\(s\) URL or a path, not javascript:/,

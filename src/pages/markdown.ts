@@ -177,25 +177,35 @@ function linkText(tree: MdNode, links: TextLink[]) {
   walk(tree)
 }
 
+/**
+ * The address of something named relative to the page (a link, an image, a block's `src`): resolved
+ * from the page's folder and handed to `linkFor`. A URL, an address from the root, an anchor, or
+ * something nothing serves stays as written.
+ */
+function addressOf(ref: string, file: string, linkFor?: LinkFor): string {
+  if (!linkFor || !file || !ref || SCHEME.test(ref) || /^[/#]/.test(ref)) return ref
+  const [, target, rest] = /^([^?#]*)(.*)$/s.exec(ref)!
+  let decoded = target
+  try {
+    decoded = decodeURIComponent(target)
+  } catch {
+    /* keep as written */
+  }
+  const url = decoded && linkFor(path.resolve(path.dirname(file), decoded))
+  return url ? url + rest : ref
+}
+
+/** Raw HTML's references to files beside the page (`<img src>`, `<video poster>`, `<a href>`). */
+const HTML_REFS = /(\b(?:src|href|poster)=")([^"]*)(")/g
+
 function rewriteLinks(tree: MdNode, file: string, linkFor?: LinkFor) {
   if (!linkFor || !file) return
   const walk = (node: MdNode) => {
-    if (
-      (node.type === 'link' || node.type === 'image' || node.type === 'definition') &&
-      node.url &&
-      !SCHEME.test(node.url) &&
-      !/^[/#]/.test(node.url)
-    ) {
-      const [, target, rest] = /^([^?#]*)(.*)$/s.exec(node.url)!
-      let decoded = target
-      try {
-        decoded = decodeURIComponent(target)
-      } catch {
-        /* keep as written */
-      }
-      const url = decoded && linkFor(path.resolve(path.dirname(file), decoded))
-      if (url) node.url = url + rest
-    }
+    if ((node.type === 'link' || node.type === 'image' || node.type === 'definition') && node.url)
+      node.url = addressOf(node.url as string, file, linkFor)
+    // raw HTML the page writes itself, as the markdown it is in: before it is a string
+    if (node.type === 'html' && typeof node.value === 'string')
+      node.value = node.value.replace(HTML_REFS, (_, open, ref, close) => open + addressOf(ref, file, linkFor) + close)
     node.children?.forEach(walk)
   }
   walk(tree)
@@ -415,7 +425,8 @@ plugin "${name}" failed to compose around block "${block.name}": ${(err as Error
   }
   const markdown = async (src: string) => toHtml(parse(src).children ?? [])
   const inline = async (src: string) => (await markdown(src)).trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1')
-  const base = { page, file, dir: path.dirname(file), parseAttrs, toHtml, toString, markdown, inline }
+  const fileUrl = (src: string) => addressOf(src, file, linkFor)
+  const base = { page, file, dir: path.dirname(file), parseAttrs, toHtml, toString, markdown, inline, fileUrl }
 
   async function directive(node: MdNode): Promise<MdNode> {
     const { label, children } = splitLabel(node)

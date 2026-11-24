@@ -204,6 +204,24 @@ test("status: a page's questions are kept until its file changes, then read agai
   fs.rmSync(file)
 })
 
+test("files a block or the page's HTML names beside the page get the server's address for them", async () => {
+  const pics = path.join(dir, '.whiteboard', 'pages', 'pics')
+  fs.mkdirSync(pics, { recursive: true })
+  fs.writeFileSync(path.join(pics, 'shot.png'), 'png')
+  fs.writeFileSync(path.join(pics, 'raw.png'), 'png')
+  fs.writeFileSync(
+    path.join(pics, 'p.md'),
+    '# Pics\n\n::image[A shot]{src="shot.png"}\n\n<img src="raw.png" alt="raw">\n\n::image{src="https://example.com/x.png"}\n\n::image{src="missing.png"}\n',
+  )
+  const html = (await (await fetch(`${base}/api/render?page=pics/p`)).json()).html as string
+  assert.match(html, /<img src="\/pics\/shot.png"/, "a block's file, from the page's folder")
+  assert.match(html, /<img src="\/pics\/raw.png" alt="raw"/, "the page's own HTML")
+  assert.match(html, /<img src="https:\/\/example.com\/x.png"/, 'a URL as written')
+  assert.match(html, /<img src="missing.png"/, "a file that isn't there as written")
+  assert.equal((await fetch(`${base}/pics/shot.png`)).status, 200, 'served at that address')
+  fs.rmSync(pics, { recursive: true })
+})
+
 test('a changed page file tells the open page', async () => {
   const watch = live(`${base}/api/live?page=q`)
   await new Promise(r => setTimeout(r, 100))
@@ -353,7 +371,7 @@ test('an iframe shows an HTML file next to the pages, as it is; a script src is 
     '::iframe[The demo]{src="demo.html" height=300}\n\n::iframe{src="javascript:alert(1)"}\n',
   )
   const page = await (await fetch(`${base}/f`)).text()
-  assert.match(page, /<iframe src="demo.html" title="The demo"/)
+  assert.match(page, /<iframe src="\/demo.html" title="The demo"/, "the server's address for it")
   assert.match(page, /style="height: 300px"/)
   assert.match(page, /iframe: src must be an http\(s\) URL or a path, not javascript:/)
   assert.doesNotMatch(page, /src="javascript:/)

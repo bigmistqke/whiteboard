@@ -25,14 +25,14 @@ export async function render(ctx: DirectiveContext) {
   const title = ctx.labelText ?? ctx.attrs.title ?? src
   // the frame, which the reader can drag taller
   return html`<div class="wb-iframe-frame" style="height: ${height(ctx.attrs.height)}">
-    <iframe src="${src}" title="${title}" loading="lazy" referrerpolicy="no-referrer"></iframe>
+    <iframe src="${ctx.fileUrl(src)}" title="${title}" loading="lazy" referrerpolicy="no-referrer"></iframe>
   </div>`
 }
 
 /** What it shows on its own, for the ↗ of a window around it: its address. */
 export function open(ctx: DirectiveContext) {
   const src = (ctx.attrs.src ?? '').trim()
-  return src && safeSrc(src) ? src : null
+  return src && safeSrc(src) ? ctx.fileUrl(src) : null
 }
 
 export default function iframe(): Plugin {

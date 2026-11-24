@@ -704,6 +704,12 @@ interface BaseContext {
   /** absolute path of the markdown file, and its folder (resolve files next to the page with it) */
   file: string
   dir: string
+  /**
+   * The address of a file named relative to the page (an image's `src`): served, the server's; in a
+   * build, of a copy beside the built page. A URL, an address from the root, or a file that isn't
+   * there comes back as written.
+   */
+  fileUrl(src: string): string
   name: string
   attrs: Record<string, string>
   parseAttrs(s: string): Record<string, string>

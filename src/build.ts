@@ -213,25 +213,6 @@ export async function build(
       }
       return fs.existsSync(file) && fs.statSync(file).isFile() ? assetHere(file) : all
     })
-    // what the blocks name relative to the page (an ::image's src, an iframe's page): copied too
-    doc = doc.replace(/\b(src|href|poster)="([^"#?:]+)([^"]*)"/g, (all, _attr, ref: string) => {
-      if (ref.startsWith('/') || ref.startsWith('_/') || ref.startsWith('../')) return all
-      let decoded = ref
-      try {
-        decoded = decodeURIComponent(ref)
-      } catch {
-        /* as written */
-      }
-      const source = path.resolve(path.dirname(file), decoded)
-      if (fs.existsSync(source) && fs.statSync(source).isFile() && !/\.(md|markdown)$/i.test(source)) {
-        const target = path.resolve(here, decoded)
-        if (within(target, outDir) && !fs.existsSync(target)) {
-          fs.mkdirSync(path.dirname(target), { recursive: true })
-          fs.copyFileSync(source, target)
-        }
-      }
-      return all
-    })
     fs.mkdirSync(here, { recursive: true })
     fs.writeFileSync(dest, doc)
     result.pages.push({ file, to: dest })

@@ -34,6 +34,12 @@ function docsProject(config = '') {
       '',
       '::image[In a window]{src="shot.png"}',
       '',
+      '<img src="media/raw.png" alt="raw HTML">',
+      '',
+      '::video[A clip]{src="media/clip.mp4" poster="media/poster.png"}',
+      '',
+      '::iframe[A demo]{src="demo.html"}',
+      '',
       ':::form{name=pick}',
       ':radio[A]{name=x} :radio[B]{name=x}',
       ':::',
@@ -58,6 +64,10 @@ function docsProject(config = '') {
     ].join('\n'),
   )
   write('docs/shot.png', PNG)
+  write('docs/media/raw.png', PNG)
+  write('docs/media/clip.mp4', 'not really a video')
+  write('docs/media/poster.png', PNG)
+  write('docs/demo.html', '<!doctype html><p>demo</p>\n')
   write('docs/api/forms.md', '# Forms\n\n## Answers\n\n[Home](../README.md)\n')
   write('docs/notes/todo.md', '# Todo\n')
   write('src/x.ts', 'export {}\n')
@@ -83,8 +93,8 @@ test('build: the pages the globs name, at their places; links between them relat
     .sort()
   assert.deepEqual(
     pages,
-    ['api/forms.html', 'guide.html', 'index.html'],
-    'a README is its folder index; notes/ left out',
+    ['api/forms.html', 'demo.html', 'guide.html', 'index.html'],
+    "a README is its folder index; notes/ left out (demo.html: the guide's iframe, copied)",
   )
   assert.equal(result.pages.length, 3)
   assert.ok(fs.existsSync(path.join(dir, 'site/shot.png')), 'the image, beside its page')
@@ -110,12 +120,19 @@ test('build: the pages the globs name, at their places; links between them relat
 })
 
 test('build: what is for writing is left out, what is for reading stays; the page is not live', async () => {
-  const { server, read } = docsProject()
+  const { dir, server, read } = docsProject()
   await server.build({ pages: ['docs/*.md'], out: 'site' })
   const guide = read('site/guide.html')
   assert.doesNotMatch(guide, /wb-form|wb-chat|wb-draft|Not for the site/, 'form, chat and draft left out')
   assert.match(guide, /wb-steps/, 'steps stay')
   assert.match(guide, /<img src="shot.png"/)
+  // files a block or the page's own HTML names beside it: copied, at the same place
+  assert.match(guide, /<img src="media\/raw.png" alt="raw HTML"/)
+  assert.match(guide, /src="media\/clip.mp4"/)
+  assert.match(guide, /poster="media\/poster.png"/)
+  assert.match(guide, /<iframe src="demo.html"/)
+  for (const f of ['media/raw.png', 'media/clip.mp4', 'media/poster.png', 'demo.html'])
+    assert.ok(fs.existsSync(path.join(dir, 'site', f)), `${f}, beside its page`)
   assert.match(guide, /"live":false/)
   assert.match(guide, /<script type="module" src="_\/whiteboard\/dist\/client\/runtime.js">/)
   assert.doesNotMatch(guide, /wb-live|\/_\/file\//, "nothing of the server's")
