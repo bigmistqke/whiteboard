@@ -586,9 +586,7 @@ The log only grows, with three exceptions, all through one rewrite
 (`rewrite` in `src/events.ts`): `whiteboard close <page>` removes a page
 that did its job, its file and its events, so a one-off question doesn't
 linger in the overview, the status or the log; `whiteboard prune <page>`
-removes its events (all, one type, one, or those whose data holds some
-values: `--data '{"chat":"plan"}'`, so the core picks one chat's messages
-without knowing what a chat is) and keeps the page; and
+removes its events (all, one type or one) and keeps the page; and
 `whiteboard edit <id>` changes an agent's own event in place, its id kept so
 what refers to it still does. What the reader sent is never edited: it
 stands as they said it. Agents had taken to editing the log by hand, which
@@ -869,7 +867,8 @@ interface above; in the browser, the page module (`src/client/page/`).
    listed after the page's content, read-only and folded into a details
    that says how many, until one of its name is back
    (`src/client/page/orphans.ts`). An agent that takes a question off for
-   good prunes its chat (`prune --data '{"chat":…}'`), so the list holds
+   good prunes its chat (`whiteboard chat prune <page> <name>`, the chat
+   plugin's command), so the list holds
    only what was left behind.
 7. Shows what waits for the reader: open questions and unread messages. An
    open form is outlined (without a label: one laid into the form landed on

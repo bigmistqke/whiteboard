@@ -40,7 +40,14 @@ for questions or remarks to a decision form: its chat is for that, and a
 submit stays a choice.
 
 A chat is found by its name. Remove or rename a form or a chat block and its
-chat moves to the end of the page, read-only, under "Chats no longer on this
-page" (you can still answer there); bring it back under its name and the chat
-is in its place again. So rework a question in its form rather than
+chat moves to the end of the page, read-only, folded under "n chats no longer
+on this page" (you can still answer there); bring it back under its name and
+the chat is in its place again. So rework a question in its form rather than
 replacing the form.
+
+When you take a question or a chat off a page for good, remove its talk too,
+so it doesn't stay behind in that list:
+
+```sh
+whiteboard chat prune <file> <name>
+```

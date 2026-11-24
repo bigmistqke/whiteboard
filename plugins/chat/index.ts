@@ -5,6 +5,7 @@
 // (`whiteboard append`); the chat's name says which chat it belongs to. Messages are never answers:
 // a form's chat is talk about the question, never a choice.
 import fs from 'node:fs'
+import { prune } from '@bigmistqke/whiteboard/log'
 import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
 import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'
@@ -68,6 +69,20 @@ export default function chatPlugin(): Plugin {
         handOut: true,
         forReader: true,
         description: 'a message in a chat: `{ chat, text }`, and `replaces` or `replyTo` (see below)',
+      },
+    },
+    commands: {
+      prune: {
+        description:
+          "remove one chat's messages from the log, the page kept: for a question taken off a page, so its talk doesn't stay behind",
+        args: '<page|file> <chat>',
+        run(ctx) {
+          const [target, chat] = ctx.positionals
+          if (!target || !chat) throw new Error('usage: whiteboard chat prune <page|file> <chat>')
+          const page = ctx.page(target)
+          const removed = prune(ctx.eventsFile, page, e => e.type === 'chat:message' && e.data?.chat === chat)
+          console.log(`pruned ${removed} message${removed === 1 ? '' : 's'} of chat ${chat} on ${page}`)
+        },
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),

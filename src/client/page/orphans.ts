@@ -2,8 +2,7 @@
 // block by its own. So when the writer removes or renames one, what the reader and the agent said in
 // it would vanish from the page without a trace. The page lists those chats after its
 // content instead, read-only and folded: the agent can still answer in one (`whiteboard append --type
-// chat:message`), and prunes one it is done with (`whiteboard prune --type chat:message --data
-// '{"chat":"<name>"}'`).
+// chat:message`), and prunes one it is done with (`whiteboard chat prune <page> <name>`).
 import type { Api, WbEvent } from '../../define.ts'
 import { html, raw } from '../../html.ts'
 

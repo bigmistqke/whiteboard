@@ -291,6 +291,8 @@ export interface CommandContext {
   token: string
   /** the base URL of the project's server, started when it isn't running */
   server(): Promise<string>
+  /** the id of a page given as its name or its file (`plan`, `.whiteboard/pages/plan.md`): `plan` */
+  page(page: string): string
   /** the path of a page or file of the project, as the server serves it: `/plan` */
   pagePath(page?: string): string
   /** a link that gives a browser the project's token, then goes to `path` */

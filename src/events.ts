@@ -253,14 +253,6 @@ export function editEvent(file: string, id: string, data: Record<string, unknown
   return edited ?? found
 }
 
-/**
- * Does an event's data hold every value of `fields` (`whiteboard prune --data`)? A value is
- * compared as JSON, so `{ chat: 'plan' }` picks one chat's messages without whiteboard knowing what
- * a chat is.
- */
-export const hasData = (event: WbEvent, fields: Record<string, unknown>): boolean =>
-  Object.entries(fields).every(([key, value]) => JSON.stringify(event.data?.[key]) === JSON.stringify(value))
-
 /** `page` matches the page itself and every page below it, unless `exact`. */
 export function matches(event: WbEvent, { page, type, exact }: EventFilter = {}): boolean {
   if (page && event.page !== page && (exact || !event.page.startsWith(page + '/'))) return false

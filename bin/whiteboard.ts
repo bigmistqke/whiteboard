@@ -16,7 +16,6 @@ import {
   pickedUp,
   pick,
   prune,
-  hasData,
   editEvent,
   handOut,
   CLAIM,
@@ -57,7 +56,7 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
   whiteboard show <page|file>      start this project's server if needed, print the page URL
   whiteboard url <page|file>       the same: print the page URL
   whiteboard close <page>          a page that did its job: remove its file, and its events from the log
-  whiteboard prune <page> [--type <t>] [--id <id>] [--data <json>]   remove a page's events from the log, keep the page
+  whiteboard prune <page> [--type <t>] [--id <id>]   remove a page's events from the log, keep the page
   whiteboard build [globs…] [--out <dir>] [--skip <a,b>]   pages as a static site: plain HTML, links
                                    relative, without forms, chats, comments and drafts (the config's build)
   whiteboard edit <event id> --data <json>   change an agent's own event in place (merged into its data)
@@ -537,21 +536,17 @@ switch (cmd) {
   }
   case 'prune': {
     // a page's events, gone from the log, the page kept: all of them (it starts over), or one type,
-    // or one event, or those whose data holds some values (one chat's messages: --data '{"chat":…}')
+    // or one event
     const target = positionals[0]
-    if (!target)
-      throw new Error('usage: whiteboard prune <page|file> [--type <type>] [--id <event id>] [--data <json>]')
+    if (!target) throw new Error('usage: whiteboard prune <page|file> [--type <type>] [--id <event id>]')
     const proj = needProject()
     const id = pageId(proj, target)
-    const fields = opts.data ? (JSON.parse(opts.data) as Record<string, unknown>) : null
     const removed = prune(
       proj.eventsFile,
       id,
-      e => (!opts.type || e.type === opts.type) && (!opts.id || e.id === opts.id) && (!fields || hasData(e, fields)),
+      e => (!opts.type || e.type === opts.type) && (!opts.id || e.id === opts.id),
     )
-    const which = [opts.type && `of type ${opts.type}`, opts.id && `with id ${opts.id}`, opts.data && `with ${opts.data}`]
-      .filter(Boolean)
-      .join(', ')
+    const which = [opts.type && `of type ${opts.type}`, opts.id && `with id ${opts.id}`].filter(Boolean).join(', ')
     console.log(
       `pruned ${removed} event${removed === 1 ? '' : 's'} of ${id}${which ? ` (${which})` : ''} from the log; the page stays`,
     )
@@ -849,6 +844,7 @@ switch (cmd) {
         dataDir: pluginDir(project.wb, found.plugin),
         token: projectToken(project.wb),
         server: ensureServer,
+        page: page => pageId(project, page),
         pagePath: page => `/${pageId(project, page ?? '')}`,
         status: async page => api(`/api/status${page ? `?page=${encodeURIComponent(pageId(project, page))}` : ''}`),
         handOut: async (filter, onEvent, options) =>

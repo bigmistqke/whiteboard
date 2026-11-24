@@ -41,12 +41,9 @@ test(
     const answer = proj.events().find(e => e.type === 'q')!
     assert.throws(() => proj.cli('edit', answer.id, '--data', '{"why":"not what they said"}'))
 
-    // one chat's messages, by their data: another chat's name prunes nothing
-    assert.match(
-      proj.cli('prune', 'p', '--type', 'chat:message', '--data', '{"chat":"other"}'),
-      /pruned 0 events of p/,
-    )
-    assert.match(proj.cli('prune', 'p', '--type', 'chat:message'), /pruned 1 event of p \(of type chat:message\)/)
+    // one chat's messages: another chat's name prunes nothing
+    assert.match(proj.cli('chat', 'prune', 'p', 'other'), /pruned 0 messages of chat other on p/)
+    assert.match(proj.cli('chat', 'prune', 'p', 'q'), /pruned 1 message of chat q on p/)
     await until('the chat is empty', async () => (await page.locator('.wb-chat-message').count()) === 0 || null)
     assert.deepEqual(
       proj
