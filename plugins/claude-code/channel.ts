@@ -39,9 +39,11 @@ export function describe(e: WbEvent): string {
   const d = (e.data ?? {}) as Record<string, unknown>
   if (e.type === 'chat:message') return `chat ${d.chat}: "${d.text}"`
   if (e.type === 'comments:new') return `comment on "${d.quote ?? d.at ?? ''}": "${d.text}"`
-  const fields = Object.entries(d).filter(([, v]) => v !== '' && v != null)
-  const chose = e.action ? `chose ${e.action}` : 'sent'
-  return `form ${e.type}: ${chose}${fields.length ? ` (${fields.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ')})` : ''}`
+  // what was chosen or written; the button only when it is the answer itself (no fields)
+  const fields = Object.entries(d).filter(([, v]) => v !== '' && v != null && !(Array.isArray(v) && !v.length))
+  const said = fields.map(([k, v]) => (fields.length === 1 ? JSON.stringify(v) : `${k}: ${JSON.stringify(v)}`))
+  if (said.length) return `form ${e.type}: ${said.join(', ')}`
+  return `form ${e.type}: clicked ${e.action ?? 'send'}`
 }
 
 export async function channel(ctx: CommandContext) {
@@ -66,7 +68,7 @@ export async function channel(ctx: CommandContext) {
     send({
       method: 'notifications/claude/channel',
       params: {
-        content: `${describe(e)}${again ? ' (sent before, not handled yet)' : ''}`,
+        content: `${describe(e)}${again ? ' (received before, not handled yet)' : ''}`,
         meta: { page: e.page, id: e.id, type: e.type },
       },
     })
