@@ -259,7 +259,9 @@ li > :is(ul, ol) {
   /* a heading in a container is closer to what it heads than in the article: a third of the space
      before it, not a half */
   --gap-heading: calc(var(--rhythm) * 1.2);
-  --gap-heading-next: calc(var(--rhythm) * 0.7);
+  /* headings in a row: a little more than the items under them (paragraphs, 0.8), a little less
+     than a heading from what it heads */
+  --gap-heading-next: var(--rhythm);
   --wb-room: 100%;
   --wb-wide-width: auto;
   --wb-wide-left: auto;
