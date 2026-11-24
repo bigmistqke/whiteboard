@@ -549,7 +549,7 @@ Not started.
   into a card: what you chose (several answers each on a line, under the
   button you pressed), what you wrote, "decided · change"; a click opens
   it again. Its chat folds into "💬 n messages", and opens when the agent
-  writes there, or stays open while you are writing in it. A line above the page counts all this, the corner's
+  writes there, or stays open while you are writing in it. The corner's
   toasts go to the next question ("→ unanswered (n)") and the next
   unread message ("→ unread (n)", whose ✕ puts it away until another
   comes), and the tab title gets a `(!n)` prefix. An answer sent while no agent

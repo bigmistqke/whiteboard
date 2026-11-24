@@ -874,14 +874,14 @@ interface above; in the browser, the page module (`src/client/page/`).
    · change" (a click on the card opens the form again). Its chat folds into
    "💬 n messages", opened by a click, by an unread message from the agent,
    and kept open while its box has the focus or unsent text. It used to be
-   drawn in CSS around the form, which couldn't be laid out. A line above the
-   page counts the states and unread messages and jumps through each, two
-   toasts in the page's corner go from one open question to the next and
-   from one unread message to the next (a message not shown, such as a
-   reply in a closed thread, is found by the element holding it,
-   `data-wb-holds`, which is sent `wb-reveal` to show it), the tab title
-   gets a `(!n)` badge, and the header and the overview mark the other
-   pages with something waiting.
+   drawn in CSS around the form, which couldn't be laid out. Two toasts in
+   the page's corner go from one open question to the next and from one
+   unread message to the next (a message not shown, such as a reply in a
+   closed thread, is found by the element holding it, `data-wb-holds`,
+   which is sent `wb-reveal` to show it), the tab title gets a `(!n)`
+   badge, and the header and the overview mark the other
+   pages with something waiting. No line above the page counts them as
+   well: it said what the toasts say.
 
    Toasts are the core's (`api.toast`): labels in the corner that say what
    is going on and take the reader there. One goes after a few seconds, for

@@ -1,8 +1,7 @@
 // How the page shows what waits for the reader: its open questions and the agent's messages they
 // haven't read (status.ts). The core marks each named form with where it stands (open, pending,
 // decided; see `api.forms.on`); the page styles those marks (base.css), folds a decided form into
-// one line quoting its answer, sums them up in a line above the page, counts them in the tab title,
-// and puts two toasts in the page's corner, "→ unanswered (n)" for the questions and "→ unread
+// one line quoting its answer, counts them in the tab title, and puts two toasts in the page's corner, "→ unanswered (n)" for the questions and "→ unread
 // (n)" for the messages, each going from one to the next; the second has a ✕ that puts it away
 // until another message comes. A message is found on the page by its
 // element (`data-wb-message`), or, when it isn't shown, by the element that holds it
@@ -12,25 +11,11 @@
 import type { Api, FormState, FormStatus, Toast, WbEvent } from '../../define.ts'
 import { answerParts } from '../forms'
 import { viewBottom } from './view'
-import { STATES } from '../../status.ts'
 import { WAITING_HASH } from './elsewhere'
-
-const ORDER = STATES
-const LABEL: Record<FormState, (n: number) => string> = {
-  open: n => `${n} unanswered`,
-  pending: n => `${n} waiting for the agent`,
-  decided: n => `${n} decided`,
-}
-const messagesLabel = (n: number) => `${n} unread message${n === 1 ? '' : 's'} from the agent`
 
 let main: HTMLElement
 let api: Api
 let forms: FormStatus[] = []
-
-// above the page's content, not in it: #wb-main is compared block by block on every update
-const summary = document.createElement('div')
-summary.className = 'wb-summary'
-summary.hidden = true
 
 // forms the reader opened again to change their answer, by name, with the answer they opened:
 // they stay open until a newer answer is decided
@@ -70,7 +55,7 @@ let unreadToast: Toast
 let toastTimer = 0
 let unreadShown = false
 // closed by its ✕: the messages unread then, by id. The toast stays away until one more comes; they
-// stay unread (the summary and the tab still count them)
+// stay unread (the tab title still counts them)
 let dismissed: Set<string> | null = null
 
 // A decided form folds into a card: what was chosen, what was written under it (a few lines), and
@@ -143,20 +128,6 @@ function show(list: FormStatus[] = forms) {
     }
   }
   const unread = api.unread().length
-  const parts: [string, string][] = ORDER.map(state => [state, inState(state).length] as const)
-    .filter(([, count]) => count)
-    .map(([state, count]) => [state, LABEL[state](count)])
-  if (unread) parts.splice(inState('open').length ? 1 : 0, 0, ['messages', messagesLabel(unread)])
-  summary.hidden = !parts.length
-  summary.replaceChildren(
-    ...parts.flatMap(([state, text], i) => {
-      const link = document.createElement('button')
-      link.type = 'button'
-      link.dataset.state = state
-      link.textContent = text
-      return i ? [document.createTextNode(' · '), link] : [link]
-    }),
-  )
   const n = inState('open').length + unread
   const questions = inState('open').length
   if (questions) {
@@ -210,8 +181,8 @@ function next(list: HTMLElement[]) {
   return list.find(f => f.getBoundingClientRect().top > viewBottom() / 2) ?? list[0]
 }
 
-function jump(what: FormState | 'messages' | 'all') {
-  const list = what === 'all' ? targets() : what === 'messages' ? targets('messages') : inState(what)
+function jump(what: 'open' | 'messages') {
+  const list = what === 'messages' ? targets('messages') : inState('open')
   const target = next(list)
   if (target) jumpTo(target)
 }
@@ -250,12 +221,6 @@ export function trackWaiting(root: HTMLElement, core: Api) {
   })
   waitingToast.hide()
   unreadToast.hide()
-  main.before(summary)
-  summary.addEventListener('click', e => {
-    const state = (e.target as HTMLElement).closest<HTMLElement>('button[data-state]')?.dataset.state as
-      FormState | 'messages' | undefined
-    if (state) jump(state)
-  })
   // a folded form opens again on a click, to change the answer; not on one in its thread, which
   // stays open under it
   main.addEventListener('click', e => {

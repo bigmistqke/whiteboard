@@ -33,8 +33,7 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
       const button = document.querySelector<HTMLElement>('#wb-dock [data-toast=waiting]')
       return {
         attrs: [...f.attributes].map(a => a.name).filter(n => n.startsWith('data-wb')),
-        summary: document.querySelector('.wb-summary')?.textContent,
-        summaryBeforeMain: document.querySelector('.wb-summary')?.nextElementSibling?.tagName,
+        summary: !!document.querySelector('.wb-summary'),
         title: document.title,
         button: button && !button.hidden ? button.textContent : null,
       }
@@ -47,8 +46,7 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   })
   // unanswered, it waits for the reader, whether or not an agent listens
   assert.ok(s.attrs.includes('data-wb-open'), 'open without an answer')
-  assert.equal(s.summary, '1 unanswered')
-  assert.equal(s.summaryBeforeMain, 'MAIN', 'the summary line sits right before <main>')
+  assert.equal(s.summary, false, 'no line above the page: the corner says what waits')
   s = await until('the title badge', async () => {
     const x = await state()
     return x.title.startsWith('(!1) ') ? x : null
@@ -99,8 +97,6 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   await until('the new block is marked', () => page.evaluate(() => !!document.querySelector('.wb-new')))
   s = await state()
   assert.ok(s.attrs.includes('data-wb-folded'), 'still folded after a live update')
-  assert.equal(s.summary, '1 decided')
-  assert.equal(s.summaryBeforeMain, 'MAIN')
 
   // a click on its answer line reopens a folded form (not one in its chat, which sits under it)
   await page.click('form[name=pick]', { position: { x: 20, y: 12 } })

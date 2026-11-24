@@ -875,37 +875,6 @@ form[data-wb-just-sent] .wb-folded-change {
   border-color: var(--muted);
 }
 
-/* the line above the page: what waits for the reader, what nobody listens for, what is answered */
-.wb-summary[hidden] {
-  display: none;
-}
-.wb-summary button {
-  all: unset;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, currentColor var(--tint-strong), transparent);
-}
-.wb-summary button:hover {
-  color: var(--text);
-}
-.wb-summary button:is([data-state='open'], [data-state='messages']) {
-  color: var(--accent);
-  font-weight: var(--weight-strong);
-}
-.wb-summary {
-  max-width: calc(var(--measure) + var(--indent, 34px) + 32px);
-  margin: 0 auto;
-  padding: 96px var(--space-2xl) 0;
-  box-sizing: border-box;
-  color: var(--muted);
-  font: var(--ui-small)/var(--ui-line-height) var(--sans);
-}
-/* the summary takes the space above the title that the page would otherwise start with */
-.wb-summary:not([hidden]) + main {
-  padding-top: var(--space-2xl);
-}
-
 @media (max-width: 600px) {
   body {
     font-size: 18px;
