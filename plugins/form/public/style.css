@@ -79,8 +79,8 @@
   border-radius: var(--radius-sm);
 }
 /* rows to pick sit close: their padding (the room for the tint) is the space between them */
-.wb-form li:has(> p:first-child > .wb-form-option:first-child) + li,
-.wb-form li:has(> .wb-form-option:first-child) + li {
+.wb-form :where(li:has(> p:first-child > .wb-form-option:first-child)) + li,
+.wb-form :where(li:has(> .wb-form-option:first-child)) + li {
   margin-top: 0;
 }
 /* a row with an explanation under its option (marked by the form block) stands apart from the
@@ -88,7 +88,7 @@
    option and its explanation read as one */
 .wb-form li[data-wb-explained] + li,
 .wb-form li + li[data-wb-explained] {
-  margin-top: var(--space-xl);
+  margin-top: calc(var(--space-2xl) + var(--space-xs));
 }
 .wb-form li[data-wb-explained] {
   --wb-hang: calc(12px + var(--space-md));
@@ -96,6 +96,7 @@
 .wb-form li[data-wb-explained] > .wb-form-option:first-child,
 .wb-form li[data-wb-explained] > p:first-child > .wb-form-option:first-child {
   margin-left: calc(0px - var(--wb-hang));
+  margin-bottom: var(--space-sm);
 }
 .wb-form li:has(> p:first-child > .wb-form-option:first-child):hover,
 .wb-form li:has(> .wb-form-option:first-child):hover {
