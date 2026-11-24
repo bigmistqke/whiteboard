@@ -92,6 +92,11 @@
 
 /* a timeline inside a step is its sub steps: a level in, a thinner line and smaller rings, the
    same at every depth */
+/* its sub steps hold headings and steps of their own: around them the space between steps, so the
+   space outside them is no smaller than any inside */
+.wb-tl-body .wb-timeline {
+  margin-block: var(--gap-subsection);
+}
 .wb-tl-body .wb-tl-steps {
   padding-left: 20px;
 }
