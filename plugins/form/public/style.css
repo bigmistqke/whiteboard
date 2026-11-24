@@ -1,7 +1,7 @@
 /* a form reads as a set-off part of the article: hairline rules above and below, no box */
 .wb-form {
-  /* a block, plus the ring that sets it off (base.css) */
-  margin: calc(var(--gap-block) + 16px) 0;
+  /* a block; ringed (open, waiting, sending, failed), plus the ring's distance (base.css) */
+  margin: var(--gap-block) 0;
   padding: 1.6em 0 1.7em;
   border-top: var(--hairline) solid var(--border);
   border-bottom: var(--hairline) solid var(--border);

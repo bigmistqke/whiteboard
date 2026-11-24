@@ -172,7 +172,8 @@ h1 {
 }
 h2 {
   font-size: calc(var(--text-size) * 2);
-  margin: var(--gap-section) 0 var(--gap-group);
+  /* a section's heading: the prose step to what it heads; smaller headings the group step */
+  margin: var(--gap-section) 0 var(--gap-prose);
 }
 h3 {
   font-size: calc(var(--text-size) * 1.4);
@@ -750,9 +751,11 @@ button:hover {
   transition-delay: 1s;
 }
 
+/* answered and folded into one line: closer to what is around it, like a paragraph */
 form.wb-form[data-wb-folded] {
   padding: 1em 0;
   gap: 0;
+  margin: var(--gap-prose) 0;
 }
 /* named forms: the core marks where each stands (data-wb-open, -pending, -decided); this is how that looks */
 /* the button a form was sent with says how that goes (forms.ts): the answer is the form's already
@@ -832,9 +835,11 @@ form[data-wb-open] {
 form.wb-form:is([data-wb-open], [data-wb-pending], [data-wb-state='sending'], [data-wb-state='failed']) {
   border-top-color: transparent;
   border-bottom-color: transparent;
-  /* the ring's distance is the space around the content: no padding inside it as well */
+  /* the ring's distance is the space around the content: no padding inside it as well, and the
+     ring keeps a block's distance from what is around it */
   padding-top: 0;
   padding-bottom: 0;
+  margin-block: calc(var(--gap-block) + var(--wb-ring-at));
 }
 /* the ring speaks the language of a send too: grey while the answer is on its way (it is the
    form's already, so no longer ringed as unanswered) and while it waits for the agent to pick it
