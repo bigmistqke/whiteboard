@@ -49,8 +49,15 @@ write it is lost, and running waits stumble over it. To change what you wrote
 merges into the event's data, keeps its id, and the open page shows the new
 version. To clear a page's history and keep the page, `whiteboard prune
 <file>` (all its events: its questions are open again), with `--type <type>`
-for one kind (`chat:message`) or `--id <event id>` for one. You can edit only
-your own events: what the user sent stays as they sent it.
+for one kind (`chat:message`), `--id <event id>` for one, or `--data <json>`
+for those whose data holds those values. You can edit only your own events:
+what the user sent stays as they sent it.
+
+When you take a question off a page for good (you acted on its answer and
+removed the form, or removed a chat block), prune its chat too:
+`whiteboard prune <file> --type chat:message --data '{"chat":"<its name>"}'`.
+Otherwise its messages stay, in a folded list of chats no longer on the
+page.
 
 Files that already exist in the repository render too: `whiteboard show
 README.md` (any path in the project) gives a URL that renders that file, and

@@ -586,7 +586,9 @@ The log only grows, with three exceptions, all through one rewrite
 (`rewrite` in `src/events.ts`): `whiteboard close <page>` removes a page
 that did its job, its file and its events, so a one-off question doesn't
 linger in the overview, the status or the log; `whiteboard prune <page>`
-removes its events (all, one type or one) and keeps the page; and
+removes its events (all, one type, one, or those whose data holds some
+values: `--data '{"chat":"plan"}'`, so the core picks one chat's messages
+without knowing what a chat is) and keeps the page; and
 `whiteboard edit <id>` changes an agent's own event in place, its id kept so
 what refers to it still does. What the reader sent is never edited: it
 stands as they said it. Agents had taken to editing the log by hand, which

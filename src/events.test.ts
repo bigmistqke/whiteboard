@@ -14,6 +14,7 @@ import {
   pick,
   pickedUp,
   prune,
+  hasData,
   read,
   readEvents,
 } from './events.ts'
@@ -296,6 +297,16 @@ test("editEvent: an agent's event changes in place, its id and time kept; the re
   )
   assert.throws(() => editEvent(log, theirs.id, { text: 'x' }), /the reader's/)
   assert.throws(() => editEvent(log, 'nope', {}), /no event nope/)
+})
+
+test('hasData: an event whose data holds every value given; one chat of several', () => {
+  const log = tempLog()
+  const msg = appendEvent(log, { page: 'p', type: 'chat:message', data: { chat: 'plan', text: 'hi' } }, 'cli')
+  assert.ok(hasData(msg, { chat: 'plan' }))
+  assert.ok(hasData(msg, {}))
+  assert.ok(!hasData(msg, { chat: 'other' }))
+  assert.ok(!hasData(msg, { chat: 'plan', text: 'bye' }))
+  assert.ok(!hasData({ ...msg, data: {} }, { chat: 'plan' }))
 })
 
 test("prune with a filter: one type of a page's events, or one event; the rest stays", () => {
