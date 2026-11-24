@@ -22,7 +22,7 @@ import crypto from 'node:crypto'
 import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import type { Project } from './config.ts'
-import { appendEvent, isEventId, readEvents, matches, takenIds, handledIds, forAgent } from './events.ts'
+import { appendEvent, isEventId, readEvents, matches, receivedIds, handledIds, forAgent } from './events.ts'
 import { html, raw } from './html.ts'
 import { createConfigLoader, pluginDir, toPath, type LoadedConfig } from './loader.ts'
 import { describeRoutes, dispatch, pluginCommands, mountRoutes, usage } from './plugins.ts'
@@ -710,15 +710,15 @@ export function createServer(
       }
       if (p === '/api/events') {
         const all = readEvents(project.eventsFile)
-        // what became of each: taken by a wait, handled by the agent (status.ts)
-        const taken = takenIds(all)
+        // what became of each: received by a wait, handled by the agent (status.ts)
+        const received = receivedIds(all)
         const handled = handledIds(all)
         return sendJson(
           res,
           200,
           all
             .filter(e => matches(e, q))
-            .map(e => ({ ...e, ...(taken.has(e.id) && { taken: true }), ...(handled.has(e.id) && { handled: true }) })),
+            .map(e => ({ ...e, ...(received.has(e.id) && { received: true }), ...(handled.has(e.id) && { handled: true }) })),
         )
       }
       if (p === '/api/docs') return sendJson(res, 200, await docs())

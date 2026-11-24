@@ -38,7 +38,7 @@ export interface Project {
   spawn(...args: string[]): ChildProcess & { output(): string }
   /** the project's events, as the log has them */
   events(): Record<string, any>[]
-  /** an agent acted on the reader's answers of `type`: once one is in the log, ack them all */
+  /** an agent acted on the reader's answers of `type`: once one is in the log, mark them all handled */
   handle(type: string): Promise<void>
   /** write a page */
   page(name: string, source: string): string
@@ -120,7 +120,7 @@ export async function project({
           .map(e => e.id as string)
         return found.length ? found : null
       })
-      cli('ack', ...ids)
+      cli('handled', ...ids)
     },
     async close() {
       for (const c of children) c.kill()

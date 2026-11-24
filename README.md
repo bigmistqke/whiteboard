@@ -94,7 +94,7 @@ writes only the shared server's state, when you run one
   config.ts       optional: what differs from the defaults (plugins, a stylesheet, options)
   pages/          the pages: pages/plan.md is served at /plan
   events.ndjson   the events, one JSON object per line: form submits, comments, replies,
-                  and which ones an agent took and handled
+                  and which ones an agent received and handled
   token           the secret for what runs code (the terminal)
   server.json     the port and process of the running server
   server.log      that server's output
@@ -210,7 +210,7 @@ A form with a `name` and no `action` attribute is recorded when submitted:
 `data` holds the fields. The log is an event stream: a plugin can append
 events of other types too, through `api.append(type, data)`. Those types
 are named after their plugin, `<plugin>:<what>` (`chat:message`,
-`comments:reply`, whiteboard's own `whiteboard:picked`), so a form's name
+`comments:reply`, whiteboard's own `whiteboard:handled`), so a form's name
 can't contain a colon and its answers never mix with them. Appending is
 optimistic: the event is in `api.events()` at once, with `sending: true`
 until the server has it, so show it then as on its way, not as done: in
@@ -235,10 +235,13 @@ whiteboard watch --page plan                # streams submits, never exits
 whiteboard events --page plan --last 1      # what was already submitted
 ```
 
-`wait` never loses an answer. Handing one out marks it *taken* in the log
-(`whiteboard:taken`), so no other wait takes it too; it is *handled* once the
-agent acted on it: it replied in its chat or thread, or ran `whiteboard ack
-<id>` (`whiteboard:picked`). A wait prints every answer on its page not
+`wait` never loses an answer. An answer goes through three states: *not
+received* (no agent has it yet), *received* (an agent has it: a wait printed
+it, `whiteboard:received` in the log, so no other wait takes it too) and
+*handled* (the agent is done with it: it replied in its chat or thread, or ran
+`whiteboard handled <id>`, `whiteboard:handled` in the log). A log from 0.10
+or older, with `whiteboard:taken` and `whiteboard:picked`, is converted once,
+the first time it is read. A wait prints every answer on its page not
 handled yet, including ones given before it started and ones handed out
 before (marked `"again": true`), so an answer an agent saw and forgot comes
 back. So an agent can ask, do other work, and wait later. One wait or watch
@@ -249,12 +252,12 @@ wants to use the log its own way:
 
 ```sh
 whiteboard events --follow --page plan      # every new event as it comes, marking nothing
-whiteboard ack <event id>                   # the agent handled it
+whiteboard handled <event id>               # the agent is done with it
 whiteboard append --page plan --type <t>    # write one
 ```
 
 The same pieces are a module, `@bigmistqke/whiteboard/log`: `read`,
-`follow`, `appendEvent`, `take`, `ack`, and `handOut`, which is `wait` itself.
+`follow`, `appendEvent`, `receive`, `handle`, and `handOut`, which is `wait` itself.
 
 ## A terminal on every page
 
@@ -341,8 +344,8 @@ session that ran it, and `whiteboard status` marks that session's pages.
 - when a turn ends with something on the session's pages nobody listens for,
   the turn goes on once, telling the agent to start its wait (agents forget);
   a turn the hook already continued ends, and you see what is open;
-- when you send a message, answers on the session's pages that no wait
-  took come with it, and count as taken from then on; answers it was given
+- when you send a message, answers on the session's pages that no agent
+  received come with it, and count as received from then on; answers it was given
   and hasn't handled, and chats waiting for its reply, are named;
 - a new session starts with the same, plus what is open on other sessions'
   pages (not handed over: those answers stay for whoever waits on them).
@@ -374,8 +377,8 @@ commands answer it too.
 | `whiteboard wait [filters] [--force]` | print every matching answer the agent hasn't handled (one handed out before with `"again": true`), or wait for the next; one wait a page (`--force` takes it over); without `--page`, only what no other wait or watch would take (the fallback: one per project, or, in a project of the machine config's entries, one for the whole entry, each event with its `project` and `url`) |
 | `whiteboard watch [filters] [--force]` | like `wait`, but never exits: print each answer as it comes |
 | `whiteboard append --page <p> --type <t> [--data <json>]` | add an event to a page's log, such as a reply to a comment |
-| `whiteboard ack <event id…>` | the agent handled these answers (a reply in their chat does it too): no wait hands them out again |
-| `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent took, answers handed out and not handled, chats waiting for a reply, who is listening |
+| `whiteboard handled <event id…>` | the agent handled these answers (a reply in their chat does it too): no wait hands them out again |
+| `whiteboard status [--page <p>]` | per page: questions without an answer, answers no agent received, answers received and not handled, chats waiting for a reply, who is listening |
 | `whiteboard build [globs…] [--out <dir>] [--skip <a,b>]` | pages as a static site (see [Building a site](#building-a-site)) |
 | `whiteboard serve` | run the server in the foreground; for a project of the machine config's entries, or outside any project, the shared server |
 | `whiteboard skill [dir]` | print where the agent skill is, or link it into a skills folder |
@@ -562,10 +565,10 @@ Not started.
   message from the agent you haven't read (a reply to your comment, a chat
   message). A message is read once it has been in view, and that is
   recorded in the log, so it holds in every browser. An answered form waits
-  for the agent until it picks the answer up, then it is decided and folds
-  into a card: what you chose (several answers each on a line, under the
-  button you pressed), what you wrote, "decided · change"; a click opens
-  it again. Its chat folds into "💬 n messages", and opens when the agent
+  for an agent to receive it; once one has it, the form folds into a card:
+  what you chose (several answers each on a line, under the button you
+  pressed), what you wrote, and "received · change" while the agent is on
+  it, "decided · change" once it handled it; a click opens it again. Its chat folds into "💬 n messages", and opens when the agent
   writes there, or stays open while you are writing in it. The corner's
   toasts go to the next question ("→ unanswered (n)") and the next
   unread message ("→ unread (n)", whose ✕ puts it away until another

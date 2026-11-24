@@ -217,7 +217,7 @@ const api: Api = {
   events: eventsValue,
   last: type => events.findLast(e => e.type === type),
   marks: {
-    taken: id => !!events.find(e => e.id === id)?.taken,
+    received: id => !!events.find(e => e.id === id)?.received,
     handled: id => !!events.find(e => e.id === id)?.handled,
   },
   unread,

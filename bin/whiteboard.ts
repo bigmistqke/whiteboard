@@ -14,7 +14,7 @@ import {
   follow,
   matches,
   handledIds,
-  ack,
+  handle,
   prune,
   editEvent,
   handOut,
@@ -311,7 +311,7 @@ ${named ? `  name: '${name}',\n` : ''}${home ? '  // only .whiteboard/ is served
     path.join(wb, '.gitignore'),
     `# pages are working documents; remove this line to keep them in git
 pages/
-# events from the pages (and which ones an agent picked up), and the running server's port and output
+# events from the pages (and which ones an agent received), and the running server's port and output
 events.ndjson
 server.json
 server.log
@@ -361,11 +361,11 @@ async function status() {
     api(`/api/status${opts.page ? `?page=${encodeURIComponent(pageId(proj, opts.page))}` : ''}`),
     currentSession(proj),
   ])
-  const busy = pages.filter(p => p.unpicked.length || p.open.length)
+  const busy = pages.filter(p => p.unreceived.length || p.open.length)
   if (pages.some(p => p.listeners.some(l => l.fallback)))
     console.log('a fallback listens: it takes what no other wait or watch would\n')
   if (!busy.length) {
-    console.log('nothing open: every question is answered, and every answer picked up')
+    console.log('nothing open: every question is answered, and every answer received')
     return
   }
   for (const p of busy) {
@@ -476,7 +476,7 @@ switch (cmd) {
   }
   case 'close': {
     // a page that has done its job: its file goes, and its events leave the log (answers, chats,
-    // comments, what was read and picked up), so neither the page nor its history lingers
+    // comments, what was read, received and handled), so neither the page nor its history lingers
     const target = positionals[0]
     if (!target) throw new Error('usage: whiteboard close <page|file>')
     const proj = needProject()
@@ -638,7 +638,7 @@ switch (cmd) {
     break
   }
   case 'events': {
-    // the log as it is: every matching event, also the agent's own, and nothing marked as picked up
+    // the log as it is: every matching event, also the agent's own, and nothing marked received
     const f = filter()
     const log = needProject().eventsFile
     const { events, end } = read(log)
@@ -656,24 +656,24 @@ switch (cmd) {
       })
     break
   }
-  case 'ack': {
+  case 'handled': {
     // the agent acted on these answers: they are handled, and no wait hands them out again
     const proj = needProject()
-    if (!positionals.length) throw new Error('usage: whiteboard ack <event id> [<event id>…]')
+    if (!positionals.length) throw new Error('usage: whiteboard handled <event id> [<event id>…]')
     const events = readEvents(proj.eventsFile)
     const handled = handledIds(events)
     for (const id of positionals) {
       const event = events.find(e => e.id === id)
       if (!event) throw new Error(`no event ${id} in ${proj.eventsFile}`)
       if (handled.has(id)) console.error(`whiteboard: ${id} was handled already`)
-      else console.log(JSON.stringify(ack(proj.eventsFile, event)))
+      else console.log(JSON.stringify(handle(proj.eventsFile, event)))
     }
     break
   }
   case 'wait':
   case 'watch': {
     // The answers the agent hasn't handled, also those given before the command started, never the
-    // agent's own; of the plugins' events, those they declare for an agent (see handOut). One taken
+    // agent's own; of the plugins' events, those they declare for an agent (see handOut). One received
     // before and still not handled comes again, marked `"again": true`. `wait` prints all there are
     // and stops, or with none, the first to come; `watch` never stops. One wait or watch a page:
     // a second is refused, unless --force, which stops the first (it exits 3).
@@ -730,7 +730,7 @@ switch (cmd) {
       void handOut(proj.eventsFile, f, print, options).then(async () => {
         // a wait on a page ends with answers, and the agent acts on them. What is left needs it
         // again, which is easily forgotten: say so, right with the answers: the answers to handle
-        // (reply, or ack), the chats waiting for a reply, the questions still unanswered
+        // (reply, or whiteboard handled), the chats waiting for a reply, the questions still unanswered
         if (cmd === 'wait') {
           try {
             const pages = (await api(`/api/status?page=${encodeURIComponent(f.page!)}`)) as PageStatus[]
@@ -738,7 +738,7 @@ switch (cmd) {
               const again = `\`whiteboard wait --page ${relFile(p.file)}\``
               if (p.unhandled.length)
                 console.error(
-                  `whiteboard: handle these on ${p.page} once you acted on them: reply in their chat, or \`whiteboard ack ${p.unhandled.map(e => e.id).join(' ')}\`; until then each wait hands them out again`,
+                  `whiteboard: handle these on ${p.page} once you acted on them: reply in their chat, or \`whiteboard handled ${p.unhandled.map(e => e.id).join(' ')}\`; until then each wait hands them out again`,
                 )
               if (p.awaitingReply.length)
                 console.error(
@@ -900,7 +900,7 @@ async function entryFallback(entry: string, f: EventFilter, command: 'wait' | 'w
   const count = command === 'wait' ? 1 : Infinity
   const done = new AbortController()
   let total = 0
-  // after the last event is recorded as taken, which follows handing it out
+  // after the last event is recorded as received, which follows handing it out
   done.signal.addEventListener('abort', () => setImmediate(() => process.exit(0)))
   if (opts.timeout && command === 'wait')
     setTimeout(

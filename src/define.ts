@@ -301,15 +301,15 @@ export interface CommandContext {
   status(page?: string): Promise<PageStatus[]>
   /**
    * Hand the reader's events on `page` (and below it, unless `exact`) or of `type` to `onEvent`, as `whiteboard
-   * wait` does: also those from before, never an agent's own, each counted as taken from then on;
-   * one taken before and not handled again (`again`), unless `untaken`. With `follow: false` only
+   * wait` does: also those from before, never an agent's own, each counted as received from then on;
+   * one received before and not handled again (`again`), unless `unreceived`. With `follow: false` only
    * those there are now. Resolves with how many.
    * For the log's other primitives, import `@bigmistqke/whiteboard/log`.
    */
   handOut(
     filter: { page?: string | null; type?: string | null; exact?: boolean },
     onEvent: (event: WbEvent, again: boolean) => void,
-    options?: { count?: number; follow?: boolean; signal?: AbortSignal; untaken?: boolean },
+    options?: { count?: number; follow?: boolean; signal?: AbortSignal; unreceived?: boolean },
   ): Promise<number>
 }
 
@@ -324,7 +324,7 @@ export interface PageStatus {
   owner: string | null
   /** the event types the page waits on the reader for: its named forms */
   asks: string[]
-  /** where each of them stands, as the page shows it: open, pending, taken or decided */
+  /** where each of them stands, as the page shows it: open, pending, received or handled */
   questions: { name: string; state: FormState }[]
   /** those waiting for the reader: no answer yet, or a running wait asks for a new one */
   open: string[]
@@ -332,9 +332,9 @@ export interface PageStatus {
   unheard: string[]
   /** the agent's messages on the page the reader hasn't read (see EventSpec.forReader) */
   unread: WbEvent[]
-  /** the reader's events on the page that no wait, watch or hook took */
-  unpicked: WbEvent[]
-  /** the reader's events a wait took that the agent hasn't handled (acknowledged or replied to) */
+  /** the reader's events on the page that no wait, watch or hook received */
+  unreceived: WbEvent[]
+  /** the reader's events an agent received that the agent hasn't handled (marked handled, or replied to) */
   unhandled: WbEvent[]
   /** the chats on the page whose latest message is the reader's: waiting for the agent's reply */
   awaitingReply: string[]
@@ -494,7 +494,7 @@ export interface WbEvent {
   /** 'cli' for events the command line appended (`whiteboard append`), such as an agent's reply */
   from?: 'cli'
   /** in the browser: a wait or watch handed this event to an agent */
-  taken?: true
+  received?: true
   /** in the browser: the agent handled this event (acknowledged it, or replied to it) */
   handled?: true
   /**
@@ -575,7 +575,7 @@ export interface Api {
   last(type: string): WbEvent | undefined
   /** record an event for this page: it lands in the log, where the agent reads it */
   append(type: string, data?: Record<string, unknown>, action?: string | null): Promise<WbEvent>
-  /** what became of the reader's event: taken by a wait, handled by the agent */
+  /** what became of the reader's event: received by an agent, handled by the agent */
   marks: Marks
   /**
    * The agent's messages on this page the reader hasn't read, oldest first (see
@@ -623,7 +623,7 @@ export interface Api {
   /**
    * The page's named forms and where each stands. The core looks after every `<form name>` without
    * an `action`: it sends a submit as an event, keeps drafts, puts the last answer back, and marks
-   * each form with its state (`data-wb-open`, `-pending`, `-decided`). How that
+   * each form with its state (`data-wb-open`, `-pending`, `-received`, `-handled`). How that
    * looks is the page's styles'; this is for drawing more than the attributes allow (a summary, a
    * count). It changes when the forms are marked again: the log, the listeners or the page changed.
    */
@@ -635,13 +635,13 @@ export interface Api {
  * - waiting: an agent is listening and wants its answer
  * - unheard: no answer, and no agent is listening
  * - pending: answered, but no agent has picked the answer up yet
- * - decided: an agent picked up its latest answer
+ * - handled: an agent is done with its latest answer
  */
-export type FormState = 'open' | 'pending' | 'taken' | 'decided'
+export type FormState = 'open' | 'pending' | 'received' | 'handled'
 
-/** What became of an answer: taken (a wait or watch printed it), handled (the agent acted on it). */
+/** What became of an answer: received (a wait or watch printed it, or the agent said so), handled (the agent acted on it). */
 export interface Marks {
-  taken(id: string): boolean
+  received(id: string): boolean
   handled(id: string): boolean
 }
 

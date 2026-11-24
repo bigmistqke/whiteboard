@@ -81,13 +81,13 @@ test('named forms: waiting, drafts, a submit, decided, live updates', { timeout:
   assert.equal(got.type, 'pick')
   assert.deepEqual(got.data, { fruit: 'Pears', why: 'because' })
   // the agent acted on it: handled, the form is decided
-  proj.cli('ack', got.id)
+  proj.cli('handled', got.id)
 
   s = await until('decided and folded', async () => {
     const x = await state()
     return x.attrs.includes('data-wb-folded') ? x : null
   })
-  assert.ok(s.attrs.includes('data-wb-decided'))
+  assert.ok(s.attrs.includes('data-wb-handled'))
   assert.ok(!s.title.startsWith('(!'), 'the badge is gone')
 
   // a live update: the marks stay, the new block is marked new
@@ -415,12 +415,12 @@ test(
     await toast.locator('.wb-toast-text').click()
     await toast.waitFor({ state: 'detached' })
 
-    // a wait first hands out the answer nobody picked up yet; the next one waits for a new one
+    // a wait first hands out the answer nobody received yet; the next one waits for a new one
     const first = proj.spawn('wait', '--page', 'q', '--type', 'ask')
     const old = JSON.parse(await until('the first wait got the old answer', () => first.output()))
     assert.equal(old.data.why, 'nobody hears this')
     // acted on, and the first wait gone: the next one asks for a new answer
-    proj.cli('ack', old.id)
+    proj.cli('handled', old.id)
     await until('the first wait ended', () => (first.exitCode != null ? true : null))
     const wait = proj.spawn('wait', '--page', 'q', '--type', 'ask')
     // asked again by name, the decided question is open again

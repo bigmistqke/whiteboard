@@ -10,7 +10,7 @@ import { BUILTIN_COMMANDS } from '../../src/loader.ts'
 test('--help on any command prints its help and runs nothing', { timeout: 60000 }, async t => {
   const proj = await project({ pages: { p: '# P\n\n:::form{name=q}\n:button[Go]\n:::\n' } })
   t.after(() => proj.close())
-  // an answer from the reader, waiting to be picked up
+  // an answer from the reader, waiting to be received
   fs.appendFileSync(
     path.join(proj.dir, '.whiteboard', 'events.ndjson'),
     JSON.stringify({ id: 'a1', ts: new Date().toISOString(), page: 'p', type: 'q', action: 'Go', data: {} }) + '\n',
@@ -22,8 +22,8 @@ test('--help on any command prints its help and runs nothing', { timeout: 60000 
   }
   assert.match(proj.cli('wait', '--page', 'p', '-h'), /^usage: whiteboard wait/)
   assert.ok(
-    !proj.events().some(e => e.type === 'whiteboard:picked'),
-    'nothing picked up: the answer still waits',
+    !proj.events().some(e => e.type === 'whiteboard:handled'),
+    'nothing received: the answer still waits',
   )
 
   // a plugin's command, and all of a plugin's commands

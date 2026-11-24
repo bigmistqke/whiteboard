@@ -84,9 +84,9 @@ test('a slow send shows at once as sending, then sent; one that fails is taken b
   await until('confirmed', async () => (await form()).state === 'sent' || null)
   assert.equal((await form()).button, '✓ Sent')
   await until('green', async () => (await form()).fill === (await color('--ok')) || null)
-  assert.equal((await form()).label, 'waiting for the agent to pick it up', 'not "sent" again')
+  assert.equal((await form()).label, 'waiting for an agent to receive it', 'not "sent" again')
   assert.equal((await form()).beside, true, 'beside the send button, where the eye is')
-  // confirmed, waiting for the agent to pick it up: still grey
+  // confirmed, waiting for an agent to receive it: still grey
   assert.equal((await form()).outline, await color('--wb-sending'), 'pending: a grey outline')
   // then the button is itself again
   await until('its own label', async () => ((await form()).button === 'Send' && !(await form()).send) || null)

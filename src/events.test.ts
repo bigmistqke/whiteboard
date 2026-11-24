@@ -11,9 +11,9 @@ import {
   fromReader,
   editEvent,
   handOut,
-  take,
-  ack,
-  takenIds,
+  receive,
+  handle,
+  receivedIds,
   handledIds,
   prune,
   read,
@@ -89,14 +89,14 @@ test("fromReader: what the command line wrote is not the reader's", () => {
   assert.equal(fromReader(agent(log, 'p')), false)
 })
 
-test("takenIds counts only the command line's marks", () => {
+test("receivedIds counts only the command line's marks", () => {
   const log = tempLog()
   const e = reader(log, 'p')
   // a browser could append an event of this type; it must not count
-  appendEvent(log, { page: 'p', type: 'whiteboard:taken', data: { event: e.id } })
-  assert.equal(takenIds(readEvents(log)).has(e.id), false)
-  take(log, e)
-  assert.equal(takenIds(readEvents(log)).has(e.id), true)
+  appendEvent(log, { page: 'p', type: 'whiteboard:received', data: { event: e.id } })
+  assert.equal(receivedIds(readEvents(log)).has(e.id), false)
+  receive(log, e)
+  assert.equal(receivedIds(readEvents(log)).has(e.id), true)
 })
 
 // ---- handing out ---------------------------------------------------------------------------------
@@ -111,9 +111,9 @@ test('hands out the backlog, and marks it taken; again, marked so, until it is h
     return got
   }
   assert.deepEqual(await seen(), [a.id, b.id])
-  assert.ok(takenIds(readEvents(log)).has(a.id))
+  assert.ok(receivedIds(readEvents(log)).has(a.id))
   assert.deepEqual(await seen(), [`${a.id} again`, `${b.id} again`], 'taken, not handled: handed out again')
-  ack(log, a)
+  handle(log, a)
   assert.deepEqual(await seen(), [`${b.id} again`], 'acknowledged: no longer')
 })
 
@@ -147,10 +147,10 @@ test('a batch: all there is at once; with nothing there, the first to come', asy
   const a = reader(log, 'p')
   const b = reader(log, 'p')
   const got: string[] = []
-  assert.equal(await handOut(log, {}, e => got.push(e.id), { batch: true, untaken: true, ...FAST }), 2)
+  assert.equal(await handOut(log, {}, e => got.push(e.id), { batch: true, unreceived: true, ...FAST }), 2)
   assert.deepEqual(got, [a.id, b.id])
   const next: string[] = []
-  const done = handOut(log, {}, e => next.push(e.id), { batch: true, untaken: true, ...FAST })
+  const done = handOut(log, {}, e => next.push(e.id), { batch: true, unreceived: true, ...FAST })
   const c = reader(log, 'p')
   assert.equal(await done, 1)
   assert.deepEqual(next, [c.id])
@@ -166,7 +166,7 @@ test('never hands out what an agent wrote', async () => {
   )
 })
 
-test('untaken (the fallback) leaves what another took; a wait on the page hands it out again', async () => {
+test('unreceived (the fallback) leaves what another took; a wait on the page hands it out again', async () => {
   const log = tempLog()
   const a = reader(log, 'p', 'pick')
   const b = reader(log, 'p', 'other')
@@ -175,7 +175,7 @@ test('untaken (the fallback) leaves what another took; a wait on the page hands 
     [a.id],
   )
   assert.deepEqual(
-    (await backlog(log, { page: 'p' }, { untaken: true })).map(e => e.id),
+    (await backlog(log, { page: 'p' }, { unreceived: true })).map(e => e.id),
     [b.id],
   )
   assert.deepEqual(
@@ -194,7 +194,7 @@ test('a page covers the pages below it, unless exact', async () => {
     [top.id],
   )
   assert.deepEqual(
-    (await backlog(log, { page: 'task' }, { untaken: true })).map(e => e.id),
+    (await backlog(log, { page: 'task' }, { unreceived: true })).map(e => e.id),
     [below.id],
   )
 })
@@ -205,10 +205,10 @@ test('count stops it; the rest stays for the next', async () => {
   const b = reader(log, 'p')
   assert.equal(await handOut(log, {}, () => {}, { count: 1, ...FAST }), 1)
   assert.deepEqual(
-    (await backlog(log, {}, { untaken: true })).map(e => e.id),
+    (await backlog(log, {}, { unreceived: true })).map(e => e.id),
     [b.id],
   )
-  assert.ok(takenIds(readEvents(log)).has(a.id))
+  assert.ok(receivedIds(readEvents(log)).has(a.id))
 })
 
 test('follows new events after the backlog, and resolves at count', async () => {
@@ -256,7 +256,7 @@ test('a signal stops following', async () => {
   // nothing is handed out once stopped
   reader(log, 'p')
   await sleep(30)
-  assert.equal(takenIds(readEvents(log)).size, 0)
+  assert.equal(receivedIds(readEvents(log)).size, 0)
 })
 
 test("a plugin's events reach an agent only when declared handOut, or asked for by type", async () => {
@@ -281,10 +281,10 @@ test("a plugin's events reach an agent only when declared handOut, or asked for 
 
 test('skip leaves an event for now; a recheck hands it out once it is no longer left, unless taken meanwhile', async () => {
   const log = tempLog()
-  const taken = reader(log, 'taken')
+  const taken = reader(log, 'received')
   const free = reader(log, 'free')
   const gone = reader(log, 'gone')
-  let covered = new Set(['taken', 'gone'])
+  let covered = new Set(['received', 'gone'])
   let again = () => {}
   const got: string[] = []
   const ac = new AbortController()
@@ -299,10 +299,10 @@ test('skip leaves an event for now; a recheck hands it out once it is no longer 
   await sleep(20)
   assert.deepEqual(got, ['free'], 'only what nobody else would take')
   // another agent took one of the left ones; then nobody covers either
-  take(log, gone)
+  receive(log, gone)
   covered = new Set()
   again()
-  assert.deepEqual(got, ['free', 'taken'], 'the left one, once it is free; not the one taken meanwhile')
+  assert.deepEqual(got, ['free', 'received'], 'the left one, once it is free; not the one taken meanwhile')
   void taken
   void free
   ac.abort()
@@ -369,4 +369,22 @@ test("prune with a filter: one type of a page's events, or one event; the rest s
     readEvents(log).map(e => e.type),
     ['pick'],
   )
+})
+
+test('an old log: its taken and picked marks become received and handled, once, the rest as it was', () => {
+  const log = tempLog()
+  const lines = [
+    { id: 'a', ts: '2026-01-01T00:00:00.000Z', page: 'p', type: 'q', action: 'Go', data: {} },
+    { id: 'b', ts: '2026-01-01T00:00:01.000Z', page: 'p', type: 'whiteboard:taken', action: null, data: { event: 'a' }, from: 'cli' },
+    { id: 'c', ts: '2026-01-01T00:00:02.000Z', page: 'p', type: 'whiteboard:picked', action: null, data: { event: 'a' }, from: 'cli' },
+  ]
+  fs.writeFileSync(log, lines.map(l => JSON.stringify(l)).join('\n') + '\n')
+  const events = readEvents(log)
+  assert.deepEqual(
+    events.map(e => e.type),
+    ['q', 'whiteboard:received', 'whiteboard:handled'],
+  )
+  assert.ok(receivedIds(events).has('a') && handledIds(events).has('a'))
+  assert.deepEqual(events[1], { ...lines[1], type: 'whiteboard:received' }, 'only the type changes')
+  assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /whiteboard:(taken|picked)/, 'written back')
 })

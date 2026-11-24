@@ -91,12 +91,12 @@ export function listen(
 }
 
 /** What the fallback hands a project's hand-out: what it leaves to others, and when to look again. */
-export type FallbackHandOut = Required<Pick<HandOutOptions, 'skip' | 'recheck' | 'signal' | 'untaken'>>
+export type FallbackHandOut = Required<Pick<HandOutOptions, 'skip' | 'recheck' | 'signal' | 'unreceived'>>
 
 /**
  * The fallback over the projects a server names: `start` is called once for each project as it
- * appears, to hand out from its log what no other listener there takes (`skip`) and nobody took
- * (`untaken`), looked at again (`recheck`) whenever who listens there changes; a project no
+ * appears, to hand out from its log what no other listener there takes (`skip`) and nobody received
+ * (`unreceived`), looked at again (`recheck`) whenever who listens there changes; a project no
  * longer named is stopped (`signal`).
  * @returns what takes each snapshot the server sends
  */
@@ -118,8 +118,8 @@ export function fallback(start: (project: Followed, handOut: FallbackHandOut) =>
           f.recheck = again
         },
         signal: f.stop.signal,
-        // what another listener picked up is never the fallback's, however late it sees it
-        untaken: true,
+        // what another listener received is never the fallback's, however late it sees it
+        unreceived: true,
       })
     }
     for (const [dir, f] of followed)

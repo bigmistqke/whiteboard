@@ -2,16 +2,16 @@
 // `type`: a submitted form's type is the form's name; a plugin can append events of its own.
 //
 // Two layers. The primitives work on the log and nothing else: read it, follow it, append to it,
-// record that an event was picked up. Handing out (`handOut`) is built from them alone: it gives
+// record that an agent received or handled an event. Handing out (`handOut`) is built from them alone: it gives
 // each answer to an agent once, also one given before it started, and never the agent's own. The
-// command line offers both (`events`, `events --follow`, `append`, `pick`; `wait`, `watch`), and a
+// command line offers both (`events`, `events --follow`, `append`, `handled`; `wait`, `watch`), and a
 // script can import them (`@bigmistqke/whiteboard/log`) to use the log in ways of its own.
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import type { WbEvent } from './define.ts'
-import { CLAIM, PICKED, TAKEN, fromReader, handledIds, takenIds } from './status.ts'
+import { CLAIM, HANDLED, RECEIVED, fromReader, handledIds, receivedIds } from './status.ts'
 
-export { CLAIM, PICKED, TAKEN, fromReader, handledIds, takenIds }
+export { CLAIM, HANDLED, RECEIVED, fromReader, handledIds, receivedIds }
 
 /** What is appended: the id and time are added. */
 export interface EventInput {
@@ -75,6 +75,15 @@ export function readEvents(file: string): WbEvent[] {
   return read(file).events
 }
 
+// A log from before the marks were named received and handled (0.10 and older) is converted once,
+// the first time anything reads it: each old mark gets its new type, and nothing else changes.
+const RENAMED: Record<string, string> = { 'whiteboard:taken': RECEIVED, 'whiteboard:picked': HANDLED }
+const OLD_MARKS = Object.keys(RENAMED).map(type => Buffer.from(`"type":"${type}"`))
+
+function convert(file: string) {
+  rewrite(file, e => (RENAMED[e.type] ? { ...e, type: RENAMED[e.type] } : e))
+}
+
 /**
  * The events in the log, and the byte offset they end at: after its last whole line. A line still
  * being written is left out, and following from `end` gets it whole, so reading and then following
@@ -86,6 +95,14 @@ export function read(file: string): { events: WbEvent[]; end: number } {
     buf = fs.readFileSync(file)
   } catch {
     return { events: [], end: 0 }
+  }
+  if (OLD_MARKS.some(m => buf.includes(m))) {
+    convert(file)
+    try {
+      buf = fs.readFileSync(file)
+    } catch {
+      return { events: [], end: 0 }
+    }
   }
   const end = buf.lastIndexOf(0x0a) + 1
   return { events: parseLines(buf.subarray(0, end).toString('utf8')), end }
@@ -237,7 +254,7 @@ export function prune(file: string, page: string, which: (event: WbEvent) => boo
 
 /**
  * Change an agent's event in place (`whiteboard edit`): `data` is merged into its data; its id, time
- * and everything else stay, so what refers to it (a reply, a pick, a read) still does. Only an
+ * and everything else stay, so what refers to it (a reply, a mark, a read) still does. Only an
  * agent's own events (`from: cli`): what the reader sent stays as they sent it. Returns the event
  * as it is now.
  */
@@ -260,18 +277,18 @@ export function matches(event: WbEvent, { page, type, exact }: EventFilter = {})
   return true
 }
 
-// When an event is handed to an agent, a `whiteboard:taken` event naming it is appended; when the
-// agent acknowledges it, a `whiteboard:picked` (status.ts says what else counts as handled). The
+// When an agent receives an event, a `whiteboard:received` event naming it is appended; when the
+// agent is done with it, a `whiteboard:handled` (status.ts says what else counts as handled). The
 // log is the only record: pages and `status` read the same marks.
 
-/** Record that `event` was handed to an agent: taken, so no other wait takes it too. */
-export function take(file: string, event: WbEvent): WbEvent {
-  return appendEvent(file, { page: event.page, type: TAKEN, data: { event: event.id } }, 'cli')
+/** Record that an agent received `event`, so no other wait takes it too. */
+export function receive(file: string, event: WbEvent): WbEvent {
+  return appendEvent(file, { page: event.page, type: RECEIVED, data: { event: event.id } }, 'cli')
 }
 
-/** Record that the agent handled `event` (`whiteboard ack`): it is no longer handed out. */
-export function ack(file: string, event: WbEvent): WbEvent {
-  return appendEvent(file, { page: event.page, type: PICKED, data: { event: event.id } }, 'cli')
+/** Record that the agent handled `event` (`whiteboard handled`): it is no longer handed out. */
+export function handle(file: string, event: WbEvent): WbEvent {
+  return appendEvent(file, { page: event.page, type: HANDLED, data: { event: event.id } }, 'cli')
 }
 
 // ---- handing out ---------------------------------------------------------------------------------
@@ -303,23 +320,23 @@ export interface HandOutOptions {
   signal?: AbortSignal
   /**
    * Leave an event for now (the fallback: another listener would take it). A left event is looked
-   * at again each time `recheck` calls back, and handed out then if nobody picked it up meanwhile
+   * at again each time `recheck` calls back, and handed out then if nobody received it meanwhile
    * and it is no longer left.
    */
   skip?: (event: WbEvent) => boolean
   recheck?: (again: () => void) => void
   /**
-   * Hand out only what nobody took by the time it is offered (the fallback: an answer another
-   * listener took is not its, even when it sees it only after that one stopped listening). Without
-   * it (a wait or watch on a page), an answer taken before and not handled is handed out again.
+   * Hand out only what nobody received by the time it is offered (the fallback: an answer another
+   * listener received is not its, even when it sees it only after that one stopped listening). Without
+   * it (a wait or watch on a page), an answer received before and not handled is handed out again.
    */
-  untaken?: boolean
+  unreceived?: boolean
 }
 
 /**
- * Hand the reader's events that match `filter` to `onEvent`, each marked as taken once it is
+ * Hand the reader's events that match `filter` to `onEvent`, each marked received once it is
  * handed out. First the backlog: those the agent hasn't handled, also from before this started,
- * and also those taken before (`again` says so), unless `untaken`. Then, with `follow`, every new
+ * and also those received before (`again` says so), unless `unreceived`. Then, with `follow`, every new
  * one as it comes. The backlog and the following split the log at one line
  * boundary, so no event falls between them. Events an agent wrote are never handed out, and of the
  * plugins' events only those for an agent (`forAgent`), unless the filter asks for a type by name.
@@ -341,7 +358,7 @@ export function handOut(
     forAgent: isForAgent = forAgent(),
     skip,
     recheck,
-    untaken = false,
+    unreceived = false,
     batch = false,
   } = options
   return new Promise(resolve => {
@@ -354,12 +371,12 @@ export function handOut(
     }
     // the reader's events, and of those, the ones for an agent, unless the filter names a type
     const wanted = (e: WbEvent) => fromReader(e) && matches(e, filter) && (!!filter.type || isForAgent(e.type))
-    // what was taken before, by id: handed out again, it says so
+    // what was received before, by id: handed out again, it says so
     let before = new Set<string>()
     // false once enough were handed out
     const hand = (e: WbEvent) => {
       onEvent(e, before.has(e.id))
-      take(file, e)
+      receive(file, e)
       // onEvent may have aborted it (a hand-out over several logs that has enough)
       return ++got < count && !signal?.aborted
     }
@@ -367,10 +384,10 @@ export function handOut(
     const left = new Map<string, WbEvent>()
     // false once enough were handed out; a left event is kept to look at again
     const offer = (e: WbEvent) => {
-      // the log as it is now: a pick is appended right after the event it names
-      if (untaken) {
+      // the log as it is now: a mark is appended right after the event it names
+      if (unreceived) {
         const now = read(file).events
-        if (takenIds(now).has(e.id) || handledIds(now).has(e.id)) return true
+        if (receivedIds(now).has(e.id) || handledIds(now).has(e.id)) return true
       }
       if (skip?.(e)) {
         left.set(e.id, e)
@@ -381,9 +398,9 @@ export function handOut(
     if (count <= 0 || signal?.aborted) return finish()
     const { events, end } = read(file)
     const handled = handledIds(events)
-    before = takenIds(events)
+    before = receivedIds(events)
     for (const e of events) {
-      if (wanted(e) && !handled.has(e.id) && !(untaken && before.has(e.id)) && !offer(e)) return finish()
+      if (wanted(e) && !handled.has(e.id) && !(unreceived && before.has(e.id)) && !offer(e)) return finish()
     }
     // a batch: what there was, if anything; else it goes on for the first to come
     if (batch && got) return finish()
@@ -392,7 +409,7 @@ export function handOut(
     recheck?.(() => {
       if (!left.size || got >= count) return
       const now = read(file).events
-      const gone = new Set([...takenIds(now), ...handledIds(now)])
+      const gone = new Set([...receivedIds(now), ...handledIds(now)])
       for (const [id, e] of left) {
         if (gone.has(id)) {
           left.delete(id)

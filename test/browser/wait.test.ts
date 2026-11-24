@@ -1,5 +1,5 @@
 // `whiteboard wait`: everything the agent hasn't handled at once; an answer printed before and not
-// handled comes again, marked; ack (or a reply) handles it; one wait a page, unless --force, which
+// handled comes again, marked; `handled` (or a reply) handles it; one wait a page, unless --force, which
 // stops the first (exit 3).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -29,10 +29,10 @@ test('wait: a batch, again until handled, one wait a page', { timeout: 60000 }, 
     ],
     'all at once',
   )
-  assert.match(first.stderr, /handle these on p .*whiteboard ack a1 a2 c1/)
+  assert.match(first.stderr, /handle these on p .*whiteboard handled a1 a2 c1/)
   assert.match(first.stderr, /waiting for your reply on p: the chat talk/)
 
-  // not handled: they come again, marked; a reply in the chat handles its question, ack the others
+  // not handled: they come again, marked; a reply in the chat handles its question, `handled` the others
   assert.deepEqual(
     lines(proj.cli('wait', '--page', 'p')).map(e => [e.id, e.again]),
     [
@@ -42,11 +42,11 @@ test('wait: a batch, again until handled, one wait a page', { timeout: 60000 }, 
     ],
   )
   proj.cli('append', '--page', 'p', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'talk', text: 'yes' }))
-  proj.cli('ack', 'a1')
+  proj.cli('handled', 'a1')
   const third = proj.run(['wait', '--page', 'p'])
   assert.deepEqual(lines(third.stdout).map(e => e.id), ['a2'])
   assert.doesNotMatch(third.stderr, /waiting for your reply/)
-  proj.cli('ack', 'a2')
+  proj.cli('handled', 'a2')
 
   // one wait a page: a second is refused; with --force it takes over, and the first exits 3
   const one = proj.spawn('wait', '--page', 'p')

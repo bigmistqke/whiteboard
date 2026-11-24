@@ -12,9 +12,9 @@
 // - marks where the form stands, from the log and the listeners, with one of these attributes:
 //     data-wb-open      no answer yet, or the agent asks again (a wait asks for it by name after
 //                       its answer was handled)
-//     data-wb-pending   answered, but no agent has taken the answer yet
-//     data-wb-taken     a wait handed the answer to an agent, which hasn't handled it yet
-//     data-wb-decided   the agent handled its latest answer; data-wb-outcome quotes it in one line
+//     data-wb-pending   answered, but no agent has received the answer yet
+//     data-wb-received     a wait handed the answer to an agent, which hasn't handled it yet
+//     data-wb-handled   the agent handled its latest answer; data-wb-outcome quotes it in one line
 // and, for a few seconds after a send went through, `data-wb-just-sent`, to confirm it
 //
 // How that looks is the page's: it styles the attributes, and can follow `api.forms.on`. A form
@@ -252,7 +252,7 @@ async function onSubmit(e: SubmitEvent) {
 
 // What a sent answer came to, said beside the form's last send button, where the eye is when it is
 // pressed (a line over the form was out of view below a long list of options): `.wb-form-status`,
-// "waiting for the agent to pick it up", or `data-kind="bad"` "couldn't send it". Never what the
+// "waiting for an agent to receive it", or `data-kind="bad"` "couldn't send it". Never what the
 // button says already (sendState): nothing while sending, no "sent".
 const sendButtons = (form: HTMLFormElement) =>
   [...form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input[type=submit]')].filter(
@@ -266,8 +266,8 @@ function showStatus(form: HTMLFormElement) {
       : form.dataset.wbState === 'sending'
         ? null
         : form.hasAttribute('data-wb-pending')
-          ? (['waiting for the agent to pick it up', null] as const)
-          : form.hasAttribute('data-wb-taken')
+          ? (['waiting for an agent to receive it', null] as const)
+          : form.hasAttribute('data-wb-received')
             ? (['the agent has it', null] as const)
             : null
   let el = form.querySelector<HTMLElement>('.wb-form-status')
@@ -284,8 +284,8 @@ function showStatus(form: HTMLFormElement) {
 const ATTR: Record<FormState, string> = {
   open: 'data-wb-open',
   pending: 'data-wb-pending',
-  taken: 'data-wb-taken',
-  decided: 'data-wb-decided',
+  received: 'data-wb-received',
+  handled: 'data-wb-handled',
 }
 
 /** One line quoting an answer: what was chosen, then what was written. */
@@ -329,7 +329,7 @@ function mark() {
     const name = form.getAttribute('name')!
     const { state, last } = questionState(name, api.events(), listening, api.marks)
     for (const st of STATES) form.toggleAttribute(ATTR[st], st === state)
-    if (state === 'decided') form.dataset.wbOutcome = outcome(last!.data, last!.action)
+    if (state === 'handled') form.dataset.wbOutcome = outcome(last!.data, last!.action)
     else delete form.dataset.wbOutcome
     showStatus(form)
     return { form, name, state, last }

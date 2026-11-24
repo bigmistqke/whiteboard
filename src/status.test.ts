@@ -19,37 +19,37 @@ const answer = event('a1', 'pick')
 const newer = event('a2', 'pick')
 const reply = event('r1', 'pick', 'cli')
 
-// [what it is, events, listeners, picked up, expected]
+// [what it is, events, listeners, handled, expected]
 const cases: [string, WbEvent[], Listener[], string[], string][] = [
   ['no answer, nobody listening: it waits for the reader', [], [], [], 'open'],
   ['no answer, a wait for it', [], [wait('pick')], [], 'open'],
   ['no answer, only the fallback', [], [{ page: '', type: null, command: 'watch', fallback: true }], [], 'open'],
-  ['answered, not picked up', [answer], [], [], 'pending'],
+  ['answered, not received', [answer], [], [], 'pending'],
   ['answered, a wait for any answer about to pick it up', [answer], [wait(null)], [], 'pending'],
-  ['answered and picked up', [answer], [], ['a1'], 'decided'],
-  ['picked up, and a wait asks for it again: the agent wants a new answer', [answer], [wait('pick')], ['a1'], 'open'],
-  ['picked up, a wait for any answer: not asked again', [answer], [wait(null)], ['a1'], 'decided'],
+  ['answered and received', [answer], [], ['a1'], 'handled'],
+  ['received, and a wait asks for it again: the agent wants a new answer', [answer], [wait('pick')], ['a1'], 'open'],
+  ['received, a wait for any answer: not asked again', [answer], [wait(null)], ['a1'], 'handled'],
   [
-    'picked up, the fallback asks for it by name: it asks nobody again',
+    'received, the fallback asks for it by name: it asks nobody again',
     [answer],
     [{ page: '', type: 'pick', command: 'watch', fallback: true }],
     ['a1'],
-    'decided',
+    'handled',
   ],
-  ['a newer answer, not picked up yet', [answer, newer], [], ['a1'], 'pending'],
+  ['a newer answer, not received yet', [answer, newer], [], ['a1'], 'pending'],
   ["an agent's event of its name is no answer", [reply], [], [], 'open'],
-  ["an agent's event after the answer does not hide it", [answer, reply], [], ['a1'], 'decided'],
+  ["an agent's event after the answer does not hide it", [answer, reply], [], ['a1'], 'handled'],
 ]
 
 for (const [what, events, listeners, picked, expected] of cases) {
   test(`questionState: ${what}`, () => {
-    const marks = { taken: (id: string) => picked.includes(id), handled: (id: string) => picked.includes(id) }
+    const marks = { received: (id: string) => picked.includes(id), handled: (id: string) => picked.includes(id) }
     assert.equal(questionState('pick', events, listeners, marks).state, expected)
   })
 }
 
 test('questionState gives the latest answer', () => {
-  assert.equal(questionState('pick', [answer, newer, reply], [], { taken: () => false, handled: () => false }).last?.id, 'a2')
+  assert.equal(questionState('pick', [answer, newer, reply], [], { received: () => false, handled: () => false }).last?.id, 'a2')
 })
 
 const page = (over: Partial<PageStatus>): PageStatus => ({
@@ -62,7 +62,7 @@ const page = (over: Partial<PageStatus>): PageStatus => ({
   open: [],
   unheard: [],
   unread: [],
-  unpicked: [],
+  unreceived: [],
   unhandled: [],
   awaitingReply: [],
   listeners: [],
@@ -70,9 +70,9 @@ const page = (over: Partial<PageStatus>): PageStatus => ({
 })
 
 test('statusLines: what is open, the command once, then what an agent waits on', () => {
-  const p = page({ open: ['a', 'b'], unheard: ['a'], unpicked: [answer, newer] })
+  const p = page({ open: ['a', 'b'], unheard: ['a'], unreceived: [answer, newer] })
   assert.deepEqual(statusLines(p, 'p.md'), [
-    '2 answers no agent took (pick)',
+    '2 answers no agent received (pick)',
     'nobody listens for a',
     '→ whiteboard wait --page p.md',
     'waiting for the reader: b',
@@ -154,7 +154,7 @@ test('projectStatus: per page from the log and who listens; picked marks and whe
   const events = [
     at('c1', 'plan', 'whiteboard:claim', '1', { from: 'cli', data: { session: 's1' } }),
     at('a1', 'plan', 'pick', '2'),
-    at('p1', 'plan', 'whiteboard:picked', '3', { from: 'cli', data: { event: 'a1' } }),
+    at('p1', 'plan', 'whiteboard:handled', '3', { from: 'cli', data: { event: 'a1' } }),
     at('a2', 'notes', 'pick', '4'),
     at('m1', 'notes', 'chat:message', '5', { from: 'cli' }),
     at('x1', 'notes', 'comments:new', '6'),
@@ -171,11 +171,11 @@ test('projectStatus: per page from the log and who listens; picked marks and whe
   })
   const [plan, notes] = s.pages
   assert.deepEqual(
-    [plan!.owner, plan!.questions, plan!.open, plan!.unheard, plan!.unpicked.length],
+    [plan!.owner, plan!.questions, plan!.open, plan!.unheard, plan!.unreceived.length],
     [
       's1',
       [
-        { name: 'pick', state: 'decided' },
+        { name: 'pick', state: 'handled' },
         { name: 'other', state: 'open' },
       ],
       ['other'],
@@ -184,9 +184,9 @@ test('projectStatus: per page from the log and who listens; picked marks and whe
     ],
   )
   assert.deepEqual(
-    [notes!.owner, notes!.open, notes!.unpicked.map(e => e.id), notes!.unread.map(e => e.id), awaiting(notes!)],
+    [notes!.owner, notes!.open, notes!.unreceived.map(e => e.id), notes!.unread.map(e => e.id), awaiting(notes!)],
     [null, [], ['a2'], ['m1'], 1],
-    "notes: answered, not picked up (comments:new isn't for an agent), one unread message",
+    "notes: answered, not received (comments:new isn't for an agent), one unread message",
   )
   assert.deepEqual([...s.handled], ['a1'])
   assert.equal(s.lastAnswered('notes'), '6', 'the reader’s last event, of any type')

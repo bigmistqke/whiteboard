@@ -48,7 +48,7 @@ one shared server serves, and that server's state folder (see Entries):
 <repo>/.whiteboard/
   config.ts     optional: defineConfig({ name, plugins, style, files }), only what differs
   pages/        the project's pages, served at /<page>
-  events.ndjson the project's events: form submits, threads, comments, and what agents took and handled
+  events.ndjson the project's events: form submits, threads, comments, and what agents received and handled
   token         the secret for what runs code (the terminal)
   server.json   the port and process of the project's running server
   server.log    that server's output
@@ -251,16 +251,20 @@ that has submits in the log stays taken after its page is deleted, so a new
 page never inherits the answers of an old one.
 
 `whiteboard wait` and `watch` hand out the reader's events without the agent
-keeping track, and an event isn't done because it was printed. Handing one
-out marks it *taken* (a `whiteboard:taken` event naming it), so no other
-wait or watch takes it too. It is *handled* once the agent acted on it:
-acknowledged (`whiteboard ack`, a `whiteboard:picked` naming it; older logs
-wrote that on printing, so their answers stay handled), or replied to after
-it: an event of the agent's whose `replyTo` is the event or its thread, or
+keeping track, and an event isn't done because it was printed. An event
+an agent is handed is *not received*, then *received* once an agent has it (a
+`whiteboard:received` event naming it: a wait or watch that printed it, or
+the agent saying so), so no other wait or watch takes it too, and *handled*
+once the agent is done with it: it said so (`whiteboard handled`, a
+`whiteboard:handled` naming it), or replied to it after it: an event of the agent's whose `replyTo` is the event or its thread, or
 whose `chat` is its chat or, for a form's answer, the form's name
-(`handledIds` in `src/status.ts`). The log is the only record. A wait on a
+(`handledIds` in `src/status.ts`). The log is the only record. The marks
+were once called taken and picked (`whiteboard:taken`, `whiteboard:picked`);
+"acknowledge" read as received while it meant handled, so they were renamed,
+and a log with the old names is converted once, the first time it is read
+(`read` in `src/events.ts`). A wait on a
 page returns every matching event not handled, also those from before it
-started and those taken before (marked `again`), at once, or with none,
+started and those received before (marked `again`), at once, or with none,
 the first to come; then it says what is left on the page: answers to
 handle, chats whose last message is the reader's, questions unanswered.
 This came from an agent that lost answers: printed meant done, so a wait
@@ -272,9 +276,9 @@ event falls between them, not even one being written as the command starts.
 
 This is handing out (`handOut` in `src/events.ts`), and it is built only
 from the log's primitives: read the log (to the end of its last whole
-line), follow it from an offset, append to it, and mark an event taken or
+line), follow it from an offset, append to it, and mark an event received or
 handled. Each primitive is a command too (`events`, `events --follow`,
-`append`, `ack`) and a module (`@bigmistqke/whiteboard/log`), so an agent or
+`append`, `handled`) and a module (`@bigmistqke/whiteboard/log`), so an agent or
 a script can use the log in a way whiteboard doesn't offer, without writing
 a plugin. A plugin's command hands
 out through `ctx.handOut`, the same function.
@@ -564,11 +568,11 @@ Whiteboard's one interaction primitive, so the core's, on every page
 - **Where each stands.** Every form gets one of four attributes, from the
   log: `data-wb-open` when it has no answer, or when a listener asks for it
   by name after its answer was handled (the agent wants a new answer);
-  `data-wb-pending` when it is answered but no `wait` or `watch` took the
-  answer; `data-wb-taken` once one did and the agent hasn't handled it
-  ("the agent has it"); `data-wb-decided` once it did, with
-  `data-wb-outcome` quoting the answer in one line (the core marks events
-  `taken` and `handled` as the log says). The states are
+  `data-wb-pending` when it is answered but no agent received the answer;
+  `data-wb-received` once one did and hasn't handled it ("the agent has
+  it"); `data-wb-handled` once it did; with either of the last two,
+  `data-wb-outcome` quotes the answer in one line (the core marks events
+  `received` and `handled` as the log says). The states are
   marked again when the log, the listeners or the page change, and
   `api.forms` gives them to the page and plugins, for drawing more than the
   attributes allow.
@@ -615,7 +619,7 @@ own events, and the page and plugins can tell the two sides apart.
 
 Event types share one namespace, so a colon is reserved: a form's name
 has none, and every other type is named after its owner, `<owner>:<what>`.
-That is whiteboard itself (`whiteboard:claim`, `whiteboard:picked`) or a
+That is whiteboard itself (`whiteboard:claim`, `whiteboard:handled`) or a
 plugin (`chat:message`, `comments:new`, `comments:reply`,
 `comments:resolve`), so a form's answers never mix with their events.
 A form whose name has a colon is not a question: the form block shows
@@ -735,7 +739,7 @@ agent forgetting a wait is caught from outside it:
 
 - **Questions.** A question is a named form, so the pages say which a page
   asks: `questions(page)` returns their event types. Where each stands
-  (open, pending, decided; see Named forms) is one function,
+  (open, pending, received, handled; see Named forms) is one function,
   `questionState` in `src/status.ts`, which the server and the page both
   use, so `whiteboard status` and the page never disagree. A question is
   open while it waits for the reader: it has no answer, or a running wait
@@ -749,7 +753,7 @@ agent forgetting a wait is caught from outside it:
 - **Status.** `/api/status` and `whiteboard status` give, per page: its open
   questions, those no listener covers (unheard), the agent's messages the
   reader hasn't read, the reader's events for an agent (see Events) no wait
-  or watch took, those taken and not handled, the chats whose last message
+  received, those received and not handled, the chats whose last message
   is the reader's, its listeners and its claim. Across pages it is the
   agent's inbox. What waits for the
   reader on a page (`awaiting`) is its open questions and unread messages.
@@ -759,16 +763,16 @@ agent forgetting a wait is caught from outside it:
   `CLAUDE_CODE_SESSION_ID`, and adds `whiteboard claude-code hook
   stop|prompt|session`, which Claude Code runs (`whiteboard claude-code
   install` adds them). `stop`: when a turn ends with questions on the
-  session's pages nobody listens for (or answers no wait took), the
+  session's pages nobody listens for (or answers no agent received), the
   turn goes on once, with that as the reason, so the agent starts its wait;
   a turn a hook already continued (`stop_hook_active`) ends, and the reader
   sees what is open. An earlier version only showed the reader, and agents
   kept forgetting to wait again: the reader saw the warning, the agent
   didn't. `wait` itself also says, on stderr with the answer it hands out,
   what is still unanswered on the page and the command to wait again. `prompt` and `session` give the agent,
-  as context, the answers on its pages nobody took, and count them as
-  taken (a `whiteboard:taken` event each), and name those taken and not
-  handled and the chats waiting for its reply; `session` also lists what is
+  as context, the answers on its pages no agent received, and count them as
+  received (a `whiteboard:received` event each), and name those received and
+  not handled and the chats waiting for its reply; `session` also lists what is
   open on other sessions' pages, without handing it over. A plugin's
   command gets the status and handing out from the core (`ctx.status()`,
   `ctx.handOut()`); the hooks hand out only the session's own pages, not
@@ -894,10 +898,11 @@ interface above; in the browser, the page module (`src/client/page/`).
    only what was left behind.
 7. Shows what waits for the reader: open questions and unread messages. An
    open form is outlined (without a label: one laid into the form landed on
-   its content in some layouts), a decided one folds
-   into a card the page puts in it: what was chosen (with several answers,
-   the button as title and each answer a line), what was written, "decided
-   · change" (a click on the card opens the form again). Its chat folds into
+   its content in some layouts), one an agent received folds
+   into a card the page puts in it, since it is no longer the reader's to
+   do: what was chosen (with several answers, the button as title and each
+   answer a line), what was written, "received · change" while the agent is
+   on it and "decided · change" once it handled it (a click on the card opens the form again). Its chat folds into
    "💬 n messages", opened by a click, by an unread message from the agent,
    and kept open while its box has the focus or unsent text. It used to be
    drawn in CSS around the form, which couldn't be laid out. Two toasts in

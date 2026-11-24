@@ -63,8 +63,8 @@ export interface IndexPage {
   open: string[]
   /** the agent's messages on it the reader hasn't read */
   unread: number
-  /** the reader's answers no agent picked up */
-  unpicked: number
+  /** the reader's answers no agent received */
+  unreceived: number
 }
 
 /** A project, as /api/index gives it. */
@@ -227,7 +227,7 @@ export function createHub({
             mtime: mtimeOf(p.file),
             open: p.open,
             unread: p.unread.length,
-            unpicked: p.unpicked.length,
+            unreceived: p.unreceived.length,
           }))
           .toSorted((a, b) => b.mtime - a.mtime)
         return { ...at, pages, active: pages[0]?.mtime ?? 0 }

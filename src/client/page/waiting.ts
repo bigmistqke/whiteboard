@@ -1,6 +1,6 @@
 // How the page shows what waits for the reader: its open questions and the agent's messages they
-// haven't read (status.ts). The core marks each named form with where it stands (open, pending,
-// decided; see `api.forms.on`); the page styles those marks (base.css), folds a decided form into
+// haven't read (status.ts). The core marks each named form with where it stands (open, pending, received,
+// handled; see `api.forms.on`); the page styles those marks (base.css), folds a handled form into
 // one line quoting its answer, counts them in the tab title, and puts two toasts in the page's corner, "→ unanswered (n)" for the questions and "→ unread
 // (n)" for the messages, each going from one to the next; the second has a ✕ that puts it away
 // until another message comes. A message is found on the page by its
@@ -18,7 +18,7 @@ let api: Api
 let forms: FormStatus[] = []
 
 // forms the reader opened again to change their answer, by name, with the answer they opened:
-// they stay open until a newer answer is decided
+// they stay open until a newer answer is handled
 const reopened = new Map<string, string>()
 
 const inState = (state: FormState) => forms.filter(f => f.state === state && f.form.isConnected).map(f => f.form)
@@ -58,7 +58,7 @@ let unreadShown = false
 // stay unread (the tab title still counts them)
 let dismissed: Set<string> | null = null
 
-// A decided form folds into a card: what was chosen, what was written under it (a few lines), and
+// A handled form folds into a card: what was chosen, what was written under it (a few lines), and
 // "decided · change" (a click on the card opens the form again). Its chat folds too, into
 // "💬 n messages", opened by a click; a message from the agent the reader hasn't read opens it, and
 // it stays open once read, until the reader folds it, so a reply never hides in the fold. The card is the page's, put back in the
@@ -118,8 +118,8 @@ function card(form: HTMLFormElement, name: string, last: WbEvent) {
 function show(list: FormStatus[] = forms) {
   forms = list
   for (const { form, name, state, last } of forms) {
-    if (last && reopened.has(name) && reopened.get(name) !== last.id && state === 'decided') reopened.delete(name)
-    const folded = state === 'decided' && !reopened.has(name)
+    if (last && reopened.has(name) && reopened.get(name) !== last.id && state === 'handled') reopened.delete(name)
+    const folded = state === 'handled' && !reopened.has(name)
     form.toggleAttribute('data-wb-folded', folded)
     if (folded && last) card(form, name, last)
     else {
@@ -264,7 +264,7 @@ export function trackWaiting(root: HTMLElement, core: Api) {
       if (fallback)
         api.toast('Sent · to the fallback agent', {
           name: 'sent',
-          details: 'No agent waits on this page, so the fallback agent picks it up.',
+          details: 'No agent waits on this page, so the fallback agent receives it.',
         })
       else
         api.toast('Sent · no agent listening', {

@@ -407,7 +407,7 @@ test("status counts the reader's events for an agent: answers and declared ones,
   await post('votes:up')
   await post('chat:message', { chat: 'talk', text: 'hi' }) // the chat plugin declares it handOut
   await post('pick', { x: 'A' })
-  const types = (await server.status('q'))[0]!.unpicked.map(e => e.type)
+  const types = (await server.status('q'))[0]!.unreceived.map(e => e.type)
   assert.deepEqual(types.sort(), ['chat:message', 'pick'])
 })
 
