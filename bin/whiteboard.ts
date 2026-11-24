@@ -868,6 +868,15 @@ switch (cmd) {
             ...options,
             forAgent: forAgent((await projectConfig(project)).handedOut),
           }),
+        listen: (page, { onReplaced } = {}) =>
+          new Promise(resolve => {
+            void listen({
+              at: () => ensureServer().catch(() => null),
+              query: { command: 'watch', page: pageId(project, page) },
+              onRefused: refused => resolve({ refused }),
+              onReplaced: () => onReplaced?.(),
+            }).then(() => resolve({}))
+          }),
         authLink: async to =>
           `${await ensureServer()}/_/auth?token=${encodeURIComponent(projectToken(project.wb))}&to=${encodeURIComponent(to)}`,
       })

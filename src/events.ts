@@ -331,6 +331,11 @@ export interface HandOutOptions {
    * it (a wait or watch on a page), an answer received before and not handled is handed out again.
    */
   unreceived?: boolean
+  /**
+   * Mark each as received once handed out (default true). Without, the receiver marks it itself
+   * once it has it (a channel: when the agent confirms it got the message).
+   */
+  mark?: boolean
 }
 
 /**
@@ -360,6 +365,7 @@ export function handOut(
     recheck,
     unreceived = false,
     batch = false,
+    mark = true,
   } = options
   return new Promise(resolve => {
     let got = 0
@@ -376,7 +382,7 @@ export function handOut(
     // false once enough were handed out
     const hand = (e: WbEvent) => {
       onEvent(e, before.has(e.id))
-      receive(file, e)
+      if (mark) receive(file, e)
       // onEvent may have aborted it (a hand-out over several logs that has enough)
       return ++got < count && !signal?.aborted
     }

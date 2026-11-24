@@ -309,8 +309,15 @@ export interface CommandContext {
   handOut(
     filter: { page?: string | null; type?: string | null; exact?: boolean },
     onEvent: (event: WbEvent, again: boolean) => void,
-    options?: { count?: number; follow?: boolean; signal?: AbortSignal; unreceived?: boolean },
+    options?: { count?: number; follow?: boolean; signal?: AbortSignal; unreceived?: boolean; mark?: boolean },
   ): Promise<number>
+  /**
+   * Listen on `page` at the project's server, as a `watch` does, for as long as the command runs: the
+   * page and `whiteboard status` show that someone listens. One listener a page: resolves once the
+   * server holds it, or with the reason it refused (another wait holds the page). `onReplaced`: a
+   * `wait --force` took the page over, and this no longer listens.
+   */
+  listen(page: string, options?: { onReplaced?: () => void }): Promise<{ refused?: string }>
 }
 
 /** What is open on one page. */
