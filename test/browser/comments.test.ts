@@ -85,8 +85,9 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
     JSON.stringify({ replyTo: comment.id, text: 'and also\nthis' }),
   )
   const toast = page.locator('[data-toast=unread]')
+  const count = () => toast.locator('.wb-toast-text').textContent()
   await toast.waitFor({ state: 'visible' })
-  assert.equal(await toast.textContent(), '→ unread (1)')
+  assert.equal(await count(), '→ unread (1)')
   assert.ok(await page.$eval('.wb-comment-badge', b => b.hasAttribute('data-unread')), 'a dot on the badge')
   proj.cli(
     'append',
@@ -97,9 +98,26 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
     '--data',
     JSON.stringify({ replyTo: comment.id, text: 'one **more**' }),
   )
-  await until('the count goes up', async () => (await toast.textContent()) === '→ unread (2)' || null)
+  await until('the count goes up', async () => (await count()) === '→ unread (2)' || null)
   await page.waitForTimeout(7500)
   assert.ok(await toast.isVisible(), 'it stays')
+  // its ✕ puts it away, the replies still unread; it comes back with the next one
+  await toast.locator('.wb-toast-dismiss').click()
+  await toast.waitFor({ state: 'hidden' })
+  await page.waitForTimeout(1300)
+  assert.ok(await toast.isHidden(), 'it stays away')
+  assert.ok(await page.$eval('.wb-comment-badge', b => b.hasAttribute('data-unread')), 'still unread')
+  proj.cli(
+    'append',
+    '--page',
+    'q',
+    '--type',
+    'comments:reply',
+    '--data',
+    JSON.stringify({ replyTo: comment.id, text: 'last one' }),
+  )
+  await toast.waitFor({ state: 'visible' })
+  assert.equal(await count(), '→ unread (3)')
   await toast.click()
   await page.waitForSelector('.wb-thread:not(.wb-comment-new)', { state: 'visible' })
   // a message is markdown, shown as such once the server rendered it
@@ -112,7 +130,7 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
       proj
         .events()
         .filter(e => e.type === 'whiteboard:read')
-        .flatMap(e => e.data.ids).length === 3 || null,
+        .flatMap(e => e.data.ids).length === 4 || null,
   )
   assert.ok(await page.$eval('.wb-comment-badge', b => !b.hasAttribute('data-unread')), 'no dot once read')
   // read stays read across a reload

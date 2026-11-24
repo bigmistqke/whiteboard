@@ -3,7 +3,8 @@
 // decided; see `api.forms.on`); the page styles those marks (base.css), folds a decided form into
 // one line quoting its answer, sums them up in a line above the page, counts them in the tab title,
 // and puts two toasts in the page's corner, "→ unanswered (n)" for the questions and "→ unread
-// (n)" for the messages, each going from one to the next. A message is found on the page by its
+// (n)" for the messages, each going from one to the next; the second has a ✕ that puts it away
+// until another message comes. A message is found on the page by its
 // element (`data-wb-message`), or, when it isn't shown, by the element that holds it
 // (`data-wb-holds`: a comment's badge), which is sent `wb-reveal` to show it. Arriving by a link that
 // ends in `#wb-waiting` (the header's menu, the overview), the page goes to the first. An answer no
@@ -68,6 +69,9 @@ let waitingToast: Toast
 let unreadToast: Toast
 let toastTimer = 0
 let unreadShown = false
+// closed by its ✕: the messages unread then, by id. The toast stays away until one more comes; they
+// stay unread (the summary and the tab still count them)
+let dismissed: Set<string> | null = null
 
 // A decided form folds into a card: what was chosen, what was written under it (a few lines), and
 // "decided · change" (a click on the card opens the form again). Its chat folds too, into
@@ -163,7 +167,10 @@ function show(list: FormStatus[] = forms) {
   // the agent's messages: a toast while there are any. It comes a moment late: a message that
   // arrives in view (an open thread) is read before it would show.
   clearTimeout(toastTimer)
-  if (!unread) unreadToast.hide()
+  const ids = api.unread().map(e => e.id)
+  if (dismissed && (!unread || ids.some(id => !dismissed!.has(id)))) dismissed = null
+  if (dismissed) unreadToast.hide()
+  else if (!unread) unreadToast.hide()
   else if (unreadShown) unreadToast.update(`→ unread (${unread})`)
   else
     toastTimer = window.setTimeout(() => {
@@ -231,7 +238,16 @@ export function trackWaiting(root: HTMLElement, core: Api) {
   main = root
   api = core
   waitingToast = api.toast('', { ms: 0, name: 'waiting', order: -2, onClick: () => jump('open') })
-  unreadToast = api.toast('', { ms: 0, name: 'unread', order: -1, onClick: () => jump('messages') })
+  unreadToast = api.toast('', {
+    ms: 0,
+    name: 'unread',
+    order: -1,
+    onClick: () => jump('messages'),
+    onDismiss: () => {
+      dismissed = new Set(api.unread().map(e => e.id))
+      unreadShown = false
+    },
+  })
   waitingToast.hide()
   unreadToast.hide()
   main.before(summary)

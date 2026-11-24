@@ -551,7 +551,8 @@ Not started.
   it again. Its chat folds into "💬 n messages", and opens when the agent
   writes there, or stays open while you are writing in it. A line above the page counts all this, the corner's
   toasts go to the next question ("→ unanswered (n)") and the next
-  unread message ("→ unread (n)"), and the tab title gets a `(!n)` prefix. An answer sent while no agent
+  unread message ("→ unread (n)", whose ✕ puts it away until another
+  comes), and the tab title gets a `(!n)` prefix. An answer sent while no agent
   listens says so in a toast; it stays in the log for the next agent that
   checks.
 - **Whether an agent listens.** The dot at the end of the header is green
