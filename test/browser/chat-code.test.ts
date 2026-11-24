@@ -200,3 +200,63 @@ test(
     assert.ok(got.barInside >= 0, `the scrollbar is inside the block (${got.barInside}px)`)
   },
 )
+
+test(
+  'in a chat message a code block is measured: one that scrolls is marked so, one that fits not, both their full height',
+  { timeout: 60000 },
+  async t => {
+    const proj = await project({ pages: { c: '# A chat\n\n:::chat{name=talk}\n:::\n' } })
+    const { browser: b, page } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    await page.setViewportSize({ width: 700, height: 900 })
+    const text = [
+      'Short:',
+      '',
+      '```ts',
+      'const x = 1',
+      '```',
+      '',
+      'Long:',
+      '',
+      '```ts',
+      `const x = ${JSON.stringify(long)}`,
+      '```',
+      '',
+      'After.',
+    ].join('\n')
+    proj.cli('append', '--page', 'c', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'talk', text }))
+    await page.goto(proj.url('c'))
+    await until('the message', () =>
+      page
+        .locator('.wb-chat-bubble pre')
+        .count()
+        .then(n => n === 2 || null),
+    )
+    const blocks = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.wb-chat-bubble pre')].map(p => {
+        const code = p.querySelector('code')!
+        const cs = getComputedStyle(p)
+        return {
+          // measured (plugins/code/client.ts); whether its scrollbar takes space is
+          // webkit-scrollbar.test.ts's to check: headless Chromium draws none for overflow-x: scroll
+          overflow: code.dataset.overflow,
+          scrolls: code.scrollWidth > code.clientWidth,
+          // the block's height has its code's in it, scrollbar and all
+          short: Math.round(
+            code.offsetHeight +
+              parseFloat(cs.paddingTop) +
+              parseFloat(cs.paddingBottom) -
+              p.getBoundingClientRect().height,
+          ),
+        }
+      }),
+    )
+    assert.deepEqual(blocks, [
+      { overflow: 'false', scrolls: false, short: 0 },
+      { overflow: 'true', scrolls: true, short: 0 },
+    ])
+  },
+)

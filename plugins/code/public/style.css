@@ -26,8 +26,7 @@ pre.shiki {
 
 /* a long line scrolls the block sideways, wherever it is; a fence that says {wrap} wraps it. The
    code inside the block scrolls, not the block: WebKit sizes a block that scrolls sideways without
-   its scrollbar, so the bar ate into its height (a vertical scrollbar came with it), and in a column
-   of blocks what followed was placed over it */
+   its scrollbar, so the bar ate into its height (a vertical scrollbar came with it) */
 pre.shiki {
   white-space: pre;
   overflow-wrap: normal;
@@ -37,6 +36,16 @@ pre.shiki > code {
   display: block;
   overflow-x: auto;
   overflow-y: hidden;
+}
+/* the scrollbar chosen in advance, from measured overflow (client.ts): WebKit lays out an `auto`
+   scrollbar under a flex or grid ancestor after the ancestors, which keep the height they had
+   without it (https://github.com/block/buzz-app/pull/1677,
+   https://bugs.webkit.org/show_bug.cgi?id=51148) */
+pre.shiki > code[data-overflow='true'] {
+  overflow-x: scroll;
+}
+pre.shiki > code[data-overflow='false'] {
+  overflow-x: hidden;
 }
 pre.shiki[data-wrap] {
   white-space: pre-wrap;

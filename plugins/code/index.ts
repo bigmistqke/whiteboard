@@ -102,6 +102,9 @@ export default function code(options: Options = {}): Plugin {
   return definePlugin({
     name: 'code',
     public: builtinPublic('code'),
+    // measures whether each code block overflows, so its scrollbar is chosen in advance (client.ts:
+    // a WebKit layout bug)
+    setup: () => ({ client: 'client.js' }),
     blocks: {
       code: {
         // every code fence no other block claims by name, and the code view of repository files
