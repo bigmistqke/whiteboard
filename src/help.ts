@@ -27,6 +27,13 @@ export const COMMAND_HELP: Record<string, CommandHelp> = {
     summary: 'create a page under a name no other page has (name, name-2, …), print its path',
     details: 'Subfolders are fine (task/plan). The page is claimed by the session that ran it.',
   },
+  claim: {
+    usage: '<page|file>',
+    summary: "make an existing page this session's, as new does for a page it creates",
+    details: `For a page that was there before (one an earlier session made, or one made by hand): what is
+open on it is reported to this session from now on, and a Claude Code channel follows it. It says whose
+the page was, when it was another session's.`,
+  },
   show: {
     usage: '<page|file>',
     summary: "start this project's server if needed, print the page's URL",

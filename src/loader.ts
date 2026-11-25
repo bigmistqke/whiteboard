@@ -36,6 +36,7 @@ export const BUILTIN_COMMANDS = new Set([
   'init',
   'root',
   'new',
+  'claim',
   'show',
   'url',
   'docs',

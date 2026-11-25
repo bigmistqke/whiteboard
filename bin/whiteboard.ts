@@ -484,6 +484,32 @@ switch (cmd) {
     }
     break
   }
+  case 'claim': {
+    // an existing page made this session's, as `new` does for one it creates: one an earlier
+    // session made (a session taking over), or one written by hand. The last claim is the owner.
+    const target = positionals[0]
+    if (!target) throw new Error('usage: whiteboard claim <page|file>')
+    const proj = needProject()
+    const id = pageId(proj, target)
+    const file = path.join(proj.pagesDir, `${id}.md`)
+    if (!fs.existsSync(file) && !fs.existsSync(path.join(proj.pagesDir, id, 'index.md')))
+      throw new Error(`there is no page ${id}: \`whiteboard new ${id}\` makes one`)
+    const session = await currentSession(proj)
+    if (!session)
+      throw new Error(
+        'no session to claim it for: claim runs in an agent session a plugin names (claudeCode() and CLAUDE_CODE_SESSION_ID)',
+      )
+    let before: string | null = null
+    for (const e of readEvents(proj.eventsFile))
+      if (e.page === id && e.type === CLAIM) before = (e.data?.session as string | undefined) ?? null
+    if (before === session) {
+      console.log(`${id} is this session's already`)
+      break
+    }
+    appendEvent(proj.eventsFile, { page: id, type: CLAIM, data: { session } }, 'cli')
+    console.log(`claimed ${id} for this session${before ? ` (it was session ${before}'s)` : ''}`)
+    break
+  }
   case 'show':
   case 'url': {
     if (cmd === 'show' && !positionals[0]) throw new Error('usage: whiteboard show <page|file>')

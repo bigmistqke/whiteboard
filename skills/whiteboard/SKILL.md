@@ -317,7 +317,10 @@ answers received and not handled (with `whiteboard handled`), the chats
 waiting for a reply, and who is listening, with the `wait` command that
 takes them. It covers every page: it is your inbox. Pages are claimed by the session that ran
 `whiteboard new` for them, and `status` marks yours. Run it when you resume
-work, or when you're unsure what is still open.
+work, or when you're unsure what is still open. When the user hands you a
+page that already exists (an earlier session's, or one you take over), run
+`whiteboard claim <file>`: it becomes yours, as if you had made it, and a
+channel follows it. Never make a copy of it with `whiteboard new` instead.
 
 When `wait` hands you answers, it also says (on stderr) what is left on the
 page: answers to handle, chats waiting for your reply, questions still

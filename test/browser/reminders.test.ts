@@ -148,3 +148,28 @@ test(
     assert.equal(proj.run(['claude-code', 'install', 'everything']).status, 1)
   },
 )
+
+test(
+  'claim: an existing page made this session’s; again, or by another session, says so',
+  { timeout: 60000 },
+  async t => {
+    const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
+    const proj = await project({ config: CONFIG, pages: { board: `# Board\n\n${FORM('ask')}` } })
+    t.after(() => proj.close())
+    const claim = (session: string | null, page = 'board') =>
+      proj.run(['claim', page], { env: session ? { CLAUDE_CODE_SESSION_ID: session } : { CLAUDE_CODE_SESSION_ID: '' } })
+
+    assert.match(claim('first').stdout, /^claimed board for this session\n$/)
+    assert.match(proj.run(['status'], { env: { CLAUDE_CODE_SESSION_ID: 'first' } }).stdout, /board \(yours\)/)
+    assert.match(claim('first').stdout, /board is this session's already/)
+    assert.match(claim('second').stdout, /claimed board for this session \(it was session first's\)/)
+    assert.match(proj.run(['status'], { env: { CLAUDE_CODE_SESSION_ID: 'second' } }).stdout, /board \(yours\)/)
+
+    const none = claim('second', 'nothing')
+    assert.equal(none.status, 1)
+    assert.match(none.stderr, /there is no page nothing/)
+    const outside = claim(null)
+    assert.equal(outside.status, 1)
+    assert.match(outside.stderr, /no session to claim it for/)
+  },
+)
