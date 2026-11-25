@@ -881,10 +881,16 @@ interface above; in the browser, the page module (`src/client/page/`).
    is inserted before it rather than each block below being patched into the
    next, which replaced the field being typed in. Should the patch take the
    focus anyway, it is given back, with the caret where it was. And the
-   field being typed in stays where it is on screen (`hold.ts`): when
-   anything on the page changes around it (an update, a message arriving
-   above a chat's box, a thread growing) and it moved without the reader
-   scrolling, the page scrolls by as much.
+   reader's place stays where it is on screen (`place.ts`): the field being
+   typed in, else the innermost element at the top of the view. When
+   anything on the page changes or loads (an update, a chat message drawn
+   above the reader, a bubble's markdown, an island that mounts) and it
+   moved without the reader scrolling, the page scrolls by as much. This is
+   the browser's scroll anchoring done by the page, turned off in the
+   browser: WebKit has none, and Chromium's loses its anchor when a patch
+   replaces elements. A place in a block an update replaced is found again
+   in the new render by its path in the block. At the very top of the page
+   nothing is kept, so what comes in above shows.
    - **New content.** A top-level block whose content was not on the page
      the last time the reader saw it gets a red bar on its left. It counts as
      seen after it has been at least half in view for 0.6s with the tab

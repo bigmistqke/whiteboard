@@ -12,7 +12,7 @@ import { trackElsewhere } from './elsewhere'
 import { trackLive } from './live'
 import { applySorts, trackSorts } from './sort'
 import { trackSticky } from './sticky'
-import { trackHold } from './hold'
+import { beforeUpdate, trackPlace } from './place'
 import { trackWindows } from './window'
 import { trackOrphanThreads } from './orphans'
 import { html } from '../../html.ts'
@@ -284,35 +284,6 @@ function morph(html: string, sigs: { from: string[]; to: string[] }) {
   giveFocusBack(focus)
 }
 
-// The page keeps the reader's place itself: the browser's own scroll anchoring loses its anchor
-// when an update replaces elements, so it is turned off to keep the two from both correcting.
-document.documentElement.style.overflowAnchor = 'none'
-
-/**
- * The reader's place before an update: the first block in view that the update keeps (by
- * signature, and which of the blocks with that signature it is), and where it is on screen.
- */
-function placeOf(nextSigs: string[]) {
-  const keep = new Set(nextSigs)
-  const blocks = [...main.children]
-  for (let i = 0; i < blocks.length; i++) {
-    const sig = blockSigs[i]
-    if (!keep.has(sig) || blocks[i].getBoundingClientRect().bottom <= 0) continue
-    const nth = blockSigs.slice(0, i).filter(s => s === sig).length
-    return { sig, nth, top: blocks[i].getBoundingClientRect().top }
-  }
-  return null
-}
-
-/** Scroll so the block of `place` is where it was on screen. */
-function keepPlace(place: ReturnType<typeof placeOf>, sigs: string[]) {
-  if (!place) return
-  let seen = 0
-  const i = sigs.findIndex(s => s === place.sig && seen++ === place.nth)
-  const el = main.children[i]
-  if (el) window.scrollBy(0, el.getBoundingClientRect().top - place.top)
-}
-
 /** The new render of the page, patched in. */
 // the page is going (its own reload below, or the reader went elsewhere): a render still in flight is
 // cut off then, and its failure is not the page's
@@ -349,40 +320,23 @@ async function refresh() {
   }
   const content = new DOMParser().parseFromString(next.html, 'text/html').getElementById('wb-main')?.innerHTML ?? ''
   const nextSigs = signaturesOf(content)
-  const place = placeOf(nextSigs)
-  // what the reader is typing in stays where it is on screen, wherever the change is: measured now,
-  // and held once the update and what the plugins redraw on it are done
-  const focused =
-    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
-      ? document.activeElement
-      : null
-  const focusedTop = focused?.getBoundingClientRect().top
+  // the reader's place, found again if the update replaces it (what moves it later, as islands
+  // mount and plugins redraw, place.ts puts back as it happens)
+  const restorePlace = beforeUpdate(blockSigs, nextSigs)
   morph(content, { from: blockSigs, to: nextSigs })
   // a list the reader sorted comes back in the server's order: sorted again at once, before the
   // rest of the update, so it never shows unsorted
   applySorts()
-  keepPlace(place, nextSigs)
+  restorePlace()
   const updated = document.getElementById('wb-updated')
   if (updated && data.mtime) updated.dataset.ts = String(data.mtime)
   if (next.title) core.title(next.title)
   trackUpdate(main, blockSigs, nextSigs)
   blockSigs = nextSigs
   await mountIslands()
-  // islands that mounted just now can change the height of what is above the reader
-  keepPlace(place, nextSigs)
   tickTimes()
   // plugins put back what they add to the content
   api.rendered()
-  const now = document.activeElement
-  if (
-    focused &&
-    focusedTop != null &&
-    now instanceof HTMLElement &&
-    (now === focused || focused.isConnected === false)
-  ) {
-    const moved = now.getBoundingClientRect().top - focusedTop
-    if (Math.abs(moved) >= 1) scrollBy(0, moved)
-  }
 }
 
 let currentPage: PageHandle
@@ -423,7 +377,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
     core.onRendered(applySorts)
   }
   trackSticky(main, fn => core.onRendered(fn))
-  trackHold()
+  trackPlace(main)
   trackWindows(core)
   if (!isDir && handle.live) trackOrphanThreads(main, core)
   await mountIslands()
