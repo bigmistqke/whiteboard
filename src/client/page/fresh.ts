@@ -74,7 +74,7 @@ function loadSeen(): Set<string> | null {
 function saveSeen(main: HTMLElement) {
   try {
     const seen = [...main.children]
-      .filter(el => !unseen.has(el))
+      .filter(el => !unseen.has(el) && ![...unseen].some(u => el.contains(u)))
       .map(el => sigOf.get(el))
       .filter(Boolean)
     localStorage.setItem(storeKey, JSON.stringify(seen))
@@ -143,11 +143,27 @@ function markSeen(el: Element) {
   update()
 }
 
+/**
+ * An item in a list: its bar where the bars of blocks are, not in the list's indent by its bullet.
+ * Set inline, so set again after every update (which takes the page's style attributes back).
+ */
+function placeBar(el: Element) {
+  if (el.parentElement === mainEl || !mainEl?.contains(el)) return
+  const item = el as HTMLElement
+  let block: Element = el
+  while (block.parentElement && block.parentElement !== mainEl) block = block.parentElement
+  item.style.removeProperty('--wb-new-at')
+  const base = parseFloat(getComputedStyle(item).getPropertyValue('--wb-new-at')) || 14
+  const indent = item.getBoundingClientRect().left - block.getBoundingClientRect().left
+  item.style.setProperty('--wb-new-at', `${base + indent}px`)
+}
+
 function markNew(el: Element) {
   // a block that is quiet as a whole is never news
   if (el.matches('[data-wb-quiet]')) return
   el.classList.remove('wb-new-seen')
   el.classList.add('wb-new')
+  placeBar(el)
   unseen.add(el)
   scheduleCheck()
 }
@@ -251,19 +267,63 @@ export function trackInitial(main: HTMLElement, page: string, api: Api) {
   update()
 }
 
-/** After a live update: blocks whose content was not on the page before are new. */
+// ---- items --------------------------------------------------------------------------------------
+// A list is often one block (the overview's pages, a long list on a page): one item new in it would
+// mark the whole list. In a block that changed, the items whose content was not on the page before
+// are what is new, and only they are marked; the block only when no item of it is new (what changed
+// is outside its lists, or an item went).
+
+/** An item's signature: its content, not its own attributes (its place in a sort) nor the times shown in it. */
+function itemSignature(li: Element) {
+  const clone = li.cloneNode(true) as Element
+  for (const { name } of [...clone.attributes]) clone.removeAttribute(name)
+  for (const t of clone.querySelectorAll('time[data-ts]')) t.textContent = ''
+  return signature(clone)
+}
+
+/** The page's list items, but those in something quiet. */
+const itemsOf = (root: Element) => [...root.querySelectorAll('li')].filter(li => !li.closest('[data-wb-quiet]'))
+
+/** How many of each item signature are on the page: what the next update compares with. */
+let itemsBefore = new Map<string, number>()
+export function countItems(main: HTMLElement) {
+  mainEl = main
+  itemsBefore = new Map()
+  for (const li of itemsOf(main)) {
+    const sig = itemSignature(li)
+    itemsBefore.set(sig, (itemsBefore.get(sig) ?? 0) + 1)
+  }
+}
+
+/** The new items in a block that changed: the innermost ones, as an item new inside makes its parent differ too. */
+function newItems(block: Element, before: Map<string, number>) {
+  const fresh = itemsOf(block).filter(li => {
+    const sig = itemSignature(li)
+    const left = before.get(sig) ?? 0
+    if (left > 0) before.set(sig, left - 1)
+    return left === 0
+  })
+  return fresh.filter(li => !fresh.some(other => other !== li && li.contains(other)))
+}
+
+/** After a live update: blocks whose content was not on the page before are new, or in a list, the items. */
 export function trackUpdate(main: HTMLElement, previous: string[], next: string[]) {
   const before = new Map<string, number>()
   for (const s of previous) before.set(s, (before.get(s) ?? 0) + 1)
+  const items = new Map(itemsBefore)
   const blocks = [...main.children]
   blocks.forEach((el, i) => {
     const sig = next[i]
     sigOf.set(el, sig)
     const left = before.get(sig) ?? 0
-    if (left > 0) before.set(sig, left - 1)
+    if (left > 0) return before.set(sig, left - 1)
+    const fresh = newItems(el, items)
+    if (fresh.length) fresh.forEach(markNew)
     else markNew(el)
   })
+  countItems(main)
   for (const el of [...unseen]) if (!el.isConnected) unseen.delete(el)
+  for (const el of unseen) placeBar(el)
   saveSeen(main)
   update()
 }

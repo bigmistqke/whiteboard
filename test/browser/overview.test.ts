@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { browser, project } from './project.ts'
+import { browser, project, until } from './project.ts'
 
 test(
   'overview: documents show when they were updated, and sort by folder, last updated or title; the choice stays',
@@ -61,3 +61,24 @@ test(
     assert.deepEqual(errors, [])
   },
 )
+
+test('overview: when one page of the list changes, only its item is marked new', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { a: '# A\n', b: '# B\n', c: '# C\n' } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => {
+    await b.close()
+    await proj.close()
+  })
+  await page.goto(proj.url(''))
+  await page.waitForSelector('.wb-index li')
+  proj.page('b', '# B, changed\n')
+  await until('the change', () => page.$('text=B, changed'))
+  const marked = await until('a mark', async () => {
+    const m = await page.$$eval('#wb-main .wb-new', els =>
+      els.map(e => `${e.tagName} ${e.textContent!.trim().split('\n')[0]}`),
+    )
+    return m.length ? m : null
+  })
+  assert.deepEqual(marked, ['LI B, changed'])
+  assert.deepEqual(errors, [])
+})

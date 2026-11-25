@@ -899,7 +899,12 @@ interface above; in the browser, the page module (`src/client/page/`).
      page opened for the first time marks nothing, and neither does one
      where fewer than a quarter of the blocks are left from the last visit:
      it is effectively a new page, and marking all of it says nothing.
-     Content inside a `[data-wb-quiet]` element (the `quiet` block writes
+     In a block that changed in a live update and holds a list (the
+     overview's pages, a long list on a page), the items whose content was
+     not on the page before get the bar instead, lined up with the blocks'
+     bars; the block itself only when none of its items is new. An item's
+     own attributes (its place in a sort) and the times shown in it are not
+     its content. Content inside a `[data-wb-quiet]` element (the `quiet` block writes
      one) does not count: it can appear, change or go without marking its
      block, and a block that is quiet as a whole is never marked. It is for
      what changes without being news to the reader.

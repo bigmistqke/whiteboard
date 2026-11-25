@@ -5,7 +5,7 @@
 import morphdom from 'morphdom'
 import type { Api, PageHandle, PluginMount } from '../../define.ts'
 import type { ClientApi, Mount } from '../../define.ts'
-import { signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
+import { countItems, signature, signaturesOf, trackInitial, trackUpdate } from './fresh'
 import { currentTheme, setThemePreference, themePreference, type ThemePreference } from './theme'
 import { trackWaiting } from './waiting'
 import { trackElsewhere } from './elsewhere'
@@ -365,6 +365,7 @@ const mount: PluginMount = async (root: HTMLElement, handle: PageHandle, coreApi
   if (isDir) core.listeners.on(() => refresh())
 
   blockSigs = [...main.children].map(signature)
+  countItems(main)
   // what is new, what waits, what is elsewhere, whether it's live: the server's, not a built page's
   if (handle.live) {
     if (!isDir) trackInitial(main, page, core)
