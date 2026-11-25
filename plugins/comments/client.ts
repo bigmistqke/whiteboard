@@ -28,6 +28,8 @@ interface Thread {
   comment: WbEvent
   replies: WbEvent[]
   range: Range | null
+  /** its passage gone: the data it was found by, to place its badge where the passage was */
+  index?: ReturnType<typeof textIndex>
 }
 
 const CONTEXT = 32
@@ -130,6 +132,43 @@ function locate(index: ReturnType<typeof textIndex>, data: Record<string, unknow
   return range
 }
 
+/**
+ * Where a passage that is gone from the page was: right after the text that came before it, else
+ * right before the text that came after it (each found again only if long enough to tell apart),
+ * else the top of the block it was in. Where on screen, or null when nothing of there is left.
+ */
+function whereItWas(index: ReturnType<typeof textIndex>, data: Record<string, unknown>): number | null {
+  const at = (from: number, to: number, end: boolean) => {
+    const s = point(index, from, false),
+      e = point(index, to, true)
+    if (!s || !e) return null
+    const range = document.createRange()
+    range.setStart(s.node, s.offset)
+    range.setEnd(e.node, e.offset)
+    const rects = range.getClientRects()
+    const rect = end ? rects[rects.length - 1] : rects[0]
+    return rect ? rect.top : null
+  }
+  const before = String(data.before ?? '').trim(),
+    after = String(data.after ?? '').trim()
+  if (before.length >= 8) {
+    const i = index.text.indexOf(before)
+    if (i >= 0 && index.text.indexOf(before, i + 1) < 0) {
+      const top = at(i, i + before.length, true)
+      if (top != null) return top
+    }
+  }
+  if (after.length >= 8) {
+    const i = index.text.indexOf(after)
+    if (i >= 0 && index.text.indexOf(after, i + 1) < 0) {
+      const top = at(i, i + after.length, false)
+      if (top != null) return top
+    }
+  }
+  const block = typeof data.block === 'number' && data.block >= 0 ? main.children[data.block] : null
+  return block ? block.getBoundingClientRect().top : null
+}
+
 // ---- threads -----------------------------------------------------------------------------------
 
 function collect(): Thread[] {
@@ -143,6 +182,7 @@ function collect(): Thread[] {
       comment,
       replies: events.filter(e => e.type === REPLY && e.data.replyTo === comment.id),
       range: locate(index, comment.data),
+      index,
     }))
 }
 
@@ -163,8 +203,10 @@ function draw() {
   }
   const column = main.getBoundingClientRect()
   const unreadIds = new Set(api.unread().map(e => e.id))
+  // badges of passages gone from the page, by where they were: a second one at a place goes below
+  const detachedAt = new Map<number, number>()
   layer.replaceChildren(
-    ...threads.map((t, i) => {
+    ...threads.map(t => {
       const badge = document.createElement('button')
       badge.type = 'button'
       badge.className = 'wb-comment-badge'
@@ -177,8 +219,16 @@ function draw() {
       badge.title = unread ? 'the agent replied: unread' : lastFromAgent(t) ? 'the agent replied' : 'comment'
       badge.textContent = String(1 + t.replies.length)
       const rect = t.range?.getClientRects()[0]
-      // a passage that is gone from the page: its badge waits at the top, still open until closed
-      const top = rect ? rect.top + scrollY : column.top + scrollY + i * 30
+      // a passage that is gone from the page: its badge stays where the passage was (at the top, if
+      // nothing of there is left), still open until closed
+      let top: number
+      if (rect) top = rect.top + scrollY
+      else {
+        const was = Math.round((t.index ? whereItWas(t.index, t.comment.data) : null) ?? column.top)
+        const n = detachedAt.get(was) ?? 0
+        detachedAt.set(was, n + 1)
+        top = was + n * 30 + scrollY
+      }
       const left = Math.min(column.right + 8 + scrollX, document.documentElement.clientWidth - 36 + scrollX)
       badge.style.top = `${top}px`
       badge.style.left = `${left}px`

@@ -271,3 +271,43 @@ test('comments on lines of a diff: tinted lines, a drag over two, and where they
   assert.match((await page.textContent('.wb-thread:not(.wb-comment-new)')) ?? '', /src\/a\.ts:2 – src\/a\.ts:3/)
   assert.deepEqual(errors, [], 'no console errors')
 })
+
+test('a comment whose passage is gone waits where the passage was, not at the top', { timeout: 60000 }, async t => {
+  const filler = (n: number, word: string) => Array.from({ length: n }, (_, i) => `${word} ${i}.`).join('\n\n')
+  const before = 'This is the paragraph right before it.'
+  const page1 = `# Gone\n\n${filler(30, 'Top')}\n\n${before}\n\nThe passage that will go.\n\n${filler(20, 'End')}\n`
+  const proj = await project({ config: CONFIG, pages: { g: page1 } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => {
+    await b.close()
+    await proj.close()
+  })
+  proj.cli(
+    'append',
+    '--page',
+    'g',
+    '--type',
+    'comments:new',
+    '--data',
+    JSON.stringify({
+      quote: 'passage that will go',
+      before: `${before}\nThe `,
+      after: '.\nEnd 0.',
+      block: 32,
+      text: 'hm',
+    }),
+  )
+  await page.goto(proj.url('g'))
+  await until('the attached badge', () => page.$('.wb-comment-badge:not([data-detached])'))
+  proj.page('g', page1.replace('The passage that will go.\n\n', ''))
+  await until('the badge, detached', () => page.$('.wb-comment-badge[data-detached]'))
+  const { badge, was } = await page.evaluate(text => {
+    const p = [...document.querySelectorAll('#wb-main p')].find(p => p.textContent === text)!
+    return {
+      badge: parseFloat(document.querySelector<HTMLElement>('.wb-comment-badge')!.style.top),
+      was: p.getBoundingClientRect().top + scrollY,
+    }
+  }, before)
+  assert.ok(Math.abs(badge - was) < 30, `by the paragraph before it (${was}), not at ${badge}`)
+  assert.deepEqual(errors, [])
+})

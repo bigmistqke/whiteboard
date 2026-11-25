@@ -369,6 +369,7 @@ Then `whiteboard wait --page review`: it hands you the line comments
 as `chat`) and the verdict. For a comment or message, change the code or
 reply in its thread; after changing code, write the page again the same
 way, so each diff shows what the file is now (comments whose lines are gone
-stay open, marked as no longer on the page; a file's chat stays with its
-name). Add a line of explanation above a file's fence where it helps. Use
-four backticks for the fence, since a diff can hold three.
+stay open, marked as no longer on the page, beside where they were; a
+file's chat stays with its name). Add a line of explanation above a file's
+fence where it helps. Use four backticks for the fence, since a diff can
+hold three.
