@@ -96,7 +96,7 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
     '--type',
     'comments:reply',
     '--data',
-    JSON.stringify({ replyTo: comment.id, text: 'one **more**' }),
+    JSON.stringify({ replyTo: comment.id, text: 'one **more**\n\n```sh\ncd /a/path/that/goes/on/' + 'and-on-'.repeat(30) + '\n```' }),
   )
   await until('the count goes up', async () => (await count()) === '→ unread (2)' || null)
   await page.waitForTimeout(7500)
@@ -123,6 +123,14 @@ test('comments: comment, reply, a live edit, close', { timeout: 60000 }, async t
   // a message is markdown, shown as such once the server rendered it
   await page.waitForSelector('.wb-thread .wb-thread-text[data-md] strong')
   assert.match((await page.textContent('.wb-thread:not(.wb-comment-new)'))!, /one more/)
+  // a line too long to wrap scrolls in its code block; the thread keeps its width
+  assert.deepEqual(
+    await page.$eval('.wb-thread:not(.wb-comment-new)', t => {
+      const pre = t.querySelector('pre')!
+      return [t.scrollWidth <= t.clientWidth, pre.getBoundingClientRect().right <= t.getBoundingClientRect().right]
+    }),
+    [true, true],
+  )
   await toast.waitFor({ state: 'hidden' })
   await until(
     'the read is in the log',

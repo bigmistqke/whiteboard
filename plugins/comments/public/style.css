@@ -67,6 +67,8 @@
   padding: var(--space-xl) var(--space-xl);
   box-shadow: var(--shadow-pop);
   display: grid;
+  /* one column as wide as the thread: a line that can't wrap scrolls in its own block, not the thread */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-lg);
   font-size: var(--ui-text);
 }
@@ -79,6 +81,7 @@
   max-height: 6.5em;
   overflow: auto;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .wb-thread-detached {
   margin: 0;
@@ -87,6 +90,7 @@
 }
 .wb-thread-message {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2xs);
 }
 .wb-thread-who {
@@ -101,6 +105,7 @@
 }
 .wb-thread-text {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: var(--ui-line-height);
 }
 /* rendered from markdown: its paragraphs and code carry the spacing */
