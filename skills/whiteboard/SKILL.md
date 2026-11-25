@@ -239,6 +239,11 @@ it as listening. Without it, wait as below.
 
 Pass your page's file path as `--page`, so you only hear about your own
 page (`--page plan` also works, and includes the pages below `plan/`).
+With several pages, give `--page` once for each, in one wait
+(`whiteboard wait --page a.md --page b.md`): it listens on all of them and
+exits with the answers of any. Never watch pages by polling `whiteboard
+events` in a loop: that reads the log without listening, so the pages
+tell the user that no agent is listening and their answers wait.
 
 - `whiteboard wait --page <file>` prints every answer on the page you
   haven't handled yet, one line each, and exits; with none, it blocks until
@@ -277,7 +282,8 @@ page (`--page plan` also works, and includes the pages below `plan/`).
 - `whiteboard events --page <file> [--type <name>] [--last 1]` lists what was
   submitted so far, for when you need the history rather than the next
   answer. With `--follow` it then prints each new event as it comes, without
-  taking anything. Use these only for something `wait` doesn't do.
+  taking anything. Use these only for something `wait` doesn't do, never
+  to watch for answers.
 
 The page shows the user what waits for them: every question without an
 answer is outlined as waiting for them, and so is a message from you they

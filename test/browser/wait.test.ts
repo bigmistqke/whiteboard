@@ -12,12 +12,20 @@ test('wait: a batch, again until handled, one wait a page', { timeout: 60000 }, 
   t.after(() => proj.close())
   const log = path.join(proj.dir, '.whiteboard', 'events.ndjson')
   const answer = (id: string, data: Record<string, unknown> = {}, type = 'q') =>
-    fs.appendFileSync(log, JSON.stringify({ id, ts: new Date().toISOString(), page: 'p', type, action: 'Go', data }) + '\n')
+    fs.appendFileSync(
+      log,
+      JSON.stringify({ id, ts: new Date().toISOString(), page: 'p', type, action: 'Go', data }) + '\n',
+    )
   answer('a1')
   answer('a2')
   answer('c1', { chat: 'talk', text: 'a question' }, 'chat:message')
 
-  const lines = (out: string) => out.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+  const lines = (out: string) =>
+    out
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(l => JSON.parse(l))
   const first = proj.run(['wait', '--page', 'p'])
   assert.equal(first.status, 0)
   assert.deepEqual(
@@ -44,7 +52,10 @@ test('wait: a batch, again until handled, one wait a page', { timeout: 60000 }, 
   proj.cli('append', '--page', 'p', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'talk', text: 'yes' }))
   proj.cli('handled', 'a1')
   const third = proj.run(['wait', '--page', 'p'])
-  assert.deepEqual(lines(third.stdout).map(e => e.id), ['a2'])
+  assert.deepEqual(
+    lines(third.stdout).map(e => e.id),
+    ['a2'],
+  )
   assert.doesNotMatch(third.stderr, /waiting for your reply/)
   proj.cli('handled', 'a2')
 
@@ -65,5 +76,51 @@ test('wait: a batch, again until handled, one wait a page', { timeout: 60000 }, 
   assert.match(oneErr, /stopped waiting on p: a newer wait took it over/)
   answer('a3')
   await until('the second gets the next', () => (two.exitCode != null ? true : null))
-  assert.deepEqual(lines(two.output()).map(e => e.id), ['a3'])
+  assert.deepEqual(
+    lines(two.output()).map(e => e.id),
+    ['a3'],
+  )
 })
+
+test(
+  'wait on several pages: listening on each, it ends with an answer from any of them',
+  { timeout: 60000 },
+  async t => {
+    const FORM = '\n\n:::form{name=q}\n:button[Go]\n:::\n'
+    const proj = await project({ pages: { a: `# A${FORM}`, b: `# B${FORM}`, c: `# C${FORM}` } })
+    t.after(() => proj.close())
+    const token = fs.readFileSync(path.join(proj.dir, '.whiteboard', 'token'), 'utf8').trim()
+    const listening = async (page: string) => {
+      const res = await fetch(proj.url(`api/listeners?page=${page}`), { headers: { cookie: `wb-token=${token}` } })
+      return ((await res.json()) as unknown[]).length > 0
+    }
+    const wait = proj.spawn('wait', '--page', 'a', '--page', '.whiteboard/pages/b.md')
+    await until('listening on a and b', async () => ((await listening('a')) && (await listening('b'))) || null)
+    assert.equal(await listening('c'), false, 'not on a page it was not given')
+
+    // an answer on c is not its; one on b ends it
+    const log = path.join(proj.dir, '.whiteboard', 'events.ndjson')
+    const answer = (id: string, page: string) =>
+      fs.appendFileSync(
+        log,
+        JSON.stringify({ id, ts: new Date().toISOString(), page, type: 'q', action: 'Go', data: {} }) + '\n',
+      )
+    answer('onc', 'c')
+    answer('onb', 'b')
+    const code = await new Promise(r => wait.on('exit', r))
+    assert.equal(code, 0)
+    assert.deepEqual(
+      wait
+        .output()
+        .trim()
+        .split('\n')
+        .map(l => JSON.parse(l).id),
+      ['onb'],
+    )
+
+    // --page more than once is for wait and watch only
+    const other = proj.run(['append', '--page', 'a', '--page', 'b', '--type', 'x'])
+    assert.equal(other.status, 1)
+    assert.match(other.stderr, /--page once/)
+  },
+)

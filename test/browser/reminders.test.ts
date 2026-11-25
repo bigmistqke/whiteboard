@@ -68,7 +68,14 @@ test(
     // a chat where the reader wrote last: the turn goes on, to reply there
     fs.appendFileSync(
       path.join(proj.dir, '.whiteboard', 'events.ndjson'),
-      JSON.stringify({ id: 'c1', ts: new Date().toISOString(), page: 'mine', type: 'chat:message', action: null, data: { chat: 'talk', text: '?' } }) + '\n',
+      JSON.stringify({
+        id: 'c1',
+        ts: new Date().toISOString(),
+        page: 'mine',
+        type: 'chat:message',
+        action: null,
+        data: { chat: 'talk', text: '?' },
+      }) + '\n',
     )
     const asked = JSON.parse(await until('the hook sees the chat', () => stop(false).stdout.trim() || null))
     assert.match(asked.reason, /reply in the chat talk/)
@@ -76,35 +83,68 @@ test(
   },
 )
 
-test('claude-code install and uninstall: the hooks and the channel, or one of them; nothing else', { timeout: 60000 }, async t => {
+test('the Stop hook: several pages nobody listens on get one wait for all of them', { timeout: 60000 }, async t => {
   const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
   const proj = await project({ config: CONFIG })
   t.after(() => proj.close())
-  const settingsFile = path.join(proj.dir, '.claude', 'settings.json')
-  const mcpFile = path.join(proj.dir, '.mcp.json')
-  const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'))
-
-  proj.run(['claude-code', 'install'])
-  assert.deepEqual(Object.keys(read(settingsFile).hooks).sort(), ['SessionStart', 'Stop', 'UserPromptSubmit'])
-  assert.deepEqual(read(mcpFile).mcpServers.whiteboard.args.slice(-2), ['claude-code', 'channel'])
-  assert.match(proj.run(['claude-code', 'uninstall', 'hooks']).stdout, /hooks removed from .*: Stop, UserPromptSubmit, SessionStart/)
-  assert.equal(fs.existsSync(settingsFile), false, 'nothing else was in it')
-  assert.ok(fs.existsSync(mcpFile), 'the channel stays')
-  assert.match(proj.run(['claude-code', 'uninstall', 'channel']).stdout, /channel removed from/)
-  assert.equal(fs.existsSync(mcpFile), false)
-
-  // with a hook, a setting and a server of the project's own: those stay
-  const own = { model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] } }
-  const servers = { mcpServers: { other: { command: 'other-server' } } }
-  fs.mkdirSync(path.dirname(settingsFile), { recursive: true })
-  fs.writeFileSync(settingsFile, JSON.stringify(own))
-  fs.writeFileSync(mcpFile, JSON.stringify(servers))
-  proj.run(['claude-code', 'install', 'channel'])
-  assert.ok(!read(settingsFile).hooks.SessionStart, 'install channel leaves the hooks alone')
-  proj.run(['claude-code', 'install'])
-  proj.run(['claude-code', 'uninstall'])
-  assert.deepEqual(read(settingsFile), own)
-  assert.deepEqual(read(mcpFile), servers)
-  assert.match(proj.run(['claude-code', 'uninstall']).stdout, /no whiteboard hooks in .*\nno whiteboard channel in/)
-  assert.equal(proj.run(['claude-code', 'install', 'everything']).status, 1)
+  const session = 'session-5678'
+  for (const name of ['one', 'two']) {
+    const file = proj.run(['new', name], { env: { CLAUDE_CODE_SESSION_ID: session } }).stdout.trim()
+    fs.writeFileSync(file, `# ${name}\n\n${FORM('ask')}`)
+  }
+  const stop = proj.run(['claude-code', 'hook', 'stop'], {
+    input: JSON.stringify({ session_id: session, stop_hook_active: false }),
+  })
+  const { reason } = JSON.parse(stop.stdout)
+  const one = reason.match(/run one wait for these pages in the background: `whiteboard wait ((?:--page \S+ ?)+)`/)
+  assert.ok(one, reason)
+  assert.deepEqual(
+    one[1]
+      .trim()
+      .split(' --page ')
+      .map((p: string) => p.replace('--page ', '').split('/').pop())
+      .sort(),
+    ['one.md', 'two.md'],
+  )
+  assert.doesNotMatch(reason, /run `whiteboard wait --page \S*\.md` in the background/, 'not a wait each')
 })
+
+test(
+  'claude-code install and uninstall: the hooks and the channel, or one of them; nothing else',
+  { timeout: 60000 },
+  async t => {
+    const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
+    const proj = await project({ config: CONFIG })
+    t.after(() => proj.close())
+    const settingsFile = path.join(proj.dir, '.claude', 'settings.json')
+    const mcpFile = path.join(proj.dir, '.mcp.json')
+    const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'))
+
+    proj.run(['claude-code', 'install'])
+    assert.deepEqual(Object.keys(read(settingsFile).hooks).sort(), ['SessionStart', 'Stop', 'UserPromptSubmit'])
+    assert.deepEqual(read(mcpFile).mcpServers.whiteboard.args.slice(-2), ['claude-code', 'channel'])
+    assert.match(
+      proj.run(['claude-code', 'uninstall', 'hooks']).stdout,
+      /hooks removed from .*: Stop, UserPromptSubmit, SessionStart/,
+    )
+    assert.equal(fs.existsSync(settingsFile), false, 'nothing else was in it')
+    assert.ok(fs.existsSync(mcpFile), 'the channel stays')
+    assert.match(proj.run(['claude-code', 'uninstall', 'channel']).stdout, /channel removed from/)
+    assert.equal(fs.existsSync(mcpFile), false)
+
+    // with a hook, a setting and a server of the project's own: those stay
+    const own = { model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] } }
+    const servers = { mcpServers: { other: { command: 'other-server' } } }
+    fs.mkdirSync(path.dirname(settingsFile), { recursive: true })
+    fs.writeFileSync(settingsFile, JSON.stringify(own))
+    fs.writeFileSync(mcpFile, JSON.stringify(servers))
+    proj.run(['claude-code', 'install', 'channel'])
+    assert.ok(!read(settingsFile).hooks.SessionStart, 'install channel leaves the hooks alone')
+    proj.run(['claude-code', 'install'])
+    proj.run(['claude-code', 'uninstall'])
+    assert.deepEqual(read(settingsFile), own)
+    assert.deepEqual(read(mcpFile), servers)
+    assert.match(proj.run(['claude-code', 'uninstall']).stdout, /no whiteboard hooks in .*\nno whiteboard channel in/)
+    assert.equal(proj.run(['claude-code', 'install', 'everything']).status, 1)
+  },
+)

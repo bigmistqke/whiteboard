@@ -32,6 +32,9 @@ const openOn = (p: PageStatus, options?: { waiting?: boolean }) => statusLines(p
 
 type Mode = 'stop' | 'prompt' | 'session'
 
+/** The one wait for these pages: a --page each. */
+const waitOn = (pages: PageStatus[]) => `whiteboard wait ${pages.map(p => `--page ${relFile(p.file)}`).join(' ')}`
+
 /** Claude Code's settings file, as far as hooks go. */
 interface Settings {
   hooks?: Record<string, { hooks?: { type?: string; command?: string }[] }[]>
@@ -105,9 +108,7 @@ async function hook(ctx: CommandContext, mode: Mode) {
   const input = hookInput()
   const session = input.session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
   const pages = await ctx.status()
-  const busy = pages.filter(
-    p => p.unreceived.length || p.open.length || p.unhandled.length || p.awaitingReply.length,
-  )
+  const busy = pages.filter(p => p.unreceived.length || p.open.length || p.unhandled.length || p.awaitingReply.length)
   const mine = busy.filter(p => session && p.owner === session)
 
   if (mode === 'stop') {
@@ -116,7 +117,9 @@ async function hook(ctx: CommandContext, mode: Mode) {
     // handle, chats where the reader wrote last. Its turn goes on once, with that as the reason;
     // Claude Code marks a turn a hook continued (stop_hook_active), and that one ends, with what
     // is open shown to the reader instead.
-    const loose = mine.filter(p => p.unheard.length || p.unreceived.length || p.unhandled.length || p.awaitingReply.length)
+    const loose = mine.filter(
+      p => p.unheard.length || p.unreceived.length || p.unhandled.length || p.awaitingReply.length,
+    )
     if (!loose.length) return
     // what is left, without the command line: the reason says what to do
     const said = (p: PageStatus) =>
@@ -129,19 +132,26 @@ async function hook(ctx: CommandContext, mode: Mode) {
       return
     }
     // what to do about each: wait for what nobody listens for, handle what it was given, reply in
-    // the chats waiting for it
+    // the chats waiting for it. Pages to wait on: one wait for all of them, said once at the end
+    const toWait = loose.filter(p => p.unheard.length || p.unreceived.length)
     const reason = loose
       .map(p => {
         const todo: string[] = []
-        if (p.unheard.length || p.unreceived.length)
+        if (toWait.length === 1 && toWait[0] === p)
           todo.push(`run \`whiteboard wait --page ${relFile(p.file)}\` in the background`)
         if (p.unhandled.length)
           todo.push(
             `act on the answers you were given and reply in their chat, or \`whiteboard handled ${p.unhandled.map(e => e.id).join(' ')}\``,
           )
-        if (p.awaitingReply.length) todo.push(`reply in the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}`)
-        return `On your whiteboard page ${p.page}: ${said(p)}. Before ending your turn: ${todo.join('; ')}.`
+        if (p.awaitingReply.length)
+          todo.push(`reply in the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}`)
+        return `On your whiteboard page ${p.page}: ${said(p)}.${todo.length ? ` Before ending your turn: ${todo.join('; ')}.` : ''}`
       })
+      .concat(
+        toWait.length > 1
+          ? [`Before ending your turn, run one wait for these pages in the background: \`${waitOn(toWait)}\`.`]
+          : [],
+      )
       .join('\n')
     console.log(JSON.stringify({ decision: 'block', reason, systemMessage: shown }))
     return
@@ -166,12 +176,14 @@ async function hook(ctx: CommandContext, mode: Mode) {
         `Answers on your page ${p.page} you were handed and haven't handled: ${p.unhandled.map(e => `${e.type} ${e.id}`).join(', ')}. Reply in their chat, or \`whiteboard handled <id>\` once you acted on one.`,
       )
     if (p.awaitingReply.length)
-      out.push(`Waiting for your reply on ${p.page}: the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}.`)
-    if (p.unheard.length)
       out.push(
-        `Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}: run \`whiteboard wait --page ${relFile(p.file)}\` in the background.`,
+        `Waiting for your reply on ${p.page}: the chat${p.awaitingReply.length > 1 ? 's' : ''} ${p.awaitingReply.join(', ')}.`,
       )
+    if (p.unheard.length) out.push(`Nobody listens for ${p.unheard.join(', ')} on your page ${p.page}.`)
   }
+  // one wait for every page nobody listens on
+  const unheard = mine.filter(p => p.unheard.length)
+  if (unheard.length) out.push(`Run \`${waitOn(unheard)}\` in the background: one wait for all of them.`)
   if (mode === 'session') {
     // a new session may carry on work another one started: say what is open elsewhere, without handing it over
     const others = busy.filter(p => !mine.includes(p))

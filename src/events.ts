@@ -26,6 +26,8 @@ export interface EventInput {
 /** Which events: `page` (and the pages below it) and `type`, as `whiteboard wait` takes them. */
 export interface EventFilter {
   page?: string | null
+  /** several pages: an event on any of them (each with the pages below it, unless `exact`) */
+  pages?: string[] | null
   type?: string | null
   /** `page` alone, not the pages below it */
   exact?: boolean
@@ -271,8 +273,12 @@ export function editEvent(file: string, id: string, data: Record<string, unknown
 }
 
 /** `page` matches the page itself and every page below it, unless `exact`. */
-export function matches(event: WbEvent, { page, type, exact }: EventFilter = {}): boolean {
-  if (page && event.page !== page && (exact || !event.page.startsWith(page + '/'))) return false
+const onPage = (event: WbEvent, page: string, exact?: boolean) =>
+  event.page === page || (!exact && event.page.startsWith(page + '/'))
+
+export function matches(event: WbEvent, { page, pages, type, exact }: EventFilter = {}): boolean {
+  if (page && !onPage(event, page, exact)) return false
+  if (pages && !pages.some(p => onPage(event, p, exact))) return false
   if (type && event.type !== type) return false
   return true
 }

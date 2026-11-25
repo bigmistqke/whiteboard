@@ -77,7 +77,8 @@ const { values: opts, positionals } =
         args: rest,
         allowPositionals: true,
         options: {
-          page: { type: 'string' },
+          // more than once for wait and watch only: several pages at a time
+          page: { type: 'string', multiple: true },
           type: { type: 'string' },
           data: { type: 'string' },
           timeout: { type: 'string' },
@@ -104,6 +105,15 @@ if (cmd && cmd !== 'help' && BUILTIN_COMMANDS.has(cmd) && opts.help) {
 
 const project = projectAt(findProjectDir())
 
+/** Every --page given; only wait and watch take more than one. */
+const pagesGiven: string[] = (opts.page as string[] | undefined) ?? []
+if (pagesGiven.length > 1 && cmd !== 'wait' && cmd !== 'watch') {
+  console.error(`whiteboard: ${cmd} takes --page once; only wait and watch take several`)
+  process.exit(1)
+}
+/** The one --page of a command that takes one. */
+const pageOpt: string | undefined = pagesGiven[0]
+
 /** The current project, or exit with how to make one. */
 function needProject(): Project {
   if (project) return project
@@ -112,7 +122,7 @@ Run \`whiteboard init\` in the folder that should become one.`)
   process.exit(1)
 }
 
-const filter = (): EventFilter => ({ page: opts.page ? pageId(needProject(), opts.page) : undefined, type: opts.type })
+const filter = (): EventFilter => ({ page: pageOpt ? pageId(needProject(), pageOpt) : undefined, type: opts.type })
 
 /**
  * Is this project one of the machine's entries (see src/entries.ts)? Then the shared server serves
@@ -358,7 +368,7 @@ async function currentSession(proj: Project): Promise<string | null> {
 async function status() {
   const proj = needProject()
   const [pages, session]: [PageStatus[], string | null] = await Promise.all([
-    api(`/api/status${opts.page ? `?page=${encodeURIComponent(pageId(proj, opts.page))}` : ''}`),
+    api(`/api/status${pageOpt ? `?page=${encodeURIComponent(pageId(proj, pageOpt))}` : ''}`),
     currentSession(proj),
   ])
   const busy = pages.filter(p => p.unreceived.length || p.open.length)
@@ -686,12 +696,16 @@ switch (cmd) {
       break
     }
     const { handedOut } = await projectConfig(proj)
-    const query = {
+    // the pages it waits on: each --page, so an agent with several pages needs one wait, not a wait
+    // each or a loop reading the log (which no page sees as listening)
+    const pages = [...new Set(pagesGiven.map(p => pageId(proj, p)))]
+    const queryFor = (page?: string) => ({
       command: cmd,
-      ...(f.page ? { page: f.page } : {}),
+      ...(page ? { page } : {}),
       ...(f.type ? { type: f.type } : {}),
       ...(opts.force ? { force: '' } : {}),
-    }
+    })
+    const query = queryFor(f.page ?? undefined)
     const refused = (reason: string) => {
       console.error(
         f.page
@@ -725,16 +739,25 @@ switch (cmd) {
       })
       await listen({ at, query: { ...query, fallback: '' }, onSnapshot: update, onRefused: refused })
     } else {
-      // registered before it reads the log, so a fallback leaves its answers to it from the first one
-      await listen({ at, query, onRefused: refused, onReplaced: replaced }, { orNone: true })
-      void handOut(proj.eventsFile, f, print, options).then(async () => {
+      // registered on each page before it reads the log, so a fallback leaves their answers to it
+      // from the first one
+      await Promise.all(
+        pages.map(page =>
+          listen({ at, query: queryFor(page), onRefused: refused, onReplaced: replaced }, { orNone: true }),
+        ),
+      )
+      // several pages: what is on any of them (each with the pages below it, as one --page)
+      const given = pages.length > 1 ? { ...f, page: null, pages } : f
+      void handOut(proj.eventsFile, given, print, options).then(async () => {
         // a wait on a page ends with answers, and the agent acts on them. What is left needs it
         // again, which is easily forgotten: say so, right with the answers: the answers to handle
         // (reply, or whiteboard handled), the chats waiting for a reply, the questions still unanswered
         if (cmd === 'wait') {
           try {
-            const pages = (await api(`/api/status?page=${encodeURIComponent(f.page!)}`)) as PageStatus[]
-            for (const p of pages) {
+            const statuses = (
+              await Promise.all(pages.map(page => api(`/api/status?page=${encodeURIComponent(page)}`)))
+            ).flat() as PageStatus[]
+            for (const p of statuses) {
               const again = `\`whiteboard wait --page ${relFile(p.file)}\``
               if (p.unhandled.length)
                 console.error(
@@ -762,7 +785,7 @@ switch (cmd) {
     // the agent's side of the log: anything a page's plugins understand, such as a reply to a
     // comment. Waits skip what is appended here, so an agent does not hear its own events.
     const proj = needProject()
-    if (!opts.page || !opts.type)
+    if (!pageOpt || !opts.type)
       throw new Error("usage: whiteboard append --page <page|file> --type <type> [--data '<json>']")
     let data = {}
     if (opts.data) {
@@ -773,7 +796,7 @@ switch (cmd) {
       }
     }
     console.log(
-      JSON.stringify(appendEvent(proj.eventsFile, { page: pageId(proj, opts.page), type: opts.type, data }, 'cli')),
+      JSON.stringify(appendEvent(proj.eventsFile, { page: pageId(proj, pageOpt), type: opts.type, data }, 'cli')),
     )
     break
   }
@@ -835,7 +858,8 @@ switch (cmd) {
       else {
         const theirs = commands.filter(c => c.plugin === name)
         const one = theirs.find(c => c.sub === sub) ?? (sub ? undefined : theirs.find(c => !c.sub))
-        if (!theirs.length) throw new Error(`no command ${name}${project ? '' : ' (outside a project only the built-in ones)'}`)
+        if (!theirs.length)
+          throw new Error(`no command ${name}${project ? '' : ' (outside a project only the built-in ones)'}`)
         console.log(one ? pluginCommandHelp(one) : theirs.map(c => pluginCommandHelp(c)).join('\n\n'))
       }
       break

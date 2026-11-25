@@ -30,7 +30,8 @@ export const COMMAND_HELP: Record<string, CommandHelp> = {
   show: {
     usage: '<page|file>',
     summary: "start this project's server if needed, print the page's URL",
-    details: "Any file of the project renders too (README.md). Under a shared server that isn't running, says so and starts nothing.",
+    details:
+      "Any file of the project renders too (README.md). Under a shared server that isn't running, says so and starts nothing.",
   },
   url: { usage: '<page|file>', summary: "print the page's URL (as show)" },
   close: {
@@ -60,7 +61,8 @@ One chat's messages: whiteboard chat prune <page|file> <chat>.`,
   scroll: {
     usage: '<page|file> <where>',
     summary: "scroll the tabs that have the page open to a heading's text, a form's name or any text",
-    details: 'Opens details around it and lights it up. Exits 1 when nothing matches or no tab of the page is connected.',
+    details:
+      'Opens details around it and lights it up. Exits 1 when nothing matches or no tab of the page is connected.',
   },
   docs: {
     usage: '[plugin]',
@@ -76,9 +78,10 @@ One chat's messages: whiteboard chat prune <page|file> <chat>.`,
   --follow             then print each new one as it comes`,
   },
   wait: {
-    usage: '[--page <p>] [--type <t>] [--timeout <s>] [--force]',
+    usage: '[--page <p>…] [--type <t>] [--timeout <s>] [--force]',
     summary: "print every answer you haven't handled, or block for the next; each counts as received",
     details: `${FILTERS}
+  --page again         several pages in one wait: it listens on each, and takes the answers of any
   --timeout <seconds>  exit 2 when nothing came
   --force              take the page over from another wait or watch on it (that one exits 3)
 
@@ -93,9 +96,10 @@ fallback: only what no other wait or watch would take, on any page; one runs per
 exits 1), or, in a project of the machine's entries, one for the whole entry.`,
   },
   watch: {
-    usage: '[--page <p>] [--type <t>] [--force]',
+    usage: '[--page <p>…] [--type <t>] [--force]',
     summary: 'like wait, but never exits: print each answer as it comes',
     details: `${FILTERS}
+  --page again         several pages in one watch, as for wait
   --force              take the page over from another wait or watch on it
 
 Without --page it is the fallback, as for wait.`,
@@ -106,16 +110,19 @@ Without --page it is the fallback, as for wait.`,
   },
   handled: {
     usage: '<event id> [<event id>…]',
-    summary: 'you are done with these answers: handled, so no wait hands them out again and nothing reminds you of them',
-    details: 'Replying in an answer\'s chat (or to it) handles it too.',
+    summary:
+      'you are done with these answers: handled, so no wait hands them out again and nothing reminds you of them',
+    details: "Replying in an answer's chat (or to it) handles it too.",
   },
   status: {
     usage: '[--page <p>]',
-    summary: 'per page: questions without an answer, answers not received or not handled, chats waiting for a reply, who listens',
+    summary:
+      'per page: questions without an answer, answers not received or not handled, chats waiting for a reply, who listens',
   },
   serve: {
     usage: '',
-    summary: "run this project's server in the foreground; outside a project or for one of the machine's entries, the shared server",
+    summary:
+      "run this project's server in the foreground; outside a project or for one of the machine's entries, the shared server",
   },
   skill: { usage: '[dir]', summary: 'print where the agent skill is, or link it into a skills folder' },
   paths: {
@@ -131,7 +138,12 @@ Without --page it is the fallback, as for wait.`,
 export function commandHelp(name: string): string {
   const h = COMMAND_HELP[name]
   if (!h) throw new Error(`no command ${name}`)
-  return [`usage: whiteboard ${[name, h.usage].filter(Boolean).join(' ')}`, '', h.summary, h.details ? `\n${h.details}` : '']
+  return [
+    `usage: whiteboard ${[name, h.usage].filter(Boolean).join(' ')}`,
+    '',
+    h.summary,
+    h.details ? `\n${h.details}` : '',
+  ]
     .join('\n')
     .trimEnd()
 }
