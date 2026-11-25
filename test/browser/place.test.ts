@@ -115,6 +115,43 @@ for (const [name, engine] of [
       )
       stayed(await settledTop(page, 'Para 30.'), 300, 'a form with a chat put in above')
 
+      // reading inside one chat (the form's) when a message comes in in another above it: the
+      // messages being read are not drawn again, so the place is not lost as the page moves
+      for (const n of ['one', 'two', 'three'])
+        proj.cli(
+          'append',
+          '--page',
+          'p',
+          '--type',
+          'chat:message',
+          '--data',
+          JSON.stringify({ chat: 'later', text: `Message ${n}.\n\n- with\n- a list\n\nThe end of ${n}.` }),
+        )
+      await until('the three', () =>
+        page.evaluate(
+          () =>
+            [...document.querySelectorAll('form[name=later] .wb-chat-bubble[data-md] p')].some(
+              p => p.textContent?.trim() === 'The end of three.',
+            ) || null,
+        ),
+      )
+      await scrollTo(page, 'Message two.', 200)
+      proj.cli(
+        'append',
+        '--page',
+        'p',
+        '--type',
+        'chat:message',
+        '--data',
+        JSON.stringify({ chat: 'talk', text: LONG }),
+      )
+      await until('the message above, as markdown', () =>
+        page.evaluate(
+          () => document.querySelectorAll('[data-chat=talk] .wb-chat-bubble[data-md] pre').length === 4 || null,
+        ),
+      )
+      stayed(await settledTop(page, 'Message two.'), 200, 'a message in a chat above the one being read')
+
       // the block being read changes below where it is read: items at the end of the list
       await scrollTo(page, 'Item 10.', 300)
       proj.page(

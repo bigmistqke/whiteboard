@@ -16,6 +16,12 @@ interface Place {
   top: number
   /** where the page was scrolled to then: scrolled since, by the reader, before its scroll event */
   scrolled: number
+  /**
+   * The elements around it up to its block, and where each was: should something take the place
+   * out of the page (an island that draws its content again), the nearest one still there is held
+   * instead, so what moved with it is put back all the same
+   */
+  around: { el: Element; top: number }[]
 }
 
 let main: HTMLElement
@@ -59,23 +65,51 @@ function atTop(): Element | null {
   }
 }
 
+/** The elements around `el` in the page's content, innermost first, and where each is now. */
+function aroundOf(el: Element) {
+  const around: Place['around'] = []
+  for (let at = el.parentElement; at && at !== main && main.contains(at); at = at.parentElement)
+    around.push({ el: at, top: at.getBoundingClientRect().top })
+  return around
+}
+
+const placeAt = (el: Element, top = el.getBoundingClientRect().top): Place => ({
+  el,
+  top,
+  scrolled: scrollY,
+  around: aroundOf(el),
+})
+
 function pick() {
   const focused = document.activeElement
   const el = typing(focused) ? focused : scrollY > 0 ? atTop() : null
-  place = el ? { el, top: el.getBoundingClientRect().top, scrolled: scrollY } : null
+  place = el ? placeAt(el) : null
 }
 
 /** Put the place back where it was on screen, if it moved; then it is where it is. */
 function keep() {
-  if (!place || !shown(place.el) || place.scrolled !== scrollY) return pick()
+  if (!place || place.scrolled !== scrollY) return pick()
+  if (!shown(place.el)) {
+    // gone from the page (drawn again): the nearest element around it that is still there, put
+    // back where it was, then a place afresh. Hidden (a details closed): nothing to keep
+    const held = place.el.isConnected ? null : place.around.find(a => shown(a.el))
+    if (held) {
+      const moved = held.el.getBoundingClientRect().top - held.top
+      if (Math.abs(moved) >= 1) scrollBy(0, moved)
+    }
+    return pick()
+  }
   const moved = place.el.getBoundingClientRect().top - place.top
   // moves of less than a pixel left be, but not forgotten: they would add up
-  if (Math.abs(moved) < 1) return
-  scrollBy(0, moved)
-  place.scrolled = scrollY
-  // the page can't scroll that far (its end): where it is is the place now
-  const now = place.el.getBoundingClientRect().top
-  if (Math.abs(now - place.top) >= 1) place.top = now
+  if (Math.abs(moved) >= 1) {
+    scrollBy(0, moved)
+    place.scrolled = scrollY
+    // the page can't scroll that far (its end): where it is is the place now
+    const now = place.el.getBoundingClientRect().top
+    if (Math.abs(now - place.top) >= 1) place.top = now
+  }
+  // what is around it may have moved apart from it: where each is now
+  place.around = aroundOf(place.el)
 }
 
 /** The top-level block an element is in, and the way down to it: the index of each child taken. */
@@ -104,8 +138,7 @@ function indexOf(sigs: Sigs, sig: string, nth: number) {
 export function beforeUpdate(from: Sigs, to: Sigs): () => void {
   // a focused element the update takes (a button clicked, a field) stays where it is too
   const focused = document.activeElement
-  if (focused instanceof HTMLElement && focused !== document.body && main.contains(focused))
-    place = { el: focused, top: focused.getBoundingClientRect().top, scrolled: scrollY }
+  if (focused instanceof HTMLElement && focused !== document.body && main.contains(focused)) place = placeAt(focused)
   else pick()
   const before = place
   const at = before && main.contains(before.el) ? pathOf(before.el) : null
@@ -119,7 +152,7 @@ export function beforeUpdate(from: Sigs, to: Sigs): () => void {
     // replaced, the field with the focus: the one it went to
     const now = document.activeElement
     if (before.el === focused && now instanceof HTMLElement && now !== document.body && main.contains(now)) {
-      place = { ...before, el: now }
+      place = { ...placeAt(now, before.top), scrolled: before.scrolled }
       return keep()
     }
     if (!at) return pick()
@@ -146,7 +179,7 @@ export function beforeUpdate(from: Sigs, to: Sigs): () => void {
       }
       target = child
     }
-    place = whole ? { ...before, el: target } : { ...before, el, top: blockTop }
+    place = { ...(whole ? placeAt(target, before.top) : placeAt(el, blockTop)), scrolled: before.scrolled }
     keep()
   }
 }

@@ -88,18 +88,21 @@ function Chat(props: ChatProps) {
   return (
     // a div, not a form: forms don't nest, and the box has no name, so it is never part of an answer
     <div class="wb-chat" data-under-form={props.form ? '' : undefined}>
-      <For each={messages()}>
+      {/* keyed by id: a new message adds its own element and leaves the others be (the list is
+          built anew on every event, so by identity each message would be drawn again, and its
+          markdown with it, moving the page under the reader) */}
+      <For each={messages()} keyed={m => m.id}>
         {m => (
           // the reader's messages on the right, the agent's on the left
           // the agent's: read once in view (the core marks it, see EventSpec.forReader)
           <div
             class="wb-chat-message"
-            data-from={m.from}
-            data-sending={m.sending ? '' : undefined}
-            data-wb-message={m.from === 'agent' ? m.id : undefined}
+            data-from={m().from}
+            data-sending={m().sending ? '' : undefined}
+            data-wb-message={m().from === 'agent' ? m().id : undefined}
           >
-            <span class="wb-chat-who">{m.from}</span>
-            <Bubble text={m.text} />
+            <span class="wb-chat-who">{m().from}</span>
+            <Bubble text={m().text} />
           </div>
         )}
       </For>
