@@ -127,12 +127,15 @@ export function servedSite(project: Project, { base, files }: { base: string; fi
     const target = inside(project.pagesDir, id)
     if (!target) return null
     if (path.extname(id) && fs.existsSync(target) && fs.statSync(target).isFile()) return { raw: target }
+    const file = target + '.md'
     if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
       const index = path.join(target, 'index.md')
       if (fs.existsSync(index)) return pageSource(id, index)
+      // a folder next to the page of its name (its screenshots, say) leaves the page its address;
+      // the files in it are still served at theirs
+      if (fs.existsSync(file)) return pageSource(id, file)
       return { kind: 'pages', id, file: target, mtime: null, pages: pagesIn(target) }
     }
-    const file = target + '.md'
     return fs.existsSync(file) ? pageSource(id, file) : null
   }
 

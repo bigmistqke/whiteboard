@@ -16,6 +16,8 @@ const write = (rel: string, text: string) => {
 write('.whiteboard/pages/plan.md', '---\ntoc: true\n---\n# Plan\n')
 write('.whiteboard/pages/notes/a.md', '# A\n')
 write('.whiteboard/pages/guide/index.md', '# Guide\n')
+write('.whiteboard/pages/shots.md', '# Shots\n\n![one](shots/one.png)\n')
+write('.whiteboard/pages/shots/one.png', '\0binary')
 write('README.md', '# Readme\n')
 write('docs/shot.png', '\0binary')
 write('node_modules/x/index.js', '')
@@ -44,7 +46,16 @@ test('a folder: its index page, or its pages listed', () => {
   )
   const top = site.page('')
   assert.ok(top && 'kind' in top && top.kind === 'pages')
-  assert.deepEqual(top.pages.map(p => p.id).toSorted(), ['guide/index', 'notes/a', 'plan'])
+  assert.deepEqual(top.pages.map(p => p.id).toSorted(), ['guide/index', 'notes/a', 'plan', 'shots'])
+})
+
+test('a page next to a folder of its name (its images, say): the page, and the files in the folder', () => {
+  const shots = site.page('shots')
+  assert.ok(
+    shots && 'kind' in shots && shots.kind === 'page' && shots.file.endsWith('pages/shots.md'),
+    'the page, not the folder',
+  )
+  assert.deepEqual(site.page('shots/one.png'), { raw: path.join(dir, '.whiteboard/pages/shots/one.png') })
 })
 
 test("the project's files under -/: markdown as a page, text as a file, binary as bytes, a folder listed", () => {
