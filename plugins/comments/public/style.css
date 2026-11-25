@@ -187,3 +187,33 @@
 .wb-thread-message[data-sending] .wb-thread-text {
   color: var(--wb-sending, #9a9fa7);
 }
+
+/* comments on text no longer on the page, with nothing of where it was left: listed after the
+   page's content, each quote with its badge beside it; a click opens the thread */
+.wb-orphan-comments-title {
+  margin: var(--gap-section) 0 var(--space-md);
+  color: var(--muted, #696e76);
+  font-size: var(--ui-small);
+}
+/* laid out as the list of chats no longer on the page (the page's .wb-orphans), which may follow */
+.wb-orphan-comments {
+  max-width: calc(var(--measure) + 66px);
+  margin: 0 auto;
+  position: relative;
+  left: calc(var(--wb-aside, 0px) / 2);
+  padding: 0 var(--space-2xl) 220px;
+  box-sizing: border-box;
+  font: var(--ui-text)/var(--ui-line-height) var(--sans);
+}
+.wb-orphan-comments[hidden] {
+  display: none;
+}
+/* the page's bottom space goes below the last list after the page */
+main:has(+ .wb-orphan-comments:not([hidden])),
+.wb-orphan-comments:has(+ .wb-orphans:not([hidden])) {
+  padding-bottom: 0;
+}
+.wb-orphan-comments .wb-thread-quote {
+  cursor: pointer;
+  margin: 0 0 var(--space-md);
+}

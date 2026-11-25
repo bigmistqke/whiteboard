@@ -54,6 +54,14 @@ const popover = document.createElement('div')
 popover.className = 'wb-thread'
 popover.hidden = true
 
+// Comments on text no longer on the page, with nothing of where it was left to place them by: listed
+// after the page's content, each with its quote, its badge beside it (as chats no longer on the
+// page are, by the page)
+const gone = document.createElement('section')
+gone.className = 'wb-orphan-comments'
+gone.hidden = true
+let goneKey = ''
+
 // ---- the page's text ---------------------------------------------------------------------------
 
 /** The text of the page's content as one string, with where each text node starts in it. */
@@ -201,6 +209,11 @@ function draw() {
     if (active) highlights.set('wb-comment-active', new HighlightCtor(active))
     else highlights.delete('wb-comment-active')
   }
+  // where each passage gone from the page was, or nowhere left: those go in the list
+  const was = new Map<string, number | null>()
+  for (const t of threads)
+    if (!t.range?.getClientRects().length) was.set(t.id, t.index ? whereItWas(t.index, t.comment.data) : null)
+  listGone(threads.filter(t => was.has(t.id) && was.get(t.id) == null))
   const column = main.getBoundingClientRect()
   const unreadIds = new Set(api.unread().map(e => e.id))
   // badges of passages gone from the page, by where they were: a second one at a place goes below
@@ -222,12 +235,14 @@ function draw() {
       // a passage that is gone from the page: its badge stays where the passage was (at the top, if
       // nothing of there is left), still open until closed
       let top: number
+      const row = gone.querySelector<HTMLElement>(`[data-row="${CSS.escape(t.id)}"]`)
       if (rect) top = rect.top + scrollY
+      else if (row) top = row.getBoundingClientRect().top + scrollY
       else {
-        const was = Math.round((t.index ? whereItWas(t.index, t.comment.data) : null) ?? column.top)
-        const n = detachedAt.get(was) ?? 0
-        detachedAt.set(was, n + 1)
-        top = was + n * 30 + scrollY
+        const at = Math.round(was.get(t.id) ?? column.top)
+        const n = detachedAt.get(at) ?? 0
+        detachedAt.set(at, n + 1)
+        top = at + n * 30 + scrollY
       }
       const left = Math.min(column.right + 8 + scrollX, document.documentElement.clientWidth - 36 + scrollX)
       badge.style.top = `${top}px`
@@ -237,6 +252,27 @@ function draw() {
     }),
   )
   if (openThread) placePopover()
+}
+
+/** The list of comments with nowhere on the page left: drawn again only when they change. */
+function listGone(list: Thread[]) {
+  if (!gone.isConnected || gone.previousElementSibling !== main) main.after(gone)
+  const key = list.map(t => t.id).join(' ')
+  if (key === goneKey) return
+  goneKey = key
+  gone.hidden = !list.length
+  // built as elements: a quote keeps its whitespace (its style), so none may come from markup
+  const title = document.createElement('p')
+  title.className = 'wb-orphan-comments-title'
+  title.textContent = `${list.length} comment${list.length === 1 ? '' : 's'} on text no longer on this page`
+  const quotes = list.map(t => {
+    const quote = document.createElement('blockquote')
+    quote.className = 'wb-thread-quote'
+    quote.dataset.row = quote.dataset.thread = t.id
+    quote.textContent = String(t.comment.data.quote ?? '')
+    return quote
+  })
+  gone.replaceChildren(...(list.length ? [title, ...quotes] : []))
 }
 
 /** Called after the page re-rendered, and whenever the log changed. */
@@ -613,6 +649,10 @@ const mount: PluginMount = (el: HTMLElement, handle: PageHandle, core: Api) => {
     pending = null
   })
 
+  gone.addEventListener('click', e => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-thread]')?.dataset.thread
+    if (id) openThread === id ? closePopover() : openPopover(id)
+  })
   layer.addEventListener('click', e => {
     const id = (e.target as HTMLElement).closest<HTMLElement>('[data-thread]')?.dataset.thread
     if (id) openThread === id ? closePopover() : openPopover(id)

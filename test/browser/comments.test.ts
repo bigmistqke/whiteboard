@@ -311,3 +311,59 @@ test('a comment whose passage is gone waits where the passage was, not at the to
   assert.ok(Math.abs(badge - was) < 30, `by the paragraph before it (${was}), not at ${badge}`)
   assert.deepEqual(errors, [])
 })
+
+test(
+  'a comment with nothing of where it was left is listed after the page, its badge beside its quote',
+  { timeout: 60000 },
+  async t => {
+    const filler = (n: number, word: string) => Array.from({ length: n }, (_, i) => `${word} ${i}.`).join('\n\n')
+    const proj = await project({
+      config: CONFIG,
+      pages: { r: `# Rewritten\n\n${filler(10, 'Old')}\n\nThe passage, with all of its section.\n` },
+    })
+    const { browser: b, page, errors } = await browser()
+    t.after(async () => {
+      await b.close()
+      await proj.close()
+    })
+    proj.cli(
+      'append',
+      '--page',
+      'r',
+      '--type',
+      'comments:new',
+      '--data',
+      JSON.stringify({
+        quote: 'with all of its section',
+        before: 'Old 9.\nThe passage, ',
+        after: '.',
+        block: 11,
+        text: 'hm',
+      }),
+    )
+    await page.goto(proj.url('r'))
+    await until('the attached badge', () => page.$('.wb-comment-badge:not([data-detached])'))
+    // the page written anew: the passage, what was around it and its block all gone
+    proj.page('r', '# Rewritten\n\nAll new.\n')
+    await until('the list', () => page.$('.wb-orphan-comments:not([hidden]) [data-row]'))
+    const got = await page.evaluate(() => {
+      const row = document.querySelector<HTMLElement>('.wb-orphan-comments [data-row]')!
+      const badge = document.querySelector<HTMLElement>('.wb-comment-badge')!
+      return {
+        title: document.querySelector('.wb-orphan-comments-title')!.textContent!.trim(),
+        quote: row.textContent!.trim(),
+        afterContent:
+          row.getBoundingClientRect().top > document.querySelector('#wb-main')!.getBoundingClientRect().bottom - 1,
+        beside: Math.abs(parseFloat(badge.style.top) - (row.getBoundingClientRect().top + scrollY)),
+      }
+    })
+    assert.equal(got.title, '1 comment on text no longer on this page')
+    assert.equal(got.quote, 'with all of its section')
+    assert.ok(got.afterContent, 'after the page’s content')
+    assert.ok(got.beside < 2, `its badge beside it (${got.beside}px off)`)
+    // its quote opens the thread, as its badge does
+    await page.click('.wb-orphan-comments [data-row]')
+    await page.waitForSelector('.wb-thread:not([hidden])')
+    assert.deepEqual(errors, [])
+  },
+)
