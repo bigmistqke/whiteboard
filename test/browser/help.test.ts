@@ -3,6 +3,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import os from 'node:os'
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { project } from './project.ts'
 import { BUILTIN_COMMANDS } from '../../src/loader.ts'
@@ -21,10 +23,7 @@ test('--help on any command prints its help and runs nothing', { timeout: 60000 
     assert.match(proj.cli(name, '--help'), new RegExp(`^usage: whiteboard ${name}\\b`), name)
   }
   assert.match(proj.cli('wait', '--page', 'p', '-h'), /^usage: whiteboard wait/)
-  assert.ok(
-    !proj.events().some(e => e.type === 'whiteboard:handled'),
-    'nothing received: the answer still waits',
-  )
+  assert.ok(!proj.events().some(e => e.type === 'whiteboard:handled'), 'nothing received: the answer still waits')
 
   // a plugin's command, and all of a plugin's commands
   assert.match(proj.cli('chat', 'prune', '--help'), /^usage: whiteboard chat prune <page\|file> <chat>/)
@@ -32,4 +31,17 @@ test('--help on any command prints its help and runs nothing', { timeout: 60000 
   // as `help <command>`
   assert.match(proj.cli('help', 'prune'), /^usage: whiteboard prune/)
   assert.match(proj.cli('help', 'chat', 'prune'), /^usage: whiteboard chat prune/)
+})
+
+test('--version prints the version that runs, and nothing else, also outside a project', () => {
+  const cli = new URL('../../bin/whiteboard.ts', import.meta.url).pathname
+  const { version } = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+  for (const flag of ['--version', '-v']) {
+    const out = spawnSync(process.execPath, [cli, flag], {
+      cwd: fs.mkdtempSync(path.join(os.tmpdir(), 'wb-version-')),
+      encoding: 'utf8',
+    })
+    assert.equal(out.status, 0)
+    assert.equal(out.stdout, `${version}\n`)
+  }
 })

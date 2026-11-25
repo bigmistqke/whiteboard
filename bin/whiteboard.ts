@@ -54,6 +54,7 @@ const HELP = `whiteboard — markdown pages in the browser, what the reader does
 ${commandList()}
 
 \`whiteboard <command> --help\` says what a command takes and does, and does nothing else.
+\`whiteboard --version\` prints the version of whiteboard that runs.
 
 Every command works on the project of the current folder: the nearest folder upward with a
 .whiteboard/ folder. A project needs no config: .whiteboard/config.ts only says what differs from
@@ -67,6 +68,12 @@ which types it sends is up to its plugins (\`whiteboard docs\` says). The projec
 can add commands of their own; \`whiteboard help\` in a project lists them.`
 
 const [first, ...rest] = process.argv.slice(2)
+// `whiteboard --version` (or -v): which whiteboard runs, and nothing else (a linked checkout and an
+// installed one look alike otherwise)
+if (first === '--version' || first === '-v') {
+  console.log(VERSION)
+  process.exit(0)
+}
 // `whiteboard --help` and `-h`, where a command goes, ask for the help as `whiteboard help` does
 const cmd = first === '--help' || first === '-h' ? 'help' : first
 // a plugin's command parses its own arguments
