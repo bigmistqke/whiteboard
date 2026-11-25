@@ -6,15 +6,15 @@
 // its title while the title is stuck (its start is above the view) scrolls back to it, so the
 // reader lands at the title, not somewhere far below where the content was.
 
-function place(main: HTMLElement) {
+function place(body: HTMLElement) {
   const nav = document.querySelector<HTMLElement>('.wb-nav')
   const base = nav ? nav.getBoundingClientRect().height : 0
-  for (const summary of main.querySelectorAll<HTMLElement>('details > summary')) {
+  for (const summary of body.querySelectorAll<HTMLElement>('details > summary')) {
     let top = base,
       depth = 0
     for (
       let d = summary.parentElement!.parentElement?.closest('details');
-      d && main.contains(d);
+      d && body.contains(d);
       d = d.parentElement?.closest('details')
     ) {
       const outer = d.querySelector<HTMLElement>(':scope > summary')
@@ -39,15 +39,20 @@ function keepTitle(e: MouseEvent) {
 }
 
 export function trackSticky(main: HTMLElement, onRendered: (fn: () => void) => void) {
-  main.addEventListener('click', keepTitle)
+  // the reading area: the content and the lists after it (a page without one: the content alone)
+  const body = main.closest<HTMLElement>('.wb-body') ?? main
+  body.addEventListener('click', keepTitle)
   let frame = 0
   const later = () => {
     cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => place(main))
+    frame = requestAnimationFrame(() => place(body))
   }
   // toggle doesn't bubble: listened for on the way down
-  main.addEventListener('toggle', later, true)
+  body.addEventListener('toggle', later, true)
   addEventListener('resize', later)
   onRendered(later)
-  place(main)
+  // a list after the content draws itself again as the log changes (chats no longer on the page),
+  // and its summary with it: measured again then too
+  new MutationObserver(later).observe(body, { childList: true, subtree: true })
+  place(body)
 }

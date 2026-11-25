@@ -58,3 +58,32 @@ test('an open details keeps its summary at the top, and a nested one stacks belo
   assert.ok(Math.abs(summaryTop - nav) < 1.5, `the title is where it was stuck (${summaryTop} vs ${nav})`)
   assert.deepEqual(errors, [])
 })
+
+test('the list of chats no longer on the page keeps its title at the top too', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { o: '# Orphans\n\nThe page.\n' } })
+  const { browser: b, page, errors } = await browser()
+  t.after(async () => {
+    await b.close()
+    await proj.close()
+  })
+  // a chat whose form is gone, long enough to scroll through
+  for (let i = 0; i < 40; i++)
+    proj.cli(
+      'append',
+      '--page',
+      'o',
+      '--type',
+      'chat:message',
+      '--data',
+      JSON.stringify({ chat: 'gone', text: `Old message ${i}.` }),
+    )
+  await page.goto(proj.url('o'))
+  const summary = page.locator('.wb-orphans summary')
+  await summary.click()
+  await page.locator('text=Old message 30.').scrollIntoViewIfNeeded()
+  await page.waitForTimeout(100)
+  const nav = await page.$eval('.wb-nav', el => el.getBoundingClientRect().height)
+  const top = await summary.evaluate(el => el.getBoundingClientRect().top)
+  assert.ok(Math.abs(top - nav) < 1.5, `its title under the header (${top} vs ${nav})`)
+  assert.deepEqual(errors, [])
+})

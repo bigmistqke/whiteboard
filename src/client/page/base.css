@@ -487,8 +487,9 @@ details[open] > :last-child {
   margin-bottom: 2em;
 }
 /* an open details' summary stays at the top while its content is read, under the header and the
-   summaries of the details around it (sticky.ts says how far down) */
-#wb-main details[open] > summary {
+   summaries of the details around it (sticky.ts says how far down): in the reading area, the
+   content and the lists after it, never in the header or what floats over the page */
+.wb-body details[open] > summary {
   position: sticky;
   top: var(--wb-sticky-top, 0px);
   z-index: var(--wb-sticky-z, 3);

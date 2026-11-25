@@ -517,8 +517,10 @@ export function createRender(
       title: out.title || page.id || ctx.project.name,
       head: html`${THEME_SCRIPT} ${links.map(href => html`<link rel="stylesheet" href="${href}" />`)}`,
       // the page's content is HTML already: markdown's output, or what was built above
+      // the reading area: the content, and what the browser lists after it (chats and comments no
+      // longer on the page), which go in it as the content's siblings
       html: html`${nav}
-        <main id="wb-main">${raw(out.html)}</main>`,
+        <div class="wb-body"><main id="wb-main">${raw(out.html)}</main></div>`,
       // the client mounts `islands` and links `styles`
       data: { islands, styles, mtime: page.mtime },
     }
