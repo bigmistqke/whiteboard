@@ -4,7 +4,8 @@
 // A thread is events on the page (see client.ts), so the server has nothing to do but serve the
 // browser module and the styles, and tell agents how to answer (`whiteboard docs`).
 import { builtinPublic } from '../../src/package.ts'
-import type { Plugin } from '../../src/define.ts'
+import type { Plugin, WbEvent } from '../../src/define.ts'
+import { item, when } from '../../src/archive.ts'
 
 const DOCS = `## Comments
 
@@ -40,6 +41,7 @@ export default function comments(): Plugin {
   return {
     name: 'comments',
     docs: () => DOCS,
+    archive: archiveComments,
     events: {
       'comments:new': {
         handOut: true,
@@ -53,4 +55,23 @@ export default function comments(): Plugin {
     style: 'style.css',
     setup: () => ({ client: 'client.js' }),
   }
+}
+
+/** An archived page's comments: each thread, the passage it is on, its replies, and whether it was closed. */
+function archiveComments(events: WbEvent[]) {
+  const threads = events.filter(e => e.type === 'comments:new')
+  if (!threads.length) return
+  const who = (e: WbEvent) => (e.from === 'cli' ? 'agent' : 'you')
+  return [
+    '## Comments',
+    ...threads.map(c => {
+      const replies = events.filter(e => e.type === 'comments:reply' && e.data.replyTo === c.id)
+      const closed = events.some(e => e.type === 'comments:resolve' && e.data.replyTo === c.id)
+      const on = String(c.data.quote ?? c.data.at ?? '').trim()
+      return [
+        `### On ${on ? `“${on.length > 80 ? on.slice(0, 80) + '…' : on}”` : 'the page'}${closed ? ' (closed)' : ''}`,
+        [c, ...replies].map(e => item(`${who(e)}, ${when(e)}`, String(e.data.text ?? ''))).join('\n'),
+      ].join('\n\n')
+    }),
+  ].join('\n\n')
 }

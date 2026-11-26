@@ -25,6 +25,7 @@ import {
 import { BUILTIN_COMMANDS, createConfigLoader, pluginDir } from '../src/loader.ts'
 import { pluginCommands, parseCommandArgs, usage, pluginCommandHelp, asksHelp } from '../src/plugins.ts'
 import { commandHelp, commandList } from '../src/help.ts'
+import { archived, archiveFile } from '../src/archive.ts'
 import { projectToken } from '../src/auth.ts'
 import { PACKAGE_DIR, packagePath } from '../src/package.ts'
 import { recordedSharedPort, runningServer, sharedServer } from '../src/running.ts'
@@ -517,19 +518,27 @@ switch (cmd) {
     console.log(`${base}/${pageId(project, positionals[0] ?? '')}`)
     break
   }
-  case 'close': {
-    // a page that has done its job: its file goes, and its events leave the log (answers, chats,
-    // comments, what was read, received and handled), so neither the page nor its history lingers
+  case 'archive':
+  case 'destroy': {
+    // a page that has done its job: its file leaves the pages, and its events leave the log (answers,
+    // chats, comments, what was read, received and handled), so it lingers neither as a page nor in
+    // the log. Archived, the file is kept in .whiteboard/archive/ with what was answered on it
+    // written in (src/archive.ts); destroyed, nothing is kept
     const target = positionals[0]
-    if (!target) throw new Error('usage: whiteboard close <page|file>')
+    if (!target) throw new Error(`usage: whiteboard ${cmd} <page|file>`)
     const proj = needProject()
     const id = pageId(proj, target)
     if (id.startsWith('-/'))
       throw new Error(
-        `${target} is a file of the repository, not a page: close is for the pages in ${relFile(proj.pagesDir)}`,
+        `${target} is a file of the repository, not a page: ${cmd} is for the pages in ${relFile(proj.pagesDir)}`,
       )
     const file = path.join(proj.pagesDir, `${id}.md`)
     const exists = fs.existsSync(file)
+    const events = readEvents(proj.eventsFile).filter(e => e.page === id)
+    if (!exists && !events.length) {
+      console.error(`whiteboard: there is no page ${id}, nor events of it`)
+      process.exit(1)
+    }
     // an agent still waiting on it would wait on nothing
     const base = await running(proj)
     if (base) {
@@ -545,14 +554,19 @@ switch (cmd) {
         /* the server is going: nothing to say */
       }
     }
+    let kept = ''
+    if (cmd === 'archive') {
+      const to = archiveFile(proj.wb, id)
+      const source = exists ? fs.readFileSync(file, 'utf8') : ''
+      const plugins = (await projectConfig(proj)).plugins
+      fs.mkdirSync(path.dirname(to), { recursive: true })
+      fs.writeFileSync(to, await archived({ page: id, source, events, plugins }))
+      kept = `, kept with its answers in ${relFile(to)}`
+    }
     if (exists) fs.rmSync(file)
     const removed = prune(proj.eventsFile, id)
-    if (!exists && !removed) {
-      console.error(`whiteboard: there is no page ${id}, nor events of it`)
-      process.exit(1)
-    }
     console.log(
-      `closed ${id}: ${exists ? 'removed its file' : 'it had no file'}, and ${removed} event${removed === 1 ? '' : 's'} from the log`,
+      `${cmd === 'archive' ? 'archived' : 'destroyed'} ${id}: ${exists ? 'removed its file' : 'it had no file'}${kept}, and ${removed} event${removed === 1 ? '' : 's'} from the log`,
     )
     break
   }

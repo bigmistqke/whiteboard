@@ -47,7 +47,8 @@ export const BUILTIN_COMMANDS = new Set([
   'handled',
   'status',
   'scroll',
-  'close',
+  'archive',
+  'destroy',
   'prune',
   'build',
   'edit',
@@ -57,7 +58,7 @@ export const BUILTIN_COMMANDS = new Set([
 ])
 // folders in .whiteboard/ that are the core's or meant for the project's own plugins (a plugin's own
 // folder holds its data, ignored by git), and the built-in commands
-const RESERVED = new Set(['pages', 'plugins', ...BUILTIN_COMMANDS])
+const RESERVED = new Set(['pages', 'plugins', 'archive', ...BUILTIN_COMMANDS])
 
 /** A plugin's own folder, `.whiteboard/<name>/`, made with a .gitignore that ignores all of it. */
 export function pluginDir(wb: string, name: string): string {

@@ -119,6 +119,12 @@ export interface Plugin {
    */
   docs?(): string | Promise<string>
   /**
+   * How its events on a page read once the page is archived (`whiteboard archive`), which keeps the
+   * page as a markdown file with what was answered on it: given all of the page's events, in the
+   * order they came, markdown for its own (a section from `##`), or nothing when none are its own.
+   */
+  archive?(events: WbEvent[]): string | undefined | Promise<string | undefined>
+  /**
    * The agent session the command line runs in, for a plugin that knows how its agent says so
    * (Claude Code's reads `CLAUDE_CODE_SESSION_ID`); null when it doesn't run in one. `whiteboard
    * new` claims the page it makes for this session, and `whiteboard status` marks the session's

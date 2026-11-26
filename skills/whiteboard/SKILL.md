@@ -39,12 +39,15 @@ them all.
    by the user's shared server and that isn't running, `show` says so and
    starts nothing: tell the user, don't try to start it yourself (it is started outside your sandbox). Should a command say it `cannot read` whiteboard's config, your sandbox lacks a grant for it: tell the user, rather than working around it. A `wait` meanwhile still works: it waits
    for the server, and answers in the log reach it either way.
-5. A page that was only for the moment (one question, a check, a demo):
-   once it has done its job and you've acted on its answers, close it with
-   `whiteboard close <file>`. That removes the page and its events (answers,
-   chats, comments) from the log, so it doesn't linger in the overview or in
-   `whiteboard status`. Keep pages the user may come back to (plans, reviews,
-   decisions); close only your own, and ask when unsure.
+5. A page that has done its job, once you've acted on its answers:
+   `whiteboard archive <file>`. It leaves the pages and its events leave the
+   log, so it doesn't linger in the overview or in `whiteboard status`, but
+   it is kept in `.whiteboard/archive/` as markdown with what was answered on
+   it (each form's answers, the chats, the comments). A throwaway page (a
+   check, a demo, nothing answered worth keeping): `whiteboard destroy
+   <file>`, which keeps nothing. Keep pages the user may come back to
+   (plans, reviews, decisions); archive or destroy only your own, and ask
+   when unsure.
 
 Never edit `.whiteboard/events.ndjson` yourself: an answer arriving while you
 write it is lost, and running waits stumble over it. To change what you wrote

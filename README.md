@@ -415,7 +415,8 @@ commands answer it too.
 | `whiteboard new <name>` | create a page under a name no other page has (`name`, else `name-2`, …), print its path |
 | `whiteboard show <page\|file>` | start the project's server if needed (never the shared one), print the page's URL |
 | `whiteboard url <page\|file>` | print the page's URL, when the server runs |
-| `whiteboard close <page>` | a page that did its job: remove its file, and all its events from the log |
+| `whiteboard archive <page>` | a page that did its job: it leaves the pages and its events the log, kept in `.whiteboard/archive/` as markdown with what was answered on it |
+| `whiteboard destroy <page>` | a throwaway page: remove its file, and all its events from the log |
 | `whiteboard prune <page> [--type <t>] [--id <id>]` | remove a page's events from the log (all, one type, or one), keep the page |
 | `whiteboard edit <event id> --data <json>` | change an agent's own event in place: merged into its data, its id kept |
 | `whiteboard scroll <page\|file> <where>` | scroll the tabs that have the page open to a heading's text, a form's name or any text on it; exits 1 when nothing matches or no tab has it open |

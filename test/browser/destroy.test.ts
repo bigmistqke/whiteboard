@@ -1,5 +1,6 @@
-// `whiteboard close`: a page that did its job goes, with its events; nothing else does, and a watch
-// running across it hands nothing out twice.
+// `whiteboard destroy` and `archive`: a page that did its job goes, with its events; nothing else
+// does, and a watch running across it hands nothing out twice. Archived, it is kept as markdown with
+// what was answered on it.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -8,7 +9,7 @@ import { browser, project, until } from './project.ts'
 const FORM = (name: string) => `:::form{name=${name}}\n:text[Why]{name=why}\n:::\n`
 
 test(
-  'close: the page and its events go, other pages keep theirs, the tab says so, a watch goes on',
+  'destroy: the page and its events go, other pages keep theirs, the tab says so, a watch goes on',
   { timeout: 60000 },
   async t => {
     const proj = await project({
@@ -46,8 +47,8 @@ test(
     )
     assert.ok(proj.events().some(e => e.page === 'temp'))
 
-    const out = proj.cli('close', 'temp')
-    assert.match(out, /closed temp: removed its file, and \d+ events from the log/)
+    const out = proj.cli('destroy', 'temp')
+    assert.match(out, /destroyed temp: removed its file, and \d+ events from the log/)
     assert.ok(!fs.existsSync(`${proj.dir}/.whiteboard/pages/temp.md`), 'the file is gone')
     assert.deepEqual(
       proj.events().filter(e => e.page === 'temp'),
@@ -76,7 +77,7 @@ test(
     assert.match(
       (() => {
         try {
-          proj.cli('close', 'temp')
+          proj.cli('destroy', 'temp')
           return ''
         } catch (err) {
           return String((err as { stderr?: string }).stderr)
@@ -91,3 +92,49 @@ test(
     )
   },
 )
+
+test('archive: the page leaves, kept as markdown with its answers, chats and comments', { timeout: 60000 }, async t => {
+  const proj = await project({ pages: { done: `# Done\n\n${FORM('quick')}` } })
+  t.after(() => proj.close())
+  const log = (e: object) =>
+    fs.appendFileSync(
+      `${proj.dir}/.whiteboard/events.ndjson`,
+      JSON.stringify({ ts: '2026-11-26T10:14:00.000Z', page: 'done', action: null, ...e }) + '\n',
+    )
+  log({ id: 'a1', type: 'quick', action: 'Send', data: { why: 'because it ships' } })
+  log({ id: 'c1', type: 'chat:message', data: { chat: 'quick', text: 'Why now?' } })
+  log({ id: 'c2', type: 'chat:message', from: 'cli', data: { chat: 'quick', text: 'First draft' } })
+  log({
+    id: 'c3',
+    type: 'chat:message',
+    from: 'cli',
+    data: { chat: 'quick', text: 'Because of\nthe release.', replaces: 'c2' },
+  })
+  log({ id: 'k1', type: 'comments:new', data: { quote: 'Done', text: 'Is it?' } })
+  log({ id: 'k2', type: 'comments:reply', from: 'cli', data: { replyTo: 'k1', text: 'Yes.' } })
+  log({ id: 'k3', type: 'comments:resolve', data: { replyTo: 'k1' } })
+
+  const out = proj.cli('archive', 'done')
+  const kept = /kept with its answers in (\S+),/.exec(out)?.[1]
+  assert.ok(kept, out)
+  assert.match(kept, /\.whiteboard\/archive\/done-\d{4}-\d\d-\d\d\.md$/)
+  assert.ok(!fs.existsSync(`${proj.dir}/.whiteboard/pages/done.md`), 'it left the pages')
+  assert.deepEqual(
+    proj.events().filter(e => e.page === 'done'),
+    [],
+    'and its events the log',
+  )
+  const md = fs.readFileSync(`${proj.dir}/${kept}`, 'utf8')
+  assert.ok(md.startsWith(`# Done\n\n${FORM('quick')}`), 'the page as it was')
+  for (const part of [
+    '## Answers\n\n### quick\n\n- 2026-11-26 10:14: why: because it ships',
+    '## Chats\n\n### quick\n\n- you, 2026-11-26 10:14\n\n  Why now?\n- agent, 2026-11-26 10:14\n\n  Because of\n  the release.',
+    '## Comments\n\n### On “Done” (closed)\n\n- you, 2026-11-26 10:14\n\n  Is it?\n- agent, 2026-11-26 10:14\n\n  Yes.',
+  ])
+    assert.ok(md.includes(part), `${part}\n\nnot in:\n\n${md}`)
+  assert.ok(!md.includes('First draft'), 'a corrected message in its correction')
+  // another the same day goes beside it
+  proj.page('done', '# Done again\n')
+  const again = /kept with its answers in (\S+),/.exec(proj.cli('archive', 'done'))?.[1]
+  assert.match(again ?? '', /done-\d{4}-\d\d-\d\d-2\.md$/)
+})

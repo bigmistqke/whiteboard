@@ -6,10 +6,11 @@
 // a form's chat is talk about the question, never a choice.
 import fs from 'node:fs'
 import { prune } from '@bigmistqke/whiteboard/log'
-import { definePlugin, type Plugin } from '@bigmistqke/whiteboard'
+import { definePlugin, type Plugin, type WbEvent } from '@bigmistqke/whiteboard'
 import { html, raw, type Block, type DirectiveContext } from '@bigmistqke/whiteboard'
 import { builtinPublic } from '../../src/package.ts'
 import { isQuestionName } from '../../src/status.ts'
+import { item, when } from '../../src/archive.ts'
 
 const style = 'style.css'
 
@@ -86,5 +87,38 @@ export default function chatPlugin(): Plugin {
       },
     },
     docs: () => fs.readFileSync(new URL('./README.md', import.meta.url), 'utf8'),
+    archive: archiveChats,
   })
+}
+
+/** An archived page's chats: each one's messages as the page showed them, a correction in its place. */
+function archiveChats(events: WbEvent[]) {
+  const messages = events.filter(e => e.type === 'chat:message')
+  const replaced = new Set(
+    messages
+      .map(e => e.data.replaces)
+      .filter(Boolean)
+      .map(String),
+  )
+  const byChat = new Map<string, WbEvent[]>()
+  for (const e of messages) {
+    if (replaced.has(e.id)) continue
+    const chat = String(e.data.chat ?? '')
+    byChat.set(chat, [...(byChat.get(chat) ?? []), e])
+  }
+  if (!byChat.size) return
+  return [
+    '## Chats',
+    ...[...byChat].map(
+      ([chat, list]) =>
+        `### ${chat}\n\n${list
+          .map(e =>
+            item(
+              `${e.from === 'cli' ? 'agent' : 'you'}, ${when(e)}${e.data.answer ? ' (an answer to give the form)' : ''}`,
+              String(e.data.text ?? ''),
+            ),
+          )
+          .join('\n')}`,
+    ),
+  ].join('\n\n')
 }

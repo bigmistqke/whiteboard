@@ -248,7 +248,7 @@ export function rewrite(
   throw new Error('the log kept changing while it was being rewritten; try again')
 }
 
-/** Remove a page's events from the log (`whiteboard close`, `whiteboard prune`): those of exactly
+/** Remove a page's events from the log (`whiteboard archive` and `destroy`, `whiteboard prune`): those of exactly
  *  that page, and of them only those `which` says (all by default). Returns how many. */
 export function prune(file: string, page: string, which: (event: WbEvent) => boolean = () => true): number {
   return rewrite(file, e => (e.page === page && which(e) ? null : e)).removed

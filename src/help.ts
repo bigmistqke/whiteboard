@@ -41,9 +41,16 @@ the page was, when it was another session's.`,
       "Any file of the project renders too (README.md). Under a shared server that isn't running, says so and starts nothing.",
   },
   url: { usage: '<page|file>', summary: "print the page's URL (as show)" },
-  close: {
+  archive: {
     usage: '<page|file>',
-    summary: 'a page that did its job: remove its file, and its events from the log',
+    summary:
+      'a page that did its job: it leaves the pages and its events the log, kept as markdown with what was answered on it',
+    details:
+      "The file goes to .whiteboard/archive/<page>-<date>.md: the page, then each form's answers with when they came, its chats, its comments. It reads without a server, and moves with the project's folder.",
+  },
+  destroy: {
+    usage: '<page|file>',
+    summary: 'a throwaway page: remove its file, and its events from the log; nothing is kept',
   },
   prune: {
     usage: '<page|file> [--type <type>] [--id <event id>]',

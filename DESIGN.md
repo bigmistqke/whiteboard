@@ -599,9 +599,12 @@ it. `whiteboard wait` and `watch` filter by page and type, and hand out each
 event once (see Projects): `watch` is `wait` that never exits.
 
 The log only grows, with three exceptions, all through one rewrite
-(`rewrite` in `src/events.ts`): `whiteboard close <page>` removes a page
-that did its job, its file and its events, so a one-off question doesn't
-linger in the overview, the status or the log; `whiteboard prune <page>`
+(`rewrite` in `src/events.ts`): `whiteboard archive <page>` and `destroy`
+remove a page that did its job, its file and its events, so it doesn't
+linger in the overview, the status or the log (archived, its file is kept
+in `.whiteboard/archive/` with what was answered on it written in, by the
+core for forms and by each plugin's `archive` for its own events, so the
+answers outlive the page: they had been lost with it); `whiteboard prune <page>`
 removes its events (all, one type or one) and keeps the page; and
 `whiteboard edit <id>` changes an agent's own event in place, its id kept so
 what refers to it still does. What the reader sent is never edited: it
@@ -610,7 +613,7 @@ loses an answer that arrives meanwhile. The log is written anew and put in place
 if an event was appended meanwhile, it starts over, so none is lost. A
 `follow` running across it (a wait, a watch) sees the log replaced or
 shorter, reads it again and goes on after the last event it passed on, so
-it hands nothing out twice. A tab on a closed page reloads to the "Not
+it hands nothing out twice. A tab on a page archived or destroyed reloads to the "Not
 found" page, which becomes the page again if it is written back.
 
 Events the command line appends (`whiteboard append`, an agent's reply,
