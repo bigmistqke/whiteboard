@@ -7,7 +7,8 @@
 //
 // `whiteboard claude-code install` adds the hooks to the project's .claude/settings.json and the
 // channel to its .mcp.json (`install hooks` or `install channel` only one), and `uninstall` takes
-// them out again. Each hook runs `whiteboard claude-code hook <stop|prompt|session>`, and none of
+// them out again. `install record` installs, instead of the hooks, one silent SessionStart hook that
+// only tells the channel which session it is on (see session.ts). Each hook runs `whiteboard claude-code hook <stop|prompt|session>`, and none of
 // them ever blocks but once:
 // - stop (a turn ends): when the session's pages have questions nobody listens for, the agent's turn
 //   goes on once, told to start its wait (it forgot); a turn a hook already continued ends, and the
@@ -15,7 +16,9 @@
 // - prompt (the reader sends a message): the agent gets, as context, the answers on its pages that
 //   no agent received yet, which count as received from then on;
 // - session (a session starts): the same, plus what is open on other sessions' pages, without
-//   handing it over.
+//   handing it over;
+// - record (a session starts, installed alone): nothing but what every hook does first, record the
+//   session for the channel.
 //
 // Claude Code gives each conversation an id, in the environment of the commands it runs
 // (`CLAUDE_CODE_SESSION_ID`) and on the standard input of a hook (`session_id`). That id is the
@@ -31,7 +34,7 @@ import { recordSession } from './session.ts'
 /** What is open on a page, in short phrases; the command that picks it up comes last, once. */
 const openOn = (p: PageStatus, options?: { waiting?: boolean }) => statusLines(p, relFile(p.file), options)
 
-type Mode = 'stop' | 'prompt' | 'session'
+type Mode = 'stop' | 'prompt' | 'session' | 'record'
 
 /** The one wait for these pages: a --page each. */
 const waitOn = (pages: PageStatus[]) => `whiteboard wait ${pages.map(p => `--page ${relFile(p.file)}`).join(' ')}`
@@ -41,7 +44,15 @@ interface Settings {
   hooks?: Record<string, { hooks?: { type?: string; command?: string }[] }[]>
 }
 
-const MODES: Record<Mode, string> = { stop: 'Stop', prompt: 'UserPromptSubmit', session: 'SessionStart' }
+const MODES: Record<Mode, string> = {
+  stop: 'Stop',
+  prompt: 'UserPromptSubmit',
+  session: 'SessionStart',
+  record: 'SessionStart',
+}
+
+/** The hooks each install puts in: all that report, or only the one that records the session. */
+const SETS = { hooks: ['stop', 'prompt', 'session'], record: ['record'] } satisfies Record<string, Mode[]>
 
 /** A hook command this plugin installs, also one that runs whiteboard another way (`node …/whiteboard.ts`). */
 const OURS = /\bwhiteboard(\.ts"?)? claude-code hook\b/
@@ -53,8 +64,8 @@ export default function claudeCode(): Plugin {
     commands: {
       hook: {
         description:
-          "what Claude Code runs on an event (stop, prompt or session): report what is open on the session's pages; a stop with questions nobody listens for continues the turn once, to start a wait",
-        args: '<stop|prompt|session>',
+          "what Claude Code runs on an event (stop, prompt or session): report what is open on the session's pages; a stop with questions nobody listens for continues the turn once, to start a wait; record: only tell the channel the session, silently",
+        args: '<stop|prompt|session|record>',
         async run(ctx) {
           const mode = ctx.positionals[0] as Mode
           if (!mode || !(mode in MODES))
@@ -74,20 +85,20 @@ export default function claudeCode(): Plugin {
       },
       install: {
         description:
-          "add the hooks to this project's .claude/settings.json and the channel to its .mcp.json; `hooks` or `channel` for only one",
-        args: '[hooks|channel]',
+          "add the hooks to this project's .claude/settings.json and the channel to its .mcp.json; `hooks` or `channel` for only one; `record` for, instead of the hooks, one silent hook that only tells the channel the session",
+        args: '[hooks|record|channel]',
         run: ctx => {
           for (const part of parts(ctx.positionals, 'install'))
-            (part === 'hooks' ? installHooks : installChannel)(ctx.project.dir)
+            part === 'channel' ? installChannel(ctx.project.dir) : installHooks(ctx.project.dir, SETS[part])
         },
       },
       uninstall: {
         description:
-          "take the hooks and the channel out of this project's settings again, or only `hooks` or `channel`; other hooks, servers and settings stay",
-        args: '[hooks|channel]',
+          "take the hooks and the channel out of this project's settings again, or only `hooks` (also the `record` one) or `channel`; other hooks, servers and settings stay",
+        args: '[hooks|record|channel]',
         run: ctx => {
           for (const part of parts(ctx.positionals, 'uninstall'))
-            (part === 'hooks' ? uninstallHooks : uninstallChannel)(ctx.project.dir)
+            (part === 'channel' ? uninstallChannel : uninstallHooks)(ctx.project.dir)
         },
       },
     },
@@ -110,6 +121,7 @@ async function hook(ctx: CommandContext, mode: Mode) {
   const session = input.session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
   // the channel's environment can hold an id the conversation left (a resume): tell it the current one
   if (input.session_id) recordSession(ctx.dataDir, input.session_id)
+  if (mode === 'record') return
   const pages = await ctx.status()
   const busy = pages.filter(p => p.unreceived.length || p.open.length || p.unhandled.length || p.awaitingReply.length)
   const mine = busy.filter(p => session && p.owner === session)
@@ -225,12 +237,12 @@ function whiteboardCommand(): string[] {
 }
 
 /** What install and uninstall act on: both, or the one named. */
-type Part = 'hooks' | 'channel'
+type Part = 'hooks' | 'record' | 'channel'
 function parts(positionals: string[], command: string): Part[] {
   const named = positionals[0]
   if (!named) return ['hooks', 'channel']
-  if (named === 'hooks' || named === 'channel') return [named]
-  throw new Error(`usage: whiteboard claude-code ${command} [hooks|channel]`)
+  if (named === 'hooks' || named === 'record' || named === 'channel') return [named]
+  throw new Error(`usage: whiteboard claude-code ${command} [hooks|record|channel]`)
 }
 
 /** The hook groups of one event without ours, and without the groups that leaves empty. */
@@ -241,24 +253,38 @@ const withoutOurs = (groups: NonNullable<Settings['hooks']>[string]) =>
 
 const settingsFile = (dir: string) => path.join(dir, '.claude', 'settings.json')
 
-/** Add the hooks to the project's .claude/settings.json, replacing ours that run another command. */
-function installHooks(dir: string) {
+/**
+ * Put these hooks in the project's .claude/settings.json, replacing ours that run another command or
+ * another mode: `install record` after `install hooks` leaves only the one that records, and back.
+ */
+function installHooks(dir: string, modes: Mode[]) {
   const file = settingsFile(dir)
   const settings = readJson<Settings>(file)
   const bin = whiteboardCommand().join(' ')
-  const changed: string[] = []
+  const added: string[] = []
+  const removed: string[] = []
   const hooks = (settings.hooks ??= {})
-  for (const [mode, event] of Object.entries(MODES)) {
-    const command = `${bin} claude-code hook ${mode}`
+  for (const event of new Set(Object.values(MODES))) {
     const groups = hooks[event] ?? []
-    if (groups.some(g => g.hooks?.some(h => h.command === command))) continue
-    // ours that run another command go
-    hooks[event] = [...withoutOurs(groups), { hooks: [{ type: 'command', command }] }]
-    changed.push(event)
+    const mode = modes.find(m => MODES[m] === event)
+    const command = mode && `${bin} claude-code hook ${mode}`
+    const ours = groups.flatMap(g => g.hooks ?? []).filter(h => OURS.test(h.command ?? ''))
+    if (ours.length === (command ? 1 : 0) && (!command || ours[0].command === command)) continue
+    const kept = withoutOurs(groups)
+    if (command) {
+      hooks[event] = [...kept, { hooks: [{ type: 'command', command }] }]
+      added.push(event)
+    } else {
+      if (kept.length) hooks[event] = kept
+      else delete hooks[event]
+      removed.push(event)
+    }
   }
-  if (!changed.length) return console.log(`hooks already installed: ${file}`)
+  if (!added.length && !removed.length) return console.log(`hooks already installed: ${file}`)
+  if (!Object.keys(hooks).length) delete settings.hooks
   writeJson(file, settings)
-  console.log(`hooks added to ${file}: ${changed.join(', ')}`)
+  if (added.length) console.log(`hooks added to ${file}: ${added.join(', ')}`)
+  if (removed.length) console.log(`hooks removed from ${file}: ${removed.join(', ')}`)
 }
 
 /**

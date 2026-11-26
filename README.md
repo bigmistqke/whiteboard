@@ -375,6 +375,11 @@ server, registering it once for your user covers them all:
 Problems (a page another wait holds, say) are written to
 `.whiteboard/claude-code/channel.log`.
 
+The channel learns which session it serves from the hooks: on a resume,
+Claude Code starts it with an id the conversation then leaves. Without the
+hooks below, `install record` adds one silent SessionStart hook that does
+only that.
+
 ### The hooks
 
 - when a turn ends with something on the session's pages nobody listens for,

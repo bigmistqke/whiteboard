@@ -146,8 +146,46 @@ test(
     assert.deepEqual(read(mcpFile), servers)
     assert.match(proj.run(['claude-code', 'uninstall']).stdout, /no whiteboard hooks in .*\nno whiteboard channel in/)
     assert.equal(proj.run(['claude-code', 'install', 'everything']).status, 1)
+
+    // record: only the silent SessionStart hook, in place of the others, and back
+    const ourHooks = () =>
+      Object.fromEntries(
+        Object.entries(read(settingsFile).hooks).map(([event, groups]) => [
+          event,
+          (groups as { hooks: { command: string }[] }[])
+            .flatMap(g => g.hooks.map(h => h.command))
+            .filter(c => c.includes('claude-code hook'))
+            .map(c => c.split(' ').at(-1)),
+        ]),
+      )
+    proj.run(['claude-code', 'install'])
+    assert.match(proj.run(['claude-code', 'install', 'record']).stdout, /removed from .*: Stop, UserPromptSubmit/)
+    assert.deepEqual(ourHooks(), { Stop: [], SessionStart: ['record'] }, "the project's own Stop hook stays")
+    assert.match(proj.run(['claude-code', 'install', 'record']).stdout, /already installed/)
+    proj.run(['claude-code', 'install', 'hooks'])
+    assert.deepEqual(ourHooks(), { Stop: ['stop'], SessionStart: ['session'], UserPromptSubmit: ['prompt'] })
+    proj.run(['claude-code', 'uninstall', 'record'])
+    assert.deepEqual(read(settingsFile), own)
   },
 )
+
+test('hook record: records the session for the channel and says nothing', { timeout: 60000 }, async t => {
+  const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
+  const proj = await project({ config: CONFIG })
+  t.after(() => proj.close())
+  const file = proj.run(['new', 'mine'], { env: { CLAUDE_CODE_SESSION_ID: 's1' } }).stdout.trim()
+  fs.writeFileSync(file, '# P\n\n:::form{name=q}\n:radio[Pears]{name=fruit}\n:::\n')
+  const input = JSON.stringify({ session_id: 's1' })
+  assert.notEqual(proj.run(['claude-code', 'hook', 'session'], { input }).stdout, '', 'session reports the open form')
+  const r = proj.run(['claude-code', 'hook', 'record'], { input })
+  assert.equal(r.status, 0)
+  assert.equal(r.stdout + r.stderr, '')
+  const dir = path.join(proj.dir, '.whiteboard', 'claude-code', 'sessions')
+  assert.deepEqual(
+    fs.readdirSync(dir).map(f => fs.readFileSync(path.join(dir, f), 'utf8')),
+    ['s1'],
+  )
+})
 
 test(
   'claim: an existing page made this session’s; again, or by another session, says so',
