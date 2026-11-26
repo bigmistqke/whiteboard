@@ -38,13 +38,30 @@ const DEFAULT_REPLACEMENTS = {
   'github-dark': { '#ffab70': '#5eead4', '#c24e00': '#2dd4bf' },
 }
 
+interface Shared {
+  highlighter: Promise<Highlighter>
+  /** the languages loaded into it */
+  loaded: Set<string>
+}
+
+/**
+ * One highlighter per set of themes for the whole process. The server imports this module afresh
+ * each time the config changes, so what is kept here must outlive the module: a highlighter holds
+ * WebAssembly memory that is never freed, and one per reload ran out of it after a few days.
+ */
+function shared(shiki: typeof Shiki, themes: BundledTheme[]): Shared {
+  const all: Map<string, Shared> = ((globalThis as any)[Symbol.for('whiteboard.code.highlighters')] ??= new Map())
+  const key = themes.join('\0')
+  let one = all.get(key)
+  if (!one) all.set(key, (one = { highlighter: shiki.createHighlighter({ themes, langs: [] }), loaded: new Set() }))
+  return one
+}
+
 export default function code(options: Options = {}): Plugin {
   const themes = options.themes ?? DEFAULT_THEMES
   const colorReplacements = options.colorReplacements ?? (options.themes ? {} : DEFAULT_REPLACEMENTS)
-  let highlighter: Promise<Highlighter> | undefined
   // loaded the first time a page has code, not with the plugin: the command line loads plugins too
   let shiki: typeof Shiki | undefined
-  const loaded = new Set<string>()
 
   /**
    * Highlight `code` as `lang`; an unknown or missing language renders as plain text. A long line
@@ -52,7 +69,7 @@ export default function code(options: Options = {}): Plugin {
    */
   async function highlight(code: string, lang: string | null, wrap = false) {
     shiki ??= await import('shiki')
-    highlighter ??= shiki.createHighlighter({ themes: Object.values(themes), langs: [] })
+    const { highlighter, loaded } = shared(shiki, Object.values(themes))
     const h = await highlighter
     let language = String(lang ?? '').toLowerCase()
     if (language in shiki.bundledLanguages) {
