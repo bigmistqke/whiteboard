@@ -114,3 +114,13 @@
 .wb-chat-block > :is(p, ul, ol) {
   margin: 0;
 }
+/* under an agent's message marked as an answer: gives the form that answer */
+.wb-chat-answer {
+  margin: 0 var(--space-xs);
+}
+.wb-chat-answer:disabled {
+  color: var(--accent);
+  border-color: transparent;
+  background: none;
+  cursor: default;
+}

@@ -1,6 +1,8 @@
 // A chat (rendered by the chat block, on its own or under a form): the reader writes, the agent
 // answers (`whiteboard append --type chat:message --data '{"chat":"<name>","text":"…"}'`). A message
-// is a `chat:message` event, never an answer, so talking about a form's choice never makes it.
+// is a `chat:message` event, never an answer, so talking about a form's choice never makes it. But
+// under a form, an agent's message marked `answer` has a button that answers the form with its
+// text, for an answer the two settled on in the chat that is none of the form's options.
 import { createMemo, For, Loading } from 'solid-js'
 import { solid, useWhiteboard } from '@bigmistqke/whiteboard/solid'
 import type { ChatProps } from './index'
@@ -16,7 +18,12 @@ interface Message {
   text: string
   /** shown at once, but the server hasn't confirmed it yet */
   sending?: boolean
+  /** the agent's, marked as an answer the reader can give the form with */
+  answer?: boolean
 }
+
+/** The key of a form's answer that names the message it came from (a colon: never a field's name). */
+const FROM_MESSAGE = 'chat:message'
 
 /**
  * What the reader wrote in a submit of a form: every text in it that is not one of the form's
@@ -56,10 +63,25 @@ function Chat(props: ChatProps) {
         from: e.from === 'cli' ? 'agent' : 'you',
         text: String(e.data.text ?? ''),
         sending: !!e.sending,
+        answer: !!props.form && e.from === 'cli' && e.data.answer === true,
       })
     }
     return out
   })
+  // the message the form's latest answer came from, if it came from one
+  const answeredWith = createMemo(() => {
+    const last = props.form ? wb.events().findLast(e => e.type === props.form) : undefined
+    return last ? String(last.data[FROM_MESSAGE] ?? '') : ''
+  })
+  /** Answer the form with a message's text, as a submit of it would. */
+  const answerWith = async (m: Message) => {
+    try {
+      await wb.append(props.form!, { answer: m.text, [FROM_MESSAGE]: m.id })
+    } catch (err) {
+      console.error(err)
+      wb.toast("Couldn't send the answer", { kind: 'alert', name: 'chat-answer-failed', details: 'Press it again.' })
+    }
+  }
   let box: HTMLTextAreaElement | undefined
   const post = async () => {
     const text = box?.value.trim()
@@ -103,6 +125,16 @@ function Chat(props: ChatProps) {
           >
             <span class="wb-chat-who">{m().from}</span>
             <Bubble text={m().text} />
+            {m().answer && (
+              <button
+                type="button"
+                class="wb-chat-answer"
+                disabled={answeredWith() === m().id}
+                onClick={() => answerWith(m())}
+              >
+                {answeredWith() === m().id ? '✓ The answer' : 'Answer with this'}
+              </button>
+            )}
           </div>
         )}
       </For>

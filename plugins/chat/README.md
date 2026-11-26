@@ -19,19 +19,30 @@ What the block says above the chat is ordinary markdown, and optional:
 name, other than the page's forms' names: a form's chat has the form's name.
 
 A message is a `chat:message` event, `{ "chat": "<name>", "text": "…" }`,
-never an answer: under a form it never makes a choice. Answer in the same chat:
+never an answer: under a form it never makes a choice (only the reader can,
+with a message of yours marked `answer`, below). Answer in the same chat:
 
 ```sh
 whiteboard append --page <file> --type chat:message --data '{"chat":"<name>","text":"your answer"}'
 ```
 
-Two more fields, both optional:
+Three more fields, all optional:
 
 - `replaces`: the id of an earlier message of yours. Yours takes its place,
   to correct it; the log itself only grows.
 - `replyTo` (in a form's chat): the id of a submit of the form whose written
   text you answer (a remark typed into one of its text fields). That text
   shows as the reader's message, right before yours.
+- `answer: true` (in a form's chat): your message is an answer the reader
+  can give the form, for one you settled on in the chat that is none of its
+  options. It gets an "Answer with this" button. Pressing it answers the
+  form as a submit would, with an event of the form's type whose data is
+  `{ "answer": "<your text>", "chat:message": "<your message's id>" }`, and
+  the form folds with that text as its answer.
+
+```sh
+whiteboard append --page <file> --type chat:message --data '{"chat":"<form name>","text":"Ship on Monday, after the migration","answer":true}'
+```
 
 Your messages show as the agent's, and `wait` and `watch` skip what you
 append. A wait on the whole page (no `--type`) hands out chat messages too;

@@ -298,8 +298,9 @@ export function answerParts(
 ): { action: string | null; chosen: string[]; written: string[] } {
   const chosen: string[] = [],
     written: string[] = []
-  for (const v of Object.values(data)) {
-    if (v == null || v === '' || v === false) continue
+  // a key with a colon is no field's: it says where the answer came from (a chat's message), not what
+  for (const [k, v] of Object.entries(data)) {
+    if (k.includes(':') || v == null || v === '' || v === false) continue
     if (Array.isArray(v)) {
       if (v.length) chosen.push(v.join(', '))
     } else if (v === true) continue
