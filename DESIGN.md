@@ -782,7 +782,10 @@ agent forgetting a wait is caught from outside it:
   Claude Code plugin also pushes: `whiteboard claude-code channel` is an MCP
   server Claude Code starts with each session (`plugins/claude-code/
   channel.ts`), declaring Claude Code's `claude/channel` capability. It
-  follows the pages the session claimed, each with a listener at the server
+  follows the pages the session claimed (which session: the one the hooks
+  last recorded for their claude process, read every round, since on a
+  resume the server starts with a provisional `CLAUDE_CODE_SESSION_ID`
+  that it keeps), each with a listener at the server
   (`ctx.listen`, as a watch holds one), and sends each answer as a
   `notifications/claude/channel` message: one line in words (what was chosen
   or written), the page, id and type as attributes. It marks nothing when it

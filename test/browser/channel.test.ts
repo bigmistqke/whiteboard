@@ -60,8 +60,9 @@ test(
 
     answer(proj.dir, 'theirs', 'b1')
     answer(proj.dir, 'mine', 'a1')
-    const note = await until('the answer pushed', () =>
-      ch.sent().find(m => m.method === 'notifications/claude/channel' && m.params.meta.id === 'a1') ?? null,
+    const note = await until(
+      'the answer pushed',
+      () => ch.sent().find(m => m.method === 'notifications/claude/channel' && m.params.meta.id === 'a1') ?? null,
     )
     assert.equal(note.params.content, 'form q: "Pears"')
     assert.deepEqual(note.params.meta, { page: 'mine', id: 'a1', type: 'q' })
@@ -79,6 +80,28 @@ test(
     const reply = await until('the tool answers', () => ch.sent().find(m => m.id === 3) ?? null)
     assert.equal(reply.result.content[0].text, 'a1: received')
     assert.ok(received(), 'the agent said it has it')
+  },
+)
+
+test(
+  'the channel follows the session a hook names, not the provisional one it started with (a resume)',
+  { timeout: 60000 },
+  async t => {
+    const proj = await project({ config: CONFIG })
+    t.after(() => proj.close())
+    pageOf(proj, 'resumed', 'mine')
+    await channel(proj, 'provisional')
+    await new Promise(r => setTimeout(r, 1000))
+    assert.equal((await listeners(proj, 'mine')).length, 0, 'the provisional id has no pages')
+    proj.run(['claude-code', 'hook', 'prompt'], {
+      input: JSON.stringify({ session_id: 'resumed' }),
+      env: { CLAUDE_CODE_SESSION_ID: 'provisional' },
+    })
+    await until('it listens on the resumed session’s page', async () =>
+      (await listeners(proj, 'mine')).length === 1 ? true : null,
+    )
+    const log = fs.readFileSync(path.join(proj.dir, '.whiteboard', 'claude-code', 'channel.log'), 'utf8')
+    assert.match(log, /following another session than at start.*"now":"resumed"/)
   },
 )
 

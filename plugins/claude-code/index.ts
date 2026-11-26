@@ -26,6 +26,7 @@ import { spawnSync } from 'node:child_process'
 import type { CommandContext, PageStatus, Plugin, WbEvent } from '../../src/define.ts'
 import { statusLines, whose } from '../../src/status.ts'
 import { channel } from './channel.ts'
+import { recordSession } from './session.ts'
 
 /** What is open on a page, in short phrases; the command that picks it up comes last, once. */
 const openOn = (p: PageStatus, options?: { waiting?: boolean }) => statusLines(p, relFile(p.file), options)
@@ -107,6 +108,8 @@ const relFile = (file: string) => path.relative(process.cwd(), file) || file
 async function hook(ctx: CommandContext, mode: Mode) {
   const input = hookInput()
   const session = input.session_id ?? process.env.CLAUDE_CODE_SESSION_ID ?? null
+  // the channel's environment can hold an id the conversation left (a resume): tell it the current one
+  if (input.session_id) recordSession(ctx.dataDir, input.session_id)
   const pages = await ctx.status()
   const busy = pages.filter(p => p.unreceived.length || p.open.length || p.unhandled.length || p.awaitingReply.length)
   const mine = busy.filter(p => session && p.owner === session)

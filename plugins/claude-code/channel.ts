@@ -8,7 +8,8 @@
 // and the server registered in `.mcp.json` (`whiteboard claude-code install`) or for the user
 // (`claude mcp add --scope user whiteboard -- whiteboard claude-code channel`).
 //
-// The session is `CLAUDE_CODE_SESSION_ID`; its pages are those it claimed with `whiteboard new`,
+// The session is the one the hooks last recorded for this claude process (session.ts), else
+// `CLAUDE_CODE_SESSION_ID`, read again every round: a resume switches it after start. Its pages are those it claimed with `whiteboard new`,
 // also later ones. For each, the channel holds a listener at the server, as a `watch` does, and
 // hands out the reader's answers there without marking them: Claude Code doesn't tell a server
 // whether it loaded it as a channel, so a send proves nothing. The agent marks an answer received
@@ -20,6 +21,7 @@ import path from 'node:path'
 import readline from 'node:readline'
 import type { CommandContext, WbEvent } from '../../src/define.ts'
 import { read, receive, receivedIds } from '../../src/events.ts'
+import { claudeProcess, recordedSession } from './session.ts'
 
 const INSTRUCTIONS = [
   'Messages from whiteboard arrive as <channel source="whiteboard" page="…" id="…">: the reader answered on one of your whiteboard pages (a form, a chat message, a comment).',
@@ -62,8 +64,19 @@ export async function channel(ctx: CommandContext) {
   }
   const send = (msg: object) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...msg }) + '\n')
 
-  const session = process.env.CLAUDE_CODE_SESSION_ID || null
-  if (!session) problem('no CLAUDE_CODE_SESSION_ID: no pages to follow')
+  const claude = claudeProcess()
+  const started = process.env.CLAUDE_CODE_SESSION_ID || null
+  let session: string | null = null
+  /** The conversation now, and a line in the log when it changed after start (a resume). */
+  const current = () => {
+    const now = recordedSession(ctx.dataDir, claude) ?? started
+    if (now !== session) {
+      if (!now) problem('no CLAUDE_CODE_SESSION_ID: no pages to follow')
+      else if (now !== started || session) problem('following another session than at start', { started, now })
+      session = now
+    }
+    return session
+  }
 
   // what came before Claude Code said it is ready waits for it
   let ready = false
@@ -84,6 +97,7 @@ export async function channel(ctx: CommandContext) {
   const followed = new Set<string>()
   const refused = new Set<string>()
   const follow = async () => {
+    const session = current()
     const pages = session ? (await ctx.status()).filter(p => p.owner === session).map(p => p.page) : []
     for (const page of pages) {
       if (followed.has(page)) continue
