@@ -757,12 +757,13 @@ agent forgetting a wait is caught from outside it:
   is the reader's, its listeners and its claim. Across pages it is the
   agent's inbox. What waits for the
   reader on a page (`awaiting`) is its open questions and unread messages.
-- **Hooks.** Reporting the status to an agent is a plugin, since how is
+- **Reminders.** Reporting the status to an agent is a plugin, since how is
   particular to each agent, and the core has no agent-specific code. The
   Claude Code plugin (`plugins/claude-code/`) names the session from
   `CLAUDE_CODE_SESSION_ID`, and adds `whiteboard claude-code hook
   stop|prompt|session`, which Claude Code runs (`whiteboard claude-code
-  install` adds them). `stop`: when a turn ends with questions on the
+  install reminders` adds them; the name says what they are for, the other
+  way than the channel to get answers to the agent). `stop`: when a turn ends with questions on the
   session's pages nobody listens for (or answers no agent received), the
   turn goes on once, with that as the reason, so the agent starts its wait;
   a turn a hook already continued (`stop_hook_active`) ends, and the reader
@@ -782,8 +783,9 @@ agent forgetting a wait is caught from outside it:
   Claude Code plugin also pushes: `whiteboard claude-code channel` is an MCP
   server Claude Code starts with each session (`plugins/claude-code/
   channel.ts`), declaring Claude Code's `claude/channel` capability. It
-  follows the pages the session claimed (which session: the one the hooks
-  last recorded for their claude process, read every round, since on a
+  follows the pages the session claimed (which session: the one its silent
+  SessionStart hook, `hook channel`, or any other of ours last recorded for
+  their claude process, read every round, since on a
   resume the server starts with a provisional `CLAUDE_CODE_SESSION_ID`
   that it keeps), each with a listener at the server
   (`ctx.listen`, as a watch holds one), and sends each answer as a

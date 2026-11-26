@@ -110,7 +110,7 @@ test('the Stop hook: several pages nobody listens on get one wait for all of the
 })
 
 test(
-  'claude-code install and uninstall: the hooks and the channel, or one of them; nothing else',
+  'claude-code install and uninstall: the channel and the reminders, or one of them; nothing else',
   { timeout: 60000 },
   async t => {
     const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
@@ -119,38 +119,10 @@ test(
     const settingsFile = path.join(proj.dir, '.claude', 'settings.json')
     const mcpFile = path.join(proj.dir, '.mcp.json')
     const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'))
-
-    proj.run(['claude-code', 'install'])
-    assert.deepEqual(Object.keys(read(settingsFile).hooks).sort(), ['SessionStart', 'Stop', 'UserPromptSubmit'])
-    assert.deepEqual(read(mcpFile).mcpServers.whiteboard.args.slice(-2), ['claude-code', 'channel'])
-    assert.match(
-      proj.run(['claude-code', 'uninstall', 'hooks']).stdout,
-      /hooks removed from .*: Stop, UserPromptSubmit, SessionStart/,
-    )
-    assert.equal(fs.existsSync(settingsFile), false, 'nothing else was in it')
-    assert.ok(fs.existsSync(mcpFile), 'the channel stays')
-    assert.match(proj.run(['claude-code', 'uninstall', 'channel']).stdout, /channel removed from/)
-    assert.equal(fs.existsSync(mcpFile), false)
-
-    // with a hook, a setting and a server of the project's own: those stay
-    const own = { model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] } }
-    const servers = { mcpServers: { other: { command: 'other-server' } } }
-    fs.mkdirSync(path.dirname(settingsFile), { recursive: true })
-    fs.writeFileSync(settingsFile, JSON.stringify(own))
-    fs.writeFileSync(mcpFile, JSON.stringify(servers))
-    proj.run(['claude-code', 'install', 'channel'])
-    assert.ok(!read(settingsFile).hooks.SessionStart, 'install channel leaves the hooks alone')
-    proj.run(['claude-code', 'install'])
-    proj.run(['claude-code', 'uninstall'])
-    assert.deepEqual(read(settingsFile), own)
-    assert.deepEqual(read(mcpFile), servers)
-    assert.match(proj.run(['claude-code', 'uninstall']).stdout, /no whiteboard hooks in .*\nno whiteboard channel in/)
-    assert.equal(proj.run(['claude-code', 'install', 'everything']).status, 1)
-
-    // record: only the silent SessionStart hook, in place of the others, and back
+    /** Our hooks' modes, per event. */
     const ourHooks = () =>
       Object.fromEntries(
-        Object.entries(read(settingsFile).hooks).map(([event, groups]) => [
+        Object.entries(read(settingsFile).hooks ?? {}).map(([event, groups]) => [
           event,
           (groups as { hooks: { command: string }[] }[])
             .flatMap(g => g.hooks.map(h => h.command))
@@ -158,18 +130,46 @@ test(
             .map(c => c.split(' ').at(-1)),
         ]),
       )
+
     proj.run(['claude-code', 'install'])
-    assert.match(proj.run(['claude-code', 'install', 'record']).stdout, /removed from .*: Stop, UserPromptSubmit/)
-    assert.deepEqual(ourHooks(), { Stop: [], SessionStart: ['record'] }, "the project's own Stop hook stays")
-    assert.match(proj.run(['claude-code', 'install', 'record']).stdout, /already installed/)
-    proj.run(['claude-code', 'install', 'hooks'])
-    assert.deepEqual(ourHooks(), { Stop: ['stop'], SessionStart: ['session'], UserPromptSubmit: ['prompt'] })
-    proj.run(['claude-code', 'uninstall', 'record'])
+    assert.deepEqual(ourHooks(), { SessionStart: ['channel', 'session'], Stop: ['stop'], UserPromptSubmit: ['prompt'] })
+    assert.deepEqual(read(mcpFile).mcpServers.whiteboard.args.slice(-2), ['claude-code', 'channel'])
+    assert.match(
+      proj.run(['claude-code', 'uninstall', 'reminders']).stdout,
+      /reminders hooks removed from .*: SessionStart, Stop, UserPromptSubmit/,
+    )
+    assert.deepEqual(ourHooks(), { SessionStart: ['channel'] }, "the channel's hook stays")
+    assert.match(proj.run(['claude-code', 'uninstall', 'channel']).stdout, /channel removed from/)
+    assert.equal(fs.existsSync(mcpFile), false)
+    assert.equal(fs.existsSync(settingsFile), false, 'nothing else was in it')
+
+    // the channel alone: its server and its one silent hook
+    proj.run(['claude-code', 'install', 'channel'])
+    assert.deepEqual(ourHooks(), { SessionStart: ['channel'] })
+    assert.match(proj.run(['claude-code', 'install', 'channel']).stdout, /channel hooks already installed/)
+    proj.run(['claude-code', 'uninstall'])
+
+    // with a hook, a setting and a server of the project's own: those stay
+    const own = { model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] } }
+    const servers = { mcpServers: { other: { command: 'other-server' } } }
+    fs.mkdirSync(path.dirname(settingsFile), { recursive: true })
+    fs.writeFileSync(settingsFile, JSON.stringify(own))
+    fs.writeFileSync(mcpFile, JSON.stringify(servers))
+    proj.run(['claude-code', 'install', 'reminders'])
+    assert.ok(!read(mcpFile).mcpServers.whiteboard, 'install reminders leaves the servers alone')
+    proj.run(['claude-code', 'install'])
+    proj.run(['claude-code', 'uninstall'])
     assert.deepEqual(read(settingsFile), own)
+    assert.deepEqual(read(mcpFile), servers)
+    assert.match(
+      proj.run(['claude-code', 'uninstall']).stdout,
+      /no whiteboard channel in .*\nno whiteboard channel hooks in .*\nno whiteboard reminders hooks in/,
+    )
+    assert.equal(proj.run(['claude-code', 'install', 'hooks']).status, 1)
   },
 )
 
-test('hook record: records the session for the channel and says nothing', { timeout: 60000 }, async t => {
+test('hook channel: records the session for the channel and says nothing', { timeout: 60000 }, async t => {
   const CONFIG = `import claudeCode from '@bigmistqke/whiteboard/claude-code'\nexport default { plugins: [claudeCode()] }\n`
   const proj = await project({ config: CONFIG })
   t.after(() => proj.close())
@@ -177,7 +177,7 @@ test('hook record: records the session for the channel and says nothing', { time
   fs.writeFileSync(file, '# P\n\n:::form{name=q}\n:radio[Pears]{name=fruit}\n:::\n')
   const input = JSON.stringify({ session_id: 's1' })
   assert.notEqual(proj.run(['claude-code', 'hook', 'session'], { input }).stdout, '', 'session reports the open form')
-  const r = proj.run(['claude-code', 'hook', 'record'], { input })
+  const r = proj.run(['claude-code', 'hook', 'channel'], { input })
   assert.equal(r.status, 0)
   assert.equal(r.stdout + r.stderr, '')
   const dir = path.join(proj.dir, '.whiteboard', 'claude-code', 'sessions')

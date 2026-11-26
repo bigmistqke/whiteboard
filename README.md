@@ -338,11 +338,14 @@ export default defineConfig({
 
 With it, `whiteboard new` claims the page it makes for the Claude Code
 session that ran it, and `whiteboard status` marks that session's pages.
-`whiteboard claude-code install` sets up two things: the channel in the
-project's `.mcp.json`, and three hooks in its `.claude/settings.json`.
-`install channel` or `install hooks` sets up only one, and `uninstall`
-(with the same choice) takes them out again, leaving other servers, hooks
-and settings as they are.
+It gets your answers to the agent in two ways, and `whiteboard claude-code
+install` sets up both: the channel, which pushes them into the session, and
+the reminders, which remind the agent of them as its turns end and with your
+messages. `install channel` or `install reminders` sets up only one, and
+`uninstall` (with the same choice) takes them out again, leaving other
+servers, hooks and settings as they are. What they write runs the project's
+own copy of whiteboard when it depends on one, so the files can be
+committed for everyone who works on it.
 
 ### The channel
 
@@ -375,12 +378,15 @@ server, registering it once for your user covers them all:
 Problems (a page another wait holds, say) are written to
 `.whiteboard/claude-code/channel.log`.
 
-The channel learns which session it serves from the hooks: on a resume,
-Claude Code starts it with an id the conversation then leaves. Without the
-hooks below, `install record` adds one silent SessionStart hook that does
-only that.
+It is two parts: the server in the project's `.mcp.json`, and a silent
+SessionStart hook in its `.claude/settings.json` that tells it which
+session it serves (on a resume, Claude Code starts it with an id the
+conversation then leaves).
 
-### The hooks
+### The reminders
+
+Hooks in the project's `.claude/settings.json`:
+
 
 - when a turn ends with something on the session's pages nobody listens for,
   the turn goes on once, telling the agent to start its wait (agents forget);
@@ -391,7 +397,7 @@ only that.
 - a new session starts with the same, plus what is open on other sessions'
   pages (not handed over: those answers stay for whoever waits on them).
 
-With the channel, the hooks are the safety net: for a session started
+With the channel, the reminders are the safety net: for a session started
 without the flag, or an answer the agent received and then forgot.
 
 ## Commands
