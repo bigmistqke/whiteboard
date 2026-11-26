@@ -51,6 +51,11 @@
       "types": "./plugins/comments/index.ts",
       "default": "./dist/plugins/comments/index.js"
     },
+    "./forge": {
+      "source": "./plugins/forge/index.ts",
+      "types": "./plugins/forge/index.ts",
+      "default": "./dist/plugins/forge/index.js"
+    },
     "./toc": {
       "source": "./plugins/toc/index.ts",
       "types": "./plugins/toc/index.ts",
