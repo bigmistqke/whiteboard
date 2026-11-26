@@ -245,8 +245,8 @@ test("a wait without --page in a project of an entry is the whole entry's fallba
   assert.equal(lines[0].data.x, 'B')
   assert.equal(lines[0].project, b)
   assert.equal(lines[0].url, `http://localhost:${m.port}/rg/jobs/b/plan`)
-  // and it is taken, in b's own log
-  assert.ok(
+  // and it is taken, in b's own log (the watch may print it before it writes the mark)
+  await until("the mark in b's log", () =>
     fs.readFileSync(path.join(b, '.whiteboard', 'events.ndjson'), 'utf8').includes(`"type":"whiteboard:received"`),
   )
 })
