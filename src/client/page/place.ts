@@ -5,6 +5,11 @@
 // without the reader scrolling, the page scrolls by as much. The reader's own scrolling sets the
 // new place. At the very top of the page there is no place to keep: what comes in above shows.
 //
+// What the reader is on comes before the top of the view: the field they type in, or the control
+// they last used (a radio they clicked in the form they answer, which WebKit doesn't focus), while
+// it is in view. Otherwise a form answered above them would be the place, and what changes in it (a
+// reply in its chat, it folding) would move the form they are in.
+//
 // This is the browser's scroll anchoring, done by the page: WebKit has none, and Chromium's loses its
 // anchor when an update replaces elements, so the browser's own is turned off to keep the two from
 // both correcting. A page update replaces the blocks it changed; the place in one is found again in
@@ -26,6 +31,8 @@ interface Place {
 
 let main: HTMLElement
 let place: Place | null = null
+/** The control of the page the reader last clicked or changed. */
+let used: Element | null = null
 
 const typing = (el: Element | null): el is HTMLElement =>
   el instanceof HTMLElement &&
@@ -80,9 +87,23 @@ const placeAt = (el: Element, top = el.getBoundingClientRect().top): Place => ({
   around: aroundOf(el),
 })
 
-function pick() {
+/** In view, below the header: some of it between the top of the view and its bottom. */
+function inView(el: Element) {
+  const r = el.getBoundingClientRect()
+  return r.bottom > viewTop() && r.top < innerHeight
+}
+
+/** What the reader is on: the field they type in, else the control they last used, while in view. */
+function onNow(): Element | null {
   const focused = document.activeElement
-  const el = typing(focused) ? focused : scrollY > 0 ? atTop() : null
+  if (typing(focused)) return focused
+  for (const el of [focused, used])
+    if (el instanceof HTMLElement && el !== document.body && main.contains(el) && shown(el) && inView(el)) return el
+  return null
+}
+
+function pick() {
+  const el = onNow() ?? (scrollY > 0 ? atTop() : null)
   place = el ? placeAt(el) : null
 }
 
@@ -190,8 +211,17 @@ export function trackPlace(root: HTMLElement) {
   // the reader scrolled: the place now. The page's own scrolling, to keep it, is not the reader's:
   // its scroll event comes later, when more can have moved, which is kept as well (see `keep`)
   addEventListener('scroll', keep, { passive: true })
-  // typed somewhere else, or resized: the place now
+  // typed somewhere else, a control used, or resized: the place now
   addEventListener('resize', pick)
+  const use = (e: Event) => {
+    const el = e.target instanceof Element ? e.target.closest('input, button, select, textarea, label, summary') : null
+    if (!el || !main.contains(el)) return
+    // a label stands for its control, unless the control is not drawn (a styled one)
+    used = el instanceof HTMLLabelElement && el.control && shown(el.control) ? el.control : el
+    pick()
+  }
+  document.addEventListener('click', use, true)
+  document.addEventListener('change', use, true)
   document.addEventListener('focusin', pick)
   document.addEventListener('focusout', () => queueMicrotask(pick))
   // anything changed: before it is drawn, the place back where it was, and for a few frames after,

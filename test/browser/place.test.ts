@@ -5,6 +5,8 @@
 // In Chromium and in WebKit (which has no scroll anchoring of its own).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
 import { chromium, webkit, type Page } from 'playwright'
 import { project, until } from './project.ts'
 
@@ -165,6 +167,80 @@ for (const [name, engine] of [
       )
       stayed(await settledTop(page, 'Item 10.'), 300, 'items put in below, in the block being read')
       assert.deepEqual(errors, [])
+    },
+  )
+}
+
+for (const [name, engine] of [
+  ['Chromium', chromium],
+  ['WebKit', webkit],
+] as const) {
+  test(
+    `${name}: the form the reader answers stays where it is while a form above it changes`,
+    { timeout: 60000 },
+    async t => {
+      const proj = await project({
+        pages: {
+          p: `# Forms\n\n${filler(20, 'Intro')}\n\n:::form{name=a}\n:radio[Yes]{name=x} :radio[No]{name=x}\n:::\n\nBetween.\n\n:::form{name=b}\n:radio[Pears]{name=fruit} :radio[Apples]{name=fruit}\n:::\n\n${filler(60, 'End')}\n`,
+        },
+      })
+      const b = await engine.launch()
+      t.after(async () => {
+        await b.close()
+        await proj.close()
+      })
+      const page = await b.newPage({ viewport: { width: 1000, height: 700 } })
+      await page.goto(proj.url('p'))
+      await page.waitForSelector('form[name=b]')
+      /** Where it is, once it stopped moving. */
+      const settled = async (where: () => Promise<number>) => {
+        let last = Math.round(await where())
+        for (let still = 0; still < 6;) {
+          await page.waitForTimeout(100)
+          const now = Math.round(await where())
+          still = now === last ? still + 1 : 0
+          last = now
+        }
+        return last
+      }
+      const top = (form: string) =>
+        page.evaluate(f => document.querySelector(`form[name=${f}]`)!.getBoundingClientRect().top, form)
+      // form a's end near the top of the view, b below it; the reader picks in b
+      await page.evaluate(() =>
+        scrollBy(0, document.querySelector('form[name=a]')!.getBoundingClientRect().bottom - 120),
+      )
+      await page.waitForTimeout(200)
+      await page.getByText('Pears').click()
+      await page.waitForTimeout(200)
+      const before = Math.round(await top('b'))
+
+      // the agent replies in a's chat: a grows, above the reader
+      for (let i = 0; i < 3; i++)
+        proj.cli('append', '--page', 'p', '--type', 'chat:message', '--data', JSON.stringify({ chat: 'a', text: LONG }))
+      await until('the replies, as markdown', () =>
+        page.evaluate(
+          () => document.querySelectorAll('form[name=a] .wb-chat-bubble[data-md] pre').length === 3 || null,
+        ),
+      )
+      stayed(await settled(() => top('b')), before, 'the form answered, with replies in a form above')
+
+      // a's answer, given before, is received and handled: a folds, above the reader
+      fs.appendFileSync(
+        path.join(proj.dir, '.whiteboard', 'events.ndjson'),
+        JSON.stringify({
+          id: 'a1',
+          ts: new Date().toISOString(),
+          page: 'p',
+          type: 'a',
+          action: 'Send',
+          data: { x: 'Yes' },
+        }) + '\n',
+      )
+      const watch = proj.spawn('watch', '--page', 'p')
+      await until('the answer received', () => watch.output().includes('"a1"') || null)
+      await proj.handle('a')
+      await page.waitForSelector('form[name=a][data-wb-folded]')
+      stayed(await settled(() => top('b')), before, 'the form answered, with a form above folding')
     },
   )
 }
